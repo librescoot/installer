@@ -75,8 +75,11 @@ class _HomeScreenState extends State<HomeScreen> {
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Chip(
-                avatar: const Icon(Icons.warning, size: 16),
-                label: const Text('Not elevated'),
+                avatar: const Icon(Icons.warning, size: 16, color: Colors.white),
+                label: const Text(
+                  'Not elevated',
+                  style: TextStyle(color: Colors.white),
+                ),
                 backgroundColor: Colors.orange.shade800,
               ),
             ),
@@ -406,13 +409,24 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _pickFirmware() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['wic', 'gz'],
-    );
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        dialogTitle: 'Select Firmware Image',
+      );
 
-    if (result != null && result.files.isNotEmpty) {
-      setState(() => _firmwarePath = result.files.first.path);
+      if (result != null && result.files.isNotEmpty) {
+        final path = result.files.first.path;
+        if (path != null) {
+          if (path.endsWith('.wic') || path.endsWith('.wic.gz') || path.endsWith('.gz')) {
+            setState(() => _firmwarePath = path);
+          } else {
+            setState(() => _statusMessage = 'Please select a .wic or .wic.gz file');
+          }
+        }
+      }
+    } catch (e) {
+      setState(() => _statusMessage = 'Error opening file picker: $e');
     }
   }
 
