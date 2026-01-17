@@ -105,7 +105,7 @@ class ElevationService {
       try {
         final which = await Process.run('which', [elevator]);
         if (which.exitCode == 0) {
-          final result = await Process.start(
+          await Process.start(
             elevator,
             [executable, ...args],
           );

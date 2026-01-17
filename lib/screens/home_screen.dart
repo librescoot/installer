@@ -509,6 +509,25 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _flashFirmware() async {
     if (_firmwarePath == null || _device == null) return;
 
+    // Safety validation
+    final safetyCheck = _flashService.validateDevice(
+      devicePath: _device!.path,
+      sizeBytes: _device!.sizeBytes,
+      isRemovable: _device!.isRemovable,
+      isSystemDisk: _device!.isSystemDisk,
+      vendorId: _device!.vendorId,
+      productId: _device!.productId,
+    );
+
+    if (!safetyCheck.passed) {
+      await _showSafetyError(safetyCheck);
+      return;
+    }
+
+    // Show confirmation dialog
+    final confirmed = await _showFlashConfirmation(safetyCheck.warnings);
+    if (confirmed != true) return;
+
     setState(() {
       _isProcessing = true;
       _progress = 0.0;
@@ -540,5 +559,152 @@ class _HomeScreenState extends State<HomeScreen> {
     } finally {
       setState(() => _isProcessing = false);
     }
+  }
+
+  Future<void> _showSafetyError(SafetyCheck safetyCheck) async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.dangerous, color: Colors.red, size: 48),
+        title: const Text('Safety Check Failed'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Cannot flash this device due to safety concerns:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            ...safetyCheck.errors.map((e) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.error, color: Colors.red, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(e)),
+                ],
+              ),
+            )),
+          ],
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool?> _showFlashConfirmation(List<String> warnings) async {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.warning_amber, color: Colors.orange, size: 48),
+        title: const Text('Confirm Flash Operation'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'You are about to write firmware to:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            _buildDeviceInfoRow('Device', _device!.name),
+            _buildDeviceInfoRow('Path', _device!.path),
+            _buildDeviceInfoRow('Size', _device!.sizeFormatted),
+            _buildDeviceInfoRow('VID:PID',
+                '${_device!.vendorId.toRadixString(16).toUpperCase()}:'
+                '${_device!.productId.toRadixString(16).toUpperCase()}'),
+            const SizedBox(height: 16),
+            const Text(
+              'Firmware:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _firmwarePath!.split('/').last.split('\\').last,
+              style: const TextStyle(fontFamily: 'monospace'),
+            ),
+            if (warnings.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'Warnings:',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
+              ),
+              const SizedBox(height: 8),
+              ...warnings.map((w) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.warning, color: Colors.orange, size: 14),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(w, style: const TextStyle(fontSize: 12))),
+                  ],
+                ),
+              )),
+            ],
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.shade900.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade700),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.warning, color: Colors.red),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'This will ERASE ALL DATA on the device. '
+                      'This action cannot be undone.',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Flash Device'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeviceInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text('$label:', style: const TextStyle(color: Colors.grey)),
+          ),
+          Expanded(
+            child: Text(value, style: const TextStyle(fontFamily: 'monospace')),
+          ),
+        ],
+      ),
+    );
   }
 }
