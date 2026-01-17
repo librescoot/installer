@@ -155,7 +155,7 @@ class NetworkService {
           if (currentPort != null &&
               (currentPort.toLowerCase().contains('usb') ||
                   currentPort.toLowerCase().contains('rndis') ||
-                  currentDevice!.startsWith('en') && await _isUsbInterface(currentDevice))) {
+                  currentDevice.startsWith('en') && await _isUsbInterface(currentDevice))) {
             return NetworkInterface(
               name: currentDevice,
               displayName: currentPort,
