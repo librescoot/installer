@@ -1,5 +1,6 @@
 ; LibreScoot RNDIS Driver INF
-; Maps Linux USB Ethernet Gadget (VID 0525, PID A4A2) to Windows RNDIS driver
+; Maps Linux USB Ethernet Gadget (VID 0525, PID A4A2) to the Windows
+; inbox RNDIS driver (rndismp.sys via netrndis.inf).
 ;
 ; Installation:
 ;   pnputil /add-driver librescoot_rndis.inf /install
@@ -11,50 +12,37 @@ Class               = Net
 ClassGUID           = {4d36e972-e325-11ce-bfc1-08002be10318}
 Provider            = %ProviderName%
 DriverVer           = 01/17/2026,1.0.0.0
-CatalogFile         = librescoot_rndis.cat
 
 [Manufacturer]
-%ManufacturerName%  = LibreScootDevices,NTamd64,NTx86
+%ManufacturerName%  = LibreScootDevices,NTamd64,NTx86,NTarm64
 
 [LibreScootDevices.NTx86]
-%DeviceName%        = RNDIS.NT.6.0, USB\VID_0525&PID_A4A2
-%DeviceName%        = RNDIS.NT.6.0, USB\VID_0525&PID_A4A2&MI_00
+%DeviceName%        = RNDIS.NT, USB\VID_0525&PID_A4A2
+%DeviceName%        = RNDIS.NT, USB\VID_0525&PID_A4A2&MI_00
 
 [LibreScootDevices.NTamd64]
-%DeviceName%        = RNDIS.NT.6.0, USB\VID_0525&PID_A4A2
-%DeviceName%        = RNDIS.NT.6.0, USB\VID_0525&PID_A4A2&MI_00
+%DeviceName%        = RNDIS.NT, USB\VID_0525&PID_A4A2
+%DeviceName%        = RNDIS.NT, USB\VID_0525&PID_A4A2&MI_00
 
-; Windows Vista and later
-[RNDIS.NT.6.0]
+[LibreScootDevices.NTarm64]
+%DeviceName%        = RNDIS.NT, USB\VID_0525&PID_A4A2
+%DeviceName%        = RNDIS.NT, USB\VID_0525&PID_A4A2&MI_00
+
+[RNDIS.NT]
 Characteristics     = 0x84   ; NCF_PHYSICAL + NCF_HAS_UI
 BusType             = 15
-AddReg              = RNDIS_AddReg
-CopyFiles           = RNDIS_CopyFiles
 *IfType             = 6      ; IF_TYPE_ETHERNET_CSMACD
 *MediaType          = 0      ; NdisMedium802_3
 *PhysicalMediaType  = 0      ; NdisPhysicalMediumUnspecified
+Include             = netrndis.inf
+Needs               = usb_rndis.NT
 
-[RNDIS.NT.6.0.Services]
-AddService          = usb_rndisx, 2, RNDIS_ServiceInst
-
-[RNDIS_ServiceInst]
-DisplayName         = %ServiceDisplayName%
-ServiceType         = 1      ; SERVICE_KERNEL_DRIVER
-StartType           = 3      ; SERVICE_DEMAND_START
-ErrorControl        = 1      ; SERVICE_ERROR_NORMAL
-ServiceBinary       = %12%\usb8023x.sys
-LoadOrderGroup      = NDIS
-
-[RNDIS_AddReg]
-HKR, Ndi,            Service,      0, "usb_rndisx"
-HKR, Ndi\Interfaces, UpperRange,   0, "ndis5"
-HKR, Ndi\Interfaces, LowerRange,   0, "ethernet"
-
-[RNDIS_CopyFiles]
-; No files to copy - uses inbox driver
+[RNDIS.NT.Services]
+Include             = netrndis.inf
+Needs               = usb_rndis.NT.Services
 
 [DestinationDirs]
-DefaultDestDir = 12
+DefaultDestDir      = 12
 
 [SourceDisksNames]
 1 = %DiskName%
@@ -65,5 +53,4 @@ DefaultDestDir = 12
 ProviderName        = "LibreScoot"
 ManufacturerName    = "LibreScoot"
 DeviceName          = "LibreScoot MDB USB Ethernet"
-ServiceDisplayName  = "USB RNDIS Adapter"
 DiskName            = "LibreScoot Driver Disk"
