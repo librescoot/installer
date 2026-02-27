@@ -147,6 +147,11 @@ class UsbDetector {
     final ethernetDevice = await _detectWindowsEthernet();
     if (ethernetDevice != null) return ethernetDevice;
 
+    // Fallback: detect generic PnP USB/COM device for A4A2 when the RNDIS
+    // driver is missing or not bound yet.
+    final pnpEthernetDevice = await _detectWindowsPnpEthernet();
+    if (pnpEthernetDevice != null) return pnpEthernetDevice;
+
     // Check for mass storage device
     final storageDevice = await _detectWindowsStorage();
     if (storageDevice != null) return storageDevice;
@@ -263,6 +268,56 @@ class UsbDetector {
         }
       }
     } catch (_) {}
+    return null;
+  }
+
+  Future<UsbDevice?> _detectWindowsPnpEthernet() async {
+    try {
+      final result = await Process.run(
+        'wmic',
+        [
+          'path',
+          'Win32_PnPEntity',
+          'where',
+          'PNPDeviceID like "%VID_0525&PID_A4A2%"',
+          'get',
+          'Name,PNPDeviceID',
+          '/format:csv',
+        ],
+        runInShell: true,
+      );
+
+      if (result.exitCode != 0) return null;
+
+      final output = _sanitizeWmicOutput(result.stdout.toString());
+      final lines = output.split('\n').where((l) => l.trim().isNotEmpty).toList();
+      if (lines.length < 2) return null;
+
+      // Header-aware parsing
+      final header = lines[0].split(',');
+      final nameIdx = header.indexOf('Name');
+      final pnpIdIdx = header.indexOf('PNPDeviceID');
+
+      for (var i = 1; i < lines.length; i++) {
+        final parts = lines[i].split(',');
+        final pnpId = pnpIdIdx >= 0 && pnpIdIdx < parts.length ? parts[pnpIdIdx] : '';
+        if (!pnpId.toUpperCase().contains('VID_0525&PID_A4A2')) continue;
+
+        final name = nameIdx >= 0 && nameIdx < parts.length
+            ? parts[nameIdx]
+            : 'LibreScoot MDB (USB)';
+
+        return UsbDevice(
+          id: pnpId,
+          name: name,
+          path: pnpId,
+          vendorId: targetVendorId,
+          productId: ethernetPid,
+          mode: DeviceMode.ethernet,
+        );
+      }
+    } catch (_) {}
+
     return null;
   }
 
