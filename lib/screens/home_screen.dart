@@ -122,10 +122,20 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     setState(() => _device = device);
 
-    if (device != null && _currentStep == InstallerStep.connectDevice) {
+    if (device == null) {
+      if (_currentStep == InstallerStep.prepareDevice) {
+        setState(() {
+          _isProcessing = false;
+          _currentStep = InstallerStep.connectDevice;
+          _statusMessage = 'Device disconnected. Reconnect/wait for mass storage mode.';
+        });
+      }
+      return;
+    }
+
+    if (_currentStep == InstallerStep.connectDevice) {
       _onDeviceConnected(device);
-    } else if (device != null &&
-        device.mode == DeviceMode.massStorage &&
+    } else if (device.mode == DeviceMode.massStorage &&
         _currentStep == InstallerStep.prepareDevice) {
       _onMassStorageReady(device);
     }
@@ -183,28 +193,41 @@ class _HomeScreenState extends State<HomeScreen> {
       children: List.generate(steps.length, (index) {
         final isActive = index == _currentStep.index;
         final isComplete = index < _currentStep.index;
+        final canJump = isComplete && !_isProcessing;
 
         return Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            decoration: BoxDecoration(
-              color: isActive
-                  ? Theme.of(context).colorScheme.primary
-                  : isComplete
-                      ? Theme.of(context).colorScheme.primaryContainer
-                      : Colors.grey.shade800,
-              borderRadius: BorderRadius.horizontal(
-                left: index == 0 ? const Radius.circular(8) : Radius.zero,
-                right: index == steps.length - 1 ? const Radius.circular(8) : Radius.zero,
-              ),
+          child: InkWell(
+            onTap: canJump
+                ? () {
+                    setState(() => _currentStep = InstallerStep.values[index]);
+                  }
+                : null,
+            borderRadius: BorderRadius.horizontal(
+              left: index == 0 ? const Radius.circular(8) : Radius.zero,
+              right: index == steps.length - 1 ? const Radius.circular(8) : Radius.zero,
             ),
-            child: Text(
-              steps[index],
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                color: isActive || isComplete ? Colors.white : Colors.grey,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: isActive
+                    ? Theme.of(context).colorScheme.primary
+                    : isComplete
+                        ? Theme.of(context).colorScheme.primaryContainer
+                        : Colors.grey.shade800,
+                borderRadius: BorderRadius.horizontal(
+                  left: index == 0 ? const Radius.circular(8) : Radius.zero,
+                  right: index == steps.length - 1 ? const Radius.circular(8) : Radius.zero,
+                ),
+              ),
+              child: Text(
+                steps[index],
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                  color: isActive || isComplete ? Colors.white : Colors.grey,
+                  decoration: canJump ? TextDecoration.underline : TextDecoration.none,
+                ),
               ),
             ),
           ),
@@ -312,13 +335,30 @@ class _HomeScreenState extends State<HomeScreen> {
           style: const TextStyle(color: Colors.grey),
         ),
         const SizedBox(height: 24),
-        if (_device == null)
-          const CircularProgressIndicator()
-        else
-          FilledButton.icon(
-            onPressed: () => _onDeviceConnected(_device!),
-            icon: const Icon(Icons.arrow_forward),
-            label: const Text('Continue'),
+        if (_device == null) ...[
+          const CircularProgressIndicator(),
+          const SizedBox(height: 16),
+          TextButton.icon(
+            onPressed: () => setState(() => _currentStep = InstallerStep.selectFirmware),
+            icon: const Icon(Icons.arrow_back),
+            label: const Text('Back'),
+          ),
+        ] else
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton.icon(
+                onPressed: () => setState(() => _currentStep = InstallerStep.selectFirmware),
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Back'),
+              ),
+              const SizedBox(width: 12),
+              FilledButton.icon(
+                onPressed: () => _onDeviceConnected(_device!),
+                icon: const Icon(Icons.arrow_forward),
+                label: const Text('Continue'),
+              ),
+            ],
           ),
       ],
     );
@@ -349,10 +389,21 @@ class _HomeScreenState extends State<HomeScreen> {
         if (_isProcessing)
           const CircularProgressIndicator()
         else
-          FilledButton.icon(
-            onPressed: _configureNetwork,
-            icon: const Icon(Icons.play_arrow),
-            label: const Text('Configure Network'),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton.icon(
+                onPressed: () => setState(() => _currentStep = InstallerStep.connectDevice),
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Back'),
+              ),
+              const SizedBox(width: 12),
+              FilledButton.icon(
+                onPressed: _configureNetwork,
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Configure Network'),
+              ),
+            ],
           ),
       ],
     );
@@ -385,10 +436,21 @@ class _HomeScreenState extends State<HomeScreen> {
         if (_isProcessing)
           const CircularProgressIndicator()
         else
-          FilledButton.icon(
-            onPressed: _prepareDevice,
-            icon: const Icon(Icons.play_arrow),
-            label: const Text('Prepare for Flashing'),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton.icon(
+                onPressed: () => setState(() => _currentStep = InstallerStep.configureNetwork),
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Back'),
+              ),
+              const SizedBox(width: 12),
+              FilledButton.icon(
+                onPressed: _prepareDevice,
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Prepare for Flashing'),
+              ),
+            ],
           ),
       ],
     );
@@ -410,10 +472,21 @@ class _HomeScreenState extends State<HomeScreen> {
         Text('${(_progress * 100).toStringAsFixed(0)}%'),
         const SizedBox(height: 16),
         if (!_isProcessing)
-          FilledButton.icon(
-            onPressed: _flashFirmware,
-            icon: const Icon(Icons.flash_on),
-            label: const Text('Start Flashing'),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton.icon(
+                onPressed: () => setState(() => _currentStep = InstallerStep.prepareDevice),
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Back'),
+              ),
+              const SizedBox(width: 12),
+              FilledButton.icon(
+                onPressed: _flashFirmware,
+                icon: const Icon(Icons.flash_on),
+                label: const Text('Start Flashing'),
+              ),
+            ],
           ),
       ],
     );
@@ -525,10 +598,14 @@ class _HomeScreenState extends State<HomeScreen> {
     _networkAutoStarted = false;
     setState(() {
       _isProcessing = true;
-      _statusMessage = 'Finding network interface...';
+      _statusMessage = 'Waiting for MDB network to settle...';
     });
 
     try {
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return;
+      setState(() => _statusMessage = 'Finding network interface...');
+
       final iface = await _networkService.findLibreScootInterface();
       if (iface == null) {
         throw Exception('Could not find USB network interface');
