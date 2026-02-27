@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart' as path;
 import '../services/services.dart';
 
 enum InstallerStep {
@@ -19,6 +21,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const bool _flashDryRun = false;
   InstallerStep _currentStep = InstallerStep.selectFirmware;
   String? _firmwarePath;
   String? _statusMessage;
@@ -33,12 +36,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   UsbDevice? _device;
   DeviceInfo? _deviceInfo;
+  bool _networkAutoStarted = false;
 
   @override
   void initState() {
     super.initState();
     _checkElevation();
     _usbDetector.deviceStream.listen(_onDeviceChanged);
+    _usbDetector.startMonitoring();
+    _autoLoadFirmwareFromCwd();
   }
 
   @override
@@ -53,7 +59,67 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _isElevated = elevated);
   }
 
+  Future<void> _autoLoadFirmwareFromCwd() async {
+    final autoPath = _findAutoFirmwareCandidateInCwd();
+    debugPrint('Startup firmware check: ${autoPath ?? "no matching firmware in cwd"}');
+    if (!mounted || autoPath == null || _firmwarePath != null) return;
+
+    setState(() {
+      _firmwarePath = autoPath;
+      _currentStep = InstallerStep.connectDevice;
+      _statusMessage = 'Auto-loaded firmware from current directory';
+    });
+    _consumeAlreadyDetectedDevice();
+  }
+
+  String? _findAutoFirmwareCandidateInCwd() {
+    final dir = Directory.current;
+    if (!dir.existsSync()) return null;
+
+    final pattern = RegExp(
+      r'^librescoot-unu-mdb-([a-z0-9-]+)-(\d{8}T\d{6})\.sdimg\.gz$',
+      caseSensitive: false,
+    );
+
+    String? bestPath;
+    String? bestTimestamp;
+
+    for (final entity in dir.listSync(followLinks: false)) {
+      if (entity is! File) continue;
+      final fileName = path.basename(entity.path);
+      final match = pattern.firstMatch(fileName);
+      if (match == null) continue;
+
+      final timestamp = match.group(2)!;
+      if (bestTimestamp == null || timestamp.compareTo(bestTimestamp) > 0) {
+        bestTimestamp = timestamp;
+        bestPath = entity.path;
+      }
+    }
+
+    // Backward-compatible fallback.
+    if (bestPath == null) {
+      final legacy = path.join(dir.path, 'mdb.wic.gz');
+      if (File(legacy).existsSync()) return legacy;
+    }
+
+    return bestPath;
+  }
+
+  void _consumeAlreadyDetectedDevice() {
+    final device = _usbDetector.currentDevice;
+    if (device != null && _currentStep == InstallerStep.connectDevice) {
+      debugPrint('UI: consuming already-detected device ${device.name} (${device.mode.name})');
+      _onDeviceConnected(device);
+    }
+  }
+
   void _onDeviceChanged(UsbDevice? device) {
+    debugPrint(
+      device == null
+          ? 'USB device disconnected'
+          : 'USB device detected: ${device.name} (${device.mode.name})',
+    );
     setState(() => _device = device);
 
     if (device != null && _currentStep == InstallerStep.connectDevice) {
@@ -209,7 +275,10 @@ class _HomeScreenState extends State<HomeScreen> {
             if (_firmwarePath != null) ...[
               const SizedBox(width: 16),
               FilledButton.icon(
-                onPressed: () => setState(() => _currentStep = InstallerStep.connectDevice),
+                onPressed: () {
+                  setState(() => _currentStep = InstallerStep.connectDevice);
+                  _consumeAlreadyDetectedDevice();
+                },
                 icon: const Icon(Icons.arrow_forward),
                 label: const Text('Continue'),
               ),
@@ -416,10 +485,13 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
       if (result != null && result.files.isNotEmpty) {
-        final path = result.files.first.path;
-        if (path != null) {
-          if (path.endsWith('.wic') || path.endsWith('.wic.gz') || path.endsWith('.gz')) {
-            setState(() => _firmwarePath = path);
+        final selectedPath = result.files.first.path;
+        if (selectedPath != null) {
+          if (selectedPath.endsWith('.wic') || selectedPath.endsWith('.wic.gz') || selectedPath.endsWith('.gz')) {
+            setState(() {
+              _firmwarePath = selectedPath;
+              _statusMessage = null;
+            });
           } else {
             setState(() => _statusMessage = 'Please select a .wic or .wic.gz file');
           }
@@ -434,12 +506,23 @@ class _HomeScreenState extends State<HomeScreen> {
     if (device.mode == DeviceMode.ethernet) {
       setState(() => _currentStep = InstallerStep.configureNetwork);
       _usbDetector.startMonitoring();
+      _tryAutoConfigureNetwork();
     } else if (device.mode == DeviceMode.massStorage) {
       setState(() => _currentStep = InstallerStep.flashFirmware);
     }
   }
 
+  void _tryAutoConfigureNetwork() {
+    if (_networkAutoStarted || _isProcessing) return;
+    _networkAutoStarted = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _currentStep != InstallerStep.configureNetwork) return;
+      _configureNetwork();
+    });
+  }
+
   Future<void> _configureNetwork() async {
+    _networkAutoStarted = false;
     setState(() {
       _isProcessing = true;
       _statusMessage = 'Finding network interface...';
@@ -474,17 +557,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _connectSsh() async {
     setState(() => _statusMessage = 'Connecting via SSH...');
+    debugPrint('UI: starting SSH connect to MDB');
 
     try {
       // Load passwords from assets
       await _sshService.loadPasswords('assets');
 
       final info = await _sshService.connectToMdb();
+      debugPrint('UI: SSH connected, firmware=${info.firmwareVersion}, serial=${info.serialNumber ?? "unknown"}');
       setState(() {
         _deviceInfo = info;
         _statusMessage = 'Connected to ${info.firmwareVersion}';
       });
     } catch (e) {
+      debugPrint('UI: SSH connection failed: $e');
       setState(() => _statusMessage = 'SSH error: $e');
     }
   }
@@ -494,25 +580,33 @@ class _HomeScreenState extends State<HomeScreen> {
       _isProcessing = true;
       _statusMessage = 'Configuring bootloader for mass storage mode...';
     });
+    debugPrint('UI: prepare step started');
 
     try {
+      debugPrint('UI: calling configureMassStorageMode()');
       await _sshService.configureMassStorageMode();
+      debugPrint('UI: configureMassStorageMode() completed');
 
       setState(() => _statusMessage = 'Rebooting device...');
+      debugPrint('UI: calling reboot()');
       await _sshService.reboot();
+      debugPrint('UI: reboot() call returned');
 
       setState(() {
         _statusMessage = 'Waiting for device to reboot in mass storage mode...';
       });
+      debugPrint('UI: waiting for USB detector to report mass storage mode');
 
       // USB detector will pick up the mass storage device
     } catch (e) {
+      debugPrint('UI: prepare step failed: $e');
       setState(() => _statusMessage = 'Error: $e');
       _isProcessing = false;
     }
   }
 
   void _onMassStorageReady(UsbDevice device) {
+    debugPrint('UI: mass storage detected: ${device.name} path=${device.path}');
     setState(() {
       _isProcessing = false;
       _statusMessage = 'Device ready for flashing';
@@ -545,34 +639,69 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _isProcessing = true;
       _progress = 0.0;
-      _statusMessage = 'Starting flash...';
+      _statusMessage = _flashDryRun ? 'Generating flash plan...' : 'Starting flash...';
     });
 
     try {
-      final result = await _flashService.writeImage(
-        _firmwarePath!,
-        _device!.path,
-        onProgress: (progress, status) {
-          setState(() {
-            _progress = progress;
-            _statusMessage = status;
-          });
-        },
-      );
-
-      if (result.success) {
-        setState(() {
-          _currentStep = InstallerStep.complete;
-          _statusMessage = 'Flash complete!';
-        });
+      if (_flashDryRun) {
+        final plan = await _flashService.buildFlashPlan(
+          _firmwarePath!,
+          _device!.path,
+        );
+        setState(() => _statusMessage = 'Dry run: showing flash command plan');
+        await _showFlashPlan(plan);
       } else {
-        throw Exception(result.error ?? 'Unknown error');
+        final result = await _flashService.writeImage(
+          _firmwarePath!,
+          _device!.path,
+          onProgress: (progress, status) {
+            setState(() {
+              _progress = progress;
+              _statusMessage = status;
+            });
+          },
+        );
+
+        if (result.success) {
+          setState(() {
+            _currentStep = InstallerStep.complete;
+            _statusMessage = 'Flash complete!';
+          });
+        } else {
+          throw Exception(result.error ?? 'Unknown error');
+        }
       }
     } catch (e) {
       setState(() => _statusMessage = 'Flash error: $e');
     } finally {
       setState(() => _isProcessing = false);
     }
+  }
+
+  Future<void> _showFlashPlan(String plan) async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.terminal),
+        title: const Text('Flash Dry Run'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 360, maxWidth: 700),
+          child: SingleChildScrollView(
+            child: SelectableText(
+              plan,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+            ),
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _showSafetyError(SafetyCheck safetyCheck) async {
@@ -621,73 +750,78 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context) => AlertDialog(
         icon: const Icon(Icons.warning_amber, color: Colors.orange, size: 48),
         title: const Text('Confirm Flash Operation'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'You are about to write firmware to:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            _buildDeviceInfoRow('Device', _device!.name),
-            _buildDeviceInfoRow('Path', _device!.path),
-            _buildDeviceInfoRow('Size', _device!.sizeFormatted),
-            _buildDeviceInfoRow('VID:PID',
-                '${_device!.vendorId.toRadixString(16).toUpperCase()}:'
-                '${_device!.productId.toRadixString(16).toUpperCase()}'),
-            const SizedBox(height: 16),
-            const Text(
-              'Firmware:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _firmwarePath!.split('/').last.split('\\').last,
-              style: const TextStyle(fontFamily: 'monospace'),
-            ),
-            if (warnings.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              const Text(
-                'Warnings:',
-                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
-              ),
-              const SizedBox(height: 8),
-              ...warnings.map((w) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.warning, color: Colors.orange, size: 14),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(w, style: const TextStyle(fontSize: 12))),
-                  ],
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 360),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'You are about to write firmware to:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
                 ),
-              )),
-            ],
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.red.shade900.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.red.shade700),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.warning, color: Colors.red),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'This will ERASE ALL DATA on the device. '
-                      'This action cannot be undone.',
-                      style: TextStyle(color: Colors.red),
-                    ),
+                const SizedBox(height: 16),
+                _buildDeviceInfoRow('Device', _device!.name),
+                _buildDeviceInfoRow('Path', _device!.path),
+                _buildDeviceInfoRow('Size', _device!.sizeFormatted),
+                _buildDeviceInfoRow('VID:PID',
+                    '${_device!.vendorId.toRadixString(16).toUpperCase()}:'
+                    '${_device!.productId.toRadixString(16).toUpperCase()}'),
+                const SizedBox(height: 16),
+                const Text(
+                  'Firmware:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _firmwarePath!.split('/').last.split('\\').last,
+                  style: const TextStyle(fontFamily: 'monospace'),
+                ),
+                if (warnings.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Warnings:',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
                   ),
+                  const SizedBox(height: 8),
+                  ...warnings.map((w) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.warning, color: Colors.orange, size: 14),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(w, style: const TextStyle(fontSize: 12))),
+                      ],
+                    ),
+                  )),
                 ],
-              ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade900.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.shade700),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.warning, color: Colors.red),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'This will ERASE ALL DATA on the device. '
+                          'This action cannot be undone.',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
         actions: [
           TextButton(

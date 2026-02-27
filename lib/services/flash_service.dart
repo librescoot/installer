@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as path;
 
@@ -32,6 +33,79 @@ class SafetyCheck {
 
 /// Service for writing firmware images to devices
 class FlashService {
+  /// Build the command(s) that would be used for flashing without executing.
+  Future<String> buildFlashPlan(
+    String imagePath,
+    String devicePath,
+  ) async {
+    final isCompressed = imagePath.endsWith('.gz');
+
+    if (Platform.isWindows) {
+      final diskMatch = RegExp(r'PHYSICALDRIVE(\d+)').firstMatch(devicePath);
+      final diskNumber = diskMatch?.group(1) ?? '?';
+      final ddPath = await _getDdPath() ?? '<dd.exe-not-found>';
+
+      if (isCompressed) {
+        return [
+          'diskpart: select disk $diskNumber',
+          'diskpart: offline disk',
+          'diskpart: clean',
+          'powershell: decompress "$imagePath" -> "$devicePath"',
+          'diskpart: select disk $diskNumber',
+          'diskpart: online disk',
+        ].join('\n');
+      }
+
+      return [
+        'diskpart: select disk $diskNumber',
+        'diskpart: offline disk',
+        'diskpart: clean',
+        '$ddPath if=$imagePath of=$devicePath bs=4M',
+        'diskpart: select disk $diskNumber',
+        'diskpart: online disk',
+      ].join('\n');
+    }
+
+    if (Platform.isMacOS) {
+      final diskName = devicePath.replaceFirst('/dev/rdisk', '/dev/disk');
+      if (isCompressed) {
+        return [
+          'diskutil unmountDisk $diskName',
+          'gunzip -c "$imagePath" | sudo dd of="$devicePath" bs=4m status=progress',
+          '# macOS dd progress: press Ctrl+T while command is running',
+          'sync',
+          'diskutil eject $diskName',
+        ].join('\n');
+      }
+
+      return [
+        'diskutil unmountDisk $diskName',
+        'sudo dd if=$imagePath of=$devicePath bs=4m status=progress',
+        '# macOS dd progress: press Ctrl+T while command is running',
+        'sync',
+        'diskutil eject $diskName',
+      ].join('\n');
+    }
+
+    if (Platform.isLinux) {
+      if (isCompressed) {
+        return [
+          'umount <partitions of $devicePath>',
+          'gunzip -c "$imagePath" | sudo dd of="$devicePath" bs=4M oflag=direct status=progress',
+          'sync',
+        ].join('\n');
+      }
+
+      return [
+        'umount <partitions of $devicePath>',
+        'sudo dd if=$imagePath of=$devicePath bs=4M oflag=direct status=progress',
+        'sync',
+      ].join('\n');
+    }
+
+    return 'Unsupported platform';
+  }
+
   /// Validate that a device is safe to flash
   ///
   /// Returns a SafetyCheck with any warnings or errors.
@@ -77,8 +151,9 @@ class FlashService {
       warnings.add('Could not determine device size');
     }
 
-    // Warn if not detected as removable (but don't block)
-    if (!isRemovable) {
+    // Warn if not detected as removable (but don't block).
+    // macOS often reports USB gadget media as non-removable.
+    if (!isRemovable && !Platform.isMacOS) {
       warnings.add('Device not detected as removable media');
     }
 
@@ -92,14 +167,20 @@ class FlashService {
         errors.add('DANGER: Cannot flash PHYSICALDRIVE0 (system disk)');
       }
     } else if (Platform.isMacOS) {
+      if (devicePath.trim().isEmpty || !devicePath.startsWith('/dev/')) {
+        errors.add('Invalid macOS device path: $devicePath');
+      }
       // Never allow disk0 or disk1 (typically system)
       if (devicePath.contains('disk0') || devicePath.contains('rdisk0')) {
         errors.add('DANGER: Cannot flash disk0 (system disk)');
       }
-      if (devicePath.contains('disk1') || devicePath.contains('rdisk1')) {
+      if (RegExp(r'/r?disk1($|s\d+)').hasMatch(devicePath)) {
         warnings.add('disk1 may be the system disk - verify carefully');
       }
     } else if (Platform.isLinux) {
+      if (devicePath.trim().isEmpty || !devicePath.startsWith('/dev/')) {
+        errors.add('Invalid Linux device path: $devicePath');
+      }
       // Never allow sda (typically system)
       if (devicePath.endsWith('/dev/sda') || devicePath == '/dev/sda') {
         errors.add('DANGER: Cannot flash /dev/sda (likely system disk)');
@@ -289,25 +370,46 @@ class FlashService {
 
     onProgress?.call(0.2, 'Writing image...');
 
-    ProcessResult result;
+    final imageSize = await _estimateImageSizeBytes(imagePath, isCompressed);
+    final stderrBuffer = StringBuffer();
+    int? lastBytesWritten;
+
+    Process process;
     if (isCompressed) {
       // gunzip -c image.wic.gz | dd of=/dev/rdiskX bs=4m
-      result = await Process.run(
+      process = await Process.start(
         'sh',
         [
           '-c',
-          'gunzip -c "$imagePath" | dd of="$devicePath" bs=4m',
+          'gunzip -c "$imagePath" | dd of="$devicePath" bs=4m status=progress',
         ],
       );
     } else {
-      result = await Process.run(
+      process = await Process.start(
         'dd',
-        ['if=$imagePath', 'of=$devicePath', 'bs=4m'],
+        ['if=$imagePath', 'of=$devicePath', 'bs=4m', 'status=progress'],
       );
     }
 
-    if (result.exitCode != 0) {
-      return FlashResult(success: false, error: 'Write failed: ${result.stderr}');
+    process.stdout.listen((_) {});
+    await for (final chunk in process.stderr.transform(utf8.decoder)) {
+      stderrBuffer.write(chunk);
+      final bytes = _extractLastDdBytes(chunk);
+      if (bytes != null && bytes != lastBytesWritten) {
+        lastBytesWritten = bytes;
+        if (imageSize != null && imageSize > 0) {
+          final fraction = (bytes / imageSize).clamp(0.0, 1.0);
+          onProgress?.call(0.2 + (0.7 * fraction), 'Writing image... ${(fraction * 100).toStringAsFixed(1)}%');
+        } else {
+          final mb = bytes / (1024 * 1024);
+          onProgress?.call(0.2, 'Writing image... ${mb.toStringAsFixed(1)} MB written');
+        }
+      }
+    }
+
+    final exitCode = await process.exitCode;
+    if (exitCode != 0) {
+      return FlashResult(success: false, error: 'Write failed: ${stderrBuffer.toString().trim()}');
     }
 
     onProgress?.call(0.9, 'Syncing...');
@@ -321,6 +423,31 @@ class FlashService {
     onProgress?.call(1.0, 'Complete');
 
     return FlashResult(success: true);
+  }
+
+  Future<int?> _estimateImageSizeBytes(String imagePath, bool isCompressed) async {
+    try {
+      if (!isCompressed) {
+        return await File(imagePath).length();
+      }
+      final result = await Process.run('gzip', ['-l', imagePath]);
+      if (result.exitCode == 0) {
+        final lines = result.stdout.toString().trim().split('\n');
+        if (lines.length >= 2) {
+          final fields = lines.last.trim().split(RegExp(r'\s+'));
+          if (fields.length >= 2) {
+            return int.tryParse(fields[1]);
+          }
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  int? _extractLastDdBytes(String text) {
+    final matches = RegExp(r'(\d+)\s+bytes').allMatches(text);
+    if (matches.isEmpty) return null;
+    return int.tryParse(matches.last.group(1)!);
   }
 
   Future<FlashResult> _writeLinux(
