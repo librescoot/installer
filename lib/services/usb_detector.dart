@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 /// USB device information with safety metadata
 class UsbDevice {
@@ -87,6 +88,10 @@ class UsbDetector {
   final _deviceController = StreamController<UsbDevice?>.broadcast();
   Timer? _pollingTimer;
   UsbDevice? _lastDevice;
+  Map<String, dynamic>? _macDiskInfoCache;
+  bool _macDiskProbeInFlight = false;
+  int _macDiskProbeAttempts = 0;
+  static const int _maxMacDiskProbeAttempts = 12;
 
   Stream<UsbDevice?> get deviceStream => _deviceController.stream;
   UsbDevice? get currentDevice => _lastDevice;
@@ -107,12 +112,21 @@ class UsbDetector {
   Future<void> _poll() async {
     try {
       final device = await detectDevice();
-      if (device?.id != _lastDevice?.id || device?.mode != _lastDevice?.mode) {
+      final changed = device?.id != _lastDevice?.id ||
+          device?.mode != _lastDevice?.mode ||
+          device?.path != _lastDevice?.path ||
+          device?.sizeBytes != _lastDevice?.sizeBytes ||
+          device?.isRemovable != _lastDevice?.isRemovable ||
+          device?.isSystemDisk != _lastDevice?.isSystemDisk;
+      if (changed) {
         _lastDevice = device;
+        debugPrint(device == null
+            ? 'USB detector: device disconnected'
+            : 'USB detector: detected ${device.name} mode=${device.mode.name}');
         _deviceController.add(device);
       }
     } catch (e) {
-      // Ignore polling errors, will retry next interval
+      // Ignore polling errors, will retry next interval.
     }
   }
 
@@ -294,35 +308,70 @@ class UsbDetector {
 
   Future<UsbDevice?> _detectMacOS() async {
     try {
-      final result = await Process.run(
-        'system_profiler',
-        ['SPUSBDataType', '-json'],
-      );
-
-      if (result.exitCode != 0) return null;
-
-      // Parse JSON and look for our VID:PID
-      // For now, use simpler ioreg approach
-      return _detectMacOSIoreg();
+      // Use ioreg directly; prefer absolute paths because app container PATH
+      // may not include system binaries.
+      final usb = await _detectMacOSIoreg();
+      if (usb != null) return usb;
+      final profilerUsb = await _detectMacOSSystemProfiler();
+      if (profilerUsb != null) return profilerUsb;
     } catch (_) {}
+
+    // Fallback: if MDB is reachable, treat as ethernet mode so installer can
+    // proceed even when USB metadata probing is flaky.
+    try {
+      final ping = await Process.run('ping', ['-c', '1', '-W', '1', '192.168.7.1']);
+      if (ping.exitCode == 0) {
+        return UsbDevice(
+          id: 'net-192.168.7.1',
+          name: 'LibreScoot MDB (Ethernet)',
+          path: '',
+          vendorId: targetVendorId,
+          productId: ethernetPid,
+          mode: DeviceMode.ethernet,
+        );
+      }
+    } catch (_) {}
+
     return null;
   }
 
   Future<UsbDevice?> _detectMacOSIoreg() async {
     try {
-      // Look for USB devices with our vendor ID
-      final result = await Process.run(
-        'ioreg',
+      final result = await _runWithFallback(
+        ['/usr/sbin/ioreg', 'ioreg'],
         ['-p', 'IOUSB', '-l', '-w', '0'],
       );
-
-      if (result.exitCode != 0) return null;
+      if (result == null || result.exitCode != 0) return null;
 
       final output = result.stdout.toString();
+      final lower = output.toLowerCase();
+      final hasVendor0525 = RegExp(r'"idvendor"\s*=\s*(?:1317|0x0*525)\b').hasMatch(lower);
+      final hasPidA4A2 = RegExp(r'"idproduct"\s*=\s*(?:42146|0x0*a4a2)\b').hasMatch(lower);
+      final hasPidA4A5 = RegExp(r'"idproduct"\s*=\s*(?:42149|0x0*a4a5)\b').hasMatch(lower);
+      final hasVendor15A2 = RegExp(r'"idvendor"\s*=\s*(?:5538|0x0*15a2)\b').hasMatch(lower);
+      final hasPid0061 = RegExp(r'"idproduct"\s*=\s*(?:97|0x0*61)\b').hasMatch(lower);
 
-      // Check for ethernet mode (0525:A4A2)
-      if (output.contains('idVendor') && output.contains('0x525')) {
-        if (output.contains('0xa4a2') || output.contains('0xA4A2')) {
+      // Check LibreScoot modes. Prioritize mass storage in case both PIDs
+      // appear in a noisy aggregate IORegistry dump.
+      if (hasVendor0525) {
+        if (hasPidA4A5) {
+          // Return immediately so step progression never blocks on disk tooling.
+          _kickMacDiskInfoProbe();
+          final diskInfo = _macDiskInfoCache;
+          return UsbDevice(
+            id: 'usb-0525-a4a5',
+            name: 'LibreScoot MDB (Mass Storage)',
+            path: diskInfo?['path'] ?? '',
+            vendorId: targetVendorId,
+            productId: massStoragePid,
+            mode: DeviceMode.massStorage,
+            sizeBytes: diskInfo?['size'],
+            isRemovable: diskInfo?['removable'] ?? false,
+            isSystemDisk: diskInfo?['systemDisk'] ?? false,
+          );
+        }
+
+        if (hasPidA4A2) {
           return UsbDevice(
             id: 'usb-0525-a4a2',
             name: 'LibreScoot MDB (Ethernet)',
@@ -332,29 +381,11 @@ class UsbDetector {
             mode: DeviceMode.ethernet,
           );
         }
-
-        if (output.contains('0xa4a5') || output.contains('0xA4A5')) {
-          // Find the BSD name for the disk
-          final diskInfo = await _findMacOSDiskInfo();
-          if (diskInfo != null) {
-            return UsbDevice(
-              id: 'usb-0525-a4a5',
-              name: 'LibreScoot MDB (Mass Storage)',
-              path: diskInfo['path'] ?? '',
-              vendorId: targetVendorId,
-              productId: massStoragePid,
-              mode: DeviceMode.massStorage,
-              sizeBytes: diskInfo['size'],
-              isRemovable: diskInfo['removable'] ?? false,
-              isSystemDisk: diskInfo['systemDisk'] ?? true,
-            );
-          }
-        }
       }
 
       // Check for recovery mode (15A2:0061)
-      if (output.contains('0x15a2') || output.contains('0x15A2')) {
-        if (output.contains('0x61') || output.contains('0x0061')) {
+      if (hasVendor15A2) {
+        if (hasPid0061) {
           return UsbDevice(
             id: 'usb-15a2-0061',
             name: 'LibreScoot DBC (Recovery)',
@@ -369,38 +400,118 @@ class UsbDetector {
     return null;
   }
 
+  Future<UsbDevice?> _detectMacOSSystemProfiler() async {
+    try {
+      final result = await _runWithFallback(
+        ['/usr/sbin/system_profiler', 'system_profiler'],
+        ['SPUSBDataType'],
+      );
+      if (result == null || result.exitCode != 0) return null;
+
+      final output = result.stdout.toString().toLowerCase();
+      final hasVendor0525 = output.contains('vendor id: 0x0525');
+      final hasPidA4A5 = output.contains('product id: 0xa4a5');
+      final hasPidA4A2 = output.contains('product id: 0xa4a2');
+
+      if (hasVendor0525 && hasPidA4A5) {
+        return UsbDevice(
+          id: 'usb-0525-a4a5-profiler',
+          name: 'LibreScoot MDB (Mass Storage)',
+          path: '',
+          vendorId: targetVendorId,
+          productId: massStoragePid,
+          mode: DeviceMode.massStorage,
+        );
+      }
+      if (hasVendor0525 && hasPidA4A2) {
+        return UsbDevice(
+          id: 'usb-0525-a4a2-profiler',
+          name: 'LibreScoot MDB (Ethernet)',
+          path: '',
+          vendorId: targetVendorId,
+          productId: ethernetPid,
+          mode: DeviceMode.ethernet,
+        );
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<ProcessResult?> _runWithFallback(List<String> commands, List<String> args) async {
+    for (final command in commands) {
+      try {
+        return await Process.run(command, args);
+      } catch (_) {
+        continue;
+      }
+    }
+    return null;
+  }
+
+  void _kickMacDiskInfoProbe() {
+    if (_macDiskProbeInFlight || _macDiskInfoCache != null) return;
+    if (_macDiskProbeAttempts >= _maxMacDiskProbeAttempts) return;
+    _macDiskProbeInFlight = true;
+    _macDiskProbeAttempts++;
+    debugPrint('USB detector: starting macOS disk metadata probe (#$_macDiskProbeAttempts)');
+    () async {
+      try {
+        final info = await _findMacOSDiskInfo().timeout(
+          const Duration(milliseconds: 800),
+          onTimeout: () {
+            debugPrint('USB detector: disk metadata probe timed out');
+            return null;
+          },
+        );
+        if (info != null) {
+          _macDiskInfoCache = info;
+          _macDiskProbeAttempts = 0;
+          debugPrint(
+            'USB detector: disk metadata updated '
+            '(path=${info["path"]}, size=${info["size"]}, removable=${info["removable"]}, systemDisk=${info["systemDisk"]})',
+          );
+        } else {
+          debugPrint('USB detector: disk metadata probe returned no data');
+        }
+      } catch (_) {
+        debugPrint('USB detector: disk metadata probe failed');
+      } finally {
+        _macDiskProbeInFlight = false;
+      }
+    }();
+  }
+
   Future<Map<String, dynamic>?> _findMacOSDiskInfo() async {
     try {
-      // Find external disks
-      final listResult = await Process.run('diskutil', ['list', 'external']);
-      if (listResult.exitCode != 0) return null;
+      debugPrint('USB detector: diskutil list external');
+      final listResult = await _runWithFallback(
+        ['/usr/sbin/diskutil', 'diskutil'],
+        ['list', 'external', 'physical'],
+      );
+      if (listResult == null || listResult.exitCode != 0) return null;
 
       final output = listResult.stdout.toString();
-      final match = RegExp(r'/dev/disk(\d+)').firstMatch(output);
-      if (match == null) return null;
+      final diskPath = _selectBestExternalDisk(output);
+      if (diskPath == null) return null;
+      final rawPath = diskPath.replaceFirst('/dev/disk', '/dev/rdisk');
+      debugPrint('USB detector: diskutil selected $diskPath');
 
-      final diskNum = match.group(1);
-      final diskPath = '/dev/disk$diskNum';
-      final rawPath = '/dev/rdisk$diskNum';
-
-      // Get disk info
-      final infoResult = await Process.run('diskutil', ['info', diskPath]);
-      if (infoResult.exitCode != 0) return null;
+      debugPrint('USB detector: diskutil info $diskPath');
+      final infoResult = await _runWithFallback(
+        ['/usr/sbin/diskutil', 'diskutil'],
+        ['info', diskPath],
+      );
+      if (infoResult == null || infoResult.exitCode != 0) return null;
 
       final info = infoResult.stdout.toString();
-
-      // Parse size
       int? sizeBytes;
       final sizeMatch = RegExp(r'Disk Size:\s+[\d.]+ \w+ \((\d+) Bytes\)').firstMatch(info);
       if (sizeMatch != null) {
         sizeBytes = int.tryParse(sizeMatch.group(1)!);
       }
 
-      // Check if removable
       final isRemovable = info.contains('Removable Media:') &&
           info.contains('Removable Media:              Removable');
-
-      // Check if it's the system disk (CRITICAL)
       final isSystemDisk = _isMacOSSystemDisk(info, diskPath);
 
       return {
@@ -409,21 +520,63 @@ class UsbDetector {
         'removable': isRemovable,
         'systemDisk': isSystemDisk,
       };
-    } catch (_) {}
-    return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? _selectBestExternalDisk(String diskutilListOutput) {
+    final lines = diskutilListOutput.split('\n');
+    final candidates = <Map<String, dynamic>>[];
+
+    String? currentDisk;
+    final currentBlock = StringBuffer();
+
+    void flushCurrent() {
+      if (currentDisk == null) return;
+      final block = currentBlock.toString().toLowerCase();
+      final diskNumMatch = RegExp(r'/dev/disk(\d+)').firstMatch(currentDisk!);
+      final diskNum = int.tryParse(diskNumMatch?.group(1) ?? '0') ?? 0;
+      var score = 0;
+      if (block.contains(' linux ')) score += 100;
+      if (block.contains('fdisk_partition_scheme')) score += 20;
+      score += diskNum;
+      candidates.add({'disk': currentDisk!, 'score': score});
+    }
+
+    for (final rawLine in lines) {
+      final line = rawLine.trimRight();
+      final diskMatch = RegExp(r'^/dev/disk\d+ \(external, physical\):$').firstMatch(line);
+      if (diskMatch != null) {
+        flushCurrent();
+        currentDisk = line.split(' ').first;
+        currentBlock.clear();
+        continue;
+      }
+      if (currentDisk != null) {
+        currentBlock.writeln(line);
+      }
+    }
+    flushCurrent();
+
+    if (candidates.isEmpty) return null;
+    candidates.sort((a, b) => (b['score'] as int).compareTo(a['score'] as int));
+    return candidates.first['disk'] as String;
   }
 
   bool _isMacOSSystemDisk(String diskInfo, String diskPath) {
-    // Never flash disk0 - that's always the system disk
     if (diskPath == '/dev/disk0') return true;
+    final info = diskInfo;
 
-    // Check for APFS or system volume indicators
-    if (diskInfo.contains('APFS Container')) return true;
-    if (diskInfo.contains('Macintosh HD')) return true;
-    if (diskInfo.contains('System')) return true;
+    // Internal physical media is likely a system disk.
+    final internalMatch = RegExp(r'^\s*Internal:\s+Yes\s*$', multiLine: true).hasMatch(info);
+    if (internalMatch) return true;
 
-    // Check if internal
-    if (diskInfo.contains('Internal:') && diskInfo.contains('Internal:                      Yes')) {
+    // APFS/system-volume signals tied to internal disk are strong indicators.
+    if (RegExp(r'^\s*APFS Physical Store Disk:\s+disk0s\d+\s*$', multiLine: true).hasMatch(info)) {
+      return true;
+    }
+    if (RegExp(r'^\s*Part of Whole:\s+disk0\s*$', multiLine: true).hasMatch(info)) {
       return true;
     }
 

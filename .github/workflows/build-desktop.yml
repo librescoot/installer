@@ -1,0 +1,72 @@
+name: Build Desktop
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build macOS
+        if: runner.os == 'macOS'
+        run: flutter build macos --release
+
+      - name: Build Linux
+        if: runner.os == 'Linux'
+        run: flutter build linux --release
+
+      - name: Build Windows
+        if: runner.os == 'Windows'
+        run: flutter build windows --release
+
+      - name: Upload macOS artifact
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: librescoot-installer-macos
+          path: build/macos/Build/Products/Release/librescoot_installer.app
+          if-no-files-found: error
+
+      - name: Upload Windows artifact
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: librescoot-installer-windows
+          path: build/windows/x64/runner/Release
+          if-no-files-found: error
+
+      - name: Upload Linux artifact
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: librescoot-installer-linux
+          path: build/linux/x64/release/bundle
+          if-no-files-found: error

@@ -38,6 +38,12 @@ class NetworkService {
 
   /// Configure the interface with a static IP for MDB communication
   Future<bool> configureInterface(NetworkInterface iface) async {
+    // If MDB is already reachable, network is effectively configured.
+    // Avoid reconfiguring and requiring admin privileges unnecessarily.
+    if (await isMdbReachable()) {
+      return true;
+    }
+
     if (Platform.isWindows) {
       return _configureWindows(iface);
     } else if (Platform.isMacOS) {
@@ -223,6 +229,11 @@ class NetworkService {
 
   Future<bool> _configureMacOS(NetworkInterface iface) async {
     try {
+      // If already configured correctly and reachable, don't reconfigure.
+      if (await _isMacOSInterfaceConfigured(iface.name) && await isMdbReachable()) {
+        return true;
+      }
+
       // First, try to find the network service name
       final serviceResult = await Process.run('networksetup', ['-listallhardwareports']);
       String? serviceName;
@@ -268,6 +279,18 @@ class NetworkService {
       return await isMdbReachable();
     } catch (e) {
       print('Failed to configure macOS interface: $e');
+      return false;
+    }
+  }
+
+  Future<bool> _isMacOSInterfaceConfigured(String interfaceName) async {
+    try {
+      final result = await Process.run('ifconfig', [interfaceName]);
+      if (result.exitCode != 0) return false;
+
+      final output = result.stdout.toString();
+      return output.contains('inet $targetIp');
+    } catch (_) {
       return false;
     }
   }

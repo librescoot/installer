@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:dartssh2/dartssh2.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:yaml/yaml.dart';
 import 'package:path/path.dart' as path;
 
@@ -33,6 +34,7 @@ class SshService {
   /// Load version-specific passwords from assets
   Future<void> loadPasswords(String assetsPath) async {
     final passwordsFile = File(path.join(assetsPath, 'passwords.yml'));
+    debugPrint('SSH: loading passwords from ${passwordsFile.path}');
     if (!await passwordsFile.exists()) {
       throw Exception('passwords.yml not found at $assetsPath');
     }
@@ -45,8 +47,14 @@ class SshService {
       final version = entry.key.toString();
       final encoded = entry.value.toString();
       // Passwords are base64 encoded
-      _passwords![version] = utf8.decode(base64.decode(encoded));
+      final decodedRaw = utf8.decode(base64.decode(encoded));
+      final decoded = decodedRaw.replaceAll(RegExp(r'[\r\n]+$'), '');
+      _passwords![version] = decoded;
+      if (decodedRaw.length != decoded.length) {
+        debugPrint('SSH: sanitized trailing newline(s) for password key "$version"');
+      }
     }
+    debugPrint('SSH: password keys available: ${_passwords!.keys.join(", ")}');
   }
 
   /// Connect to MDB and detect firmware version
@@ -66,46 +74,145 @@ class SshService {
   }
 
   Future<DeviceInfo> _connect(String host) async {
-    // Get SSH banner to detect version
-    final socket = await SSHSocket.connect(
-      host,
-      sshPort,
-      timeout: connectionTimeout,
-    );
+    // Try auth with a fallback version, and retry once if banner reveals a
+    // different specific version after the first password attempt.
+    var authVersion = 'v1.20';
+    var attemptedRetry = false;
 
-    // Try to get version from SSH greeting - use default if not available
-    // The version is typically embedded in the SSH banner after connection
-    String version = 'v1.20'; // Default to latest
+    while (true) {
+      final socket = await SSHSocket.connect(
+        host,
+        sshPort,
+        timeout: connectionTimeout,
+      );
+      debugPrint('SSH: connected socket to $host:$sshPort');
 
-    _client = SSHClient(
-      socket,
-      username: sshUser,
-      onPasswordRequest: () => _getPasswordForVersion(version),
-    );
+      var passwordRequestCount = 0;
+      var bannerVersionSeen = authVersion;
+      _client = SSHClient(
+        socket,
+        username: sshUser,
+        onPasswordRequest: () {
+          passwordRequestCount++;
+          final password = _getPasswordForVersion(authVersion);
+          debugPrint('SSH: password request #$passwordRequestCount resolved for version $authVersion');
+          return password;
+        },
+        onUserauthBanner: (banner) {
+          final bannerVersion = _extractVersionFromText(banner);
+          if (bannerVersion != null) {
+            bannerVersionSeen = bannerVersion;
+            authVersion = bannerVersion;
+            debugPrint('SSH: parsed version from banner -> $authVersion');
+          }
+        },
+      );
 
-    // After connection, try to detect version from system
-    try {
-      final osRelease = await runCommand('cat /etc/os-release 2>/dev/null | grep VERSION_ID');
-      final match = RegExp(r'VERSION_ID="?([^"]+)"?').firstMatch(osRelease);
-      if (match != null) {
-        version = 'v${match.group(1)}';
+      try {
+        await _client!.authenticated;
+        debugPrint('SSH: authentication successful');
+        break;
+      } catch (e) {
+        debugPrint('SSH: authentication failed: $e');
+        _client?.close();
+        _client = null;
+        final shouldRetry = !attemptedRetry && bannerVersionSeen != 'v1.20';
+        if (shouldRetry) {
+          attemptedRetry = true;
+          authVersion = bannerVersionSeen;
+          debugPrint('SSH: retrying authentication with banner version $authVersion');
+          continue;
+        }
+        rethrow;
       }
-    } catch (_) {}
+    }
+
+    final detectedVersion = await _detectFirmwareVersion();
+    if (detectedVersion != null) {
+      authVersion = detectedVersion;
+      debugPrint('SSH: detected firmware version $detectedVersion');
+    } else {
+      debugPrint('SSH: firmware version detection failed, using Unknown for UI');
+    }
 
     // Get serial number
     String? serial;
     try {
-      final result = await runCommand('cat /sys/fsl_otp/HW_OCOTP_CFG0 /sys/fsl_otp/HW_OCOTP_CFG1 2>/dev/null | tr -d "\\n"');
-      if (result.isNotEmpty) {
-        serial = result.trim();
+      final result = await runCommand('cat /sys/fsl_otp/HW_OCOTP_CFG0 /sys/fsl_otp/HW_OCOTP_CFG1 2>/dev/null');
+      serial = _parseSerial(result);
+      if (serial != null) {
+        debugPrint('SSH: parsed serial $serial');
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('SSH: serial read failed: $e');
+    }
 
     return DeviceInfo(
       host: host,
-      firmwareVersion: version,
+      firmwareVersion: detectedVersion ?? 'Unknown',
       serialNumber: serial,
     );
+  }
+
+  Future<String?> _detectFirmwareVersion() async {
+    if (_client == null) return null;
+
+    final versionIdRegex = RegExp(r'^VERSION_ID="?([^"\n]+)"?$', multiLine: true);
+    final semverRegex = RegExp(r'\bv?(\d+\.\d+(?:\.\d+)?)\b');
+
+    final commands = <String>[
+      'cat /etc/os-release 2>/dev/null',
+      'cat /etc/librescoot-release 2>/dev/null',
+      'cat /etc/issue 2>/dev/null',
+    ];
+
+    for (final command in commands) {
+      try {
+        debugPrint('SSH: checking firmware version via `$command`');
+        final output = await runCommand(command);
+
+        final versionIdMatch = versionIdRegex.firstMatch(output);
+        if (versionIdMatch != null) {
+          final version = _normalizeVersion(versionIdMatch.group(1)!);
+          debugPrint('SSH: parsed VERSION_ID -> $version');
+          return version;
+        }
+
+        final semverMatch = semverRegex.firstMatch(output);
+        if (semverMatch != null) {
+          final version = _normalizeVersion(semverMatch.group(1)!);
+          debugPrint('SSH: parsed semver -> $version');
+          return version;
+        }
+
+        debugPrint('SSH: no version match from command output');
+      } catch (e) {
+        debugPrint('SSH: command failed during version detection: $e');
+        continue;
+      }
+    }
+
+    return null;
+  }
+
+  String _normalizeVersion(String raw) {
+    final trimmed = raw.trim();
+    return trimmed.startsWith('v') ? trimmed : 'v$trimmed';
+  }
+
+  String? _extractVersionFromText(String text) {
+    final match = RegExp(r'\bv?(\d+\.\d+(?:\.\d+)?)\b').firstMatch(text);
+    if (match == null) return null;
+    return _normalizeVersion(match.group(1)!);
+  }
+
+  double _versionToNumber(String version) {
+    final clean = version.trim().toLowerCase().replaceFirst('v', '');
+    final parts = clean.split('.');
+    final major = parts.isNotEmpty ? int.tryParse(parts[0]) ?? 0 : 0;
+    final minor = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
+    final patch = parts.length > 2 ? int.tryParse(parts[2]) ?? 0 : 0;
+    return (major * 1000000) + (minor * 1000) + patch.toDouble();
   }
 
   String _getPasswordForVersion(String version) {
@@ -113,18 +220,36 @@ class SshService {
       throw Exception('Passwords not loaded. Call loadPasswords() first.');
     }
 
+    final normalized = _normalizeVersion(version);
+    debugPrint('SSH: resolving password for requested version "$version"');
+
     // Try exact match first
+    if (_passwords!.containsKey(normalized)) {
+      return _passwords![normalized]!;
+    }
     if (_passwords!.containsKey(version)) {
       return _passwords![version]!;
     }
+    final withoutV = normalized.replaceFirst('v', '');
+    if (_passwords!.containsKey(withoutV)) {
+      return _passwords![withoutV]!;
+    }
+
+    final parts = withoutV.split('.');
+    if (parts.length == 3) {
+      final majorMinor = 'v${parts[0]}.${parts[1]}';
+      if (_passwords!.containsKey(majorMinor)) {
+        return _passwords![majorMinor]!;
+      }
+    }
 
     // Try to find closest version
-    final versionNum = double.tryParse(version.replaceFirst('v', '')) ?? 0;
+    final versionNum = _versionToNumber(normalized);
     String? closestVersion;
     double closestDiff = double.infinity;
 
     for (final key in _passwords!.keys) {
-      final keyNum = double.tryParse(key.replaceFirst('v', '')) ?? 0;
+      final keyNum = _versionToNumber(key);
       final diff = (keyNum - versionNum).abs();
       if (diff < closestDiff) {
         closestDiff = diff;
@@ -133,6 +258,7 @@ class SshService {
     }
 
     if (closestVersion != null) {
+      debugPrint('SSH: using closest password key "$closestVersion"');
       return _passwords![closestVersion]!;
     }
 
@@ -146,13 +272,32 @@ class SshService {
     }
 
     final session = await _client!.execute(command);
-    final output = StringBuffer();
-    await for (final data in session.stdout) {
-      output.write(utf8.decode(data));
-    }
-    await session.done;
+    final stdout = StringBuffer();
+    final stderr = StringBuffer();
 
-    return output.toString();
+    final stdoutDone = () async {
+      await for (final data in session.stdout) {
+        stdout.write(utf8.decode(data));
+      }
+    }();
+
+    final stderrDone = () async {
+      await for (final data in session.stderr) {
+        stderr.write(utf8.decode(data));
+      }
+    }();
+
+    await Future.wait([stdoutDone, stderrDone, session.done]);
+
+    final exitCode = session.exitCode;
+    if (exitCode != null && exitCode != 0) {
+      throw Exception(
+        'Command failed (exit $exitCode): $command'
+        '${stderr.isNotEmpty ? '\nstderr: ${stderr.toString().trim()}' : ''}',
+      );
+    }
+
+    return stdout.toString();
   }
 
   /// Upload a file to the device
@@ -179,22 +324,43 @@ class SshService {
       throw Exception('Not connected');
     }
 
-    // Upload fw_setenv binary and config
-    // These should be bundled in assets
-    // For now, assume they're already on the device or we use the existing ones
+    // Upload fw_setenv binary and config from local assets.
+    final fwSetenv = await _readToolAsset('fw_setenv');
+    final fwEnvConfig = await _readToolAsset('fw_env.config');
+    await uploadFile(fwSetenv, '/tmp/fw_setenv');
+    await uploadFile(fwEnvConfig, '/tmp/fw_env.config');
+    debugPrint('SSH: uploaded fw_setenv and fw_env.config to /tmp');
 
     // Set bootloader variables for USB mass storage mode
-    final commands = [
-      'fw_setenv bootcmd "ums 0 mmc 1"',
-      'fw_setenv bootdelay 0',
-    ];
+    final fullBootcmd =
+        '/tmp/fw_setenv -c /tmp/fw_env.config bootcmd "fuse prog -y 0 5 0x00002860; '
+        'fuse prog -y 0 6 0x00000010; ums 0 mmc 1;"';
+    final fallbackBootcmd =
+        '/tmp/fw_setenv -c /tmp/fw_env.config bootcmd "ums 0 mmc 1"';
 
-    for (final cmd in commands) {
-      final result = await runCommand(cmd);
-      if (result.contains('error') || result.contains('Error')) {
-        throw Exception('Failed to run: $cmd');
+    // Some boards need fuse programming in bootcmd (legacy flashing-tool
+    // behavior). If that fails, fall back to plain UMS bootcmd.
+    try {
+      debugPrint('SSH: running prepare command: $fullBootcmd');
+      final result = await runCommand(fullBootcmd);
+      if (result.trim().isNotEmpty) {
+        debugPrint('SSH: prepare command output: ${result.trim()}');
+      }
+    } catch (e) {
+      debugPrint('SSH: full bootcmd failed, trying fallback UMS bootcmd: $e');
+      final fallbackResult = await runCommand(fallbackBootcmd);
+      if (fallbackResult.trim().isNotEmpty) {
+        debugPrint('SSH: fallback bootcmd output: ${fallbackResult.trim()}');
       }
     }
+
+    final bootdelayCmd = '/tmp/fw_setenv -c /tmp/fw_env.config bootdelay 0';
+    debugPrint('SSH: running prepare command: $bootdelayCmd');
+    final delayResult = await runCommand(bootdelayCmd);
+    if (delayResult.trim().isNotEmpty) {
+      debugPrint('SSH: prepare command output: ${delayResult.trim()}');
+    }
+    debugPrint('SSH: bootloader configured for mass storage mode');
   }
 
   /// Reboot the device
@@ -203,14 +369,100 @@ class SshService {
       throw Exception('Not connected');
     }
 
-    try {
-      // Reboot command - connection will drop
-      await runCommand('reboot');
-    } catch (_) {
-      // Expected - connection will drop during reboot
+    final rebootCommands = <String>[
+      'reboot',
+      '/sbin/reboot',
+      'busybox reboot',
+      'shutdown -r now',
+    ];
+
+    var requested = false;
+    for (final cmd in rebootCommands) {
+      try {
+        debugPrint('SSH: sending reboot command: $cmd');
+        await runCommand(cmd);
+        debugPrint('SSH: reboot command accepted: $cmd');
+        requested = true;
+        break;
+      } catch (e) {
+        final error = e.toString().toLowerCase();
+        if (_looksLikeDisconnect(error)) {
+          debugPrint('SSH: reboot likely triggered (connection dropped): $cmd');
+          requested = true;
+          break;
+        }
+        debugPrint('SSH: reboot command failed: $cmd -> $e');
+      }
     }
 
+    if (!requested) {
+      throw Exception('Failed to trigger reboot with known commands');
+    }
+
+    debugPrint('SSH: disconnecting local SSH client after reboot attempt');
     disconnect();
+  }
+
+  bool _looksLikeDisconnect(String error) {
+    return error.contains('connection reset') ||
+        error.contains('broken pipe') ||
+        error.contains('socket') ||
+        error.contains('eof') ||
+        error.contains('closed');
+  }
+
+  Future<Uint8List> _readToolAsset(String fileName) async {
+    final bundleCandidates = <String>[
+      'assets/tools/$fileName',
+      'assets/binaries/$fileName',
+    ];
+    for (final candidate in bundleCandidates) {
+      try {
+        final data = await rootBundle.load(candidate);
+        debugPrint('SSH: loaded tool asset from bundle: $candidate');
+        return data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+      } catch (_) {
+        // Try next candidate
+      }
+    }
+
+    final candidates = <String>[
+      path.join(Directory.current.path, 'assets', 'tools', fileName),
+      path.join(Directory.current.path, 'assets', 'binaries', fileName),
+      path.join(
+        Platform.resolvedExecutable,
+        '..',
+        'data',
+        'flutter_assets',
+        'assets',
+        'tools',
+        fileName,
+      ),
+      path.join(
+        Platform.resolvedExecutable,
+        '..',
+        'data',
+        'flutter_assets',
+        'assets',
+        'binaries',
+        fileName,
+      ),
+    ];
+
+    for (final candidate in candidates) {
+      final file = File(candidate);
+      if (await file.exists()) {
+        return file.readAsBytes();
+      }
+    }
+
+    throw Exception('Required tool asset not found: $fileName');
+  }
+
+  String? _parseSerial(String raw) {
+    final matches = RegExp(r'0x[0-9a-fA-F]+').allMatches(raw).map((m) => m.group(0)!).toList();
+    if (matches.isEmpty) return null;
+    return matches.map((part) => part.replaceFirst(RegExp(r'^0x', caseSensitive: false), '')).join().toLowerCase();
   }
 
   /// Disconnect from device
