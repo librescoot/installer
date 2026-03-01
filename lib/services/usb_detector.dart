@@ -318,6 +318,43 @@ class UsbDetector {
       }
     } catch (_) {}
 
+    return _detectWindowsPnpEthernetPowerShell();
+  }
+
+  Future<UsbDevice?> _detectWindowsPnpEthernetPowerShell() async {
+    try {
+      final result = await Process.run(
+        'powershell',
+        [
+          '-NoProfile',
+          '-Command',
+          r'''
+$dev = Get-CimInstance Win32_PnPEntity | Where-Object { $_.PNPDeviceID -like "*VID_0525&PID_A4A2*" } | Select-Object -First 1 Name,PNPDeviceID
+if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
+''',
+        ],
+        runInShell: true,
+      );
+
+      if (result.exitCode != 0) return null;
+      final line = result.stdout.toString().trim();
+      if (line.isEmpty) return null;
+
+      final parts = line.split('\t');
+      final name = parts.isNotEmpty ? parts[0].trim() : 'LibreScoot MDB (USB)';
+      final pnpId = parts.length > 1 ? parts[1].trim() : '';
+      if (!pnpId.toUpperCase().contains('VID_0525&PID_A4A2')) return null;
+
+      return UsbDevice(
+        id: pnpId,
+        name: name.isNotEmpty ? name : 'LibreScoot MDB (USB)',
+        path: pnpId,
+        vendorId: targetVendorId,
+        productId: ethernetPid,
+        mode: DeviceMode.ethernet,
+      );
+    } catch (_) {}
+
     return null;
   }
 
@@ -590,13 +627,14 @@ class UsbDetector {
     void flushCurrent() {
       if (currentDisk == null) return;
       final block = currentBlock.toString().toLowerCase();
-      final diskNumMatch = RegExp(r'/dev/disk(\d+)').firstMatch(currentDisk!);
+      final disk = currentDisk;
+      final diskNumMatch = RegExp(r'/dev/disk(\d+)').firstMatch(disk);
       final diskNum = int.tryParse(diskNumMatch?.group(1) ?? '0') ?? 0;
       var score = 0;
       if (block.contains(' linux ')) score += 100;
       if (block.contains('fdisk_partition_scheme')) score += 20;
       score += diskNum;
-      candidates.add({'disk': currentDisk!, 'score': score});
+      candidates.add({'disk': disk, 'score': score});
     }
 
     for (final rawLine in lines) {
