@@ -99,8 +99,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Backward-compatible fallback.
     if (bestPath == null) {
-      final legacy = path.join(dir.path, 'mdb.wic.gz');
-      if (File(legacy).existsSync()) return legacy;
+      for (final name in ['mdb.sdimg.gz', 'mdb.sdimg', 'mdb.wic.gz', 'mdb.wic', 'mdb.img']) {
+        final legacy = path.join(dir.path, name);
+        if (File(legacy).existsSync()) return legacy;
+      }
     }
 
     return bestPath;
@@ -265,7 +267,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 8),
         const Text(
-          'Choose a .wic or .wic.gz firmware file to flash',
+          'Choose a .sdimg.gz, .sdimg, .wic.gz, .wic, or .img firmware file to flash',
           style: TextStyle(color: Colors.grey),
         ),
         const SizedBox(height: 24),
@@ -550,23 +552,32 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  static bool _isFirmwareFile(String path) {
+    return path.endsWith('.sdimg.gz') ||
+        path.endsWith('.sdimg') ||
+        path.endsWith('.wic.gz') ||
+        path.endsWith('.wic') ||
+        path.endsWith('.img');
+  }
+
   Future<void> _pickFirmware() async {
     try {
       final result = await FilePicker.platform.pickFiles(
-        type: FileType.any,
+        type: FileType.custom,
+        allowedExtensions: ['gz', 'sdimg', 'wic', 'img'],
         dialogTitle: 'Select Firmware Image',
       );
 
       if (result != null && result.files.isNotEmpty) {
         final selectedPath = result.files.first.path;
         if (selectedPath != null) {
-          if (selectedPath.endsWith('.wic') || selectedPath.endsWith('.wic.gz') || selectedPath.endsWith('.gz')) {
+          if (_isFirmwareFile(selectedPath)) {
             setState(() {
               _firmwarePath = selectedPath;
               _statusMessage = null;
             });
           } else {
-            setState(() => _statusMessage = 'Please select a .wic or .wic.gz file');
+            setState(() => _statusMessage = 'Please select a .sdimg.gz, .sdimg, .wic.gz, .wic, or .img file');
           }
         }
       }
