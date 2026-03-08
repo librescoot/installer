@@ -57,6 +57,27 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _checkElevation() async {
     final elevated = await ElevationService.isElevated();
     setState(() => _isElevated = elevated);
+
+    if (elevated) {
+      await _ensureDriverInstalled();
+    }
+  }
+
+  Future<void> _ensureDriverInstalled() async {
+    if (!Platform.isWindows) return;
+
+    final installed = await DriverService.isDriverInstalled();
+    if (!installed) {
+      setState(() => _statusMessage = 'Installing USB driver...');
+      final result = await DriverService.installDriver();
+      if (result.success) {
+        setState(() => _statusMessage = result.alreadyInstalled
+            ? null
+            : 'USB driver installed successfully');
+      } else {
+        setState(() => _statusMessage = 'Driver install failed: ${result.error}');
+      }
+    }
   }
 
   Future<void> _autoLoadFirmwareFromCwd() async {
