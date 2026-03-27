@@ -123,6 +123,27 @@ func (inst *Installer) Run() error {
 		}
 	}
 
+	logStep("Waiting for MDB to boot into LibreScoot...")
+	if inst.dryRun {
+		logInfo("[dry-run] would wait for RNDIS + stable ping")
+	} else {
+		if err := inst.waitForBoot(10 * time.Minute); err != nil {
+			logWarn("Boot wait failed: %v", err)
+			logInfo("The MDB may still be booting. Try pinging %s manually.", inst.mdbHost)
+		} else {
+			// Verify it's actually LibreScoot
+			info, err := inst.getMDBInfo()
+			if err != nil {
+				logInfo("MDB is up but couldn't read version: %v", err)
+			} else {
+				logInfo("Firmware: %s", info["version"])
+				if name, ok := info["pretty_name"]; ok {
+					logInfo("OS:       %s", name)
+				}
+			}
+		}
+	}
+
 	logStep("Done! LibreScoot has been installed.")
 	return nil
 }
@@ -480,6 +501,55 @@ func (inst *Installer) unbindUSBDevice() error {
 		}
 	}
 	return fmt.Errorf("USB device 0525:a4a5 not found in sysfs")
+}
+
+// waitForBoot waits for the MDB to boot into LibreScoot after flashing.
+// First waits for the RNDIS USB device to reappear, configures the network
+// interface, then waits for stable ping (10 consecutive successes).
+func (inst *Installer) waitForBoot(timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+
+	// Phase 1: wait for RNDIS USB device
+	logInfo("Waiting for RNDIS device (0525:a4a2)...")
+	for time.Now().Before(deadline) {
+		out, err := run("lsusb", "-d", usbVID+":"+pidRNDIS)
+		if err == nil && strings.TrimSpace(out) != "" {
+			logInfo("RNDIS device detected")
+			break
+		}
+		time.Sleep(3 * time.Second)
+	}
+	if time.Now().After(deadline) {
+		return fmt.Errorf("timed out waiting for RNDIS device")
+	}
+
+	// Phase 2: configure network interface
+	time.Sleep(2 * time.Second)
+	if err := inst.ensureNetworkInterface(); err != nil {
+		logWarn("Network config: %v", err)
+	}
+
+	// Phase 3: wait for stable ping (10 consecutive successes, 1s apart)
+	logInfo("Waiting for stable network (10 consecutive pings)...")
+	consecutive := 0
+	required := 10
+	for time.Now().Before(deadline) {
+		_, err := run("ping", "-c", "1", "-W", "2", inst.mdbHost)
+		if err == nil {
+			consecutive++
+			if consecutive >= required {
+				logInfo("MDB is up and stable")
+				return nil
+			}
+		} else {
+			if consecutive > 0 {
+				logInfo("Ping dropped after %d, restarting count...", consecutive)
+			}
+			consecutive = 0
+		}
+		time.Sleep(1 * time.Second)
+	}
+	return fmt.Errorf("timed out waiting for stable connection (got %d/%d consecutive pings)", consecutive, required)
 }
 
 // run executes a command and returns its combined output.
