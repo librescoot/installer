@@ -111,8 +111,19 @@ func (inst *Installer) Run() error {
 		}
 	}
 
+	logStep("Ejecting USB device to trigger reboot...")
+	if inst.dryRun {
+		logInfo("[dry-run] would eject %s", devicePath)
+	} else {
+		if err := inst.ejectDevice(devicePath); err != nil {
+			logWarn("Eject failed: %v", err)
+			logInfo("Unplug USB or power cycle the MDB to boot into LibreScoot.")
+		} else {
+			logInfo("MDB should now reboot into LibreScoot.")
+		}
+	}
+
 	logStep("Done! LibreScoot has been installed.")
-	logInfo("The MDB will boot into LibreScoot on next power cycle.")
 	return nil
 }
 
@@ -279,10 +290,11 @@ func (inst *Installer) configureBootloader() error {
 	inst.mdbSSH("chmod +x /tmp/fw_setenv")
 
 	// Configure bootcmd — try with fuse programming first, fall back to plain UMS
-	fullBootcmd := `/tmp/fw_setenv -c /tmp/fw_env.config bootcmd "fuse prog -y 0 5 0x00002860; fuse prog -y 0 6 0x00000010; ums 0 mmc 1;"`
+	// Chain `reset` after `ums` so U-Boot auto-reboots when the host ejects the USB device
+	fullBootcmd := `/tmp/fw_setenv -c /tmp/fw_env.config bootcmd "fuse prog -y 0 5 0x00002860; fuse prog -y 0 6 0x00000010; ums 0 mmc 1; reset"`
 	if _, err := inst.mdbSSH(fullBootcmd); err != nil {
 		logWarn("Full bootcmd failed, trying fallback: %v", err)
-		fallbackBootcmd := `/tmp/fw_setenv -c /tmp/fw_env.config bootcmd "ums 0 mmc 1"`
+		fallbackBootcmd := `/tmp/fw_setenv -c /tmp/fw_env.config bootcmd "ums 0 mmc 1; reset"`
 		if _, err := inst.mdbSSH(fallbackBootcmd); err != nil {
 			return fmt.Errorf("setting bootcmd: %w", err)
 		}
@@ -417,6 +429,57 @@ func (inst *Installer) flashImage(devicePath string) error {
 
 	logInfo("Flash complete")
 	return nil
+}
+
+// ejectDevice unbinds the USB device from the host, causing U-Boot's ums command
+// to exit and (with `reset` chained in bootcmd) reboot into the flashed OS.
+func (inst *Installer) ejectDevice(devicePath string) error {
+	// Find the USB device sysfs path for this block device
+	devName := filepath.Base(devicePath)
+	sysPath := fmt.Sprintf("/sys/block/%s/device", devName)
+
+	// Walk up to find the USB device to unbind
+	target, err := os.Readlink(sysPath)
+	if err != nil {
+		// Fallback: try udisksctl
+		logInfo("Trying udisksctl eject...")
+		if _, err := run("udisksctl", "power-off", "-b", devicePath); err == nil {
+			return nil
+		}
+		// Last resort: unbind by finding the USB device in sysfs
+		return inst.unbindUSBDevice()
+	}
+
+	logInfo("Device sysfs: %s", target)
+	// Try udisksctl first (cleanest)
+	if _, err := run("udisksctl", "power-off", "-b", devicePath); err == nil {
+		return nil
+	}
+
+	return inst.unbindUSBDevice()
+}
+
+func (inst *Installer) unbindUSBDevice() error {
+	// Find the USB device with VID:PID 0525:a4a5
+	entries, err := os.ReadDir("/sys/bus/usb/devices")
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		vendorPath := filepath.Join("/sys/bus/usb/devices", e.Name(), "idVendor")
+		productPath := filepath.Join("/sys/bus/usb/devices", e.Name(), "idProduct")
+		vendor, err1 := os.ReadFile(vendorPath)
+		product, err2 := os.ReadFile(productPath)
+		if err1 != nil || err2 != nil {
+			continue
+		}
+		if strings.TrimSpace(string(vendor)) == usbVID && strings.TrimSpace(string(product)) == pidUMS {
+			unbindPath := "/sys/bus/usb/drivers/usb/unbind"
+			logInfo("Unbinding USB device %s", e.Name())
+			return os.WriteFile(unbindPath, []byte(e.Name()), 0o200)
+		}
+	}
+	return fmt.Errorf("USB device 0525:a4a5 not found in sysfs")
 }
 
 // run executes a command and returns its combined output.
