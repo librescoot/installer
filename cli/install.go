@@ -298,10 +298,16 @@ func (inst *Installer) configureBootloader() error {
 }
 
 func (inst *Installer) rebootMDB() error {
-	// Reboot — connection drop is expected
-	_, err := inst.mdbSSH("reboot")
-	if err != nil {
+	// Try multiple reboot commands — stock scooterOS may not have all of them in PATH
+	cmds := []string{"reboot", "/sbin/reboot", "busybox reboot", "shutdown -r now"}
+	for _, cmd := range cmds {
+		_, err := inst.mdbSSH(cmd)
+		if err == nil {
+			logInfo("MDB is rebooting...")
+			return nil
+		}
 		errStr := strings.ToLower(err.Error())
+		// Connection drop or exit 255 means the reboot worked
 		if strings.Contains(errStr, "closed") ||
 			strings.Contains(errStr, "reset") ||
 			strings.Contains(errStr, "broken pipe") ||
@@ -309,10 +315,14 @@ func (inst *Installer) rebootMDB() error {
 			logInfo("MDB is rebooting...")
 			return nil
 		}
-		return err
+		// exit status 127 = command not found, try next
+		if strings.Contains(errStr, "exit status 127") {
+			continue
+		}
+		// Some other error — still try next command
+		logWarn("reboot command %q failed: %v", cmd, err)
 	}
-	logInfo("MDB is rebooting...")
-	return nil
+	return fmt.Errorf("all reboot commands failed")
 }
 
 func (inst *Installer) waitForMassStorage(timeout time.Duration) error {
