@@ -111,11 +111,10 @@ func (inst *Installer) Run() error {
 		}
 	}
 
-	logStep("Flash complete. Unplug the USB cable briefly to reboot the MDB.")
-	logInfo("U-Boot will auto-reset once USB disconnects.")
-	logInfo("Then reconnect the cable and press Enter to continue.")
+	logStep("Flash complete. Power cycle the MDB to boot into LibreScoot.")
+	logInfo("Press Enter after the MDB has been power cycled and USB reconnected.")
 	if !inst.dryRun {
-		fmt.Print("\nPress Enter after reconnecting USB...")
+		fmt.Print("\nPress Enter to continue...")
 		fmt.Scanln()
 	}
 
@@ -312,11 +311,11 @@ func (inst *Installer) configureBootloader() error {
 		logInfo("Using bundled fw_setenv with stock env layout")
 	}
 
-	// Chain `reset` after `ums` so U-Boot auto-reboots when the host ejects the USB device
-	fullBootcmd := fmt.Sprintf(`%s bootcmd "fuse prog -y 0 5 0x00002860; fuse prog -y 0 6 0x00000010; ums 0 mmc 1; reset"`, fwSetenvCmd)
+	// Set bootcmd to enter USB mass storage mode — try with fuse programming first (legacy boards)
+	fullBootcmd := fmt.Sprintf(`%s bootcmd "fuse prog -y 0 5 0x00002860; fuse prog -y 0 6 0x00000010; ums 0 mmc 1"`, fwSetenvCmd)
 	if _, err := inst.mdbSSH(fullBootcmd); err != nil {
 		logWarn("Full bootcmd failed, trying fallback: %v", err)
-		fallbackBootcmd := fmt.Sprintf(`%s bootcmd "ums 0 mmc 1; reset"`, fwSetenvCmd)
+		fallbackBootcmd := fmt.Sprintf(`%s bootcmd "ums 0 mmc 1"`, fwSetenvCmd)
 		if _, err := inst.mdbSSH(fallbackBootcmd); err != nil {
 			return fmt.Errorf("setting bootcmd: %w", err)
 		}
@@ -453,28 +452,6 @@ func (inst *Installer) flashImage(devicePath string) error {
 
 	logInfo("Flash complete")
 	return nil
-}
-
-// ejectDevice unbinds the USB device from the host, causing U-Boot's ums command
-// to exit and (with `reset` chained in bootcmd) reboot into the flashed OS.
-func (inst *Installer) ejectDevice(devicePath string) error {
-	// Find the USB device with VID:PID 0525:a4a5 and unbind it via sysfs
-	entries, err := os.ReadDir("/sys/bus/usb/devices")
-	if err != nil {
-		return err
-	}
-	for _, e := range entries {
-		vendorPath := filepath.Join("/sys/bus/usb/devices", e.Name(), "idVendor")
-		productPath := filepath.Join("/sys/bus/usb/devices", e.Name(), "idProduct")
-		vendor, _ := os.ReadFile(vendorPath)
-		product, _ := os.ReadFile(productPath)
-		if strings.TrimSpace(string(vendor)) == usbVID && strings.TrimSpace(string(product)) == pidUMS {
-			logInfo("Unbinding USB device %s", e.Name())
-			_, err := runShell(fmt.Sprintf("echo '%s' | sudo tee /sys/bus/usb/drivers/usb/unbind", e.Name()))
-			return err
-		}
-	}
-	return fmt.Errorf("USB device 0525:a4a5 not found in sysfs")
 }
 
 // waitForBoot waits for the MDB to boot into LibreScoot after flashing.
