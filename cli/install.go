@@ -282,47 +282,53 @@ func (inst *Installer) getMDBInfo() (map[string]string, error) {
 }
 
 func (inst *Installer) configureBootloader() error {
-	// Write embedded assets to temp files
-	tmpDir, err := os.MkdirTemp("", "librescoot-install-*")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(tmpDir)
+	// Check if the MDB has its own fw_setenv (LibreScoot has one at /usr/bin/fw_setenv
+	// with /etc/fw_env.config pointing to the correct U-Boot env offsets)
+	var fwSetenvCmd string
+	if out, err := inst.mdbSSH("which fw_setenv 2>/dev/null && test -f /etc/fw_env.config && echo OK"); err == nil && strings.Contains(out, "OK") {
+		fwSetenvCmd = "fw_setenv"
+		logInfo("Using MDB's native fw_setenv with /etc/fw_env.config")
+	} else {
+		// Stock scooterOS: upload our bundled fw_setenv with stock env layout
+		tmpDir, err := os.MkdirTemp("", "librescoot-install-*")
+		if err != nil {
+			return err
+		}
+		defer os.RemoveAll(tmpDir)
 
-	fwSetenvPath := filepath.Join(tmpDir, "fw_setenv")
-	fwConfigPath := filepath.Join(tmpDir, "fw_env.config")
+		fwSetenvPath := filepath.Join(tmpDir, "fw_setenv")
+		fwConfigPath := filepath.Join(tmpDir, "fw_env.config")
 
-	if err := os.WriteFile(fwSetenvPath, fwSetenvBin, 0o755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(fwConfigPath, fwEnvConfig, 0o644); err != nil {
-		return err
+		if err := os.WriteFile(fwSetenvPath, fwSetenvBin, 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(fwConfigPath, fwEnvConfig, 0o644); err != nil {
+			return err
+		}
+
+		if err := inst.mdbSCP(fwSetenvPath, "/tmp/fw_setenv"); err != nil {
+			return fmt.Errorf("uploading fw_setenv: %w", err)
+		}
+		if err := inst.mdbSCP(fwConfigPath, "/tmp/fw_env.config"); err != nil {
+			return fmt.Errorf("uploading fw_env.config: %w", err)
+		}
+		inst.mdbSSH("chmod +x /tmp/fw_setenv")
+		fwSetenvCmd = "/tmp/fw_setenv -c /tmp/fw_env.config"
+		logInfo("Using bundled fw_setenv with stock env layout")
 	}
 
-	// Upload to MDB
-	if err := inst.mdbSCP(fwSetenvPath, "/tmp/fw_setenv"); err != nil {
-		return fmt.Errorf("uploading fw_setenv: %w", err)
-	}
-	if err := inst.mdbSCP(fwConfigPath, "/tmp/fw_env.config"); err != nil {
-		return fmt.Errorf("uploading fw_env.config: %w", err)
-	}
-
-	// Make executable
-	inst.mdbSSH("chmod +x /tmp/fw_setenv")
-
-	// Configure bootcmd — try with fuse programming first, fall back to plain UMS
 	// Chain `reset` after `ums` so U-Boot auto-reboots when the host ejects the USB device
-	fullBootcmd := `/tmp/fw_setenv -c /tmp/fw_env.config bootcmd "fuse prog -y 0 5 0x00002860; fuse prog -y 0 6 0x00000010; ums 0 mmc 1; reset"`
+	fullBootcmd := fmt.Sprintf(`%s bootcmd "fuse prog -y 0 5 0x00002860; fuse prog -y 0 6 0x00000010; ums 0 mmc 1; reset"`, fwSetenvCmd)
 	if _, err := inst.mdbSSH(fullBootcmd); err != nil {
 		logWarn("Full bootcmd failed, trying fallback: %v", err)
-		fallbackBootcmd := `/tmp/fw_setenv -c /tmp/fw_env.config bootcmd "ums 0 mmc 1; reset"`
+		fallbackBootcmd := fmt.Sprintf(`%s bootcmd "ums 0 mmc 1; reset"`, fwSetenvCmd)
 		if _, err := inst.mdbSSH(fallbackBootcmd); err != nil {
 			return fmt.Errorf("setting bootcmd: %w", err)
 		}
 	}
 
 	// Set boot delay to 0
-	if _, err := inst.mdbSSH(`/tmp/fw_setenv -c /tmp/fw_env.config bootdelay 0`); err != nil {
+	if _, err := inst.mdbSSH(fmt.Sprintf(`%s bootdelay 0`, fwSetenvCmd)); err != nil {
 		return fmt.Errorf("setting bootdelay: %w", err)
 	}
 
@@ -414,10 +420,12 @@ func isSystemDisk(dev string) bool {
 
 func (inst *Installer) flashImage(devicePath string) error {
 	// Unmount any existing partitions
-	out, _ := run("lsblk", "-n", "-o", "NAME", devicePath)
+	// Use -n -l (list, no tree) to avoid tree-drawing characters like └─
+	out, _ := run("lsblk", "-n", "-l", "-o", "NAME", devicePath)
+	devBase := filepath.Base(devicePath)
 	for _, line := range strings.Split(out, "\n") {
 		name := strings.TrimSpace(line)
-		if name == "" || name == filepath.Base(devicePath) {
+		if name == "" || name == devBase {
 			continue
 		}
 		part := "/dev/" + name
@@ -428,10 +436,10 @@ func (inst *Installer) flashImage(devicePath string) error {
 	// Build dd command
 	var cmd string
 	if strings.HasSuffix(inst.imagePath, ".gz") {
-		cmd = fmt.Sprintf("gunzip -c '%s' | sudo dd of='%s' bs=4M oflag=direct status=progress",
+		cmd = fmt.Sprintf("gunzip -c '%s' | sudo dd of='%s' bs=4M iflag=fullblock oflag=direct status=progress",
 			inst.imagePath, devicePath)
 	} else {
-		cmd = fmt.Sprintf("sudo dd if='%s' of='%s' bs=4M oflag=direct status=progress",
+		cmd = fmt.Sprintf("sudo dd if='%s' of='%s' bs=4M iflag=fullblock oflag=direct status=progress",
 			inst.imagePath, devicePath)
 	}
 
