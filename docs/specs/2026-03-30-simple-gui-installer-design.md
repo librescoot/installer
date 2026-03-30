@@ -170,7 +170,7 @@ Trampoline script runs autonomously on MDB. Installer cannot communicate with MD
    - Set bootloader: `fw_setenv bootcmd "ums 0 mmc 2"`, `fw_setenv bootdelay 0`
    - Optionally set DBC fuse bits: `fuse prog -y 0 5 0x00003860; fuse prog -y 0 6 0x00000010`
 7. Reboot DBC
-8. Switch MDB USB to host mode (unload gadget modules, exact mechanism TBD — verify on hardware)
+8. Switch MDB USB to host mode (`modprobe -r g_ether && echo host > /sys/kernel/debug/ci_hdrc.0/role`)
 9. Wait for DBC block device to appear (`/dev/sdX` on MDB)
 10. Two-phase flash DBC (same strategy as MDB, 24MB split):
     ```
@@ -198,7 +198,7 @@ Trampoline script runs autonomously on MDB. Installer cannot communicate with MD
 | DBC connected | Green | Front + rear position lights constant |
 | DBC flashing | Green | All position lights constant |
 | Success | Green | Brief celebration, then off |
-| Error | Red | Hazard flashers (`lsc led cue blink-both`) |
+| Error | Red | Hazard flashers (`lsc led cue blink-both`) in a loop every 800ms |
 
 **Timeout/fallback:**
 - Each step has a timeout (e.g. 60s for DBC ping, 120s for UMS device)
@@ -357,7 +357,10 @@ MDB has one physical USB connector (ci_hdrc.0, OTG). An internal cable normally 
 
 **USB role switching on MDB:**
 - Gadget mode: `g_ether` kernel module (RNDIS network)
-- Host mode: unload gadget modules (exact mechanism TBD — verify on hardware)
+- To host mode: `modprobe -r g_ether && echo host > /sys/kernel/debug/ci_hdrc.0/role` → `/dev/sda` appears
+- Back to gadget: `echo gadget > /sys/kernel/debug/ci_hdrc.0/role && modprobe g_ether` (no reboot needed on LibreScoot — `CONFIG_USB_ROLE_SWITCH=y` + `dr_mode = "otg"`)
+- OTG capability check: `cat /sys/kernel/debug/ci_hdrc.0/device | grep 'is_otg'`
+- Alternative sysfs: `/sys/class/usb_role/` (proper role switch framework)
 - Detach detection: poll `/sys/class/udc/ci_hdrc.0/state`
 
 ## Scoped Out / Deferred
