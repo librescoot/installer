@@ -50,6 +50,9 @@ dependencies:
   # Archive handling for gzip firmware images
   archive: ^3.0.0
 
+  # HTTP client for GitHub API and firmware downloads
+  http: ^1.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
