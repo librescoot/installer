@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../models/scooter_health.dart';
+import '../models/trampoline_status.dart';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -472,4 +474,62 @@ class SshService {
   }
 
   bool get isConnected => _client != null;
+
+  /// Run a Redis HGET command on the MDB and return the value.
+  Future<String?> redisHget(String hash, String field) async {
+    try {
+      final result = await runCommand('redis-cli HGET $hash $field');
+      final value = result.trim();
+      if (value.isEmpty || value == '(nil)') return null;
+      return value;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Run a Redis LPUSH command on the MDB.
+  Future<void> redisLpush(String key, String value) async {
+    await runCommand('redis-cli LPUSH $key $value');
+  }
+
+  /// Query scooter health from Redis.
+  Future<ScooterHealth> queryHealth() async {
+    final health = ScooterHealth();
+    health.auxCharge = int.tryParse(await redisHget('aux-battery', 'charge') ?? '');
+    health.cbbStateOfHealth = int.tryParse(await redisHget('cb-battery', 'state-of-health') ?? '');
+    health.cbbCharge = int.tryParse(await redisHget('cb-battery', 'charge') ?? '');
+    final batteryPresent = await redisHget('battery:0', 'present');
+    health.batteryPresent = batteryPresent == 'true';
+    return health;
+  }
+
+  /// Open the seatbox.
+  Future<void> openSeatbox() async {
+    await redisLpush('scooter:seatbox', 'open');
+  }
+
+  /// Check if CBB is connected.
+  Future<bool> isCbbPresent() async {
+    final present = await redisHget('cb-battery', 'present');
+    return present == 'true';
+  }
+
+  /// Check if main battery is present.
+  Future<bool> isBatteryPresent() async {
+    final present = await redisHget('battery:0', 'present');
+    return present == 'true';
+  }
+
+  /// Read the trampoline status file from MDB.
+  Future<TrampolineStatus> readTrampolineStatus() async {
+    try {
+      final content = await runCommand('cat /data/trampoline-status 2>/dev/null');
+      if (content.trim().isEmpty) {
+        return TrampolineStatus(result: TrampolineResult.unknown);
+      }
+      return TrampolineStatus.parse(content);
+    } catch (_) {
+      return TrampolineStatus(result: TrampolineResult.unknown);
+    }
+  }
 }
