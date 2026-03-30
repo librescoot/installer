@@ -581,19 +581,20 @@ class _InstallerScreenState extends State<InstallerScreen> {
             number: 1,
             title: l10n.removeFootwellCover,
             description: l10n.removeFootwellCoverDesc,
-            imageAsset: 'assets/images/lsi-unu_scooter_footwell_closed.jpg',
+            beforeImageAsset: 'assets/images/lsi-unu_scooter_footwell_closed.jpg',
+            imageAsset: 'assets/images/lsi-unu_scooter_footwell_open.jpg',
           ),
           InstructionStep(
             number: 2,
             title: l10n.unscrewUsbCable,
             description: l10n.unscrewUsbCableDesc,
+            beforeImageAsset: 'assets/images/lsi-mdb_usb_connected.jpg',
             imageAsset: 'assets/images/lsi-mdb_usb_disconnected.jpg',
           ),
           InstructionStep(
             number: 3,
             title: l10n.connectLaptopUsb,
             description: l10n.connectLaptopUsbDesc,
-            imageAsset: 'assets/images/lsi-mdb_usb_connected.jpg',
           ),
           const SizedBox(height: 24),
           if (_downloadState.items.isNotEmpty)
