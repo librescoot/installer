@@ -491,6 +491,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
       final extraArgs = LaunchArgs(
         channel: _downloadState.channel.name,
         region: _downloadState.selectedRegion?.slug,
+        lang: launchArgs.lang,
+        dryRun: launchArgs.dryRun,
       ).toArgs();
       final elevated = await ElevationService.elevateIfNeeded(extraArgs: extraArgs);
       if (elevated) {
@@ -609,6 +611,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
 
+    if (_isDryRun) {
+      _setStatus('[DRY RUN] Simulating MDB connection...');
+      await Future.delayed(const Duration(seconds: 1));
+      _setPhase(InstallerPhase.healthCheck);
+      return;
+    }
+
     _setStatus(l10n.waitingForRndis);
     await _waitForDevice(DeviceMode.ethernet);
 
@@ -639,7 +648,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
   }
 
+  bool get _isDryRun => launchArgs.dryRun;
+
   Future<void> _waitForDevice(DeviceMode mode) async {
+    if (_isDryRun) {
+      await Future.delayed(const Duration(seconds: 1));
+      return;
+    }
     while (_device?.mode != mode) {
       await Future.delayed(const Duration(seconds: 1));
       if (!mounted) return;
@@ -690,6 +705,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _runHealthCheck() async {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
+    if (_isDryRun) {
+      setState(() => _scooterHealth = ScooterHealth()
+        ..auxCharge = 85
+        ..cbbStateOfHealth = 100
+        ..cbbCharge = 92
+        ..batteryPresent = true);
+      setState(() => _isProcessing = false);
+      return;
+    }
     try {
       final health = await _sshService.queryHealth();
       setState(() => _scooterHealth = health);
@@ -749,6 +773,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _openSeatboxAndWaitForBattery() async {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
+    if (_isDryRun) {
+      _setStatus('[DRY RUN] Simulating battery removal...');
+      await Future.delayed(const Duration(seconds: 1));
+      setState(() { _scooterHealth?.batteryPresent = false; _isProcessing = false; });
+      _setPhase(InstallerPhase.mdbToUms);
+      return;
+    }
     _setStatus(l10n.openingSeatbox);
     await _sshService.openSeatbox();
 
@@ -790,6 +821,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _configureMdbUms() async {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
+    if (_isDryRun) {
+      _setStatus('[DRY RUN] Simulating UMS mode...');
+      await Future.delayed(const Duration(seconds: 1));
+      _setPhase(InstallerPhase.mdbFlash);
+      return;
+    }
     try {
       _setStatus(l10n.uploadingBootloaderTools);
       await _sshService.configureMassStorageMode();
@@ -837,6 +874,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _flashMdb() async {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
+
+    if (_isDryRun) {
+      for (var i = 0; i <= 10; i++) {
+        _setStatus('[DRY RUN] Simulating flash... ${i * 10}%', progress: i / 10);
+        await Future.delayed(const Duration(milliseconds: 200));
+        if (!mounted) return;
+      }
+      _setPhase(InstallerPhase.scooterPrep);
+      return;
+    }
 
     var mdbItem = _downloadState.itemOfType(DownloadItemType.mdbFirmware);
     if (mdbItem == null || !mdbItem.isComplete) {
@@ -966,6 +1013,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
 
+    if (_isDryRun) {
+      _setStatus('[DRY RUN] Simulating MDB boot...');
+      await Future.delayed(const Duration(seconds: 2));
+      _setPhase(InstallerPhase.cbbReconnect);
+      return;
+    }
+
     _setStatus(l10n.waitingForUsbDevice);
     while (_device == null) {
       await Future.delayed(const Duration(seconds: 1));
@@ -1054,6 +1108,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _waitForCbb() async {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
+    if (_isDryRun) {
+      _setStatus('[DRY RUN] CBB connected');
+      await Future.delayed(const Duration(seconds: 1));
+      _setPhase(InstallerPhase.dbcPrep);
+      return;
+    }
     _setStatus(l10n.checkingCbb);
     var attempts = 0;
     while (attempts < 30) {
@@ -1102,6 +1162,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _uploadDbcFiles() async {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
+
+    if (_isDryRun) {
+      _setStatus('[DRY RUN] Simulating DBC upload...');
+      await Future.delayed(const Duration(seconds: 1));
+      _setPhase(InstallerPhase.dbcFlash);
+      return;
+    }
 
     if (!_downloadState.allReady) {
       _setStatus(l10n.waitingForDownloads);
@@ -1238,6 +1305,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _verifyDbcFlash() async {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
+
+    if (_isDryRun) {
+      _setStatus('[DRY RUN] DBC flash successful!');
+      await Future.delayed(const Duration(seconds: 1));
+      _setPhase(InstallerPhase.finish);
+      return;
+    }
 
     _setStatus(l10n.waitingForRndisDevice);
     await _waitForDevice(DeviceMode.ethernet);
