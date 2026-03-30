@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 
@@ -8,6 +9,8 @@ import '../models/region.dart';
 import '../models/scooter_health.dart';
 import '../services/services.dart';
 import '../widgets/download_progress.dart';
+import '../widgets/health_check_panel.dart';
+import '../widgets/instruction_step.dart';
 import '../widgets/phase_sidebar.dart';
 
 class InstallerScreen extends StatefulWidget {
@@ -34,6 +37,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
   final DownloadState _downloadState = DownloadState();
   ScooterHealth? _scooterHealth;
   UsbDevice? _device;
+
+  // Phase guard flags (prevent auto-start methods from re-firing on rebuild)
+  bool _mdbConnectStarted = false;
+  bool _healthCheckStarted = false;
 
   StreamSubscription<UsbDevice?>? _deviceSub;
 
@@ -67,6 +74,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _currentPhase = phase;
       _statusMessage = '';
       _progress = 0.0;
+      _isProcessing = false;
     });
   }
 
@@ -354,10 +362,231 @@ class _InstallerScreenState extends State<InstallerScreen> {
       }
     }
   }
-  Widget _buildPhysicalPrep() => _phasePlaceholder('TODO: instructions');
-  Widget _buildMdbConnect() => _phasePlaceholder('TODO: auto-detect');
-  Widget _buildHealthCheck() => _phasePlaceholder('TODO: redis checks');
-  Widget _buildBatteryRemoval() => _phasePlaceholder('TODO: seatbox + verify');
+  Widget _buildPhysicalPrep() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Physical Preparation',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Text('Prepare your scooter for USB connection.',
+              style: TextStyle(color: Colors.grey.shade400)),
+          const SizedBox(height: 24),
+          const InstructionStep(
+            number: 1,
+            title: 'Remove footwell cover',
+            description: 'Use a PH2 or H4 screwdriver to remove the footwell cover screws.',
+            imagePlaceholder: '[Photo: footwell cover with screw locations highlighted]',
+          ),
+          const InstructionStep(
+            number: 2,
+            title: 'Unscrew USB cable from MDB',
+            description: 'Disconnect the internal DBC USB cable from the MDB board. Use a flat head or PH1 screwdriver.',
+            imagePlaceholder: '[Photo: USB Mini-B connector on MDB, close-up]',
+          ),
+          const InstructionStep(
+            number: 3,
+            title: 'Connect laptop USB cable',
+            description: 'Plug your USB cable into the MDB port and connect the other end to your laptop.',
+          ),
+          const SizedBox(height: 24),
+          if (_downloadState.items.isNotEmpty)
+            DownloadProgressWidget(items: _downloadState.items),
+          const SizedBox(height: 16),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
+              onPressed: () => _setPhase(InstallerPhase.mdbConnect),
+              icon: const Icon(Icons.arrow_forward),
+              label: const Text('Done — Detect Device'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMdbConnect() {
+    if (!_mdbConnectStarted && !_isProcessing) {
+      _mdbConnectStarted = true;
+      Future.microtask(_autoConnectMdb);
+    }
+
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Connecting to MDB',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          if (_isProcessing) ...[
+            const SizedBox(width: 48, height: 48, child: CircularProgressIndicator()),
+            const SizedBox(height: 16),
+          ],
+          Text(_statusMessage.isEmpty ? 'Waiting for USB device...' : _statusMessage,
+              style: TextStyle(color: Colors.grey.shade400)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _autoConnectMdb() async {
+    setState(() => _isProcessing = true);
+
+    _setStatus('Waiting for RNDIS device (VID 0525:A4A2)...');
+    await _waitForDevice(DeviceMode.ethernet);
+
+    if (Platform.isWindows) {
+      _setStatus('Checking RNDIS driver...');
+      if (!await DriverService.isDriverInstalled()) {
+        _setStatus('Installing RNDIS driver...');
+        await DriverService.installDriver();
+      }
+    }
+
+    _setStatus('Configuring network...');
+    final networkService = NetworkService();
+    final iface = await networkService.findLibreScootInterface();
+    if (iface != null) {
+      await networkService.configureInterface(iface);
+    }
+
+    _setStatus('Connecting via SSH...');
+    try {
+      await _sshService.connectToMdb();
+      _setStatus('Connected!');
+      setState(() => _isProcessing = false);
+      _setPhase(InstallerPhase.healthCheck);
+    } catch (e) {
+      _setStatus('SSH connection failed: $e. Check cable and retry.');
+      setState(() => _isProcessing = false);
+    }
+  }
+
+  Future<void> _waitForDevice(DeviceMode mode) async {
+    while (_device?.mode != mode) {
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return;
+    }
+  }
+
+  Widget _buildHealthCheck() {
+    if (!_healthCheckStarted && _scooterHealth == null && !_isProcessing) {
+      _healthCheckStarted = true;
+      Future.microtask(_runHealthCheck);
+    }
+
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Health Check',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Text('Verifying scooter readiness...',
+              style: TextStyle(color: Colors.grey.shade400)),
+          const SizedBox(height: 24),
+          if (_scooterHealth != null)
+            SizedBox(width: 400, child: HealthCheckPanel(health: _scooterHealth!)),
+          const SizedBox(height: 24),
+          if (_scooterHealth != null && _scooterHealth!.allOk)
+            FilledButton.icon(
+              onPressed: () => _setPhase(InstallerPhase.batteryRemoval),
+              icon: const Icon(Icons.arrow_forward),
+              label: const Text('Continue'),
+            ),
+          if (_scooterHealth != null && !_scooterHealth!.allOk)
+            OutlinedButton.icon(
+              onPressed: () {
+                setState(() {
+                  _scooterHealth = null;
+                  _healthCheckStarted = false;
+                });
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _runHealthCheck() async {
+    setState(() => _isProcessing = true);
+    try {
+      final health = await _sshService.queryHealth();
+      setState(() => _scooterHealth = health);
+    } catch (e) {
+      _setStatus('Health check failed: $e');
+    } finally {
+      setState(() => _isProcessing = false);
+    }
+  }
+
+  Widget _buildBatteryRemoval() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Battery Removal',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 24),
+          if (_scooterHealth?.batteryPresent == true) ...[
+            const InstructionStep(
+              number: 1,
+              title: 'Seatbox is opening...',
+              description: 'The seatbox will open automatically.',
+            ),
+            const InstructionStep(
+              number: 2,
+              title: 'Remove the main battery',
+              description: 'Lift the main battery (Fahrakku) out of the seatbox.',
+            ),
+            const SizedBox(height: 16),
+            if (!_isProcessing)
+              FilledButton(
+                onPressed: _openSeatboxAndWaitForBattery,
+                child: const Text('Open Seatbox'),
+              ),
+            if (_isProcessing) ...[
+              const CircularProgressIndicator(),
+              const SizedBox(height: 8),
+              Text(_statusMessage, style: TextStyle(color: Colors.grey.shade400)),
+            ],
+          ] else ...[
+            const Icon(Icons.check_circle, size: 48, color: Colors.tealAccent),
+            const SizedBox(height: 16),
+            const Text('Main battery already removed'),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () => _setPhase(InstallerPhase.mdbToUms),
+              icon: const Icon(Icons.arrow_forward),
+              label: const Text('Continue'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openSeatboxAndWaitForBattery() async {
+    setState(() => _isProcessing = true);
+    _setStatus('Opening seatbox...');
+    await _sshService.openSeatbox();
+
+    _setStatus('Waiting for battery removal...');
+    while (await _sshService.isBatteryPresent()) {
+      await Future.delayed(const Duration(seconds: 2));
+      if (!mounted) return;
+    }
+    _setStatus('Battery removed!');
+    setState(() {
+      _scooterHealth?.batteryPresent = false;
+      _isProcessing = false;
+    });
+    _setPhase(InstallerPhase.mdbToUms);
+  }
   Widget _buildMdbToUms() => _phasePlaceholder('TODO: fw_setenv + reboot');
   Widget _buildMdbFlash() => _phasePlaceholder('TODO: two-phase dd');
   Widget _buildScooterPrep() => _phasePlaceholder('TODO: CBB + AUX instructions');
