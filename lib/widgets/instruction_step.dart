@@ -58,7 +58,7 @@ class InstructionStep extends StatelessWidget {
                           children: [
                             ClipRRect(
                               borderRadius: BorderRadius.circular(4),
-                              child: Image.asset(beforeImageAsset!, height: 150, fit: BoxFit.cover),
+                              child: Image.asset(beforeImageAsset!, height: 240, fit: BoxFit.cover),
                             ),
                             const SizedBox(height: 4),
                             Text('Before', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
@@ -74,7 +74,7 @@ class InstructionStep extends StatelessWidget {
                           children: [
                             ClipRRect(
                               borderRadius: BorderRadius.circular(4),
-                              child: Image.asset(imageAsset!, height: 150, fit: BoxFit.cover),
+                              child: Image.asset(imageAsset!, height: 240, fit: BoxFit.cover),
                             ),
                             const SizedBox(height: 4),
                             Text('After', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
@@ -87,7 +87,7 @@ class InstructionStep extends StatelessWidget {
                   const SizedBox(height: 8),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(4),
-                    child: Image.asset(imageAsset!, height: 200, fit: BoxFit.cover),
+                    child: Image.asset(imageAsset!, height: 300, fit: BoxFit.cover),
                   ),
                 ] else if (imagePlaceholder != null) ...[
                   const SizedBox(height: 8),
