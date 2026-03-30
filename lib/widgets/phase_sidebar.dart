@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/phase_l10n.dart';
 import '../models/installer_phase.dart';
 
 class PhaseSidebar extends StatelessWidget {
@@ -13,17 +15,18 @@ class PhaseSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       width: 220,
       color: const Color(0xFF1A1A2E),
       child: ListView(
         padding: const EdgeInsets.symmetric(vertical: 16),
         children: [
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Text(
-              'LibreScoot Installer',
-              style: TextStyle(
+              l10n.appTitle,
+              style: const TextStyle(
                 color: Colors.tealAccent,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -59,6 +62,7 @@ class _PhaseItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final Color textColor;
     final Widget leading;
 
@@ -82,7 +86,7 @@ class _PhaseItem extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              phase.title,
+              phase.localizedTitle(l10n),
               style: TextStyle(
                 color: textColor,
                 fontSize: 13,

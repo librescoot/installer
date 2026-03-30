@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
 import '../models/scooter_health.dart';
 
 class HealthCheckPanel extends StatelessWidget {
@@ -8,6 +9,7 @@ class HealthCheckPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -17,10 +19,10 @@ class HealthCheckPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _row('AUX battery charge', '${health.auxCharge ?? '?'}%', '≥ 50%', health.auxChargeOk),
-          _row('CBB state of health', '${health.cbbStateOfHealth ?? '?'}%', '≥ 99%', health.cbbSohOk),
-          _row('CBB charge', '${health.cbbCharge ?? '?'}%', '≥ 80%', health.cbbChargeOk),
-          _row('Main battery', health.batteryPresent == true ? 'present' : 'not present', '', health.batteryPresent != null),
+          _row(l10n.auxBatteryCharge, '${health.auxCharge ?? '?'}%', '\u2265 50%', health.auxChargeOk),
+          _row(l10n.cbbStateOfHealth, '${health.cbbStateOfHealth ?? '?'}%', '\u2265 99%', health.cbbSohOk),
+          _row(l10n.cbbCharge, '${health.cbbCharge ?? '?'}%', '\u2265 80%', health.cbbChargeOk),
+          _row(l10n.mainBattery, health.batteryPresent == true ? l10n.present : l10n.notPresent, '', health.batteryPresent != null),
         ],
       ),
     );

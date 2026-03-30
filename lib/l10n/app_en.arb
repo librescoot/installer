@@ -1,0 +1,346 @@
+{
+  "@@locale": "en",
+
+  "appTitle": "LibreScoot Installer",
+
+  "elevationWarning": "Running without administrator privileges. Some operations may fail.",
+
+  "phaseWelcomeTitle": "Welcome",
+  "phaseWelcomeDescription": "Prerequisites and firmware selection",
+  "phasePhysicalPrepTitle": "Physical Prep",
+  "phasePhysicalPrepDescription": "Open footwell, connect USB",
+  "phaseMdbConnectTitle": "MDB Connect",
+  "phaseMdbConnectDescription": "Detect device and establish SSH",
+  "phaseHealthCheckTitle": "Health Check",
+  "phaseHealthCheckDescription": "Verify scooter readiness",
+  "phaseBatteryRemovalTitle": "Battery Removal",
+  "phaseBatteryRemovalDescription": "Open seatbox, remove main battery",
+  "phaseMdbToUmsTitle": "MDB \u2192 UMS",
+  "phaseMdbToUmsDescription": "Configure bootloader for flashing",
+  "phaseMdbFlashTitle": "MDB Flash",
+  "phaseMdbFlashDescription": "Write firmware to MDB",
+  "phaseScooterPrepTitle": "Scooter Prep",
+  "phaseScooterPrepDescription": "Disconnect CBB and AUX",
+  "phaseMdbBootTitle": "MDB Boot",
+  "phaseMdbBootDescription": "Reconnect AUX, wait for boot",
+  "phaseCbbReconnectTitle": "CBB Reconnect",
+  "phaseCbbReconnectDescription": "Reconnect CBB for DBC flash",
+  "phaseDbcPrepTitle": "DBC Prep",
+  "phaseDbcPrepDescription": "Upload DBC image and tiles",
+  "phaseDbcFlashTitle": "DBC Flash",
+  "phaseDbcFlashDescription": "Autonomous DBC installation",
+  "phaseReconnectTitle": "Reconnect",
+  "phaseReconnectDescription": "Verify DBC installation",
+  "phaseFinishTitle": "Finish",
+  "phaseFinishDescription": "Reassemble and welcome",
+
+  "welcomeHeading": "Welcome to LibreScoot Installer",
+  "welcomeSubheading": "This wizard will guide you through installing LibreScoot firmware on your scooter.",
+  "whatYouNeed": "What you need:",
+  "prerequisiteScrewdriverPH2": "PH2 or H4 screwdriver for footwell screws",
+  "prerequisiteScrewdriverFlat": "Flat head or PH1 screwdriver for USB cable",
+  "prerequisiteUsbCable": "USB cable (laptop to Mini-B)",
+  "prerequisiteTime": "About 45 minutes",
+  "firmwareChannel": "Firmware Channel",
+  "channelStable": "Stable",
+  "channelTesting": "Testing",
+  "channelNightly": "Nightly",
+  "connectivity": "Connectivity",
+  "scooterOffline": "Scooter will be offline",
+  "scooterOfflineSubtitle": "Most scooters are offline \u2014 download maps for navigation",
+  "downloadOfflineMaps": "Download offline maps anyway",
+  "downloadOfflineMapsSubtitle": "Faster and more reliable navigation",
+  "region": "Region",
+  "selectRegion": "Select your region",
+  "startInstallation": "Start Installation",
+  "selectRegionError": "Please select a region for offline maps",
+  "resolvingReleases": "Resolving releases...",
+
+  "physicalPrepHeading": "Physical Preparation",
+  "physicalPrepSubheading": "Prepare your scooter for USB connection.",
+  "removeFootwellCover": "Remove footwell cover",
+  "removeFootwellCoverDesc": "Use a PH2 or H4 screwdriver to remove the footwell cover screws.",
+  "removeFootwellCoverImage": "[Photo: footwell cover with screw locations highlighted]",
+  "unscrewUsbCable": "Unscrew USB cable from MDB",
+  "unscrewUsbCableDesc": "Disconnect the internal DBC USB cable from the MDB board. Use a flat head or PH1 screwdriver.",
+  "unscrewUsbCableImage": "[Photo: USB Mini-B connector on MDB, close-up]",
+  "connectLaptopUsb": "Connect laptop USB cable",
+  "connectLaptopUsbDesc": "Plug your USB cable into the MDB port and connect the other end to your laptop.",
+  "doneDetectDevice": "Done \u2014 Detect Device",
+
+  "connectingToMdb": "Connecting to MDB",
+  "waitingForUsbDevice": "Waiting for USB device...",
+  "waitingForRndis": "Waiting for RNDIS device (VID 0525:A4A2)...",
+  "checkingRndisDriver": "Checking RNDIS driver...",
+  "installingRndisDriver": "Installing RNDIS driver...",
+  "configuringNetwork": "Configuring network...",
+  "connectingSsh": "Connecting via SSH...",
+  "connected": "Connected!",
+  "sshConnectionFailed": "SSH connection failed: {error}. Check cable and retry.",
+  "@sshConnectionFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+
+  "healthCheckHeading": "Health Check",
+  "verifyingReadiness": "Verifying scooter readiness...",
+  "continueButton": "Continue",
+  "retryButton": "Retry",
+  "auxBatteryCharge": "AUX battery charge",
+  "cbbStateOfHealth": "CBB state of health",
+  "cbbCharge": "CBB charge",
+  "mainBattery": "Main battery",
+  "present": "present",
+  "notPresent": "not present",
+
+  "batteryRemovalHeading": "Battery Removal",
+  "seatboxOpening": "Seatbox is opening...",
+  "seatboxOpeningDesc": "The seatbox will open automatically.",
+  "removeMainBattery": "Remove the main battery",
+  "removeMainBatteryDesc": "Lift the main battery (Fahrakku) out of the seatbox.",
+  "openSeatbox": "Open Seatbox",
+  "mainBatteryAlreadyRemoved": "Main battery already removed",
+  "openingSeatbox": "Opening seatbox...",
+  "waitingForBatteryRemoval": "Waiting for battery removal...",
+  "batteryRemoved": "Battery removed!",
+
+  "configuringMdbBootloader": "Configuring MDB Bootloader",
+  "preparing": "Preparing...",
+  "uploadingBootloaderTools": "Uploading bootloader tools...",
+  "rebootingMdbUms": "Rebooting MDB into mass storage mode...",
+  "waitingForUmsDevice": "Waiting for UMS device...",
+
+  "flashingMdb": "Flashing MDB",
+  "flashingMdbSubheading": "Two-phase write: partitions first, boot sector last.",
+  "waitingForMdbFirmware": "Waiting for MDB firmware download...",
+  "noDevicePath": "Error: no device path available",
+  "mdbFlashComplete": "MDB flash complete!",
+
+  "scooterPrepHeading": "Scooter Preparation",
+  "scooterPrepSubheading": "MDB firmware has been written. Now prepare for reboot.",
+  "disconnectCbb": "Disconnect the CBB",
+  "disconnectCbbDesc": "The main battery must already be removed before disconnecting CBB. Failure to follow this order risks electrical damage.",
+  "disconnectAuxPole": "Disconnect one AUX pole",
+  "disconnectAuxPoleDesc": "Remove ONLY the positive pole (outermost, color-coded red) to avoid risk of inverting polarity. This will remove power from the MDB \u2014 the USB connection will disappear.",
+  "auxDisconnectWarning": "The USB connection will be lost when you disconnect AUX. This is expected \u2014 the installer will wait for the MDB to reboot.",
+  "doneCbbAuxDisconnected": "Done \u2014 I disconnected CBB and AUX",
+
+  "waitingForMdbBoot": "Waiting for MDB Boot",
+  "reconnectAuxPole": "Reconnect the AUX pole",
+  "reconnectAuxPoleDesc": "Reconnect the positive AUX pole. The MDB will power on and boot into LibreScoot.",
+  "dbcLedHint": "DBC LED: orange = starting, green = booting, off = running",
+  "mdbStillUms": "MDB still in UMS mode \u2014 flash may not have taken. Retrying...",
+  "mdbDetectedNetwork": "MDB detected in network mode. Waiting for stable connection...",
+  "pingStable": "Ping stable: {count}/10",
+  "@pingStable": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "waitingStableConnection": "Waiting for stable connection...",
+  "reconnectingSsh": "Reconnecting SSH...",
+  "sshReconnectionFailed": "SSH reconnection failed: {error}",
+  "@sshReconnectionFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+
+  "reconnectCbbHeading": "Reconnect CBB",
+  "reconnectCbb": "Reconnect the CBB",
+  "reconnectCbbDesc": "Plug the CBB cable back in. This provides more power for the DBC flash.",
+  "verifyCbbConnection": "Verify CBB Connection",
+  "checkingCbb": "Checking CBB...",
+  "cbbConnected": "CBB connected!",
+  "waitingForCbb": "Waiting for CBB... ({attempts})",
+  "@waitingForCbb": {
+    "placeholders": {
+      "attempts": { "type": "int" }
+    }
+  },
+  "cbbNotDetected": "CBB not detected. Please check the connection.",
+
+  "preparingDbcFlash": "Preparing DBC Flash",
+  "waitingForDownloads": "Waiting for downloads to complete...",
+  "startingTrampoline": "Starting trampoline script...",
+  "uploadError": "Upload error: {error}",
+  "@uploadError": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+
+  "dbcFlashInProgress": "DBC Flash in Progress",
+  "disconnectUsbFromLaptop": "Disconnect USB from laptop",
+  "disconnectUsbFromLaptopDesc": "Unplug the USB cable from your laptop.",
+  "reconnectDbcUsbToMdb": "Reconnect DBC USB cable to MDB",
+  "reconnectDbcUsbToMdbDesc": "Screw the internal DBC USB cable back into the MDB port.",
+  "mdbFlashingDbcAutonomously": "The MDB is now flashing the DBC autonomously.",
+  "watchLightsForProgress": "Watch the scooter lights for progress:",
+  "ledFrontRingOn": "Front ring on (constant)",
+  "ledFrontRingMeaning": "Working",
+  "ledPositionLightsOn": "Position lights on",
+  "ledPositionLightsMeaning": "DBC connected / flashing",
+  "ledBootGreen": "Boot LED green",
+  "ledBootGreenMeaning": "Success \u2014 reconnect laptop",
+  "ledHazardFlashers": "Hazard flashers",
+  "ledHazardFlashersMeaning": "Error \u2014 reconnect laptop to see log",
+  "bootLedGreenReconnect": "Boot LED is green \u2014 Reconnect Laptop",
+  "hazardFlashersCheckError": "Hazard flashers \u2014 Check Error",
+
+  "verifyingDbcInstallation": "Verifying DBC Installation",
+  "reconnectUsbToLaptop": "Reconnect USB to laptop...",
+  "waitingForRndisDevice": "Waiting for RNDIS device...",
+  "readingTrampolineStatus": "Reading trampoline status...",
+  "dbcFlashSuccessful": "DBC flash successful!",
+  "dbcFlashFailed": "DBC flash failed: {message}",
+  "@dbcFlashFailed": {
+    "placeholders": {
+      "message": { "type": "String" }
+    }
+  },
+  "dbcFlashError": "DBC Flash Error",
+  "closeButton": "Close",
+  "trampolineStatusUnknown": "Trampoline status unknown. Check /data/trampoline.log on MDB.",
+
+  "welcomeToLibreScoot": "Welcome to LibreScoot!",
+  "finalSteps": "Final steps:",
+  "disconnectUsbFromLaptopFinal": "Disconnect USB from laptop",
+  "disconnectUsbFromLaptopFinalDesc": "Unplug the USB cable from your laptop.",
+  "reconnectDbcUsbCable": "Reconnect DBC USB cable",
+  "reconnectDbcUsbCableDesc": "Screw the internal DBC USB cable back into MDB.",
+  "insertMainBattery": "Insert main battery",
+  "insertMainBatteryDesc": "Place the main battery back into the seatbox.",
+  "closeSeatboxAndFootwell": "Close seatbox and footwell",
+  "closeSeatboxAndFootwellDesc": "Close the seatbox and replace the footwell cover.",
+  "unlockScooter": "Unlock your scooter",
+  "unlockScooterDesc": "Keycard and Bluetooth pairing will be set up during LibreScoot first run.",
+  "deleteCachedDownloads": "Delete cached downloads ({sizeMb} MB)",
+  "@deleteCachedDownloads": {
+    "placeholders": {
+      "sizeMb": { "type": "String" }
+    }
+  },
+  "deletedCache": "Deleted {sizeMb} MB",
+  "@deletedCache": {
+    "placeholders": {
+      "sizeMb": { "type": "String" }
+    }
+  },
+
+  "downloads": "Downloads",
+  "downloadMdbFirmware": "MDB Firmware",
+  "downloadDbcFirmware": "DBC Firmware",
+  "downloadMapTiles": "Map Tiles",
+  "downloadRoutingTiles": "Routing Tiles",
+
+  "homeAppTitle": "LibreScoot Installer",
+  "notElevated": "Not elevated",
+  "selectFirmwareStep": "Select Firmware",
+  "connectDeviceStep": "Connect Device",
+  "configureNetworkStep": "Configure Network",
+  "prepareDeviceStep": "Prepare Device",
+  "flashFirmwareStep": "Flash Firmware",
+  "completeStep": "Complete",
+  "selectFirmwareImage": "Select Firmware Image",
+  "selectFirmwareHint": "Choose a .sdimg.gz, .sdimg, .wic.gz, .wic, or .img firmware file to flash",
+  "selectFile": "Select File",
+  "changeFile": "Change File",
+  "deviceConnected": "Device Connected",
+  "connectYourDevice": "Connect Your Device",
+  "connectMdbViaUsb": "Connect the MDB via USB and wait for detection",
+  "backButton": "Back",
+  "configuringNetworkHeading": "Configuring Network",
+  "settingUpNetwork": "Setting up network interface...",
+  "readyToConfigureNetwork": "Ready to configure network for device communication",
+  "configureNetworkButton": "Configure Network",
+  "preparingDevice": "Preparing Device",
+  "readyToPrepare": "Ready to Prepare",
+  "prepareForFlashing": "Prepare for Flashing",
+  "flashingFirmware": "Flashing Firmware",
+  "startFlashing": "Start Flashing",
+  "installationComplete": "Installation Complete!",
+  "installationCompleteDesc": "Your device has been successfully flashed.\nIt will reboot automatically.",
+  "flashAnotherDevice": "Flash Another Device",
+  "flashDryRun": "Flash Dry Run",
+  "safetyCheckFailed": "Safety Check Failed",
+  "cannotFlashSafety": "Cannot flash this device due to safety concerns:",
+  "okButton": "OK",
+  "confirmFlashOperation": "Confirm Flash Operation",
+  "aboutToWriteFirmware": "You are about to write firmware to:",
+  "deviceLabel": "Device",
+  "pathLabel": "Path",
+  "sizeLabel": "Size",
+  "firmwareLabel": "Firmware:",
+  "warningsLabel": "Warnings:",
+  "eraseWarning": "This will ERASE ALL DATA on the device. This action cannot be undone.",
+  "cancelButton": "Cancel",
+  "flashDeviceButton": "Flash Device",
+  "installingUsbDriver": "Installing USB driver...",
+  "usbDriverInstalled": "USB driver installed successfully",
+  "driverInstallFailed": "Driver install failed: {error}",
+  "@driverInstallFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "autoLoadedFirmware": "Auto-loaded firmware from current directory",
+  "deviceDisconnected": "Device disconnected. Reconnect/wait for mass storage mode.",
+  "waitingForMdbNetwork": "Waiting for MDB network to settle...",
+  "findingNetworkInterface": "Finding network interface...",
+  "couldNotFindInterface": "Could not find USB network interface",
+  "networkConfigured": "Network configured successfully",
+  "selectFirmwareFileError": "Please select a .sdimg.gz, .sdimg, .wic.gz, .wic, or .img file",
+  "errorOpeningFilePicker": "Error opening file picker: {error}",
+  "@errorOpeningFilePicker": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "configuringBootloader": "Configuring bootloader for mass storage mode...",
+  "rebootingDevice": "Rebooting device...",
+  "waitingForMassStorage": "Waiting for device to reboot in mass storage mode...",
+  "deviceReadyForFlashing": "Device ready for flashing",
+  "selectFirmwareDialogTitle": "Select Firmware Image",
+  "connectedTo": "Connected to: {host}\nFirmware: {firmware}\nSerial: {serial}",
+  "@connectedTo": {
+    "placeholders": {
+      "host": { "type": "String" },
+      "firmware": { "type": "String" },
+      "serial": { "type": "String" }
+    }
+  },
+  "connectedToFirmware": "Connected to {version}",
+  "@connectedToFirmware": {
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
+  "unknown": "Unknown",
+  "modeLabel": "Mode: {mode}",
+  "@modeLabel": {
+    "placeholders": {
+      "mode": { "type": "String" }
+    }
+  },
+  "healthCheckFailed": "Health check failed: {error}",
+  "@healthCheckFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "flashError": "Flash error: {error}",
+  "@flashError": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "flashComplete": "Flash complete!",
+  "errorPrefix": "Error: {error}",
+  "@errorPrefix": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  }
+}
