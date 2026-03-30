@@ -14,8 +14,23 @@ class DownloadService {
   static const _githubApi = 'https://api.github.com';
 
   final http.Client _client;
+  List<dynamic>? _cachedReleases;
 
   DownloadService({http.Client? client}) : _client = client ?? http.Client();
+
+  /// Fetch releases from GitHub, caching the result to avoid rate limits.
+  Future<List<dynamic>> _fetchReleases() async {
+    if (_cachedReleases != null) return _cachedReleases!;
+    final response = await _client.get(
+      Uri.parse('$_githubApi/repos/$_firmwareRepo/releases'),
+      headers: {'Accept': 'application/vnd.github.v3+json'},
+    );
+    if (response.statusCode != 200) {
+      throw Exception('GitHub API: ${response.statusCode}');
+    }
+    _cachedReleases = jsonDecode(response.body) as List;
+    return _cachedReleases!;
+  }
 
   /// Get platform-appropriate cache directory
   static Future<Directory> getCacheDir() async {
@@ -33,15 +48,7 @@ class DownloadService {
   /// Fetch all releases and determine which channels have releases available.
   /// Returns a map of channel -> (tag, publishedAt date string).
   Future<Map<DownloadChannel, ({String tag, String date})>> fetchAvailableChannels() async {
-    final response = await _client.get(
-      Uri.parse('$_githubApi/repos/$_firmwareRepo/releases'),
-      headers: {'Accept': 'application/vnd.github.v3+json'},
-    );
-    if (response.statusCode != 200) {
-      throw Exception('GitHub API error: ${response.statusCode}');
-    }
-
-    final releases = jsonDecode(response.body) as List;
+    final releases = await _fetchReleases();
     final result = <DownloadChannel, ({String tag, String date})>{};
 
     for (final channel in DownloadChannel.values) {
@@ -63,15 +70,7 @@ class DownloadService {
   Future<({String tag, List<Map<String, dynamic>> assets})> resolveRelease(
     DownloadChannel channel,
   ) async {
-    final response = await _client.get(
-      Uri.parse('$_githubApi/repos/$_firmwareRepo/releases'),
-      headers: {'Accept': 'application/vnd.github.v3+json'},
-    );
-    if (response.statusCode != 200) {
-      throw Exception('GitHub API error: ${response.statusCode}');
-    }
-
-    final releases = jsonDecode(response.body) as List;
+    final releases = await _fetchReleases();
     final channelName = channel.name;
 
     // For stable channel, try stable first, fall back to testing
