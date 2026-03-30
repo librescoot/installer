@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 
 import '../models/download_state.dart';
 import '../models/installer_phase.dart';
+import '../models/region.dart';
 import '../models/scooter_health.dart';
 import '../services/services.dart';
+import '../widgets/download_progress.dart';
 import '../widgets/phase_sidebar.dart';
 
 class InstallerScreen extends StatefulWidget {
@@ -199,7 +201,159 @@ class _InstallerScreenState extends State<InstallerScreen> {
     );
   }
 
-  Widget _buildWelcome() => _phasePlaceholder('TODO: channel select, region, download');
+  Widget _buildWelcome() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Welcome to LibreScoot Installer',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Text('This wizard will guide you through installing LibreScoot firmware on your scooter.',
+              style: TextStyle(color: Colors.grey.shade400)),
+          const SizedBox(height: 24),
+
+          // Prerequisites
+          const Text('What you need:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 8),
+          _prerequisite('PH2 or H4 screwdriver for footwell screws'),
+          _prerequisite('Flat head or PH1 screwdriver for USB cable'),
+          _prerequisite('USB cable (laptop to Mini-B)'),
+          _prerequisite('About 45 minutes'),
+          const SizedBox(height: 24),
+
+          // Channel selection
+          const Text('Firmware Channel', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 8),
+          SegmentedButton<DownloadChannel>(
+            segments: const [
+              ButtonSegment(value: DownloadChannel.stable, label: Text('Stable')),
+              ButtonSegment(value: DownloadChannel.testing, label: Text('Testing')),
+              ButtonSegment(value: DownloadChannel.nightly, label: Text('Nightly')),
+            ],
+            selected: {_downloadState.channel},
+            onSelectionChanged: (selected) {
+              setState(() => _downloadState.channel = selected.first);
+            },
+          ),
+          const SizedBox(height: 24),
+
+          // Online/offline
+          const Text('Connectivity', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            title: const Text('Scooter will be offline'),
+            subtitle: const Text('Most scooters are offline — download maps for navigation'),
+            value: _downloadState.isOffline,
+            onChanged: (v) => setState(() {
+              _downloadState.isOffline = v;
+              _downloadState.wantsOfflineMaps = v;
+            }),
+          ),
+          if (!_downloadState.isOffline)
+            SwitchListTile(
+              title: const Text('Download offline maps anyway'),
+              subtitle: const Text('Faster and more reliable navigation'),
+              value: _downloadState.wantsOfflineMaps,
+              onChanged: (v) => setState(() => _downloadState.wantsOfflineMaps = v),
+            ),
+
+          // Region selection
+          if (_downloadState.wantsOfflineMaps) ...[
+            const SizedBox(height: 16),
+            const Text('Region', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<Region>(
+              initialValue: _downloadState.selectedRegion,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                hintText: 'Select your region',
+              ),
+              items: Region.all
+                  .map((r) => DropdownMenuItem(value: r, child: Text(r.name)))
+                  .toList(),
+              onChanged: (r) => setState(() => _downloadState.selectedRegion = r),
+            ),
+          ],
+
+          const SizedBox(height: 24),
+
+          // Download progress
+          if (_downloadState.items.isNotEmpty)
+            DownloadProgressWidget(items: _downloadState.items),
+
+          const SizedBox(height: 24),
+
+          // Start button
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
+              onPressed: _isProcessing ? null : _startDownloadsAndContinue,
+              icon: const Icon(Icons.arrow_forward),
+              label: const Text('Start Installation'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _prerequisite(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          const Icon(Icons.check_box_outline_blank, size: 16, color: Colors.grey),
+          const SizedBox(width: 8),
+          Text(text, style: TextStyle(color: Colors.grey.shade300)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _startDownloadsAndContinue() async {
+    if (_downloadState.wantsOfflineMaps && _downloadState.selectedRegion == null) {
+      _setStatus('Please select a region for offline maps');
+      return;
+    }
+
+    setState(() => _isProcessing = true);
+    _setStatus('Resolving releases...');
+
+    try {
+      final items = await _downloadService.buildDownloadQueue(
+        channel: _downloadState.channel,
+        region: _downloadState.selectedRegion,
+        wantsOfflineMaps: _downloadState.wantsOfflineMaps,
+      );
+      setState(() => _downloadState.items = items);
+
+      // Start downloads in background
+      _downloadInBackground();
+
+      // Move to next phase immediately
+      _setPhase(InstallerPhase.physicalPrep);
+    } catch (e) {
+      _setStatus('Error: $e');
+    } finally {
+      setState(() => _isProcessing = false);
+    }
+  }
+
+  void _downloadInBackground() async {
+    try {
+      await _downloadService.downloadAll(
+        _downloadState.items,
+        onProgress: (item, bytes, total) {
+          if (mounted) setState(() {}); // Trigger rebuild to update progress
+        },
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _downloadState.error = e.toString());
+      }
+    }
+  }
   Widget _buildPhysicalPrep() => _phasePlaceholder('TODO: instructions');
   Widget _buildMdbConnect() => _phasePlaceholder('TODO: auto-detect');
   Widget _buildHealthCheck() => _phasePlaceholder('TODO: redis checks');
