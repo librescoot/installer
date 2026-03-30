@@ -30,6 +30,35 @@ class DownloadService {
     return dir;
   }
 
+  /// Fetch all releases and determine which channels have releases available.
+  /// Returns a map of channel -> (tag, publishedAt date string).
+  Future<Map<DownloadChannel, ({String tag, String date})>> fetchAvailableChannels() async {
+    final response = await _client.get(
+      Uri.parse('$_githubApi/repos/$_firmwareRepo/releases'),
+      headers: {'Accept': 'application/vnd.github.v3+json'},
+    );
+    if (response.statusCode != 200) {
+      throw Exception('GitHub API error: ${response.statusCode}');
+    }
+
+    final releases = jsonDecode(response.body) as List;
+    final result = <DownloadChannel, ({String tag, String date})>{};
+
+    for (final channel in DownloadChannel.values) {
+      for (final release in releases) {
+        final tag = release['tag_name'] as String;
+        if (tag.startsWith('${channel.name}-')) {
+          final published = release['published_at'] as String? ?? '';
+          final date = published.length >= 10 ? published.substring(0, 10) : published;
+          result[channel] = (tag: tag, date: date);
+          break;
+        }
+      }
+    }
+
+    return result;
+  }
+
   /// Resolve the latest release for a channel. Returns (tag, assets) or throws.
   Future<({String tag, List<Map<String, dynamic>> assets})> resolveRelease(
     DownloadChannel channel,

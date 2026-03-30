@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/phase_l10n.dart';
 import '../models/installer_phase.dart';
@@ -15,7 +16,6 @@ class PhaseSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
     return Container(
       width: 220,
       color: const Color(0xFF1A1A2E),
@@ -24,13 +24,26 @@ class PhaseSidebar extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text(
-              l10n.appTitle,
-              style: const TextStyle(
-                color: Colors.tealAccent,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SvgPicture.asset(
+                  'assets/logotype.svg',
+                  height: 24,
+                  colorFilter: const ColorFilter.mode(
+                    Colors.tealAccent,
+                    BlendMode.srcIn,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Installer',
+                  style: TextStyle(
+                    color: Colors.tealAccent.withValues(alpha: 0.7),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 8),
