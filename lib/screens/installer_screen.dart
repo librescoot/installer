@@ -72,6 +72,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
     _applyLaunchArgs();
     Future.microtask(_detectResumeState);
     _resolveAvailableChannels();
+    _detectRegionFromIp();
+  }
+
+  Future<void> _detectRegionFromIp() async {
+    if (_downloadState.selectedRegion != null) return; // already set (e.g. from launch args)
+    final region = await Region.detectFromIp();
+    if (region != null && mounted && _downloadState.selectedRegion == null) {
+      setState(() => _downloadState.selectedRegion = region);
+    }
   }
 
   void _applyLaunchArgs() {

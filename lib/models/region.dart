@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
 class Region {
   const Region({
     required this.name,
@@ -6,6 +9,47 @@ class Region {
 
   final String name;
   final String slug;
+
+  /// Map ip-api.com regionName to our slug.
+  static const _ipApiMap = {
+    'Baden-Württemberg': 'baden-wuerttemberg',
+    'Bavaria': 'bayern',
+    'State of Berlin': 'berlin_brandenburg',
+    'Brandenburg': 'berlin_brandenburg',
+    'Free Hanseatic City of Bremen': 'bremen',
+    'Free and Hanseatic City of Hamburg': 'hamburg',
+    'Hesse': 'hessen',
+    'Mecklenburg-Vorpommern': 'mecklenburg-vorpommern',
+    'Lower Saxony': 'niedersachsen',
+    'North Rhine-Westphalia': 'nordrhein-westfalen',
+    'Rhineland-Palatinate': 'rheinland-pfalz',
+    'Saarland': 'saarland',
+    'Saxony': 'sachsen',
+    'Saxony-Anhalt': 'sachsen-anhalt',
+    'Schleswig-Holstein': 'schleswig-holstein',
+    'Thuringia': 'thueringen',
+  };
+
+  /// Try to detect the user's region from their IP address.
+  /// Returns null if detection fails or user is outside Germany.
+  static Future<Region?> detectFromIp({http.Client? client}) async {
+    try {
+      final c = client ?? http.Client();
+      final response = await c.get(Uri.parse('http://ip-api.com/json/?fields=countryCode,regionName'))
+          .timeout(const Duration(seconds: 5));
+      if (client == null) c.close();
+      if (response.statusCode != 200) return null;
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (data['countryCode'] != 'DE') return null;
+      final regionName = data['regionName'] as String?;
+      if (regionName == null) return null;
+      final slug = _ipApiMap[regionName];
+      if (slug == null) return null;
+      return all.where((r) => r.slug == slug).firstOrNull;
+    } catch (_) {
+      return null;
+    }
+  }
 
   String get osmTilesFilename => 'tiles_$slug.mbtiles';
   String get osmTilesChecksumFilename => 'tiles_$slug.mbtiles.sha256';
