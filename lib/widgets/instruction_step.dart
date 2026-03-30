@@ -9,6 +9,7 @@ class InstructionStep extends StatelessWidget {
     this.isWarning = false,
     this.imagePlaceholder,
     this.imageAsset,
+    this.beforeImageAsset,
   });
 
   final int number;
@@ -17,6 +18,7 @@ class InstructionStep extends StatelessWidget {
   final bool isWarning;
   final String? imagePlaceholder;
   final String? imageAsset;
+  final String? beforeImageAsset;
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +49,41 @@ class InstructionStep extends StatelessWidget {
                 Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                 const SizedBox(height: 4),
                 Text(description, style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
-                if (imageAsset != null) ...[
+                if (beforeImageAsset != null && imageAsset != null) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: Image.asset(beforeImageAsset!, height: 150, fit: BoxFit.cover),
+                            ),
+                            const SizedBox(height: 4),
+                            Text('Before', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                          ],
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 8),
+                        child: Icon(Icons.arrow_forward, color: Colors.grey, size: 20),
+                      ),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: Image.asset(imageAsset!, height: 150, fit: BoxFit.cover),
+                            ),
+                            const SizedBox(height: 4),
+                            Text('After', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else if (imageAsset != null) ...[
                   const SizedBox(height: 8),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(4),
