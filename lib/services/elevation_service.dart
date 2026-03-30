@@ -87,13 +87,14 @@ class ElevationService {
     final escapedArgs = args.map((a) => "'${a.replaceAll("'", "'\\''")}'").join(' ');
 
     try {
-      // Launch elevated process in background, return immediately
+      // osascript blocks until the user enters password (or cancels).
+      // The '&' backgrounds the elevated process so osascript returns once
+      // the elevated app is launched, not when it exits.
       final script = "do shell script \"'$escapedExe' $escapedArgs &\" with administrator privileges";
-      await Process.start('osascript', ['-e', script]);
-      // Don't wait for osascript to finish — the caller will exit(0)
-      // Give osascript a moment to show the dialog
-      await Future.delayed(const Duration(milliseconds: 500));
-      return true;
+      final result = await Process.run('osascript', ['-e', script]);
+      // exitCode 0 = user authenticated and process launched
+      // non-zero = user cancelled or auth failed
+      return result.exitCode == 0;
     } catch (_) {
       return false;
     }

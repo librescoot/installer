@@ -110,20 +110,48 @@ class DownloadService {
     throw Exception('No release found for channel: $channelName');
   }
 
-  /// Resolve tile release assets for a repo.
+  /// Resolve tile release assets for a repo, with disk caching.
   Future<List<Map<String, dynamic>>> resolveTileAssets(
     String repo,
     String assetPrefix,
   ) async {
-    final response = await _client.get(
-      Uri.parse('$_githubApi/repos/$repo/releases/tags/latest'),
-      headers: {'Accept': 'application/vnd.github.v3+json'},
-    );
-    if (response.statusCode != 200) {
-      throw Exception('GitHub API error for $repo: ${response.statusCode}');
+    final cacheDir = await getCacheDir();
+    final cacheKey = repo.replaceAll('/', '_');
+    final cacheFile = File(p.join(cacheDir.path, '$cacheKey-latest.json'));
+
+    // Try disk cache first
+    if (await cacheFile.exists()) {
+      final age = DateTime.now().difference(await cacheFile.lastModified());
+      if (age.inHours < 1) {
+        final release = jsonDecode(await cacheFile.readAsString()) as Map<String, dynamic>;
+        return (release['assets'] as List).cast<Map<String, dynamic>>();
+      }
     }
-    final release = jsonDecode(response.body) as Map<String, dynamic>;
-    return (release['assets'] as List).cast<Map<String, dynamic>>();
+
+    try {
+      final response = await _client.get(
+        Uri.parse('$_githubApi/repos/$repo/releases/tags/latest'),
+        headers: {'Accept': 'application/vnd.github.v3+json'},
+      );
+      if (response.statusCode != 200) {
+        // Fall back to stale cache
+        if (await cacheFile.exists()) {
+          final release = jsonDecode(await cacheFile.readAsString()) as Map<String, dynamic>;
+          return (release['assets'] as List).cast<Map<String, dynamic>>();
+        }
+        throw Exception('GitHub API error for $repo: ${response.statusCode}');
+      }
+      await cacheFile.writeAsString(response.body);
+      final release = jsonDecode(response.body) as Map<String, dynamic>;
+      return (release['assets'] as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      // Fall back to stale cache on any network error
+      if (await cacheFile.exists()) {
+        final release = jsonDecode(await cacheFile.readAsString()) as Map<String, dynamic>;
+        return (release['assets'] as List).cast<Map<String, dynamic>>();
+      }
+      rethrow;
+    }
   }
 
   /// Build the full download queue based on channel, region, and offline preference.
