@@ -491,7 +491,7 @@ abstract class AppLocalizations {
   /// No description provided for @waitingForRndis.
   ///
   /// In en, this message translates to:
-  /// **'Waiting for RNDIS device (VID 0525:A4A2)...'**
+  /// **'Waiting for USB device... Make sure your laptop is connected to the MDB via USB.'**
   String get waitingForRndis;
 
   /// No description provided for @checkingRndisDriver.
@@ -745,6 +745,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Remove ONLY the positive pole (outermost, color-coded red) to avoid risk of inverting polarity. This will remove power from the MDB — the USB connection will disappear.'**
   String get disconnectAuxPoleDesc;
+
+  /// No description provided for @disconnectAuxPoleImage.
+  ///
+  /// In en, this message translates to:
+  /// **'[Photo: AUX battery poles, positive (red/outermost) highlighted]'**
+  String get disconnectAuxPoleImage;
 
   /// No description provided for @auxDisconnectWarning.
   ///

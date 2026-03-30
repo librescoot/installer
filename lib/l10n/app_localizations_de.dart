@@ -220,7 +220,8 @@ class AppLocalizationsDe extends AppLocalizations {
   String get waitingForUsbDevice => 'Warte auf USB-Gerät...';
 
   @override
-  String get waitingForRndis => 'Warte auf RNDIS-Gerät (VID 0525:A4A2)...';
+  String get waitingForRndis =>
+      'Warte auf USB-Gerät... Stelle sicher, dass dein Laptop per USB mit dem MDB verbunden ist.';
 
   @override
   String get checkingRndisDriver => 'RNDIS-Treiber wird geprüft...';
@@ -355,6 +356,10 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get disconnectAuxPoleDesc =>
       'Entferne NUR den Pluspol (außen, rot markiert), um eine Verpolung zu vermeiden. Dadurch wird das MDB stromlos — die USB-Verbindung geht verloren.';
+
+  @override
+  String get disconnectAuxPoleImage =>
+      '[Foto: AUX-Batteriepole, Pluspol (rot/außen) markiert]';
 
   @override
   String get auxDisconnectWarning =>

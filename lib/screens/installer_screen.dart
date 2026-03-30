@@ -518,8 +518,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
       ).toArgs();
       final elevated = await ElevationService.elevateIfNeeded(extraArgs: extraArgs);
       if (elevated) {
-        // Elevated copy is launching — kill this process
-        exit(0);
+        // Wait briefly for the elevated process to actually start
+        await Future.delayed(const Duration(seconds: 2));
+        // Verify it's running before we die
+        final ps = await Process.run('pgrep', ['-U', '0', 'librescoot_installer']);
+        if (ps.exitCode == 0) {
+          exit(0); // Elevated copy confirmed running, kill this process
+        }
+        // Elevated process not found — fall through and continue unelevated
+        debugPrint('Elevation: elevated process not found after launch, continuing unelevated');
       }
       // Failed to elevate — continue anyway, warn later
     }
@@ -634,14 +641,26 @@ class _InstallerScreenState extends State<InstallerScreen> {
     setState(() => _isProcessing = true);
 
     if (_isDryRun) {
-      _setStatus('[DRY RUN] Simulating MDB connection...');
+      _setStatus('[DRY RUN] Loading auth assets...');
+      try {
+        await _sshService.loadDeviceConfig('assets');
+        _setStatus('[DRY RUN] Auth loaded, simulating MDB v1.15.0 connection...');
+      } catch (e) {
+        _setStatus('[DRY RUN] Auth load failed: $e — continuing anyway');
+      }
       await Future.delayed(const Duration(seconds: 1));
       _setPhase(InstallerPhase.healthCheck);
       return;
     }
 
     _setStatus(l10n.waitingForRndis);
-    await _waitForDevice(DeviceMode.ethernet);
+    final found = await _waitForDevice(DeviceMode.ethernet);
+    if (!found) {
+      _setStatus(l10n.errorPrefix('USB device not found. Check cable and try again.'));
+      setState(() => _isProcessing = false);
+      _mdbConnectStarted = false; // Allow retry
+      return;
+    }
 
     if (Platform.isWindows) {
       _setStatus(l10n.checkingRndisDriver);
@@ -660,7 +679,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     _setStatus(l10n.connectingSsh);
     try {
-      await _sshService.loadPasswords('assets');
+      await _sshService.loadDeviceConfig('assets');
       await _sshService.connectToMdb();
       _setStatus(l10n.connected);
       setState(() => _isProcessing = false);
@@ -673,15 +692,18 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   bool get _isDryRun => launchArgs.dryRun;
 
-  Future<void> _waitForDevice(DeviceMode mode) async {
+  Future<bool> _waitForDevice(DeviceMode mode, {Duration timeout = const Duration(seconds: 120)}) async {
     if (_isDryRun) {
       await Future.delayed(const Duration(seconds: 1));
-      return;
+      return true;
     }
+    final deadline = DateTime.now().add(timeout);
     while (_device?.mode != mode) {
+      if (DateTime.now().isAfter(deadline)) return false;
       await Future.delayed(const Duration(seconds: 1));
-      if (!mounted) return;
+      if (!mounted) return false;
     }
+    return true;
   }
 
   Widget _buildHealthCheck(AppLocalizations l10n) {
@@ -968,6 +990,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             title: l10n.disconnectAuxPole,
             description: l10n.disconnectAuxPoleDesc,
             isWarning: true,
+            imagePlaceholder: l10n.disconnectAuxPoleImage,
           ),
           const SizedBox(height: 16),
           Container(

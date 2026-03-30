@@ -217,7 +217,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get waitingForUsbDevice => 'Waiting for USB device...';
 
   @override
-  String get waitingForRndis => 'Waiting for RNDIS device (VID 0525:A4A2)...';
+  String get waitingForRndis =>
+      'Waiting for USB device... Make sure your laptop is connected to the MDB via USB.';
 
   @override
   String get checkingRndisDriver => 'Checking RNDIS driver...';
@@ -351,6 +352,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get disconnectAuxPoleDesc =>
       'Remove ONLY the positive pole (outermost, color-coded red) to avoid risk of inverting polarity. This will remove power from the MDB — the USB connection will disappear.';
+
+  @override
+  String get disconnectAuxPoleImage =>
+      '[Photo: AUX battery poles, positive (red/outermost) highlighted]';
 
   @override
   String get auxDisconnectWarning =>

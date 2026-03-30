@@ -32,39 +32,37 @@ class SshService {
   static const Duration connectionTimeout = Duration(seconds: 10);
 
   SSHClient? _client;
-  Map<String, String>? _passwords;
+  Map<String, String>? _deviceConfig;
 
   /// Auth key injected at build time via --dart-define=AUTH_KEY=...
   static const _authKey = String.fromEnvironment('AUTH_KEY');
 
-  /// Load version-specific passwords from encrypted asset.
-  /// Falls back to plaintext passwords.yml for development.
-  Future<void> loadPasswords(String assetsPath) async {
+  /// Load device configuration from encrypted or plaintext asset.
+  Future<void> loadDeviceConfig(String assetsPath) async {
     final encFile = File(path.join(assetsPath, 'device_configs.bin'));
-    final plainFile = File(path.join(assetsPath, 'passwords.yml'));
+    final plainFile = File(path.join(assetsPath, 'device_configs.yml'));
 
     String yamlContent;
 
     if (await encFile.exists() && _authKey.isNotEmpty) {
-      debugPrint('SSH: loading encrypted auth from ${encFile.path}');
+      debugPrint('SSH: loading device config (encrypted)');
       yamlContent = _decryptAsset(await encFile.readAsBytes());
     } else if (await plainFile.exists()) {
-      debugPrint('SSH: loading plaintext passwords from ${plainFile.path} (dev mode)');
+      debugPrint('SSH: loading device config (dev fallback)');
       yamlContent = await plainFile.readAsString();
     } else {
-      throw Exception('No auth assets found at $assetsPath');
+      throw Exception('Device config not found at $assetsPath');
     }
 
     final yaml = loadYaml(yamlContent) as YamlMap;
-    _passwords = {};
+    _deviceConfig = {};
     for (final entry in yaml.entries) {
       final version = entry.key.toString();
       final encoded = entry.value.toString();
       final decodedRaw = utf8.decode(base64.decode(encoded));
-      final decoded = decodedRaw.replaceAll(RegExp(r'[\r\n]+$'), '');
-      _passwords![version] = decoded;
+      _deviceConfig![version] = decodedRaw.replaceAll(RegExp(r'[\r\n]+\$'), '');
     }
-    debugPrint('SSH: password keys available: ${_passwords!.keys.join(", ")}');
+    debugPrint('SSH: device config loaded (${_deviceConfig!.length} versions)');
   }
 
   /// Decrypt AES-256-CBC with IV prepended, PKCS7 padding.
@@ -110,7 +108,7 @@ class SshService {
 
   Future<DeviceInfo> _connect(String host) async {
     // Try auth with a fallback version, and retry once if banner reveals a
-    // different specific version after the first password attempt.
+    // different specific version after the first credential attempt.
     var authVersion = 'v1.20';
     var attemptedRetry = false;
 
@@ -122,16 +120,16 @@ class SshService {
       );
       debugPrint('SSH: connected socket to $host:$sshPort');
 
-      var passwordRequestCount = 0;
+      var authAttempts = 0;
       var bannerVersionSeen = authVersion;
       _client = SSHClient(
         socket,
         username: sshUser,
         onPasswordRequest: () {
-          passwordRequestCount++;
-          final password = _getPasswordForVersion(authVersion);
-          debugPrint('SSH: password request #$passwordRequestCount resolved for version $authVersion');
-          return password;
+          authAttempts++;
+          final credential = _resolveDeviceCredential(authVersion);
+          debugPrint('SSH: auth attempt #$authAttempts for version $authVersion');
+          return credential;
         },
         onUserauthBanner: (banner) {
           final bannerVersion = _extractVersionFromText(banner);
@@ -250,31 +248,31 @@ class SshService {
     return (major * 1000000) + (minor * 1000) + patch.toDouble();
   }
 
-  String _getPasswordForVersion(String version) {
-    if (_passwords == null) {
-      throw Exception('Passwords not loaded. Call loadPasswords() first.');
+  String _resolveDeviceCredential(String version) {
+    if (_deviceConfig == null) {
+      throw Exception('Device config not loaded. Call loadDeviceConfig() first.');
     }
 
     final normalized = _normalizeVersion(version);
-    debugPrint('SSH: resolving password for requested version "$version"');
+    debugPrint('SSH: resolving credential for version "$version"');
 
     // Try exact match first
-    if (_passwords!.containsKey(normalized)) {
-      return _passwords![normalized]!;
+    if (_deviceConfig!.containsKey(normalized)) {
+      return _deviceConfig![normalized]!;
     }
-    if (_passwords!.containsKey(version)) {
-      return _passwords![version]!;
+    if (_deviceConfig!.containsKey(version)) {
+      return _deviceConfig![version]!;
     }
     final withoutV = normalized.replaceFirst('v', '');
-    if (_passwords!.containsKey(withoutV)) {
-      return _passwords![withoutV]!;
+    if (_deviceConfig!.containsKey(withoutV)) {
+      return _deviceConfig![withoutV]!;
     }
 
     final parts = withoutV.split('.');
     if (parts.length == 3) {
       final majorMinor = 'v${parts[0]}.${parts[1]}';
-      if (_passwords!.containsKey(majorMinor)) {
-        return _passwords![majorMinor]!;
+      if (_deviceConfig!.containsKey(majorMinor)) {
+        return _deviceConfig![majorMinor]!;
       }
     }
 
@@ -283,7 +281,7 @@ class SshService {
     String? closestVersion;
     double closestDiff = double.infinity;
 
-    for (final key in _passwords!.keys) {
+    for (final key in _deviceConfig!.keys) {
       final keyNum = _versionToNumber(key);
       final diff = (keyNum - versionNum).abs();
       if (diff < closestDiff) {
@@ -293,11 +291,11 @@ class SshService {
     }
 
     if (closestVersion != null) {
-      debugPrint('SSH: using closest password key "$closestVersion"');
-      return _passwords![closestVersion]!;
+      debugPrint('SSH: using closest config key "$closestVersion"');
+      return _deviceConfig![closestVersion]!;
     }
 
-    throw Exception('No password found for version $version');
+    throw Exception('No device config found for version $version');
   }
 
   /// Run a command on the connected device

@@ -679,7 +679,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       // Load passwords from assets
-      await _sshService.loadPasswords('assets');
+      await _sshService.loadDeviceConfig('assets');
 
       final info = await _sshService.connectToMdb();
       debugPrint('UI: SSH connected, firmware=${info.firmwareVersion}, serial=${info.serialNumber ?? "unknown"}');

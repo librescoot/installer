@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'l10n/app_localizations.dart';
 import 'screens/installer_screen.dart';
@@ -40,6 +41,18 @@ late final LaunchArgs launchArgs;
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   launchArgs = LaunchArgs.fromArgs(args);
+
+  // If we were launched as the elevated process, bring ourselves to front
+  if (launchArgs.autoStart && Platform.isMacOS) {
+    Future.delayed(const Duration(seconds: 1), () {
+      // Activate by bundle ID — no Accessibility permissions needed
+      Process.run('osascript', [
+        '-e',
+        'tell application id "org.librescoot.installer" to activate',
+      ]);
+    });
+  }
+
   runApp(const LibreScootInstaller());
 }
 
