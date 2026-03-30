@@ -60,11 +60,37 @@ class _InstallerScreenState extends State<InstallerScreen> {
     });
     _usbDetector.startMonitoring();
     _checkElevation();
+    Future.microtask(_detectResumeState);
   }
 
   Future<void> _checkElevation() async {
     final elevated = await ElevationService.isElevated();
     if (mounted) setState(() => _isElevated = elevated);
+  }
+
+  Future<void> _detectResumeState() async {
+    // Give USB detector time to find devices
+    await Future.delayed(const Duration(seconds: 2));
+    if (_device == null) return; // No device — start from beginning
+
+    if (_device!.mode == DeviceMode.massStorage) {
+      // MDB in UMS mode — resume from flash
+      _setPhase(InstallerPhase.mdbFlash);
+    } else if (_device!.mode == DeviceMode.ethernet) {
+      // MDB in RNDIS — check if LibreScoot or stock
+      try {
+        final iface = await NetworkService().findLibreScootInterface();
+        if (iface != null) {
+          await NetworkService().configureInterface(iface);
+        }
+        final info = await _sshService.connectToMdb();
+        if (info.firmwareVersion.toLowerCase().contains('librescoot')) {
+          _setPhase(InstallerPhase.cbbReconnect);
+        }
+      } catch (_) {
+        // Ignore — stay at welcome
+      }
+    }
   }
 
   @override
