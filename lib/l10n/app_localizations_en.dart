@@ -475,6 +475,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ledFrontRingSolidMeaning => 'DBC connected, working';
 
   @override
+  String get disconnectCbbImage => '[Photo: CBB connector location under seat]';
+
+  @override
   String get ledBlinkerProgress => 'Blinkers light up clockwise';
 
   @override

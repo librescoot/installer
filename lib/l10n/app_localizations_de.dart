@@ -347,7 +347,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get disconnectCbbDesc =>
-      'Der Fahrakku muss bereits entnommen sein, bevor du den CBB trennst. Bei falscher Reihenfolge droht ein elektrischer Schaden.';
+      'Der Fahrakku muss bereits entnommen sein, bevor du die CBB trennst. Bei falscher Reihenfolge droht ein elektrischer Schaden.';
 
   @override
   String get disconnectAuxPole => 'Einen AUX-Pol trennen';
@@ -478,6 +478,9 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get ledFrontRingSolidMeaning => 'DBC verbunden, arbeitet';
+
+  @override
+  String get disconnectCbbImage => '[Foto: CBB-Stecker unter der Sitzbank]';
 
   @override
   String get ledBlinkerProgress => 'Blinker leuchten im Uhrzeigersinn auf';

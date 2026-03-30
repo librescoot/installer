@@ -188,6 +188,7 @@
   "ledFrontRingPulseMeaning": "Waiting for connection",
   "ledFrontRingSolid": "Front ring solid",
   "ledFrontRingSolidMeaning": "DBC connected, working",
+  "disconnectCbbImage": "[Photo: CBB connector location under seat]",
   "ledBlinkerProgress": "Blinkers light up clockwise",
   "ledBlinkerProgressMeaning": "Flash progress (25% per blinker)",
   "ledBootGreen": "Boot LED green",

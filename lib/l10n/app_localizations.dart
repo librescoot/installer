@@ -956,6 +956,12 @@ abstract class AppLocalizations {
   /// **'DBC connected, working'**
   String get ledFrontRingSolidMeaning;
 
+  /// No description provided for @disconnectCbbImage.
+  ///
+  /// In en, this message translates to:
+  /// **'[Photo: CBB connector location under seat]'**
+  String get disconnectCbbImage;
+
   /// No description provided for @ledBlinkerProgress.
   ///
   /// In en, this message translates to:

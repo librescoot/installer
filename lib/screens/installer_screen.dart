@@ -960,6 +960,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             title: l10n.disconnectCbb,
             description: l10n.disconnectCbbDesc,
             isWarning: true,
+            imagePlaceholder: l10n.disconnectCbbImage,
           ),
           InstructionStep(
             number: 2,
