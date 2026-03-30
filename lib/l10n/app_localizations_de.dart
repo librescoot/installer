@@ -114,7 +114,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get prerequisiteScrewdriverPH2 =>
-      'PH2- oder H4-Schraubendreher für die Fußraumschrauben';
+      'PH2-Kreuz- oder H4-Innensechskantschraubendreher für die vier Fußbrettschrauben';
 
   @override
   String get prerequisiteScrewdriverFlat =>
@@ -186,7 +186,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get removeFootwellCoverDesc =>
-      'Entferne die Schrauben der Fußraumabdeckung mit einem PH2- oder H4-Schraubendreher.';
+      'Vier Schrauben lösen — ab Werk PH2 Kreuzschrauben, bei guten Werkstätten H4 Innensechskant oder Torx.';
 
   @override
   String get removeFootwellCoverImage =>

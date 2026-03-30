@@ -494,7 +494,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
       ).toArgs();
       final elevated = await ElevationService.elevateIfNeeded(extraArgs: extraArgs);
       if (elevated) {
-        exit(0); // Elevated copy launched, kill this one
+        // Kill this unelevated process immediately
+        exit(0);
       }
       // Failed to elevate — continue anyway, warn later
     }

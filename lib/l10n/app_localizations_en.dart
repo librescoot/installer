@@ -183,7 +183,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get removeFootwellCoverDesc =>
-      'Use a PH2 or H4 screwdriver to remove the footwell cover screws.';
+      'Four screws to remove — PH2 Phillips from factory, H4 hex or Torx if serviced by a good shop.';
 
   @override
   String get removeFootwellCoverImage =>

@@ -87,13 +87,17 @@ class ElevationService {
     final escapedArgs = args.map((a) => "'${a.replaceAll("'", "'\\''")}'").join(' ');
 
     try {
-      // osascript blocks until the user enters password (or cancels).
-      // The '&' backgrounds the elevated process so osascript returns once
-      // the elevated app is launched, not when it exits.
-      final script = "do shell script \"'$escapedExe' $escapedArgs &\" with administrator privileges";
+      // Write a helper script that launches the app elevated and detaches
+      final tmpScript = File('/tmp/librescoot-elevate.sh');
+      await tmpScript.writeAsString('#!/bin/sh\nexec \'$escapedExe\' $escapedArgs\n');
+      await Process.run('chmod', ['+x', tmpScript.path]);
+
+      // osascript prompts for password, runs the script as root.
+      // The & detaches the elevated process so osascript can return.
+      final script = 'do shell script "${tmpScript.path} &" with administrator privileges';
       final result = await Process.run('osascript', ['-e', script]);
-      // exitCode 0 = user authenticated and process launched
-      // non-zero = user cancelled or auth failed
+
+      tmpScript.delete().ignore();
       return result.exitCode == 0;
     } catch (_) {
       return false;

@@ -65,7 +65,7 @@
   "physicalPrepHeading": "Physical Preparation",
   "physicalPrepSubheading": "Prepare your scooter for USB connection.",
   "removeFootwellCover": "Remove footwell cover",
-  "removeFootwellCoverDesc": "Use a PH2 or H4 screwdriver to remove the footwell cover screws.",
+  "removeFootwellCoverDesc": "Four screws to remove \u2014 PH2 Phillips from factory, H4 hex or Torx if serviced by a good shop.",
   "removeFootwellCoverImage": "[Photo: footwell cover with screw locations highlighted]",
   "unscrewUsbCable": "Unscrew USB cable from MDB",
   "unscrewUsbCableDesc": "Disconnect the internal DBC USB cable from the MDB board. Use a flat head or PH1 screwdriver.",
