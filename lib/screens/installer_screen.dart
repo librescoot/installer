@@ -179,7 +179,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     return Scaffold(
       body: Column(
         children: [
-          if (!_isElevated && _currentPhase != InstallerPhase.welcome) _buildElevationWarning(l10n),
+          if (!_isElevated && !_showElevatedHandoff && _currentPhase != InstallerPhase.welcome) _buildElevationWarning(l10n),
           Expanded(
             child: Row(
               children: [
@@ -518,15 +518,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
       ).toArgs();
       final elevated = await ElevationService.elevateIfNeeded(extraArgs: extraArgs);
       if (elevated) {
-        // Wait for the elevated process to start before showing handoff
-        await Future.delayed(const Duration(seconds: 3));
-        if (!mounted) return;
-        setState(() {
-          _isProcessing = false;
-          _showElevatedHandoff = true;
-        });
-        _setStatus('');
-        return;
+        // Elevated copy is launching — kill this process
+        exit(0);
       }
       // Failed to elevate — continue anyway, warn later
     }
@@ -753,7 +746,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
   }
 
+  bool _batteryRemovalStarted = false;
+
   Widget _buildBatteryRemoval(AppLocalizations l10n) {
+    if (_scooterHealth?.batteryPresent == true && !_batteryRemovalStarted && !_isProcessing) {
+      _batteryRemovalStarted = true;
+      Future.microtask(_openSeatboxAndWaitForBattery);
+    }
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -773,11 +773,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
               description: l10n.removeMainBatteryDesc,
             ),
             const SizedBox(height: 16),
-            if (!_isProcessing)
-              FilledButton(
-                onPressed: _openSeatboxAndWaitForBattery,
-                child: Text(l10n.openSeatbox),
-              ),
             if (_isProcessing) ...[
               const CircularProgressIndicator(),
               const SizedBox(height: 8),
@@ -965,6 +960,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             title: l10n.disconnectCbb,
             description: l10n.disconnectCbbDesc,
             isWarning: true,
+            imagePlaceholder: l10n.disconnectCbbImage,
           ),
           InstructionStep(
             number: 2,
@@ -1271,6 +1267,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                   const SizedBox(height: 8),
                   _ledSignal(l10n.ledFrontRingPulse, l10n.ledFrontRingPulseMeaning),
                   _ledSignal(l10n.ledFrontRingSolid, l10n.ledFrontRingSolidMeaning),
+                  _ledSignal(l10n.ledBlinkerProgress, l10n.ledBlinkerProgressMeaning),
                   _ledSignal(l10n.ledBootGreen, l10n.ledBootGreenMeaning),
                   _ledSignal(l10n.ledHazardFlashers, l10n.ledHazardFlashersMeaning),
                 ],
