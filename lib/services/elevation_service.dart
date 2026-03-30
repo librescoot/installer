@@ -86,9 +86,9 @@ class ElevationService {
     final argLine = args.map((a) => "'${a.replaceAll("'", "'\\''")}'").join(' ');
     await launcher.writeAsString(
       '#!/bin/sh\n'
-      'echo "Launching elevated: \$(date)" >> /tmp/librescoot-elevate.log\n'
       '\'${executable.replaceAll("'", "'\\''")}\' $argLine >> /tmp/librescoot-elevate.log 2>&1 &\n'
-      'echo "PID: \$!" >> /tmp/librescoot-elevate.log\n',
+      'sleep 2\n'
+      'osascript -e \'tell application "System Events" to set frontmost of process "librescoot_installer" to true\' 2>/dev/null\n',
     );
     await Process.run('chmod', ['+x', launcher.path]);
 
