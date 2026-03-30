@@ -636,7 +636,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     if (_isDryRun) {
       _setStatus('[DRY RUN] Loading auth assets...');
       try {
-        await _sshService.loadPasswords('assets');
+        await _sshService.loadDeviceConfig('assets');
         _setStatus('[DRY RUN] Auth loaded, simulating MDB v1.15.0 connection...');
       } catch (e) {
         _setStatus('[DRY RUN] Auth load failed: $e — continuing anyway');
@@ -666,7 +666,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     _setStatus(l10n.connectingSsh);
     try {
-      await _sshService.loadPasswords('assets');
+      await _sshService.loadDeviceConfig('assets');
       await _sshService.connectToMdb();
       _setStatus(l10n.connected);
       setState(() => _isProcessing = false);
