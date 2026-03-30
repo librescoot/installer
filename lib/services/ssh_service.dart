@@ -6,6 +6,7 @@ import '../models/trampoline_status.dart';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:pointycastle/export.dart' as pc;
 import 'package:yaml/yaml.dart';
 import 'package:path/path.dart' as path;
 
@@ -33,30 +34,62 @@ class SshService {
   SSHClient? _client;
   Map<String, String>? _passwords;
 
-  /// Load version-specific passwords from assets
+  /// Auth key injected at build time via --dart-define=AUTH_KEY=...
+  static const _authKey = String.fromEnvironment('AUTH_KEY');
+
+  /// Load version-specific passwords from encrypted asset.
+  /// Falls back to plaintext passwords.yml for development.
   Future<void> loadPasswords(String assetsPath) async {
-    final passwordsFile = File(path.join(assetsPath, 'passwords.yml'));
-    debugPrint('SSH: loading passwords from ${passwordsFile.path}');
-    if (!await passwordsFile.exists()) {
-      throw Exception('passwords.yml not found at $assetsPath');
+    final encFile = File(path.join(assetsPath, 'device_configs.bin'));
+    final plainFile = File(path.join(assetsPath, 'passwords.yml'));
+
+    String yamlContent;
+
+    if (await encFile.exists() && _authKey.isNotEmpty) {
+      debugPrint('SSH: loading encrypted auth from ${encFile.path}');
+      yamlContent = _decryptAsset(await encFile.readAsBytes());
+    } else if (await plainFile.exists()) {
+      debugPrint('SSH: loading plaintext passwords from ${plainFile.path} (dev mode)');
+      yamlContent = await plainFile.readAsString();
+    } else {
+      throw Exception('No auth assets found at $assetsPath');
     }
 
-    final content = await passwordsFile.readAsString();
-    final yaml = loadYaml(content) as YamlMap;
-
+    final yaml = loadYaml(yamlContent) as YamlMap;
     _passwords = {};
     for (final entry in yaml.entries) {
       final version = entry.key.toString();
       final encoded = entry.value.toString();
-      // Passwords are base64 encoded
       final decodedRaw = utf8.decode(base64.decode(encoded));
       final decoded = decodedRaw.replaceAll(RegExp(r'[\r\n]+$'), '');
       _passwords![version] = decoded;
-      if (decodedRaw.length != decoded.length) {
-        debugPrint('SSH: sanitized trailing newline(s) for password key "$version"');
-      }
     }
     debugPrint('SSH: password keys available: ${_passwords!.keys.join(", ")}');
+  }
+
+  /// Decrypt AES-256-CBC with IV prepended, PKCS7 padding.
+  String _decryptAsset(Uint8List encrypted) {
+    final keyBytes = Uint8List.fromList(
+      utf8.encode(_authKey).take(32).toList()
+        ..addAll(List.filled(32 - _authKey.length.clamp(0, 32), 0)),
+    );
+    final iv = encrypted.sublist(0, 16);
+    final ciphertext = encrypted.sublist(16);
+
+    final cipher = pc.CBCBlockCipher(pc.AESEngine())
+      ..init(false, pc.ParametersWithIV(pc.KeyParameter(keyBytes), iv));
+
+    final padded = Uint8List(ciphertext.length);
+    var offset = 0;
+    while (offset < ciphertext.length) {
+      offset += cipher.processBlock(ciphertext, offset, padded, offset);
+    }
+
+    // Remove PKCS7 padding
+    final padLen = padded.last;
+    final unpadded = padded.sublist(0, padded.length - padLen);
+
+    return utf8.decode(unpadded);
   }
 
   /// Connect to MDB and detect firmware version
