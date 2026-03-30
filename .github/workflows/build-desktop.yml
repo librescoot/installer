@@ -49,15 +49,15 @@ jobs:
 
       - name: Build macOS
         if: runner.os == 'macOS'
-        run: flutter build macos --release
+        run: flutter build macos --release --dart-define=AUTH_KEY=${{ secrets.AUTH_KEY }}
 
       - name: Build Linux
         if: runner.os == 'Linux'
-        run: flutter build linux --release
+        run: flutter build linux --release --dart-define=AUTH_KEY=${{ secrets.AUTH_KEY }}
 
       - name: Build Windows
         if: runner.os == 'Windows'
-        run: flutter build windows --release
+        run: flutter build windows --release --dart-define=AUTH_KEY=${{ secrets.AUTH_KEY }}
 
       - name: Upload macOS artifact
         if: runner.os == 'macOS'
