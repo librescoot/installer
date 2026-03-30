@@ -80,22 +80,26 @@ class ElevationService {
   }
 
   static Future<bool> _elevateMacOS(String executable, List<String> args) async {
-    // Use osascript to request admin privileges via GUI dialog.
-    // We use 'open -a' to launch the app bundle as a new process, then exit this one.
-    // If running from a .app bundle, use the bundle path. Otherwise fall back to direct execution.
-    final escapedExe = executable.replaceAll("'", "'\\''");
-    final escapedArgs = args.map((a) => "'${a.replaceAll("'", "'\\''")}'").join(' ');
+    // Write a launcher script to avoid all shell quoting issues with osascript.
+    final launcher = File('/tmp/librescoot-elevate.sh');
+    final argLine = args.map((a) => "'${a.replaceAll("'", "'\\''")}'").join(' ');
+    await launcher.writeAsString(
+      '#!/bin/sh\n'
+      'exec \'${executable.replaceAll("'", "'\\''")}\' $argLine\n',
+    );
+    await Process.run('chmod', ['+x', launcher.path]);
 
     try {
-      // Build the full command string for osascript.
-      // nohup + & detaches the elevated process so osascript returns immediately.
-      final shellCmd = "nohup '$escapedExe' $escapedArgs >/dev/null 2>&1 &";
-      // AppleScript needs the command in quotes, with inner quotes escaped.
-      final escapedShellCmd = shellCmd.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
-      final appleScript = 'do shell script "$escapedShellCmd" with administrator privileges';
-      final result = await Process.run('osascript', ['-e', appleScript]);
+      // osascript prompts for password. The & backgrounds the launcher so
+      // do shell script returns immediately after auth succeeds.
+      final result = await Process.run('osascript', [
+        '-e',
+        'do shell script "/tmp/librescoot-elevate.sh >/dev/null 2>&1 &" with administrator privileges',
+      ]);
+      launcher.delete().ignore();
       return result.exitCode == 0;
     } catch (_) {
+      launcher.delete().ignore();
       return false;
     }
   }

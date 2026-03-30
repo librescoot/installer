@@ -518,11 +518,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
       ).toArgs();
       final elevated = await ElevationService.elevateIfNeeded(extraArgs: extraArgs);
       if (elevated) {
-        // Show "continues in new window" and stay open
-        setState(() => _isProcessing = false);
+        // Wait for the elevated process to start before showing handoff
+        await Future.delayed(const Duration(seconds: 3));
+        if (!mounted) return;
+        setState(() {
+          _isProcessing = false;
+          _showElevatedHandoff = true;
+        });
         _setStatus('');
-        _showElevatedHandoff = true;
-        setState(() {});
         return;
       }
       // Failed to elevate — continue anyway, warn later
@@ -733,7 +736,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     setState(() => _isProcessing = true);
     if (_isDryRun) {
       setState(() => _scooterHealth = ScooterHealth()
-        ..auxCharge = 85
+        ..auxCharge = 75
         ..cbbStateOfHealth = 100
         ..cbbCharge = 92
         ..batteryPresent = true);
