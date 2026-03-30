@@ -87,16 +87,13 @@ class ElevationService {
     final escapedArgs = args.map((a) => "'${a.replaceAll("'", "'\\''")}'").join(' ');
 
     try {
-      // osascript shows a password dialog, then launches the elevated process.
-      // We use nohup + & + disown so the elevated process detaches from osascript's shell.
-      // osascript blocks until the shell command returns (which is immediate thanks to &).
-      final cmd = "nohup '$escapedExe' $escapedArgs >/dev/null 2>&1 & disown";
-      final result = await Process.run('osascript', [
-        '-e',
-        'do shell script "$cmd" with administrator privileges',
-      ]);
-      // exitCode 0 = user authenticated successfully
-      // -128 or non-zero = user cancelled
+      // Build the full command string for osascript.
+      // nohup + & detaches the elevated process so osascript returns immediately.
+      final shellCmd = "nohup '$escapedExe' $escapedArgs >/dev/null 2>&1 &";
+      // AppleScript needs the command in quotes, with inner quotes escaped.
+      final escapedShellCmd = shellCmd.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+      final appleScript = 'do shell script "$escapedShellCmd" with administrator privileges';
+      final result = await Process.run('osascript', ['-e', appleScript]);
       return result.exitCode == 0;
     } catch (_) {
       return false;

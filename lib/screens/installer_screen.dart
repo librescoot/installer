@@ -328,6 +328,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
           // Region selection (always shown)
           Text(l10n.region, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 4),
+          Text('For offline maps and navigation support',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
           const SizedBox(height: 8),
           DropdownButtonFormField<Region>(
             initialValue: _downloadState.selectedRegion,
@@ -361,7 +364,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
                   ),
                 ),
               FilledButton.icon(
-                onPressed: _isProcessing ? null : _startDownloadsAndContinue,
+                onPressed: _isProcessing || _downloadState.selectedRegion == null
+                    ? null
+                    : _startDownloadsAndContinue,
                 icon: const Icon(Icons.arrow_forward),
                 label: Text(l10n.startInstallation),
               ),
