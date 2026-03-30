@@ -348,5 +348,9 @@
     "placeholders": {
       "error": { "type": "String" }
     }
-  }
+  },
+
+  "regionHint": "For offline maps and navigation support",
+  "installationContinuesInNewWindow": "Installation continues in the new window",
+  "youCanCloseThisWindow": "You can close this window."
 }

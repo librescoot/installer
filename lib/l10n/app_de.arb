@@ -261,5 +261,9 @@
   "healthCheckFailed": "Statuspr\u00fcfung fehlgeschlagen: {error}",
   "flashError": "Flash-Fehler: {error}",
   "flashComplete": "Flash abgeschlossen!",
-  "errorPrefix": "Fehler: {error}"
+  "errorPrefix": "Fehler: {error}",
+
+  "regionHint": "F\u00fcr Offline-Karten und Navigationsunterst\u00fctzung",
+  "installationContinuesInNewWindow": "Die Installation wird im neuen Fenster fortgesetzt",
+  "youCanCloseThisWindow": "Du kannst dieses Fenster schlie\u00dfen."
 }

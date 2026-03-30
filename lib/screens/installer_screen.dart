@@ -54,6 +54,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _mdbBootStarted = false;
   bool _dbcPrepStarted = false;
   bool _reconnectStarted = false;
+  bool _showElevatedHandoff = false;
 
   StreamSubscription<UsbDevice?>? _deviceSub;
 
@@ -264,6 +265,22 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Widget _buildPhaseContent(AppLocalizations l10n) {
+    if (_showElevatedHandoff) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.open_in_new, size: 48, color: Colors.tealAccent),
+            const SizedBox(height: 16),
+            Text(l10n.installationContinuesInNewWindow,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text(l10n.youCanCloseThisWindow,
+                style: TextStyle(color: Colors.grey.shade400)),
+          ],
+        ),
+      );
+    }
     return switch (_currentPhase) {
       InstallerPhase.welcome => _buildWelcome(l10n),
       InstallerPhase.physicalPrep => _buildPhysicalPrep(l10n),
@@ -329,7 +346,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
           // Region selection (always shown)
           Text(l10n.region, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 4),
-          Text('For offline maps and navigation support',
+          Text(l10n.regionHint,
               style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
           const SizedBox(height: 8),
           DropdownButtonFormField<Region>(
@@ -501,8 +518,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
       ).toArgs();
       final elevated = await ElevationService.elevateIfNeeded(extraArgs: extraArgs);
       if (elevated) {
-        // Kill this unelevated process immediately
-        exit(0);
+        // Show "continues in new window" and stay open
+        setState(() => _isProcessing = false);
+        _setStatus('');
+        _showElevatedHandoff = true;
+        setState(() {});
+        return;
       }
       // Failed to elevate — continue anyway, warn later
     }

@@ -812,4 +812,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String errorPrefix(String error) {
     return 'Error: $error';
   }
+
+  @override
+  String get regionHint => 'For offline maps and navigation support';
+
+  @override
+  String get installationContinuesInNewWindow =>
+      'Installation continues in the new window';
+
+  @override
+  String get youCanCloseThisWindow => 'You can close this window.';
 }

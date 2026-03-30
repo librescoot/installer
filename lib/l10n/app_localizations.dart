@@ -431,7 +431,7 @@ abstract class AppLocalizations {
   /// No description provided for @removeFootwellCoverDesc.
   ///
   /// In en, this message translates to:
-  /// **'Use a PH2 or H4 screwdriver to remove the footwell cover screws.'**
+  /// **'Four screws to remove — PH2 Phillips from factory, H4 hex or Torx if serviced by a good shop.'**
   String get removeFootwellCoverDesc;
 
   /// No description provided for @removeFootwellCoverImage.
@@ -1555,6 +1555,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Error: {error}'**
   String errorPrefix(String error);
+
+  /// No description provided for @regionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'For offline maps and navigation support'**
+  String get regionHint;
+
+  /// No description provided for @installationContinuesInNewWindow.
+  ///
+  /// In en, this message translates to:
+  /// **'Installation continues in the new window'**
+  String get installationContinuesInNewWindow;
+
+  /// No description provided for @youCanCloseThisWindow.
+  ///
+  /// In en, this message translates to:
+  /// **'You can close this window.'**
+  String get youCanCloseThisWindow;
 }
 
 class _AppLocalizationsDelegate
