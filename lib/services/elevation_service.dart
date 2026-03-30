@@ -84,11 +84,11 @@ class ElevationService {
     // The script logs to /tmp for debugging and does NOT use exec (so & works).
     final launcher = File('/tmp/librescoot-elevate.sh');
     final argLine = args.map((a) => "'${a.replaceAll("'", "'\\''")}'").join(' ');
+    // The launcher script MUST exit immediately. do shell script waits for it.
+    // Only launch the app in background and exit — nothing else.
     await launcher.writeAsString(
       '#!/bin/sh\n'
-      '\'${executable.replaceAll("'", "'\\''")}\' $argLine >> /tmp/librescoot-elevate.log 2>&1 &\n'
-      'sleep 2\n'
-      'osascript -e \'tell application "System Events" to set frontmost of process "librescoot_installer" to true\' 2>/dev/null\n',
+      '\'${executable.replaceAll("'", "'\\''")}\' $argLine >> /tmp/librescoot-elevate.log 2>&1 &\n',
     );
     await Process.run('chmod', ['+x', launcher.path]);
 

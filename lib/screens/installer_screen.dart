@@ -518,8 +518,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
       ).toArgs();
       final elevated = await ElevationService.elevateIfNeeded(extraArgs: extraArgs);
       if (elevated) {
-        // Elevated copy is launching — kill this process
-        exit(0);
+        // Wait briefly for the elevated process to actually start
+        await Future.delayed(const Duration(seconds: 2));
+        // Verify it's running before we die
+        final ps = await Process.run('pgrep', ['-U', '0', 'librescoot_installer']);
+        if (ps.exitCode == 0) {
+          exit(0); // Elevated copy confirmed running, kill this process
+        }
+        // Elevated process not found — fall through and continue unelevated
+        debugPrint('Elevation: elevated process not found after launch, continuing unelevated');
       }
       // Failed to elevate — continue anyway, warn later
     }

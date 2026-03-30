@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'l10n/app_localizations.dart';
 import 'screens/installer_screen.dart';
@@ -40,6 +41,19 @@ late final LaunchArgs launchArgs;
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   launchArgs = LaunchArgs.fromArgs(args);
+
+  // If we were launched as the elevated process, bring ourselves to front
+  if (launchArgs.autoStart && Platform.isMacOS) {
+    // Small delay to let the window render, then activate
+    Future.delayed(const Duration(seconds: 1), () {
+      Process.run('osascript', [
+        '-e',
+        'tell application "System Events" to set frontmost of '
+            'process "librescoot_installer" to true',
+      ]);
+    });
+  }
+
   runApp(const LibreScootInstaller());
 }
 
