@@ -16,18 +16,41 @@ SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
 log() { echo "$(date '+%H:%M:%S') $1" | tee -a "$LOG_FILE"; }
 signal_bootled() { lsc bootled "$1" 2>/dev/null || true; }
-signal_leds_on() { lsc led fade front-ring parking-smooth-on 2>/dev/null || true; }
-signal_leds_progress() {
+
+# Pulse front ring — send blink fade every 800ms while waiting
+signal_waiting() {
+  while true; do
+    lsc led fade front-ring blink 2>/dev/null || true
+    sleep 0.8
+  done &
+  PULSE_PID=$!
+}
+signal_stop_waiting() {
+  [ -n "$PULSE_PID" ] && kill $PULSE_PID 2>/dev/null; PULSE_PID=""
+}
+
+# Front ring solid ON — connected
+signal_connected() {
+  signal_stop_waiting
   lsc led fade front-ring parking-smooth-on 2>/dev/null || true
-  lsc led fade brake-light brake-dim-on 2>/dev/null || true
-  lsc led fade number-plates parking-smooth-on 2>/dev/null || true
 }
+
+# Success — fade front ring off
 signal_success() {
-  lsc led cue parked-to-drive 2>/dev/null || true
-  sleep 3
-  lsc led cue all-off 2>/dev/null || true
+  lsc led fade front-ring smooth-off 2>/dev/null || true
 }
-signal_error() { lsc led cue blink-both 2>/dev/null || true; }
+
+# Error — hazard flashers via redis blinker both, 4s on/off loop
+signal_error() {
+  signal_stop_waiting
+  while true; do
+    redis-cli LPUSH scooter:blinker both >/dev/null 2>&1 || true
+    sleep 4
+    redis-cli LPUSH scooter:blinker off >/dev/null 2>&1 || true
+    sleep 1
+  done &
+  ERROR_PID=$!
+}
 
 restore_gadget() {
   log "Restoring USB gadget mode..."
@@ -56,7 +79,7 @@ fail() {
 echo "" > "$LOG_FILE"
 log "Trampoline started"
 signal_bootled amber
-signal_leds_on
+signal_waiting
 
 # Verify OTG capability
 if ! cat /sys/kernel/debug/ci_hdrc.0/device 2>/dev/null | grep -q 'is_otg'; then
@@ -73,6 +96,7 @@ log "Laptop disconnected"
 # Step 2: Wait for DBC network
 log "Powering on DBC..."
 lsc dbc on-wait || fail "DBC did not come up"
+signal_connected
 signal_bootled green
 log "DBC is reachable"
 
@@ -121,7 +145,7 @@ done
 [ -z "$DBC_DEV" ] && fail "DBC UMS device not found within ${TIMEOUT}s"
 log "DBC device found: $DBC_DEV"
 
-signal_leds_progress
+# Front ring already solid from signal_connected
 
 # Step 6: Two-phase flash DBC
 log "Phase A: Writing DBC partitions..."

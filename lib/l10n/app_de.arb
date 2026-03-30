@@ -154,10 +154,10 @@
   "reconnectDbcUsbToMdbDesc": "Schraube das interne DBC-USB-Kabel wieder an den MDB-Port.",
   "mdbFlashingDbcAutonomously": "Das MDB flasht jetzt selbstst\u00e4ndig das DBC.",
   "watchLightsForProgress": "Beobachte die Rollerbeleuchtung f\u00fcr den Fortschritt:",
-  "ledFrontRingOn": "Frontring an (dauerhaft)",
-  "ledFrontRingMeaning": "Arbeitet",
-  "ledPositionLightsOn": "Positionslichter an",
-  "ledPositionLightsMeaning": "DBC verbunden / wird geflasht",
+  "ledFrontRingPulse": "Frontring pulsiert",
+  "ledFrontRingPulseMeaning": "Wartet auf Verbindung",
+  "ledFrontRingSolid": "Frontring an (dauerhaft)",
+  "ledFrontRingSolidMeaning": "DBC verbunden, arbeitet",
   "ledBootGreen": "Boot-LED gr\u00fcn",
   "ledBootGreenMeaning": "Erfolgreich \u2014 Laptop wieder verbinden",
   "ledHazardFlashers": "Warnblinker",
@@ -264,6 +264,7 @@
   "errorPrefix": "Fehler: {error}",
 
   "regionHint": "F\u00fcr Offline-Karten und Navigationsunterst\u00fctzung",
+  "willAskForAdminPassword": "Administrator-Passwort wird ben\u00f6tigt",
   "installationContinuesInNewWindow": "Die Installation wird im neuen Fenster fortgesetzt",
   "youCanCloseThisWindow": "Du kannst dieses Fenster schlie\u00dfen."
 }

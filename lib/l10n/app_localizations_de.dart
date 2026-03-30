@@ -468,16 +468,16 @@ class AppLocalizationsDe extends AppLocalizations {
       'Beobachte die Rollerbeleuchtung für den Fortschritt:';
 
   @override
-  String get ledFrontRingOn => 'Frontring an (dauerhaft)';
+  String get ledFrontRingPulse => 'Frontring pulsiert';
 
   @override
-  String get ledFrontRingMeaning => 'Arbeitet';
+  String get ledFrontRingPulseMeaning => 'Wartet auf Verbindung';
 
   @override
-  String get ledPositionLightsOn => 'Positionslichter an';
+  String get ledFrontRingSolid => 'Frontring an (dauerhaft)';
 
   @override
-  String get ledPositionLightsMeaning => 'DBC verbunden / wird geflasht';
+  String get ledFrontRingSolidMeaning => 'DBC verbunden, arbeitet';
 
   @override
   String get ledBootGreen => 'Boot-LED grün';
@@ -821,6 +821,9 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get regionHint => 'Für Offline-Karten und Navigationsunterstützung';
+
+  @override
+  String get willAskForAdminPassword => 'Administrator-Passwort wird benötigt';
 
   @override
   String get installationContinuesInNewWindow =>
