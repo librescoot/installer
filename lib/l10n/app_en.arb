@@ -184,10 +184,10 @@
   "reconnectDbcUsbToMdbDesc": "Screw the internal DBC USB cable back into the MDB port.",
   "mdbFlashingDbcAutonomously": "The MDB is now flashing the DBC autonomously.",
   "watchLightsForProgress": "Watch the scooter lights for progress:",
-  "ledFrontRingOn": "Front ring on (constant)",
-  "ledFrontRingMeaning": "Working",
-  "ledPositionLightsOn": "Position lights on",
-  "ledPositionLightsMeaning": "DBC connected / flashing",
+  "ledFrontRingPulse": "Front ring pulsing",
+  "ledFrontRingPulseMeaning": "Waiting for connection",
+  "ledFrontRingSolid": "Front ring solid",
+  "ledFrontRingSolidMeaning": "DBC connected, working",
   "ledBootGreen": "Boot LED green",
   "ledBootGreenMeaning": "Success \u2014 reconnect laptop",
   "ledHazardFlashers": "Hazard flashers",
@@ -348,5 +348,10 @@
     "placeholders": {
       "error": { "type": "String" }
     }
-  }
+  },
+
+  "regionHint": "For offline maps and navigation support",
+  "willAskForAdminPassword": "Will ask for administrator password",
+  "installationContinuesInNewWindow": "Installation continues in the new window",
+  "youCanCloseThisWindow": "You can close this window."
 }

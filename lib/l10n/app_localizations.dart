@@ -431,7 +431,7 @@ abstract class AppLocalizations {
   /// No description provided for @removeFootwellCoverDesc.
   ///
   /// In en, this message translates to:
-  /// **'Use a PH2 or H4 screwdriver to remove the footwell cover screws.'**
+  /// **'Four screws to remove — PH2 Phillips from factory, H4 hex or Torx if serviced by a good shop.'**
   String get removeFootwellCoverDesc;
 
   /// No description provided for @removeFootwellCoverImage.
@@ -932,29 +932,29 @@ abstract class AppLocalizations {
   /// **'Watch the scooter lights for progress:'**
   String get watchLightsForProgress;
 
-  /// No description provided for @ledFrontRingOn.
+  /// No description provided for @ledFrontRingPulse.
   ///
   /// In en, this message translates to:
-  /// **'Front ring on (constant)'**
-  String get ledFrontRingOn;
+  /// **'Front ring pulsing'**
+  String get ledFrontRingPulse;
 
-  /// No description provided for @ledFrontRingMeaning.
+  /// No description provided for @ledFrontRingPulseMeaning.
   ///
   /// In en, this message translates to:
-  /// **'Working'**
-  String get ledFrontRingMeaning;
+  /// **'Waiting for connection'**
+  String get ledFrontRingPulseMeaning;
 
-  /// No description provided for @ledPositionLightsOn.
+  /// No description provided for @ledFrontRingSolid.
   ///
   /// In en, this message translates to:
-  /// **'Position lights on'**
-  String get ledPositionLightsOn;
+  /// **'Front ring solid'**
+  String get ledFrontRingSolid;
 
-  /// No description provided for @ledPositionLightsMeaning.
+  /// No description provided for @ledFrontRingSolidMeaning.
   ///
   /// In en, this message translates to:
-  /// **'DBC connected / flashing'**
-  String get ledPositionLightsMeaning;
+  /// **'DBC connected, working'**
+  String get ledFrontRingSolidMeaning;
 
   /// No description provided for @ledBootGreen.
   ///
@@ -1555,6 +1555,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Error: {error}'**
   String errorPrefix(String error);
+
+  /// No description provided for @regionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'For offline maps and navigation support'**
+  String get regionHint;
+
+  /// No description provided for @willAskForAdminPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Will ask for administrator password'**
+  String get willAskForAdminPassword;
+
+  /// No description provided for @installationContinuesInNewWindow.
+  ///
+  /// In en, this message translates to:
+  /// **'Installation continues in the new window'**
+  String get installationContinuesInNewWindow;
+
+  /// No description provided for @youCanCloseThisWindow.
+  ///
+  /// In en, this message translates to:
+  /// **'You can close this window.'**
+  String get youCanCloseThisWindow;
 }
 
 class _AppLocalizationsDelegate

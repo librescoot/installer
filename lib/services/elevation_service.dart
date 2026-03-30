@@ -80,26 +80,26 @@ class ElevationService {
   }
 
   static Future<bool> _elevateMacOS(String executable, List<String> args) async {
-    // Use osascript to request admin privileges via GUI dialog.
-    // We use 'open -a' to launch the app bundle as a new process, then exit this one.
-    // If running from a .app bundle, use the bundle path. Otherwise fall back to direct execution.
-    final escapedExe = executable.replaceAll("'", "'\\''");
-    final escapedArgs = args.map((a) => "'${a.replaceAll("'", "'\\''")}'").join(' ');
+    // Write a launcher script to avoid all shell quoting issues with osascript.
+    final launcher = File('/tmp/librescoot-elevate.sh');
+    final argLine = args.map((a) => "'${a.replaceAll("'", "'\\''")}'").join(' ');
+    await launcher.writeAsString(
+      '#!/bin/sh\n'
+      'exec \'${executable.replaceAll("'", "'\\''")}\' $argLine\n',
+    );
+    await Process.run('chmod', ['+x', launcher.path]);
 
     try {
-      // Write a helper script that launches the app elevated and detaches
-      final tmpScript = File('/tmp/librescoot-elevate.sh');
-      await tmpScript.writeAsString('#!/bin/sh\nexec \'$escapedExe\' $escapedArgs\n');
-      await Process.run('chmod', ['+x', tmpScript.path]);
-
-      // osascript prompts for password, runs the script as root.
-      // The & detaches the elevated process so osascript can return.
-      final script = 'do shell script "${tmpScript.path} &" with administrator privileges';
-      final result = await Process.run('osascript', ['-e', script]);
-
-      tmpScript.delete().ignore();
+      // osascript prompts for password. The & backgrounds the launcher so
+      // do shell script returns immediately after auth succeeds.
+      final result = await Process.run('osascript', [
+        '-e',
+        'do shell script "/tmp/librescoot-elevate.sh >/dev/null 2>&1 &" with administrator privileges',
+      ]);
+      launcher.delete().ignore();
       return result.exitCode == 0;
     } catch (_) {
+      launcher.delete().ignore();
       return false;
     }
   }

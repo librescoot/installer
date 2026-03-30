@@ -463,16 +463,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get watchLightsForProgress => 'Watch the scooter lights for progress:';
 
   @override
-  String get ledFrontRingOn => 'Front ring on (constant)';
+  String get ledFrontRingPulse => 'Front ring pulsing';
 
   @override
-  String get ledFrontRingMeaning => 'Working';
+  String get ledFrontRingPulseMeaning => 'Waiting for connection';
 
   @override
-  String get ledPositionLightsOn => 'Position lights on';
+  String get ledFrontRingSolid => 'Front ring solid';
 
   @override
-  String get ledPositionLightsMeaning => 'DBC connected / flashing';
+  String get ledFrontRingSolidMeaning => 'DBC connected, working';
 
   @override
   String get ledBootGreen => 'Boot LED green';
@@ -812,4 +812,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String errorPrefix(String error) {
     return 'Error: $error';
   }
+
+  @override
+  String get regionHint => 'For offline maps and navigation support';
+
+  @override
+  String get willAskForAdminPassword => 'Will ask for administrator password';
+
+  @override
+  String get installationContinuesInNewWindow =>
+      'Installation continues in the new window';
+
+  @override
+  String get youCanCloseThisWindow => 'You can close this window.';
 }

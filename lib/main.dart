@@ -6,24 +6,31 @@ import 'screens/installer_screen.dart';
 class LaunchArgs {
   final String? channel;
   final String? region;
+  final String? lang;
   final bool autoStart;
+  final bool dryRun;
 
-  LaunchArgs({this.channel, this.region, this.autoStart = false});
+  LaunchArgs({this.channel, this.region, this.lang, this.autoStart = false, this.dryRun = false});
 
   factory LaunchArgs.fromArgs(List<String> args) {
-    String? channel, region;
+    String? channel, region, lang;
     var autoStart = false;
+    var dryRun = false;
     for (final arg in args) {
       if (arg.startsWith('--channel=')) channel = arg.split('=')[1];
       if (arg.startsWith('--region=')) region = arg.split('=')[1];
+      if (arg.startsWith('--lang=')) lang = arg.split('=')[1];
       if (arg == '--auto-start') autoStart = true;
+      if (arg == '--dry-run') dryRun = true;
     }
-    return LaunchArgs(channel: channel, region: region, autoStart: autoStart);
+    return LaunchArgs(channel: channel, region: region, lang: lang, autoStart: autoStart, dryRun: dryRun);
   }
 
   List<String> toArgs() => [
         if (channel != null) '--channel=$channel',
         if (region != null) '--region=$region',
+        if (lang != null) '--lang=$lang',
+        if (dryRun) '--dry-run',
         '--auto-start',
       ];
 }
@@ -41,9 +48,11 @@ class LibreScootInstaller extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final localeOverride = launchArgs.lang != null ? Locale(launchArgs.lang!) : null;
     return MaterialApp(
       title: 'LibreScoot Installer',
       debugShowCheckedModeBanner: false,
+      locale: localeOverride,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       theme: ThemeData(
