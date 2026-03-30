@@ -41,6 +41,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
   // Phase guard flags (prevent auto-start methods from re-firing on rebuild)
   bool _mdbConnectStarted = false;
   bool _healthCheckStarted = false;
+  bool _mdbToUmsStarted = false;
+  bool _mdbFlashStarted = false;
+  bool _mdbBootStarted = false;
 
   StreamSubscription<UsbDevice?>? _deviceSub;
 
@@ -587,10 +590,265 @@ class _InstallerScreenState extends State<InstallerScreen> {
     });
     _setPhase(InstallerPhase.mdbToUms);
   }
-  Widget _buildMdbToUms() => _phasePlaceholder('TODO: fw_setenv + reboot');
-  Widget _buildMdbFlash() => _phasePlaceholder('TODO: two-phase dd');
-  Widget _buildScooterPrep() => _phasePlaceholder('TODO: CBB + AUX instructions');
-  Widget _buildMdbBoot() => _phasePlaceholder('TODO: wait for RNDIS');
+  Widget _buildMdbToUms() {
+    if (!_mdbToUmsStarted && !_isProcessing) {
+      _mdbToUmsStarted = true;
+      Future.microtask(_configureMdbUms);
+    }
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Configuring MDB Bootloader',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          if (_isProcessing)
+            const SizedBox(width: 48, height: 48, child: CircularProgressIndicator()),
+          const SizedBox(height: 16),
+          Text(_statusMessage.isEmpty ? 'Preparing...' : _statusMessage,
+              style: TextStyle(color: Colors.grey.shade400)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _configureMdbUms() async {
+    setState(() => _isProcessing = true);
+    try {
+      _setStatus('Uploading bootloader tools...');
+      await _sshService.configureMassStorageMode();
+      _setStatus('Rebooting MDB into mass storage mode...');
+      await _sshService.reboot();
+      _setStatus('Waiting for UMS device...');
+      await _waitForDevice(DeviceMode.massStorage);
+      _setPhase(InstallerPhase.mdbFlash);
+    } catch (e) {
+      _setStatus('Error: $e');
+      setState(() => _isProcessing = false);
+    }
+  }
+
+  Widget _buildMdbFlash() {
+    if (!_mdbFlashStarted && !_isProcessing) {
+      _mdbFlashStarted = true;
+      Future.microtask(_flashMdb);
+    }
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Flashing MDB',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Text('Two-phase write: partitions first, boot sector last.',
+              style: TextStyle(color: Colors.grey.shade400)),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: 400,
+            child: Column(
+              children: [
+                LinearProgressIndicator(value: _progress, minHeight: 8),
+                const SizedBox(height: 8),
+                Text(_statusMessage, style: TextStyle(color: Colors.grey.shade400)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _flashMdb() async {
+    setState(() => _isProcessing = true);
+
+    var mdbItem = _downloadState.itemOfType(DownloadItemType.mdbFirmware);
+    if (mdbItem == null || !mdbItem.isComplete) {
+      _setStatus('Waiting for MDB firmware download...');
+      while (mdbItem == null || !mdbItem.isComplete) {
+        await Future.delayed(const Duration(seconds: 1));
+        if (!mounted) return;
+        mdbItem = _downloadState.itemOfType(DownloadItemType.mdbFirmware);
+      }
+    }
+
+    try {
+      if (_device?.path == null || _device!.path.isEmpty) {
+        _setStatus('Error: no device path available');
+        setState(() => _isProcessing = false);
+        return;
+      }
+
+      final flashService = FlashService();
+      await flashService.writeTwoPhase(
+        mdbItem.localPath!,
+        _device!.path,
+        onProgress: (progress, message) {
+          _setStatus(message, progress: progress);
+        },
+      );
+
+      _setStatus('MDB flash complete!');
+      await Future.delayed(const Duration(seconds: 1));
+      _setPhase(InstallerPhase.scooterPrep);
+    } catch (e) {
+      _setStatus('Flash error: $e');
+      setState(() => _isProcessing = false);
+    }
+  }
+
+  Widget _buildScooterPrep() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Scooter Preparation',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Text('MDB firmware has been written. Now prepare for reboot.',
+              style: TextStyle(color: Colors.grey.shade400)),
+          const SizedBox(height: 24),
+          const InstructionStep(
+            number: 1,
+            title: 'Disconnect the CBB',
+            description: 'The main battery must already be removed before disconnecting CBB. '
+                'Failure to follow this order risks electrical damage.',
+            isWarning: true,
+          ),
+          const InstructionStep(
+            number: 2,
+            title: 'Disconnect one AUX pole',
+            description: 'Remove ONLY the positive pole (outermost, color-coded red) to avoid '
+                'risk of inverting polarity. This will remove power from the MDB — '
+                'the USB connection will disappear.',
+            isWarning: true,
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade900.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.shade700),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.warning, color: Colors.orange),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'The USB connection will be lost when you disconnect AUX. '
+                    'This is expected — the installer will wait for the MDB to reboot.',
+                    style: TextStyle(color: Colors.orange, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
+              onPressed: () => _setPhase(InstallerPhase.mdbBoot),
+              icon: const Icon(Icons.arrow_forward),
+              label: const Text('Done — I disconnected CBB and AUX'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMdbBoot() {
+    if (!_mdbBootStarted && !_isProcessing) {
+      _mdbBootStarted = true;
+      Future.microtask(_waitForMdbBoot);
+    }
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Waiting for MDB Boot',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          const InstructionStep(
+            number: 1,
+            title: 'Reconnect the AUX pole',
+            description: 'Reconnect the positive AUX pole. The MDB will power on and boot into LibreScoot.',
+          ),
+          const SizedBox(height: 16),
+          Text('DBC LED: orange = starting, green = booting, off = running',
+              style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+          const SizedBox(height: 16),
+          if (_isProcessing)
+            const SizedBox(width: 48, height: 48, child: CircularProgressIndicator()),
+          const SizedBox(height: 8),
+          Text(_statusMessage.isEmpty ? 'Waiting for USB device...' : _statusMessage,
+              style: TextStyle(color: Colors.grey.shade400)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _waitForMdbBoot() async {
+    setState(() => _isProcessing = true);
+
+    _setStatus('Waiting for USB device...');
+    while (_device == null) {
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return;
+    }
+
+    if (_device?.mode == DeviceMode.massStorage) {
+      _setStatus('MDB still in UMS mode — flash may not have taken. Retrying...');
+      setState(() {
+        _isProcessing = false;
+        _mdbFlashStarted = false;
+      });
+      _setPhase(InstallerPhase.mdbFlash);
+      return;
+    }
+
+    _setStatus('MDB detected in network mode. Waiting for stable connection...');
+
+    var stableCount = 0;
+    while (stableCount < 10) {
+      final reachable = await _pingMdb();
+      if (reachable) {
+        stableCount++;
+        _setStatus('Ping stable: $stableCount/10');
+      } else {
+        stableCount = 0;
+        _setStatus('Waiting for stable connection...');
+      }
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return;
+    }
+
+    _setStatus('Reconnecting SSH...');
+    final iface = await NetworkService().findLibreScootInterface();
+    if (iface != null) {
+      await NetworkService().configureInterface(iface);
+    }
+    try {
+      await _sshService.connectToMdb();
+      _setPhase(InstallerPhase.cbbReconnect);
+    } catch (e) {
+      _setStatus('SSH reconnection failed: $e');
+    }
+    setState(() => _isProcessing = false);
+  }
+
+  Future<bool> _pingMdb() async {
+    try {
+      final result = await Process.run('ping', [
+        if (Platform.isWindows) ...['-n', '1', '-w', '1000'] else ...['-c', '1', '-W', '1'],
+        '192.168.7.1',
+      ]);
+      return result.exitCode == 0;
+    } catch (_) {
+      return false;
+    }
+  }
   Widget _buildCbbReconnect() => _phasePlaceholder('TODO: verify CBB');
   Widget _buildDbcPrep() => _phasePlaceholder('TODO: upload + trampoline');
   Widget _buildDbcFlash() => _phasePlaceholder('TODO: waiting screen');
