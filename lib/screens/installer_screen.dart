@@ -572,18 +572,19 @@ class _InstallerScreenState extends State<InstallerScreen> {
             number: 1,
             title: l10n.removeFootwellCover,
             description: l10n.removeFootwellCoverDesc,
-            imagePlaceholder: l10n.removeFootwellCoverImage,
+            imageAsset: 'assets/images/lsi-unu_scooter_footwell_closed.jpg',
           ),
           InstructionStep(
             number: 2,
             title: l10n.unscrewUsbCable,
             description: l10n.unscrewUsbCableDesc,
-            imagePlaceholder: l10n.unscrewUsbCableImage,
+            imageAsset: 'assets/images/lsi-mdb_usb_disconnected.jpg',
           ),
           InstructionStep(
             number: 3,
             title: l10n.connectLaptopUsb,
             description: l10n.connectLaptopUsbDesc,
+            imageAsset: 'assets/images/lsi-mdb_usb_connected.jpg',
           ),
           const SizedBox(height: 24),
           if (_downloadState.items.isNotEmpty)
@@ -973,14 +974,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
             title: l10n.disconnectCbb,
             description: l10n.disconnectCbbDesc,
             isWarning: true,
-            imagePlaceholder: l10n.disconnectCbbImage,
+            imageAsset: 'assets/images/lsi-unu_scooter_cbb_connected.jpg',
           ),
           InstructionStep(
             number: 2,
             title: l10n.disconnectAuxPole,
             description: l10n.disconnectAuxPoleDesc,
             isWarning: true,
-            imagePlaceholder: l10n.disconnectAuxPoleImage,
+            imageAsset: 'assets/images/lsi-unu_scooter_aux_connected.jpg',
           ),
           const SizedBox(height: 16),
           Container(
