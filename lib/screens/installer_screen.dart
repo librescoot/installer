@@ -518,15 +518,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
       ).toArgs();
       final elevated = await ElevationService.elevateIfNeeded(extraArgs: extraArgs);
       if (elevated) {
-        // Wait for the elevated process to start before showing handoff
-        await Future.delayed(const Duration(seconds: 3));
-        if (!mounted) return;
-        setState(() {
-          _isProcessing = false;
-          _showElevatedHandoff = true;
-        });
-        _setStatus('');
-        return;
+        // Elevated copy is launching — kill this process
+        exit(0);
       }
       // Failed to elevate — continue anyway, warn later
     }
