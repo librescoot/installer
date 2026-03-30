@@ -152,7 +152,6 @@ Parallel uploads to MDB `/data` via SCP (block if any background downloads still
 6. Start trampoline script on MDB in background (`nohup`)
 7. Instruct user: "Please disconnect USB from laptop and reconnect the DBC USB cable to MDB"
 
-**Meanwhile (future — keycards, BT pairing):** additional configuration can happen here while uploads are in progress.
 
 ### Phase 11: DBC Flash
 
@@ -221,10 +220,9 @@ Trampoline script runs autonomously on MDB. Installer cannot communicate with MD
    - Insert main battery
    - Close seatbox
    - Replace footwell cover
-   - Unlock scooter with keycard or Bluetooth
-2. Offer to delete downloaded firmware images (show size)
-3. Offer to launch scooter configuration tool (separate application)
-4. Display: "Welcome to LibreScoot!"
+   - Unlock scooter (keycard/BT pairing handled by LibreScoot first-run)
+2. Offer to delete downloaded firmware images and tiles (show total size)
+3. Display: "Welcome to LibreScoot!"
 
 ## Firmware Download & Caching
 
@@ -365,7 +363,6 @@ MDB has one physical USB connector (ci_hdrc.0, OTG). An internal cable normally 
 ## Scoped Out / Deferred
 
 - **MDB backup** (dd of running system before flash) — deferred to future version
-- **Keycard enrollment** — deferred, will be part of scooter configuration tool
-- **Bluetooth pairing** — deferred, will be part of scooter configuration tool
+- **Keycard enrollment / Bluetooth pairing** — handled by LibreScoot first-run experience, not the installer
 - **Advanced mode** — use CLI installer or manual steps
 - **Redis-verified physical steps during UMS mode** (Phase 7) — impossible, instruction-only
