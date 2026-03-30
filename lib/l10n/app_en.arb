@@ -76,7 +76,7 @@
 
   "connectingToMdb": "Connecting to MDB",
   "waitingForUsbDevice": "Waiting for USB device...",
-  "waitingForRndis": "Waiting for RNDIS device (VID 0525:A4A2)...",
+  "waitingForRndis": "Waiting for USB device... Make sure your laptop is connected to the MDB via USB.",
   "checkingRndisDriver": "Checking RNDIS driver...",
   "installingRndisDriver": "Installing RNDIS driver...",
   "configuringNetwork": "Configuring network...",

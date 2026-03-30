@@ -491,7 +491,7 @@ abstract class AppLocalizations {
   /// No description provided for @waitingForRndis.
   ///
   /// In en, this message translates to:
-  /// **'Waiting for RNDIS device (VID 0525:A4A2)...'**
+  /// **'Waiting for USB device... Make sure your laptop is connected to the MDB via USB.'**
   String get waitingForRndis;
 
   /// No description provided for @checkingRndisDriver.

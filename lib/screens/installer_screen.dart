@@ -654,7 +654,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
 
     _setStatus(l10n.waitingForRndis);
-    await _waitForDevice(DeviceMode.ethernet);
+    final found = await _waitForDevice(DeviceMode.ethernet);
+    if (!found) {
+      _setStatus(l10n.errorPrefix('USB device not found. Check cable and try again.'));
+      setState(() => _isProcessing = false);
+      _mdbConnectStarted = false; // Allow retry
+      return;
+    }
 
     if (Platform.isWindows) {
       _setStatus(l10n.checkingRndisDriver);
@@ -686,15 +692,18 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   bool get _isDryRun => launchArgs.dryRun;
 
-  Future<void> _waitForDevice(DeviceMode mode) async {
+  Future<bool> _waitForDevice(DeviceMode mode, {Duration timeout = const Duration(seconds: 120)}) async {
     if (_isDryRun) {
       await Future.delayed(const Duration(seconds: 1));
-      return;
+      return true;
     }
+    final deadline = DateTime.now().add(timeout);
     while (_device?.mode != mode) {
+      if (DateTime.now().isAfter(deadline)) return false;
       await Future.delayed(const Duration(seconds: 1));
-      if (!mounted) return;
+      if (!mounted) return false;
     }
+    return true;
   }
 
   Widget _buildHealthCheck(AppLocalizations l10n) {

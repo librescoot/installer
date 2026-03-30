@@ -217,7 +217,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get waitingForUsbDevice => 'Waiting for USB device...';
 
   @override
-  String get waitingForRndis => 'Waiting for RNDIS device (VID 0525:A4A2)...';
+  String get waitingForRndis =>
+      'Waiting for USB device... Make sure your laptop is connected to the MDB via USB.';
 
   @override
   String get checkingRndisDriver => 'Checking RNDIS driver...';

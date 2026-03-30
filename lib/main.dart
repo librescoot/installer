@@ -48,7 +48,7 @@ void main(List<String> args) async {
       // Activate by bundle ID — no Accessibility permissions needed
       Process.run('osascript', [
         '-e',
-        'tell application id "io.librescoot.librescootInstaller" to activate',
+        'tell application id "org.librescoot.installer" to activate',
       ]);
     });
   }

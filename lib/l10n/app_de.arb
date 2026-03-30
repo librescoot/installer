@@ -71,7 +71,7 @@
 
   "connectingToMdb": "Verbindung zum MDB wird hergestellt",
   "waitingForUsbDevice": "Warte auf USB-Ger\u00e4t...",
-  "waitingForRndis": "Warte auf RNDIS-Ger\u00e4t (VID 0525:A4A2)...",
+  "waitingForRndis": "Warte auf USB-Ger\u00e4t... Stelle sicher, dass dein Laptop per USB mit dem MDB verbunden ist.",
   "checkingRndisDriver": "RNDIS-Treiber wird gepr\u00fcft...",
   "installingRndisDriver": "RNDIS-Treiber wird installiert...",
   "configuringNetwork": "Netzwerk wird konfiguriert...",
