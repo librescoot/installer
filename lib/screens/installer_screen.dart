@@ -634,7 +634,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
     setState(() => _isProcessing = true);
 
     if (_isDryRun) {
-      _setStatus('[DRY RUN] Simulating MDB connection...');
+      _setStatus('[DRY RUN] Loading auth assets...');
+      try {
+        await _sshService.loadPasswords('assets');
+        _setStatus('[DRY RUN] Auth loaded, simulating MDB v1.15.0 connection...');
+      } catch (e) {
+        _setStatus('[DRY RUN] Auth load failed: $e — continuing anyway');
+      }
       await Future.delayed(const Duration(seconds: 1));
       _setPhase(InstallerPhase.healthCheck);
       return;
