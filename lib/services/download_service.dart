@@ -18,16 +18,36 @@ class DownloadService {
 
   DownloadService({http.Client? client}) : _client = client ?? http.Client();
 
-  /// Fetch releases from GitHub, caching the result to avoid rate limits.
+  /// Fetch releases from GitHub, with in-memory and on-disk caching.
   Future<List<dynamic>> _fetchReleases() async {
     if (_cachedReleases != null) return _cachedReleases!;
+
+    // Try local cache file first (avoids rate limits during development)
+    final cacheDir = await getCacheDir();
+    final cacheFile = File(p.join(cacheDir.path, 'releases.json'));
+    if (await cacheFile.exists()) {
+      final age = DateTime.now().difference(await cacheFile.lastModified());
+      if (age.inHours < 1) {
+        _cachedReleases = jsonDecode(await cacheFile.readAsString()) as List;
+        return _cachedReleases!;
+      }
+    }
+
     final response = await _client.get(
       Uri.parse('$_githubApi/repos/$_firmwareRepo/releases'),
       headers: {'Accept': 'application/vnd.github.v3+json'},
     );
     if (response.statusCode != 200) {
+      // Fall back to stale cache if API fails
+      if (await cacheFile.exists()) {
+        _cachedReleases = jsonDecode(await cacheFile.readAsString()) as List;
+        return _cachedReleases!;
+      }
       throw Exception('GitHub API: ${response.statusCode}');
     }
+
+    // Save to disk cache
+    await cacheFile.writeAsString(response.body);
     _cachedReleases = jsonDecode(response.body) as List;
     return _cachedReleases!;
   }

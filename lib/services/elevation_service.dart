@@ -79,16 +79,18 @@ class ElevationService {
   }
 
   static Future<bool> _elevateMacOS(String executable, List<String> args) async {
-    // Use osascript to request admin privileges via GUI dialog
-    final escapedExe = executable.replaceAll('"', '\\"');
-    final escapedArgs = args.map((a) => '"${a.replaceAll('"', '\\"')}"').join(' ');
+    // Use osascript to request admin privileges via GUI dialog.
+    // The '&' backgrounds the elevated process so osascript returns immediately,
+    // allowing the unelevated caller to exit(0).
+    final escapedExe = executable.replaceAll("'", "'\\''");
+    final escapedArgs = args.map((a) => "'${a.replaceAll("'", "'\\''")}'").join(' ');
 
     try {
       final result = await Process.run(
         'osascript',
         [
           '-e',
-          'do shell script "$escapedExe $escapedArgs" with administrator privileges',
+          "do shell script \"'$escapedExe' $escapedArgs &\" with administrator privileges",
         ],
       );
       return result.exitCode == 0;

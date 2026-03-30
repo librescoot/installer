@@ -2,27 +2,11 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'l10n/app_localizations.dart';
-import 'services/services.dart';
 import 'screens/installer_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   debugPrint('CWD: ${Directory.current.path}');
-
-  // In debug, do not self-relaunch for elevation because it breaks
-  // `flutter run` debugger attachment.
-  if (!kDebugMode) {
-    if (!await ElevationService.isElevated()) {
-      final elevated = await ElevationService.elevateIfNeeded();
-      if (elevated) {
-        // Successfully launched elevated process, exit this one.
-        exit(0);
-      }
-      // Failed to elevate - continue anyway but warn user.
-    }
-  } else {
-    debugPrint('Elevation auto-relaunch disabled in debug mode');
-  }
 
   runApp(const LibreScootInstaller());
 }

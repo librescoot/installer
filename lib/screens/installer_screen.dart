@@ -447,6 +447,17 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
 
     setState(() => _isProcessing = true);
+
+    // Elevate if needed (prompts for password)
+    if (!_isElevated) {
+      _setStatus('Requesting administrator privileges...');
+      final elevated = await ElevationService.elevateIfNeeded();
+      if (elevated) {
+        exit(0); // Elevated copy launched, kill this one
+      }
+      // Failed or already elevated — continue anyway, warn later
+    }
+
     _setStatus(l10n.resolvingReleases);
 
     try {
