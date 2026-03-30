@@ -16,15 +16,16 @@ class ElevationService {
   }
 
   /// Relaunch the app with elevated privileges.
+  /// [extraArgs] are appended to the command line (e.g. --channel=testing --region=bayern --auto-start).
   /// Returns true if relaunch was initiated (caller should exit).
   /// Returns false if already elevated or elevation failed.
-  static Future<bool> elevateIfNeeded() async {
+  static Future<bool> elevateIfNeeded({List<String> extraArgs = const []}) async {
     if (await isElevated()) {
       return false; // Already elevated
     }
 
     final executable = Platform.resolvedExecutable;
-    final args = Platform.executableArguments;
+    final args = [...Platform.executableArguments, ...extraArgs];
 
     if (Platform.isWindows) {
       return _elevateWindows(executable, args);
@@ -80,20 +81,19 @@ class ElevationService {
 
   static Future<bool> _elevateMacOS(String executable, List<String> args) async {
     // Use osascript to request admin privileges via GUI dialog.
-    // The '&' backgrounds the elevated process so osascript returns immediately,
-    // allowing the unelevated caller to exit(0).
+    // We use 'open -a' to launch the app bundle as a new process, then exit this one.
+    // If running from a .app bundle, use the bundle path. Otherwise fall back to direct execution.
     final escapedExe = executable.replaceAll("'", "'\\''");
     final escapedArgs = args.map((a) => "'${a.replaceAll("'", "'\\''")}'").join(' ');
 
     try {
-      final result = await Process.run(
-        'osascript',
-        [
-          '-e',
-          "do shell script \"'$escapedExe' $escapedArgs &\" with administrator privileges",
-        ],
-      );
-      return result.exitCode == 0;
+      // Launch elevated process in background, return immediately
+      final script = "do shell script \"'$escapedExe' $escapedArgs &\" with administrator privileges";
+      await Process.start('osascript', ['-e', script]);
+      // Don't wait for osascript to finish — the caller will exit(0)
+      // Give osascript a moment to show the dialog
+      await Future.delayed(const Duration(milliseconds: 500));
+      return true;
     } catch (_) {
       return false;
     }

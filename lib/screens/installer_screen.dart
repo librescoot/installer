@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../main.dart' show LaunchArgs, launchArgs;
 import '../l10n/app_localizations.dart';
 import '../models/download_state.dart';
 import '../models/installer_phase.dart';
@@ -66,8 +67,29 @@ class _InstallerScreenState extends State<InstallerScreen> {
     });
     _usbDetector.startMonitoring();
     _checkElevation();
+    _applyLaunchArgs();
     Future.microtask(_detectResumeState);
     _resolveAvailableChannels();
+  }
+
+  void _applyLaunchArgs() {
+    final args = launchArgs;
+    if (args.channel != null) {
+      final ch = DownloadChannel.values.where((c) => c.name == args.channel).firstOrNull;
+      if (ch != null) _downloadState.channel = ch;
+    }
+    if (args.region != null) {
+      final r = Region.all.where((r) => r.slug == args.region).firstOrNull;
+      if (r != null) _downloadState.selectedRegion = r;
+    }
+    if (args.autoStart) {
+      // Auto-start downloads after channels resolve
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted && _currentPhase == InstallerPhase.welcome) {
+          _startDownloadsAndContinue();
+        }
+      });
+    }
   }
 
   Future<void> _checkElevation() async {
@@ -156,7 +178,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     return Scaffold(
       body: Column(
         children: [
-          if (!_isElevated) _buildElevationWarning(l10n),
+          if (!_isElevated && _currentPhase != InstallerPhase.welcome) _buildElevationWarning(l10n),
           Expanded(
             child: Row(
               children: [
@@ -321,14 +343,29 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
           const SizedBox(height: 24),
 
-          // Start button
-          Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton.icon(
-              onPressed: _isProcessing ? null : _startDownloadsAndContinue,
-              icon: const Icon(Icons.arrow_forward),
-              label: Text(l10n.startInstallation),
-            ),
+          // Admin notice + Start button
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (!_isElevated)
+                Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.admin_panel_settings, size: 16, color: Colors.grey.shade500),
+                      const SizedBox(width: 4),
+                      Text('Will ask for administrator password',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                    ],
+                  ),
+                ),
+              FilledButton.icon(
+                onPressed: _isProcessing ? null : _startDownloadsAndContinue,
+                icon: const Icon(Icons.arrow_forward),
+                label: Text(l10n.startInstallation),
+              ),
+            ],
           ),
         ],
       ),
@@ -448,14 +485,18 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     setState(() => _isProcessing = true);
 
-    // Elevate if needed (prompts for password)
+    // Elevate if needed (prompts for password, relaunches with selected options)
     if (!_isElevated) {
       _setStatus('Requesting administrator privileges...');
-      final elevated = await ElevationService.elevateIfNeeded();
+      final extraArgs = LaunchArgs(
+        channel: _downloadState.channel.name,
+        region: _downloadState.selectedRegion?.slug,
+      ).toArgs();
+      final elevated = await ElevationService.elevateIfNeeded(extraArgs: extraArgs);
       if (elevated) {
         exit(0); // Elevated copy launched, kill this one
       }
-      // Failed or already elevated — continue anyway, warn later
+      // Failed to elevate — continue anyway, warn later
     }
 
     _setStatus(l10n.resolvingReleases);
