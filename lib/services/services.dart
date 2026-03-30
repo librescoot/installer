@@ -1,3 +1,4 @@
+export 'download_service.dart';
 export 'driver_service.dart';
 export 'elevation_service.dart';
 export 'flash_service.dart';
