@@ -55,3 +55,4 @@ build/
 *.exe
 !assets/tools/*.exe
 .superpowers/
+assets/passwords.yml
