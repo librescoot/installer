@@ -35,14 +35,74 @@ signal_connected() {
   lsc led fade front-ring parking-smooth-on 2>/dev/null || true
 }
 
-# Success — fade front ring off
+# Blinker progress bar — 4 blinkers = 4 segments (clockwise: FL, FR, BR, BL)
+# Pulse = currently in this segment, solid = segment complete
+PROGRESS_PULSE_PID=""
+signal_progress() {
+  local pct="$1"
+  # Kill any existing pulse loop
+  [ -n "$PROGRESS_PULSE_PID" ] && kill $PROGRESS_PULSE_PID 2>/dev/null; PROGRESS_PULSE_PID=""
+
+  # Determine which segments are solid vs pulsing
+  if [ "$pct" -ge 100 ]; then
+    # All solid
+    lsc led fade blinker-front-left parking-smooth-on 2>/dev/null || true
+    lsc led fade blinker-front-right parking-smooth-on 2>/dev/null || true
+    lsc led fade blinker-rear-right parking-smooth-on 2>/dev/null || true
+    lsc led fade blinker-rear-left parking-smooth-on 2>/dev/null || true
+  elif [ "$pct" -ge 75 ]; then
+    lsc led fade blinker-front-left parking-smooth-on 2>/dev/null || true
+    lsc led fade blinker-front-right parking-smooth-on 2>/dev/null || true
+    lsc led fade blinker-rear-right parking-smooth-on 2>/dev/null || true
+    # Pulse BL
+    (while true; do lsc led fade blinker-rear-left blink 2>/dev/null || true; sleep 0.8; done) &
+    PROGRESS_PULSE_PID=$!
+  elif [ "$pct" -ge 50 ]; then
+    lsc led fade blinker-front-left parking-smooth-on 2>/dev/null || true
+    lsc led fade blinker-front-right parking-smooth-on 2>/dev/null || true
+    lsc led fade blinker-rear-right smooth-off 2>/dev/null || true
+    lsc led fade blinker-rear-left smooth-off 2>/dev/null || true
+    # Pulse BR
+    (while true; do lsc led fade blinker-rear-right blink 2>/dev/null || true; sleep 0.8; done) &
+    PROGRESS_PULSE_PID=$!
+  elif [ "$pct" -ge 25 ]; then
+    lsc led fade blinker-front-left parking-smooth-on 2>/dev/null || true
+    lsc led fade blinker-front-right smooth-off 2>/dev/null || true
+    lsc led fade blinker-rear-right smooth-off 2>/dev/null || true
+    lsc led fade blinker-rear-left smooth-off 2>/dev/null || true
+    # Pulse FR
+    (while true; do lsc led fade blinker-front-right blink 2>/dev/null || true; sleep 0.8; done) &
+    PROGRESS_PULSE_PID=$!
+  else
+    lsc led fade blinker-front-left smooth-off 2>/dev/null || true
+    lsc led fade blinker-front-right smooth-off 2>/dev/null || true
+    lsc led fade blinker-rear-right smooth-off 2>/dev/null || true
+    lsc led fade blinker-rear-left smooth-off 2>/dev/null || true
+    # Pulse FL
+    (while true; do lsc led fade blinker-front-left blink 2>/dev/null || true; sleep 0.8; done) &
+    PROGRESS_PULSE_PID=$!
+  fi
+}
+signal_progress_off() {
+  [ -n "$PROGRESS_PULSE_PID" ] && kill $PROGRESS_PULSE_PID 2>/dev/null; PROGRESS_PULSE_PID=""
+  lsc led fade blinker-front-left smooth-off 2>/dev/null || true
+  lsc led fade blinker-front-right smooth-off 2>/dev/null || true
+  lsc led fade blinker-rear-right smooth-off 2>/dev/null || true
+  lsc led fade blinker-rear-left smooth-off 2>/dev/null || true
+}
+
+# Success — all blinkers solid briefly, then fade everything off
 signal_success() {
+  signal_progress 100
+  sleep 2
+  signal_progress_off
   lsc led fade front-ring smooth-off 2>/dev/null || true
 }
 
-# Error — hazard flashers via redis blinker both, 4s on/off loop
+# Error — hazard flashers via redis blinker both
 signal_error() {
   signal_stop_waiting
+  signal_progress_off
   while true; do
     redis-cli LPUSH scooter:blinker both >/dev/null 2>&1 || true
     sleep 4
@@ -147,16 +207,51 @@ log "DBC device found: $DBC_DEV"
 
 # Front ring already solid from signal_connected
 
+# Get uncompressed image size for progress calculation
+IMAGE_SIZE=$(gunzip -l "$DBC_IMAGE" 2>/dev/null | tail -1 | awk '{print $2}')
+if [ -z "$IMAGE_SIZE" ] || [ "$IMAGE_SIZE" -eq 0 ]; then
+  IMAGE_SIZE=500000000  # fallback ~500MB
+fi
+BOOT_AREA_SIZE=$((BOOT_AREA_BLOCKS * 4 * 1024 * 1024))  # 24MB
+PARTITION_SIZE=$((IMAGE_SIZE - BOOT_AREA_SIZE))
+
+# Progress monitor: reads dd stderr, updates blinker bar
+# Phase A = 0-90%, Phase B = 90-100%
+monitor_progress() {
+  local phase="$1" total="$2"
+  local last_pct=-1
+  while IFS= read -r line; do
+    echo "$line" >> "$LOG_FILE"
+    bytes=$(echo "$line" | grep -o '[0-9]* bytes' | grep -o '[0-9]*')
+    if [ -n "$bytes" ] && [ "$total" -gt 0 ]; then
+      if [ "$phase" = "A" ]; then
+        pct=$((bytes * 90 / total))
+      else
+        pct=$((90 + bytes * 10 / total))
+      fi
+      [ "$pct" -gt 100 ] && pct=100
+      if [ "$pct" -ne "$last_pct" ]; then
+        signal_progress "$pct"
+        last_pct=$pct
+      fi
+    fi
+  done
+}
+
 # Step 6: Two-phase flash DBC
+signal_progress 0
 log "Phase A: Writing DBC partitions..."
-gunzip -c "$DBC_IMAGE" | dd bs=4M skip=$BOOT_AREA_BLOCKS seek=$BOOT_AREA_BLOCKS of=$DBC_DEV 2>>"$LOG_FILE" \
+gunzip -c "$DBC_IMAGE" | dd bs=4M skip=$BOOT_AREA_BLOCKS seek=$BOOT_AREA_BLOCKS of=$DBC_DEV status=progress 2>&1 \
+  | monitor_progress A "$PARTITION_SIZE" \
   || fail "DBC Phase A dd failed"
 
 log "Phase B: Writing DBC boot sector..."
-gunzip -c "$DBC_IMAGE" | dd bs=4M count=$BOOT_AREA_BLOCKS of=$DBC_DEV 2>>"$LOG_FILE" \
+gunzip -c "$DBC_IMAGE" | dd bs=4M count=$BOOT_AREA_BLOCKS of=$DBC_DEV status=progress 2>&1 \
+  | monitor_progress B "$BOOT_AREA_SIZE" \
   || fail "DBC Phase B dd failed"
 
 sync
+signal_progress 100
 log "DBC flash complete"
 
 # Step 7: Switch back to gadget mode and power cycle DBC

@@ -158,6 +158,8 @@
   "ledFrontRingPulseMeaning": "Wartet auf Verbindung",
   "ledFrontRingSolid": "Frontring an (dauerhaft)",
   "ledFrontRingSolidMeaning": "DBC verbunden, arbeitet",
+  "ledBlinkerProgress": "Blinker leuchten im Uhrzeigersinn auf",
+  "ledBlinkerProgressMeaning": "Flash-Fortschritt (25% pro Blinker)",
   "ledBootGreen": "Boot-LED gr\u00fcn",
   "ledBootGreenMeaning": "Erfolgreich \u2014 Laptop wieder verbinden",
   "ledHazardFlashers": "Warnblinker",

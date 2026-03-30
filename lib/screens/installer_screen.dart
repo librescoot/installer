@@ -1271,6 +1271,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                   const SizedBox(height: 8),
                   _ledSignal(l10n.ledFrontRingPulse, l10n.ledFrontRingPulseMeaning),
                   _ledSignal(l10n.ledFrontRingSolid, l10n.ledFrontRingSolidMeaning),
+                  _ledSignal(l10n.ledBlinkerProgress, l10n.ledBlinkerProgressMeaning),
                   _ledSignal(l10n.ledBootGreen, l10n.ledBootGreenMeaning),
                   _ledSignal(l10n.ledHazardFlashers, l10n.ledHazardFlashersMeaning),
                 ],

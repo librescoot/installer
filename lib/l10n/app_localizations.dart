@@ -956,6 +956,18 @@ abstract class AppLocalizations {
   /// **'DBC connected, working'**
   String get ledFrontRingSolidMeaning;
 
+  /// No description provided for @ledBlinkerProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Blinkers light up clockwise'**
+  String get ledBlinkerProgress;
+
+  /// No description provided for @ledBlinkerProgressMeaning.
+  ///
+  /// In en, this message translates to:
+  /// **'Flash progress (25% per blinker)'**
+  String get ledBlinkerProgressMeaning;
+
   /// No description provided for @ledBootGreen.
   ///
   /// In en, this message translates to:

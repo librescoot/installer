@@ -480,6 +480,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get ledFrontRingSolidMeaning => 'DBC verbunden, arbeitet';
 
   @override
+  String get ledBlinkerProgress => 'Blinker leuchten im Uhrzeigersinn auf';
+
+  @override
+  String get ledBlinkerProgressMeaning => 'Flash-Fortschritt (25% pro Blinker)';
+
+  @override
   String get ledBootGreen => 'Boot-LED grün';
 
   @override
