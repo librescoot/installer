@@ -344,35 +344,41 @@ abstract class AppLocalizations {
   /// **'Nightly'**
   String get channelNightly;
 
-  /// No description provided for @connectivity.
+  /// No description provided for @channelStableDesc.
   ///
   /// In en, this message translates to:
-  /// **'Connectivity'**
-  String get connectivity;
+  /// **'Tested and reliable'**
+  String get channelStableDesc;
 
-  /// No description provided for @scooterOffline.
+  /// No description provided for @channelTestingDesc.
   ///
   /// In en, this message translates to:
-  /// **'Scooter will be offline'**
-  String get scooterOffline;
+  /// **'Latest features, may have rough edges'**
+  String get channelTestingDesc;
 
-  /// No description provided for @scooterOfflineSubtitle.
+  /// No description provided for @channelNightlyDesc.
   ///
   /// In en, this message translates to:
-  /// **'Most scooters are offline — download maps for navigation'**
-  String get scooterOfflineSubtitle;
+  /// **'Built daily from main, for developers'**
+  String get channelNightlyDesc;
 
-  /// No description provided for @downloadOfflineMaps.
+  /// No description provided for @channelLatest.
   ///
   /// In en, this message translates to:
-  /// **'Download offline maps anyway'**
-  String get downloadOfflineMaps;
+  /// **'Latest: {date}'**
+  String channelLatest(String date);
 
-  /// No description provided for @downloadOfflineMapsSubtitle.
+  /// No description provided for @channelNoReleases.
   ///
   /// In en, this message translates to:
-  /// **'Faster and more reliable navigation'**
-  String get downloadOfflineMapsSubtitle;
+  /// **'No releases available'**
+  String get channelNoReleases;
+
+  /// No description provided for @loadingChannels.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading available channels...'**
+  String get loadingChannels;
 
   /// No description provided for @region.
   ///

@@ -14,8 +14,43 @@ class DownloadService {
   static const _githubApi = 'https://api.github.com';
 
   final http.Client _client;
+  List<dynamic>? _cachedReleases;
 
   DownloadService({http.Client? client}) : _client = client ?? http.Client();
+
+  /// Fetch releases from GitHub, with in-memory and on-disk caching.
+  Future<List<dynamic>> _fetchReleases() async {
+    if (_cachedReleases != null) return _cachedReleases!;
+
+    // Try local cache file first (avoids rate limits during development)
+    final cacheDir = await getCacheDir();
+    final cacheFile = File(p.join(cacheDir.path, 'releases.json'));
+    if (await cacheFile.exists()) {
+      final age = DateTime.now().difference(await cacheFile.lastModified());
+      if (age.inHours < 1) {
+        _cachedReleases = jsonDecode(await cacheFile.readAsString()) as List;
+        return _cachedReleases!;
+      }
+    }
+
+    final response = await _client.get(
+      Uri.parse('$_githubApi/repos/$_firmwareRepo/releases'),
+      headers: {'Accept': 'application/vnd.github.v3+json'},
+    );
+    if (response.statusCode != 200) {
+      // Fall back to stale cache if API fails
+      if (await cacheFile.exists()) {
+        _cachedReleases = jsonDecode(await cacheFile.readAsString()) as List;
+        return _cachedReleases!;
+      }
+      throw Exception('GitHub API: ${response.statusCode}');
+    }
+
+    // Save to disk cache
+    await cacheFile.writeAsString(response.body);
+    _cachedReleases = jsonDecode(response.body) as List;
+    return _cachedReleases!;
+  }
 
   /// Get platform-appropriate cache directory
   static Future<Directory> getCacheDir() async {
@@ -30,19 +65,32 @@ class DownloadService {
     return dir;
   }
 
+  /// Fetch all releases and determine which channels have releases available.
+  /// Returns a map of channel -> (tag, publishedAt date string).
+  Future<Map<DownloadChannel, ({String tag, String date})>> fetchAvailableChannels() async {
+    final releases = await _fetchReleases();
+    final result = <DownloadChannel, ({String tag, String date})>{};
+
+    for (final channel in DownloadChannel.values) {
+      for (final release in releases) {
+        final tag = release['tag_name'] as String;
+        if (tag.startsWith('${channel.name}-')) {
+          final published = release['published_at'] as String? ?? '';
+          final date = published.length >= 10 ? published.substring(0, 10) : published;
+          result[channel] = (tag: tag, date: date);
+          break;
+        }
+      }
+    }
+
+    return result;
+  }
+
   /// Resolve the latest release for a channel. Returns (tag, assets) or throws.
   Future<({String tag, List<Map<String, dynamic>> assets})> resolveRelease(
     DownloadChannel channel,
   ) async {
-    final response = await _client.get(
-      Uri.parse('$_githubApi/repos/$_firmwareRepo/releases'),
-      headers: {'Accept': 'application/vnd.github.v3+json'},
-    );
-    if (response.statusCode != 200) {
-      throw Exception('GitHub API error: ${response.statusCode}');
-    }
-
-    final releases = jsonDecode(response.body) as List;
+    final releases = await _fetchReleases();
     final channelName = channel.name;
 
     // For stable channel, try stable first, fall back to testing
@@ -62,20 +110,48 @@ class DownloadService {
     throw Exception('No release found for channel: $channelName');
   }
 
-  /// Resolve tile release assets for a repo.
+  /// Resolve tile release assets for a repo, with disk caching.
   Future<List<Map<String, dynamic>>> resolveTileAssets(
     String repo,
     String assetPrefix,
   ) async {
-    final response = await _client.get(
-      Uri.parse('$_githubApi/repos/$repo/releases/tags/latest'),
-      headers: {'Accept': 'application/vnd.github.v3+json'},
-    );
-    if (response.statusCode != 200) {
-      throw Exception('GitHub API error for $repo: ${response.statusCode}');
+    final cacheDir = await getCacheDir();
+    final cacheKey = repo.replaceAll('/', '_');
+    final cacheFile = File(p.join(cacheDir.path, '$cacheKey-latest.json'));
+
+    // Try disk cache first
+    if (await cacheFile.exists()) {
+      final age = DateTime.now().difference(await cacheFile.lastModified());
+      if (age.inHours < 1) {
+        final release = jsonDecode(await cacheFile.readAsString()) as Map<String, dynamic>;
+        return (release['assets'] as List).cast<Map<String, dynamic>>();
+      }
     }
-    final release = jsonDecode(response.body) as Map<String, dynamic>;
-    return (release['assets'] as List).cast<Map<String, dynamic>>();
+
+    try {
+      final response = await _client.get(
+        Uri.parse('$_githubApi/repos/$repo/releases/tags/latest'),
+        headers: {'Accept': 'application/vnd.github.v3+json'},
+      );
+      if (response.statusCode != 200) {
+        // Fall back to stale cache
+        if (await cacheFile.exists()) {
+          final release = jsonDecode(await cacheFile.readAsString()) as Map<String, dynamic>;
+          return (release['assets'] as List).cast<Map<String, dynamic>>();
+        }
+        throw Exception('GitHub API error for $repo: ${response.statusCode}');
+      }
+      await cacheFile.writeAsString(response.body);
+      final release = jsonDecode(response.body) as Map<String, dynamic>;
+      return (release['assets'] as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      // Fall back to stale cache on any network error
+      if (await cacheFile.exists()) {
+        final release = jsonDecode(await cacheFile.readAsString()) as Map<String, dynamic>;
+        return (release['assets'] as List).cast<Map<String, dynamic>>();
+      }
+      rethrow;
+    }
   }
 
   /// Build the full download queue based on channel, region, and offline preference.

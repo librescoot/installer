@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../main.dart' show LaunchArgs, launchArgs;
 import '../l10n/app_localizations.dart';
 import '../models/download_state.dart';
 import '../models/installer_phase.dart';
@@ -40,6 +41,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
   ScooterHealth? _scooterHealth;
   UsbDevice? _device;
 
+  // Welcome screen state
+  final List<bool> _prerequisiteChecks = [false, false, false, false];
+  Map<DownloadChannel, ({String tag, String date})>? _availableChannels;
+  bool _channelsLoading = true;
+
   // Phase guard flags (prevent auto-start methods from re-firing on rebuild)
   bool _mdbConnectStarted = false;
   bool _healthCheckStarted = false;
@@ -61,7 +67,29 @@ class _InstallerScreenState extends State<InstallerScreen> {
     });
     _usbDetector.startMonitoring();
     _checkElevation();
+    _applyLaunchArgs();
     Future.microtask(_detectResumeState);
+    _resolveAvailableChannels();
+  }
+
+  void _applyLaunchArgs() {
+    final args = launchArgs;
+    if (args.channel != null) {
+      final ch = DownloadChannel.values.where((c) => c.name == args.channel).firstOrNull;
+      if (ch != null) _downloadState.channel = ch;
+    }
+    if (args.region != null) {
+      final r = Region.all.where((r) => r.slug == args.region).firstOrNull;
+      if (r != null) _downloadState.selectedRegion = r;
+    }
+    if (args.autoStart) {
+      // Auto-start downloads after channels resolve
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted && _currentPhase == InstallerPhase.welcome) {
+          _startDownloadsAndContinue();
+        }
+      });
+    }
   }
 
   Future<void> _checkElevation() async {
@@ -101,6 +129,32 @@ class _InstallerScreenState extends State<InstallerScreen> {
     super.dispose();
   }
 
+  Future<void> _resolveAvailableChannels() async {
+    try {
+      final channels = await _downloadService.fetchAvailableChannels();
+      if (mounted) {
+        setState(() {
+          _availableChannels = channels;
+          _channelsLoading = false;
+          // Default to best available: stable > testing > nightly
+          if (channels.isNotEmpty) {
+            if (channels.containsKey(DownloadChannel.stable)) {
+              _downloadState.channel = DownloadChannel.stable;
+            } else if (channels.containsKey(DownloadChannel.testing)) {
+              _downloadState.channel = DownloadChannel.testing;
+            } else if (channels.containsKey(DownloadChannel.nightly)) {
+              _downloadState.channel = DownloadChannel.nightly;
+            }
+          }
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _channelsLoading = false);
+      }
+    }
+  }
+
   void _setPhase(InstallerPhase phase) {
     setState(() {
       _completedPhases.add(_currentPhase);
@@ -124,7 +178,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     return Scaffold(
       body: Column(
         children: [
-          if (!_isElevated) _buildElevationWarning(l10n),
+          if (!_isElevated && _currentPhase != InstallerPhase.welcome) _buildElevationWarning(l10n),
           Expanded(
             child: Row(
               children: [
@@ -229,6 +283,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Widget _buildWelcome(AppLocalizations l10n) {
+    final prerequisites = [
+      l10n.prerequisiteScrewdriverPH2,
+      l10n.prerequisiteScrewdriverFlat,
+      l10n.prerequisiteUsbCable,
+      l10n.prerequisiteTime,
+    ];
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,119 +301,212 @@ class _InstallerScreenState extends State<InstallerScreen> {
               style: TextStyle(color: Colors.grey.shade400)),
           const SizedBox(height: 24),
 
-          // Prerequisites
+          // Prerequisites (interactive checkboxes)
           Text(l10n.whatYouNeed, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 8),
-          _prerequisite(l10n.prerequisiteScrewdriverPH2),
-          _prerequisite(l10n.prerequisiteScrewdriverFlat),
-          _prerequisite(l10n.prerequisiteUsbCable),
-          _prerequisite(l10n.prerequisiteTime),
+          for (var i = 0; i < prerequisites.length; i++)
+            _prerequisite(prerequisites[i], i),
           const SizedBox(height: 24),
 
           // Channel selection
           Text(l10n.firmwareChannel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 8),
-          SegmentedButton<DownloadChannel>(
-            segments: [
-              ButtonSegment(value: DownloadChannel.stable, label: Text(l10n.channelStable)),
-              ButtonSegment(value: DownloadChannel.testing, label: Text(l10n.channelTesting)),
-              ButtonSegment(value: DownloadChannel.nightly, label: Text(l10n.channelNightly)),
-            ],
-            selected: {_downloadState.channel},
-            onSelectionChanged: (selected) {
-              setState(() => _downloadState.channel = selected.first);
-            },
-          ),
-          const SizedBox(height: 24),
-
-          // Online/offline
-          Text(l10n.connectivity, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(height: 8),
-          SwitchListTile(
-            title: Text(l10n.scooterOffline),
-            subtitle: Text(l10n.scooterOfflineSubtitle),
-            value: _downloadState.isOffline,
-            onChanged: (v) => setState(() {
-              _downloadState.isOffline = v;
-              _downloadState.wantsOfflineMaps = v;
-            }),
-          ),
-          if (!_downloadState.isOffline)
-            SwitchListTile(
-              title: Text(l10n.downloadOfflineMaps),
-              subtitle: Text(l10n.downloadOfflineMapsSubtitle),
-              value: _downloadState.wantsOfflineMaps,
-              onChanged: (v) => setState(() => _downloadState.wantsOfflineMaps = v),
-            ),
-
-          // Region selection
-          if (_downloadState.wantsOfflineMaps) ...[
-            const SizedBox(height: 16),
-            Text(l10n.region, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<Region>(
-              initialValue: _downloadState.selectedRegion,
-              decoration: InputDecoration(
-                border: const OutlineInputBorder(),
-                hintText: l10n.selectRegion,
+          if (_channelsLoading)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Row(
+                children: [
+                  const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                  const SizedBox(width: 12),
+                  Text(l10n.loadingChannels, style: TextStyle(color: Colors.grey.shade400)),
+                ],
               ),
-              items: Region.all
-                  .map((r) => DropdownMenuItem(value: r, child: Text(r.name)))
-                  .toList(),
-              onChanged: (r) => setState(() => _downloadState.selectedRegion = r),
+            )
+          else
+            _buildChannelSelector(l10n),
+          const SizedBox(height: 24),
+
+          // Region selection (always shown)
+          Text(l10n.region, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<Region>(
+            initialValue: _downloadState.selectedRegion,
+            decoration: InputDecoration(
+              border: const OutlineInputBorder(),
+              hintText: l10n.selectRegion,
             ),
-          ],
+            items: Region.all
+                .map((r) => DropdownMenuItem(value: r, child: Text(r.name)))
+                .toList(),
+            onChanged: (r) => setState(() => _downloadState.selectedRegion = r),
+          ),
 
           const SizedBox(height: 24),
 
-          // Download progress
-          if (_downloadState.items.isNotEmpty)
-            DownloadProgressWidget(items: _downloadState.items),
-
-          const SizedBox(height: 24),
-
-          // Start button
-          Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton.icon(
-              onPressed: _isProcessing ? null : _startDownloadsAndContinue,
-              icon: const Icon(Icons.arrow_forward),
-              label: Text(l10n.startInstallation),
-            ),
+          // Admin notice + Start button
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (!_isElevated)
+                Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.admin_panel_settings, size: 16, color: Colors.grey.shade500),
+                      const SizedBox(width: 4),
+                      Text('Will ask for administrator password',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                    ],
+                  ),
+                ),
+              FilledButton.icon(
+                onPressed: _isProcessing ? null : _startDownloadsAndContinue,
+                icon: const Icon(Icons.arrow_forward),
+                label: Text(l10n.startInstallation),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _prerequisite(String text) {
+  Widget _buildChannelSelector(AppLocalizations l10n) {
+    final channelInfo = <DownloadChannel, ({String name, String desc})>{
+      DownloadChannel.stable: (name: l10n.channelStable, desc: l10n.channelStableDesc),
+      DownloadChannel.testing: (name: l10n.channelTesting, desc: l10n.channelTestingDesc),
+      DownloadChannel.nightly: (name: l10n.channelNightly, desc: l10n.channelNightlyDesc),
+    };
+
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: [
+        for (final channel in DownloadChannel.values)
+          _buildChannelCard(
+            l10n,
+            channel: channel,
+            name: channelInfo[channel]!.name,
+            description: channelInfo[channel]!.desc,
+            releaseDate: _availableChannels?[channel]?.date,
+            available: _availableChannels?.containsKey(channel) ?? false,
+            selected: _downloadState.channel == channel,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildChannelCard(
+    AppLocalizations l10n, {
+    required DownloadChannel channel,
+    required String name,
+    required String description,
+    required String? releaseDate,
+    required bool available,
+    required bool selected,
+  }) {
+    return GestureDetector(
+      onTap: available ? () => setState(() => _downloadState.channel = channel) : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 220,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? Colors.tealAccent : Colors.grey.shade700,
+            width: selected ? 2 : 1,
+          ),
+          color: selected
+              ? Colors.tealAccent.withValues(alpha: 0.08)
+              : available
+                  ? Colors.transparent
+                  : Colors.grey.shade900.withValues(alpha: 0.4),
+        ),
+        child: Opacity(
+          opacity: available ? 1.0 : 0.4,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(name,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: selected ? Colors.tealAccent : null,
+                  )),
+              const SizedBox(height: 4),
+              Text(description,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+              const SizedBox(height: 8),
+              Text(
+                releaseDate != null
+                    ? l10n.channelLatest(releaseDate)
+                    : l10n.channelNoReleases,
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _prerequisite(String text, int index) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        children: [
-          const Icon(Icons.check_box_outline_blank, size: 16, color: Colors.grey),
-          const SizedBox(width: 8),
-          Text(text, style: TextStyle(color: Colors.grey.shade300)),
-        ],
+      child: InkWell(
+        onTap: () => setState(() => _prerequisiteChecks[index] = !_prerequisiteChecks[index]),
+        borderRadius: BorderRadius.circular(4),
+        child: Row(
+          children: [
+            Icon(
+              _prerequisiteChecks[index] ? Icons.check_box : Icons.check_box_outline_blank,
+              size: 18,
+              color: _prerequisiteChecks[index] ? Colors.tealAccent : Colors.grey,
+            ),
+            const SizedBox(width: 8),
+            Text(text, style: TextStyle(
+              color: _prerequisiteChecks[index] ? Colors.grey.shade200 : Colors.grey.shade400,
+            )),
+          ],
+        ),
       ),
     );
   }
 
   Future<void> _startDownloadsAndContinue() async {
     final l10n = AppLocalizations.of(context)!;
-    if (_downloadState.wantsOfflineMaps && _downloadState.selectedRegion == null) {
+    if (_downloadState.selectedRegion == null) {
       _setStatus(l10n.selectRegionError);
       return;
     }
 
     setState(() => _isProcessing = true);
+
+    // Elevate if needed (prompts for password, relaunches with selected options)
+    if (!_isElevated) {
+      _setStatus('Requesting administrator privileges...');
+      final extraArgs = LaunchArgs(
+        channel: _downloadState.channel.name,
+        region: _downloadState.selectedRegion?.slug,
+      ).toArgs();
+      final elevated = await ElevationService.elevateIfNeeded(extraArgs: extraArgs);
+      if (elevated) {
+        // Kill this unelevated process immediately
+        exit(0);
+      }
+      // Failed to elevate — continue anyway, warn later
+    }
+
     _setStatus(l10n.resolvingReleases);
 
     try {
       final items = await _downloadService.buildDownloadQueue(
         channel: _downloadState.channel,
         region: _downloadState.selectedRegion,
-        wantsOfflineMaps: _downloadState.wantsOfflineMaps,
+        wantsOfflineMaps: true,
       );
       setState(() => _downloadState.items = items);
 

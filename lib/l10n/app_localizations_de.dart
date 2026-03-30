@@ -114,7 +114,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get prerequisiteScrewdriverPH2 =>
-      'PH2- oder H4-Schraubendreher für die Fußraumschrauben';
+      'PH2-Kreuz- oder H4-Innensechskantschraubendreher für die vier Fußbrettschrauben';
 
   @override
   String get prerequisiteScrewdriverFlat =>
@@ -139,21 +139,24 @@ class AppLocalizationsDe extends AppLocalizations {
   String get channelNightly => 'Nightly';
 
   @override
-  String get connectivity => 'Konnektivität';
+  String get channelStableDesc => 'Getestet und zuverlässig';
 
   @override
-  String get scooterOffline => 'Roller wird offline sein';
+  String get channelTestingDesc => 'Neueste Features, evtl. noch ungeschliffen';
 
   @override
-  String get scooterOfflineSubtitle =>
-      'Die meisten Roller sind offline — Karten für Navigation herunterladen';
+  String get channelNightlyDesc => 'Täglich aus main gebaut, für Entwickler';
 
   @override
-  String get downloadOfflineMaps => 'Offline-Karten trotzdem herunterladen';
+  String channelLatest(String date) {
+    return 'Aktuell: $date';
+  }
 
   @override
-  String get downloadOfflineMapsSubtitle =>
-      'Schnellere und zuverlässigere Navigation';
+  String get channelNoReleases => 'Keine Releases verfügbar';
+
+  @override
+  String get loadingChannels => 'Verfügbare Kanäle werden geladen...';
 
   @override
   String get region => 'Region';
@@ -183,7 +186,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get removeFootwellCoverDesc =>
-      'Entferne die Schrauben der Fußraumabdeckung mit einem PH2- oder H4-Schraubendreher.';
+      'Vier Schrauben lösen — ab Werk PH2 Kreuzschrauben, bei guten Werkstätten H4 Innensechskant oder Torx.';
 
   @override
   String get removeFootwellCoverImage =>

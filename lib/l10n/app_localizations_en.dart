@@ -137,21 +137,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get channelNightly => 'Nightly';
 
   @override
-  String get connectivity => 'Connectivity';
+  String get channelStableDesc => 'Tested and reliable';
 
   @override
-  String get scooterOffline => 'Scooter will be offline';
+  String get channelTestingDesc => 'Latest features, may have rough edges';
 
   @override
-  String get scooterOfflineSubtitle =>
-      'Most scooters are offline — download maps for navigation';
+  String get channelNightlyDesc => 'Built daily from main, for developers';
 
   @override
-  String get downloadOfflineMaps => 'Download offline maps anyway';
+  String channelLatest(String date) {
+    return 'Latest: $date';
+  }
 
   @override
-  String get downloadOfflineMapsSubtitle =>
-      'Faster and more reliable navigation';
+  String get channelNoReleases => 'No releases available';
+
+  @override
+  String get loadingChannels => 'Loading available channels...';
 
   @override
   String get region => 'Region';
@@ -180,7 +183,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get removeFootwellCoverDesc =>
-      'Use a PH2 or H4 screwdriver to remove the footwell cover screws.';
+      'Four screws to remove — PH2 Phillips from factory, H4 hex or Torx if serviced by a good shop.';
 
   @override
   String get removeFootwellCoverImage =>

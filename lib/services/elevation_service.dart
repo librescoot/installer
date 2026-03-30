@@ -16,15 +16,16 @@ class ElevationService {
   }
 
   /// Relaunch the app with elevated privileges.
+  /// [extraArgs] are appended to the command line (e.g. --channel=testing --region=bayern --auto-start).
   /// Returns true if relaunch was initiated (caller should exit).
   /// Returns false if already elevated or elevation failed.
-  static Future<bool> elevateIfNeeded() async {
+  static Future<bool> elevateIfNeeded({List<String> extraArgs = const []}) async {
     if (await isElevated()) {
       return false; // Already elevated
     }
 
     final executable = Platform.resolvedExecutable;
-    final args = Platform.executableArguments;
+    final args = [...Platform.executableArguments, ...extraArgs];
 
     if (Platform.isWindows) {
       return _elevateWindows(executable, args);
@@ -79,18 +80,24 @@ class ElevationService {
   }
 
   static Future<bool> _elevateMacOS(String executable, List<String> args) async {
-    // Use osascript to request admin privileges via GUI dialog
-    final escapedExe = executable.replaceAll('"', '\\"');
-    final escapedArgs = args.map((a) => '"${a.replaceAll('"', '\\"')}"').join(' ');
+    // Use osascript to request admin privileges via GUI dialog.
+    // We use 'open -a' to launch the app bundle as a new process, then exit this one.
+    // If running from a .app bundle, use the bundle path. Otherwise fall back to direct execution.
+    final escapedExe = executable.replaceAll("'", "'\\''");
+    final escapedArgs = args.map((a) => "'${a.replaceAll("'", "'\\''")}'").join(' ');
 
     try {
-      final result = await Process.run(
-        'osascript',
-        [
-          '-e',
-          'do shell script "$escapedExe $escapedArgs" with administrator privileges',
-        ],
-      );
+      // Write a helper script that launches the app elevated and detaches
+      final tmpScript = File('/tmp/librescoot-elevate.sh');
+      await tmpScript.writeAsString('#!/bin/sh\nexec \'$escapedExe\' $escapedArgs\n');
+      await Process.run('chmod', ['+x', tmpScript.path]);
+
+      // osascript prompts for password, runs the script as root.
+      // The & detaches the elevated process so osascript can return.
+      final script = 'do shell script "${tmpScript.path} &" with administrator privileges';
+      final result = await Process.run('osascript', ['-e', script]);
+
+      tmpScript.delete().ignore();
       return result.exitCode == 0;
     } catch (_) {
       return false;

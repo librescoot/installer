@@ -45,11 +45,17 @@
   "channelStable": "Stable",
   "channelTesting": "Testing",
   "channelNightly": "Nightly",
-  "connectivity": "Connectivity",
-  "scooterOffline": "Scooter will be offline",
-  "scooterOfflineSubtitle": "Most scooters are offline \u2014 download maps for navigation",
-  "downloadOfflineMaps": "Download offline maps anyway",
-  "downloadOfflineMapsSubtitle": "Faster and more reliable navigation",
+  "channelStableDesc": "Tested and reliable",
+  "channelTestingDesc": "Latest features, may have rough edges",
+  "channelNightlyDesc": "Built daily from main, for developers",
+  "channelLatest": "Latest: {date}",
+  "@channelLatest": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "channelNoReleases": "No releases available",
+  "loadingChannels": "Loading available channels...",
   "region": "Region",
   "selectRegion": "Select your region",
   "startInstallation": "Start Installation",
@@ -59,7 +65,7 @@
   "physicalPrepHeading": "Physical Preparation",
   "physicalPrepSubheading": "Prepare your scooter for USB connection.",
   "removeFootwellCover": "Remove footwell cover",
-  "removeFootwellCoverDesc": "Use a PH2 or H4 screwdriver to remove the footwell cover screws.",
+  "removeFootwellCoverDesc": "Four screws to remove \u2014 PH2 Phillips from factory, H4 hex or Torx if serviced by a good shop.",
   "removeFootwellCoverImage": "[Photo: footwell cover with screw locations highlighted]",
   "unscrewUsbCable": "Unscrew USB cable from MDB",
   "unscrewUsbCableDesc": "Disconnect the internal DBC USB cable from the MDB board. Use a flat head or PH1 screwdriver.",

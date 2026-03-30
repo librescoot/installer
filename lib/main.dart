@@ -1,29 +1,38 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'l10n/app_localizations.dart';
-import 'services/services.dart';
 import 'screens/installer_screen.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  debugPrint('CWD: ${Directory.current.path}');
+/// CLI args passed from unelevated → elevated process.
+class LaunchArgs {
+  final String? channel;
+  final String? region;
+  final bool autoStart;
 
-  // In debug, do not self-relaunch for elevation because it breaks
-  // `flutter run` debugger attachment.
-  if (!kDebugMode) {
-    if (!await ElevationService.isElevated()) {
-      final elevated = await ElevationService.elevateIfNeeded();
-      if (elevated) {
-        // Successfully launched elevated process, exit this one.
-        exit(0);
-      }
-      // Failed to elevate - continue anyway but warn user.
+  LaunchArgs({this.channel, this.region, this.autoStart = false});
+
+  factory LaunchArgs.fromArgs(List<String> args) {
+    String? channel, region;
+    var autoStart = false;
+    for (final arg in args) {
+      if (arg.startsWith('--channel=')) channel = arg.split('=')[1];
+      if (arg.startsWith('--region=')) region = arg.split('=')[1];
+      if (arg == '--auto-start') autoStart = true;
     }
-  } else {
-    debugPrint('Elevation auto-relaunch disabled in debug mode');
+    return LaunchArgs(channel: channel, region: region, autoStart: autoStart);
   }
 
+  List<String> toArgs() => [
+        if (channel != null) '--channel=$channel',
+        if (region != null) '--region=$region',
+        '--auto-start',
+      ];
+}
+
+late final LaunchArgs launchArgs;
+
+void main(List<String> args) async {
+  WidgetsFlutterBinding.ensureInitialized();
+  launchArgs = LaunchArgs.fromArgs(args);
   runApp(const LibreScootInstaller());
 }
 
