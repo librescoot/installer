@@ -517,6 +517,151 @@ class FlashService {
     return partitions;
   }
 
+  // ---- Two-phase flash ----
+
+  static const bootAreaBytes = 24 * 1024 * 1024; // 24MB
+  static const ddBlockSize = 4 * 1024 * 1024; // 4MB
+  static const bootAreaBlocks = bootAreaBytes ~/ ddBlockSize; // 6 blocks
+
+  /// Two-phase flash: write partitions first (safe), then boot sector (commits).
+  Future<void> writeTwoPhase(
+    String imagePath,
+    String devicePath, {
+    void Function(double progress, String message)? onProgress,
+  }) async {
+    final isCompressed = imagePath.endsWith('.gz');
+
+    // Phase A: write partitions (everything from 24MB onwards)
+    onProgress?.call(0.0, 'Phase A: Writing partitions...');
+    await _runDdPhase(
+      imagePath: imagePath,
+      devicePath: devicePath,
+      isCompressed: isCompressed,
+      skip: bootAreaBlocks,
+      seek: bootAreaBlocks,
+      onProgress: (p, msg) => onProgress?.call(p * 0.9, 'Phase A: $msg'),
+    );
+
+    // Phase B: write boot sector (first 24MB)
+    onProgress?.call(0.9, 'Phase B: Writing boot sector...');
+    await _runDdPhase(
+      imagePath: imagePath,
+      devicePath: devicePath,
+      isCompressed: isCompressed,
+      count: bootAreaBlocks,
+      onProgress: (p, msg) => onProgress?.call(0.9 + p * 0.1, 'Phase B: $msg'),
+    );
+
+    // Sync
+    onProgress?.call(1.0, 'Syncing...');
+    if (Platform.isMacOS) {
+      await Process.run('sync', []);
+      await Process.run('diskutil', ['eject', devicePath]);
+    } else {
+      await Process.run('sync', []);
+    }
+  }
+
+  Future<void> _runDdPhase({
+    required String imagePath,
+    required String devicePath,
+    required bool isCompressed,
+    int? skip,
+    int? seek,
+    int? count,
+    void Function(double progress, String message)? onProgress,
+  }) async {
+    if (Platform.isWindows) {
+      await _runDdPhaseWindows(imagePath, devicePath, isCompressed, skip: skip, seek: seek, count: count, onProgress: onProgress);
+    } else {
+      await _runDdPhaseUnix(imagePath, devicePath, isCompressed, skip: skip, seek: seek, count: count, onProgress: onProgress);
+    }
+  }
+
+  Future<void> _runDdPhaseUnix(
+    String imagePath,
+    String devicePath,
+    bool isCompressed, {
+    int? skip,
+    int? seek,
+    int? count,
+    void Function(double progress, String message)? onProgress,
+  }) async {
+    final rawDevice = Platform.isMacOS
+        ? devicePath.replaceFirst('/dev/disk', '/dev/rdisk')
+        : devicePath;
+    final bs = Platform.isMacOS ? 'bs=4m' : 'bs=4M';
+    final oflag = Platform.isLinux ? 'oflag=direct' : '';
+
+    final ddParams = <String>[
+      bs,
+      if (skip != null) 'skip=$skip',
+      if (seek != null) 'seek=$seek',
+      if (count != null) 'count=$count',
+      if (oflag.isNotEmpty) oflag,
+      'status=progress',
+    ];
+
+    final String command;
+    if (isCompressed) {
+      command = 'gunzip -c "$imagePath" | dd of=$rawDevice ${ddParams.join(' ')} 2>&1';
+    } else {
+      command = 'dd if="$imagePath" of=$rawDevice ${ddParams.join(' ')} 2>&1';
+    }
+
+    final process = await Process.start('/bin/sh', ['-c', command]);
+
+    await for (final line in process.stdout.transform(utf8.decoder)) {
+      final bytesMatch = RegExp(r'(\d+)\s+bytes').firstMatch(line);
+      if (bytesMatch != null) {
+        final bytes = int.tryParse(bytesMatch.group(1)!);
+        if (bytes != null) {
+          onProgress?.call(0.5, '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB written');
+        }
+      }
+    }
+    final exitCode = await process.exitCode;
+    if (exitCode != 0) throw Exception('dd failed with exit code $exitCode');
+  }
+
+  Future<void> _runDdPhaseWindows(
+    String imagePath,
+    String devicePath,
+    bool isCompressed, {
+    int? skip,
+    int? seek,
+    int? count,
+    void Function(double progress, String message)? onProgress,
+  }) async {
+    final ddExePath = await _getDdPath() ?? '${Directory.current.path}/assets/tools/dd.exe';
+
+    final ddArgs = <String>[
+      'bs=4M',
+      'of=$devicePath',
+      if (skip != null) 'skip=$skip',
+      if (seek != null) 'seek=$seek',
+      if (count != null) 'count=$count',
+    ];
+
+    if (isCompressed) {
+      final psScript = '''
+\$input = [System.IO.File]::OpenRead('$imagePath')
+\$gzip = New-Object System.IO.Compression.GZipStream(\$input, [System.IO.Compression.CompressionMode]::Decompress)
+\$output = [System.Console]::OpenStandardOutput()
+\$gzip.CopyTo(\$output)
+\$gzip.Close()
+\$input.Close()
+''';
+      final command = 'powershell -Command "$psScript" | "$ddExePath" ${ddArgs.join(' ')}';
+      final result = await Process.run('cmd', ['/c', command]);
+      if (result.exitCode != 0) throw Exception('dd.exe failed: ${result.stderr}');
+    } else {
+      ddArgs.add('if=$imagePath');
+      final result = await Process.run(ddExePath, ddArgs);
+      if (result.exitCode != 0) throw Exception('dd.exe failed: ${result.stderr}');
+    }
+  }
+
   /// Verify the written image by reading and checksumming
   Future<String?> verifyImage(String devicePath, int sizeBytes) async {
     try {
