@@ -746,7 +746,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
   }
 
+  bool _batteryRemovalStarted = false;
+
   Widget _buildBatteryRemoval(AppLocalizations l10n) {
+    if (_scooterHealth?.batteryPresent == true && !_batteryRemovalStarted && !_isProcessing) {
+      _batteryRemovalStarted = true;
+      Future.microtask(_openSeatboxAndWaitForBattery);
+    }
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -766,11 +773,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
               description: l10n.removeMainBatteryDesc,
             ),
             const SizedBox(height: 16),
-            if (!_isProcessing)
-              FilledButton(
-                onPressed: _openSeatboxAndWaitForBattery,
-                child: Text(l10n.openSeatbox),
-              ),
             if (_isProcessing) ...[
               const CircularProgressIndicator(),
               const SizedBox(height: 8),
