@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'l10n/app_localizations.dart';
 import 'services/services.dart';
 import 'screens/installer_screen.dart';
 
@@ -34,6 +35,8 @@ class LibreScootInstaller extends StatelessWidget {
     return MaterialApp(
       title: 'LibreScoot Installer',
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.teal,

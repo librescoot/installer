@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as path;
+import '../l10n/app_localizations.dart';
 import '../services/services.dart';
 
 enum InstallerStep {
@@ -66,16 +67,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _ensureDriverInstalled() async {
     if (!Platform.isWindows) return;
 
+    final l10n = AppLocalizations.of(context)!;
     final installed = await DriverService.isDriverInstalled();
     if (!installed) {
-      setState(() => _statusMessage = 'Installing USB driver...');
+      setState(() => _statusMessage = l10n.installingUsbDriver);
       final result = await DriverService.installDriver();
       if (result.success) {
         setState(() => _statusMessage = result.alreadyInstalled
             ? null
-            : 'USB driver installed successfully');
+            : l10n.usbDriverInstalled);
       } else {
-        setState(() => _statusMessage = 'Driver install failed: ${result.error}');
+        setState(() => _statusMessage = l10n.driverInstallFailed(result.error ?? ''));
       }
     }
   }
@@ -85,10 +87,11 @@ class _HomeScreenState extends State<HomeScreen> {
     debugPrint('Startup firmware check: ${autoPath ?? "no matching firmware in cwd"}');
     if (!mounted || autoPath == null || _firmwarePath != null) return;
 
+    final l10n = AppLocalizations.of(context)!;
     setState(() {
       _firmwarePath = autoPath;
       _currentStep = InstallerStep.connectDevice;
-      _statusMessage = 'Auto-loaded firmware from current directory';
+      _statusMessage = l10n.autoLoadedFirmware;
     });
     _consumeAlreadyDetectedDevice();
   }
@@ -147,10 +150,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (device == null) {
       if (_currentStep == InstallerStep.prepareDevice) {
+        final l10n = AppLocalizations.of(context)!;
         setState(() {
           _isProcessing = false;
           _currentStep = InstallerStep.connectDevice;
-          _statusMessage = 'Device disconnected. Reconnect/wait for mass storage mode.';
+          _statusMessage = l10n.deviceDisconnected;
         });
       }
       return;
@@ -166,18 +170,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('LibreScoot Installer'),
+        title: Text(l10n.homeAppTitle),
         actions: [
           if (!_isElevated)
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Chip(
                 avatar: const Icon(Icons.warning, size: 16, color: Colors.white),
-                label: const Text(
-                  'Not elevated',
-                  style: TextStyle(color: Colors.white),
+                label: Text(
+                  l10n.notElevated,
+                  style: const TextStyle(color: Colors.white),
                 ),
                 backgroundColor: Colors.orange.shade800,
               ),
@@ -189,9 +194,9 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildStepIndicator(),
+            _buildStepIndicator(l10n),
             const SizedBox(height: 32),
-            Expanded(child: _buildCurrentStep()),
+            Expanded(child: _buildCurrentStep(l10n)),
             if (_statusMessage != null) ...[
               const SizedBox(height: 16),
               _buildStatusBar(),
@@ -202,14 +207,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildStepIndicator() {
+  Widget _buildStepIndicator(AppLocalizations l10n) {
     final steps = [
-      'Select Firmware',
-      'Connect Device',
-      'Configure Network',
-      'Prepare Device',
-      'Flash Firmware',
-      'Complete',
+      l10n.selectFirmwareStep,
+      l10n.connectDeviceStep,
+      l10n.configureNetworkStep,
+      l10n.prepareDeviceStep,
+      l10n.flashFirmwareStep,
+      l10n.completeStep,
     ];
 
     return Row(
@@ -259,37 +264,37 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildCurrentStep() {
+  Widget _buildCurrentStep(AppLocalizations l10n) {
     switch (_currentStep) {
       case InstallerStep.selectFirmware:
-        return _buildSelectFirmware();
+        return _buildSelectFirmware(l10n);
       case InstallerStep.connectDevice:
-        return _buildConnectDevice();
+        return _buildConnectDevice(l10n);
       case InstallerStep.configureNetwork:
-        return _buildConfigureNetwork();
+        return _buildConfigureNetwork(l10n);
       case InstallerStep.prepareDevice:
-        return _buildPrepareDevice();
+        return _buildPrepareDevice(l10n);
       case InstallerStep.flashFirmware:
-        return _buildFlashFirmware();
+        return _buildFlashFirmware(l10n);
       case InstallerStep.complete:
-        return _buildComplete();
+        return _buildComplete(l10n);
     }
   }
 
-  Widget _buildSelectFirmware() {
+  Widget _buildSelectFirmware(AppLocalizations l10n) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         const Icon(Icons.folder_open, size: 64, color: Colors.teal),
         const SizedBox(height: 16),
-        const Text(
-          'Select Firmware Image',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        Text(
+          l10n.selectFirmwareImage,
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
-        const Text(
-          'Choose a .sdimg.gz, .sdimg, .wic.gz, .wic, or .img firmware file to flash',
-          style: TextStyle(color: Colors.grey),
+        Text(
+          l10n.selectFirmwareHint,
+          style: const TextStyle(color: Colors.grey),
         ),
         const SizedBox(height: 24),
         if (_firmwarePath != null) ...[
@@ -316,7 +321,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ElevatedButton.icon(
               onPressed: _pickFirmware,
               icon: const Icon(Icons.file_open),
-              label: Text(_firmwarePath == null ? 'Select File' : 'Change File'),
+              label: Text(_firmwarePath == null ? l10n.selectFile : l10n.changeFile),
             ),
             if (_firmwarePath != null) ...[
               const SizedBox(width: 16),
@@ -326,7 +331,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   _consumeAlreadyDetectedDevice();
                 },
                 icon: const Icon(Icons.arrow_forward),
-                label: const Text('Continue'),
+                label: Text(l10n.continueButton),
               ),
             ],
           ],
@@ -335,7 +340,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildConnectDevice() {
+  Widget _buildConnectDevice(AppLocalizations l10n) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -346,14 +351,14 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 16),
         Text(
-          _device != null ? 'Device Connected' : 'Connect Your Device',
+          _device != null ? l10n.deviceConnected : l10n.connectYourDevice,
           style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         Text(
           _device != null
-              ? '${_device!.name}\nMode: ${_device!.mode.name}'
-              : 'Connect the MDB via USB and wait for detection',
+              ? '${_device!.name}\n${l10n.modeLabel(_device!.mode.name)}'
+              : l10n.connectMdbViaUsb,
           textAlign: TextAlign.center,
           style: const TextStyle(color: Colors.grey),
         ),
@@ -364,7 +369,7 @@ class _HomeScreenState extends State<HomeScreen> {
           TextButton.icon(
             onPressed: () => setState(() => _currentStep = InstallerStep.selectFirmware),
             icon: const Icon(Icons.arrow_back),
-            label: const Text('Back'),
+            label: Text(l10n.backButton),
           ),
         ] else
           Row(
@@ -373,13 +378,13 @@ class _HomeScreenState extends State<HomeScreen> {
               TextButton.icon(
                 onPressed: () => setState(() => _currentStep = InstallerStep.selectFirmware),
                 icon: const Icon(Icons.arrow_back),
-                label: const Text('Back'),
+                label: Text(l10n.backButton),
               ),
               const SizedBox(width: 12),
               FilledButton.icon(
                 onPressed: () => _onDeviceConnected(_device!),
                 icon: const Icon(Icons.arrow_forward),
-                label: const Text('Continue'),
+                label: Text(l10n.continueButton),
               ),
             ],
           ),
@@ -387,7 +392,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildConfigureNetwork() {
+  Widget _buildConfigureNetwork(AppLocalizations l10n) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -397,15 +402,15 @@ class _HomeScreenState extends State<HomeScreen> {
           color: Colors.teal,
         ),
         const SizedBox(height: 16),
-        const Text(
-          'Configuring Network',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        Text(
+          l10n.configuringNetworkHeading,
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         Text(
           _isProcessing
-              ? 'Setting up network interface...'
-              : 'Ready to configure network for device communication',
+              ? l10n.settingUpNetwork
+              : l10n.readyToConfigureNetwork,
           style: const TextStyle(color: Colors.grey),
         ),
         const SizedBox(height: 24),
@@ -418,13 +423,13 @@ class _HomeScreenState extends State<HomeScreen> {
               TextButton.icon(
                 onPressed: () => setState(() => _currentStep = InstallerStep.connectDevice),
                 icon: const Icon(Icons.arrow_back),
-                label: const Text('Back'),
+                label: Text(l10n.backButton),
               ),
               const SizedBox(width: 12),
               FilledButton.icon(
                 onPressed: _configureNetwork,
                 icon: const Icon(Icons.play_arrow),
-                label: const Text('Configure Network'),
+                label: Text(l10n.configureNetworkButton),
               ),
             ],
           ),
@@ -432,7 +437,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildPrepareDevice() {
+  Widget _buildPrepareDevice(AppLocalizations l10n) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -443,15 +448,17 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 16),
         Text(
-          _isProcessing ? 'Preparing Device' : 'Ready to Prepare',
+          _isProcessing ? l10n.preparingDevice : l10n.readyToPrepare,
           style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         if (_deviceInfo != null)
           Text(
-            'Connected to: ${_deviceInfo!.host}\n'
-            'Firmware: ${_deviceInfo!.firmwareVersion}\n'
-            'Serial: ${_deviceInfo!.serialNumber ?? "Unknown"}',
+            l10n.connectedTo(
+              _deviceInfo!.host,
+              _deviceInfo!.firmwareVersion,
+              _deviceInfo!.serialNumber ?? l10n.unknown,
+            ),
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.grey),
           ),
@@ -465,13 +472,13 @@ class _HomeScreenState extends State<HomeScreen> {
               TextButton.icon(
                 onPressed: () => setState(() => _currentStep = InstallerStep.configureNetwork),
                 icon: const Icon(Icons.arrow_back),
-                label: const Text('Back'),
+                label: Text(l10n.backButton),
               ),
               const SizedBox(width: 12),
               FilledButton.icon(
                 onPressed: _prepareDevice,
                 icon: const Icon(Icons.play_arrow),
-                label: const Text('Prepare for Flashing'),
+                label: Text(l10n.prepareForFlashing),
               ),
             ],
           ),
@@ -479,15 +486,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildFlashFirmware() {
+  Widget _buildFlashFirmware(AppLocalizations l10n) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         const Icon(Icons.flash_on, size: 64, color: Colors.amber),
         const SizedBox(height: 16),
-        const Text(
-          'Flashing Firmware',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        Text(
+          l10n.flashingFirmware,
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 24),
         LinearProgressIndicator(value: _progress),
@@ -501,13 +508,13 @@ class _HomeScreenState extends State<HomeScreen> {
               TextButton.icon(
                 onPressed: () => setState(() => _currentStep = InstallerStep.prepareDevice),
                 icon: const Icon(Icons.arrow_back),
-                label: const Text('Back'),
+                label: Text(l10n.backButton),
               ),
               const SizedBox(width: 12),
               FilledButton.icon(
                 onPressed: _flashFirmware,
                 icon: const Icon(Icons.flash_on),
-                label: const Text('Start Flashing'),
+                label: Text(l10n.startFlashing),
               ),
             ],
           ),
@@ -515,22 +522,21 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildComplete() {
+  Widget _buildComplete(AppLocalizations l10n) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         const Icon(Icons.check_circle, size: 64, color: Colors.green),
         const SizedBox(height: 16),
-        const Text(
-          'Installation Complete!',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        Text(
+          l10n.installationComplete,
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
-        const Text(
-          'Your device has been successfully flashed.\n'
-          'It will reboot automatically.',
+        Text(
+          l10n.installationCompleteDesc,
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey),
+          style: const TextStyle(color: Colors.grey),
         ),
         const SizedBox(height: 24),
         FilledButton.icon(
@@ -543,7 +549,7 @@ class _HomeScreenState extends State<HomeScreen> {
             });
           },
           icon: const Icon(Icons.refresh),
-          label: const Text('Flash Another Device'),
+          label: Text(l10n.flashAnotherDevice),
         ),
       ],
     );
@@ -582,11 +588,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _pickFirmware() async {
+    final l10n = AppLocalizations.of(context)!;
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['gz', 'sdimg', 'wic', 'img'],
-        dialogTitle: 'Select Firmware Image',
+        dialogTitle: l10n.selectFirmwareDialogTitle,
       );
 
       if (result != null && result.files.isNotEmpty) {
@@ -598,12 +605,12 @@ class _HomeScreenState extends State<HomeScreen> {
               _statusMessage = null;
             });
           } else {
-            setState(() => _statusMessage = 'Please select a .sdimg.gz, .sdimg, .wic.gz, .wic, or .img file');
+            setState(() => _statusMessage = l10n.selectFirmwareFileError);
           }
         }
       }
     } catch (e) {
-      setState(() => _statusMessage = 'Error opening file picker: $e');
+      setState(() => _statusMessage = l10n.errorOpeningFilePicker(e.toString()));
     }
   }
 
@@ -627,45 +634,47 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _configureNetwork() async {
+    final l10n = AppLocalizations.of(context)!;
     _networkAutoStarted = false;
     setState(() {
       _isProcessing = true;
-      _statusMessage = 'Waiting for MDB network to settle...';
+      _statusMessage = l10n.waitingForMdbNetwork;
     });
 
     try {
       await Future.delayed(const Duration(seconds: 1));
       if (!mounted) return;
-      setState(() => _statusMessage = 'Finding network interface...');
+      setState(() => _statusMessage = l10n.findingNetworkInterface);
 
       final iface = await _networkService.findLibreScootInterface();
       if (iface == null) {
-        throw Exception('Could not find USB network interface');
+        throw Exception(l10n.couldNotFindInterface);
       }
 
-      setState(() => _statusMessage = 'Configuring ${iface.displayName}...');
+      setState(() => _statusMessage = '${l10n.configuringNetwork} ${iface.displayName}...');
 
       final success = await _networkService.configureInterface(iface);
       if (!success) {
-        throw Exception('Failed to configure network interface');
+        throw Exception(l10n.couldNotFindInterface);
       }
 
       setState(() {
-        _statusMessage = 'Network configured successfully';
+        _statusMessage = l10n.networkConfigured;
         _currentStep = InstallerStep.prepareDevice;
       });
 
       // Connect via SSH
       await _connectSsh();
     } catch (e) {
-      setState(() => _statusMessage = 'Error: $e');
+      setState(() => _statusMessage = l10n.errorPrefix(e.toString()));
     } finally {
       setState(() => _isProcessing = false);
     }
   }
 
   Future<void> _connectSsh() async {
-    setState(() => _statusMessage = 'Connecting via SSH...');
+    final l10n = AppLocalizations.of(context)!;
+    setState(() => _statusMessage = l10n.connectingSsh);
     debugPrint('UI: starting SSH connect to MDB');
 
     try {
@@ -676,18 +685,19 @@ class _HomeScreenState extends State<HomeScreen> {
       debugPrint('UI: SSH connected, firmware=${info.firmwareVersion}, serial=${info.serialNumber ?? "unknown"}');
       setState(() {
         _deviceInfo = info;
-        _statusMessage = 'Connected to ${info.firmwareVersion}';
+        _statusMessage = l10n.connectedToFirmware(info.firmwareVersion);
       });
     } catch (e) {
       debugPrint('UI: SSH connection failed: $e');
-      setState(() => _statusMessage = 'SSH error: $e');
+      setState(() => _statusMessage = l10n.sshConnectionFailed(e.toString()));
     }
   }
 
   Future<void> _prepareDevice() async {
+    final l10n = AppLocalizations.of(context)!;
     setState(() {
       _isProcessing = true;
-      _statusMessage = 'Configuring bootloader for mass storage mode...';
+      _statusMessage = l10n.configuringBootloader;
     });
     debugPrint('UI: prepare step started');
 
@@ -696,34 +706,36 @@ class _HomeScreenState extends State<HomeScreen> {
       await _sshService.configureMassStorageMode();
       debugPrint('UI: configureMassStorageMode() completed');
 
-      setState(() => _statusMessage = 'Rebooting device...');
+      setState(() => _statusMessage = l10n.rebootingDevice);
       debugPrint('UI: calling reboot()');
       await _sshService.reboot();
       debugPrint('UI: reboot() call returned');
 
       setState(() {
-        _statusMessage = 'Waiting for device to reboot in mass storage mode...';
+        _statusMessage = l10n.waitingForMassStorage;
       });
       debugPrint('UI: waiting for USB detector to report mass storage mode');
 
       // USB detector will pick up the mass storage device
     } catch (e) {
       debugPrint('UI: prepare step failed: $e');
-      setState(() => _statusMessage = 'Error: $e');
+      setState(() => _statusMessage = l10n.errorPrefix(e.toString()));
       _isProcessing = false;
     }
   }
 
   void _onMassStorageReady(UsbDevice device) {
+    final l10n = AppLocalizations.of(context)!;
     debugPrint('UI: mass storage detected: ${device.name} path=${device.path}');
     setState(() {
       _isProcessing = false;
-      _statusMessage = 'Device ready for flashing';
+      _statusMessage = l10n.deviceReadyForFlashing;
       _currentStep = InstallerStep.flashFirmware;
     });
   }
 
   Future<void> _flashFirmware() async {
+    final l10n = AppLocalizations.of(context)!;
     if (_firmwarePath == null || _device == null) return;
 
     // Safety validation
@@ -737,18 +749,18 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     if (!safetyCheck.passed) {
-      await _showSafetyError(safetyCheck);
+      await _showSafetyError(safetyCheck, l10n);
       return;
     }
 
     // Show confirmation dialog
-    final confirmed = await _showFlashConfirmation(safetyCheck.warnings);
+    final confirmed = await _showFlashConfirmation(safetyCheck.warnings, l10n);
     if (confirmed != true) return;
 
     setState(() {
       _isProcessing = true;
       _progress = 0.0;
-      _statusMessage = _flashDryRun ? 'Generating flash plan...' : 'Starting flash...';
+      _statusMessage = _flashDryRun ? l10n.resolvingReleases : l10n.startFlashing;
     });
 
     try {
@@ -757,8 +769,8 @@ class _HomeScreenState extends State<HomeScreen> {
           _firmwarePath!,
           _device!.path,
         );
-        setState(() => _statusMessage = 'Dry run: showing flash command plan');
-        await _showFlashPlan(plan);
+        setState(() => _statusMessage = l10n.flashDryRun);
+        await _showFlashPlan(plan, l10n);
       } else {
         final result = await _flashService.writeImage(
           _firmwarePath!,
@@ -774,26 +786,26 @@ class _HomeScreenState extends State<HomeScreen> {
         if (result.success) {
           setState(() {
             _currentStep = InstallerStep.complete;
-            _statusMessage = 'Flash complete!';
+            _statusMessage = l10n.flashComplete;
           });
         } else {
-          throw Exception(result.error ?? 'Unknown error');
+          throw Exception(result.error ?? l10n.unknown);
         }
       }
     } catch (e) {
-      setState(() => _statusMessage = 'Flash error: $e');
+      setState(() => _statusMessage = l10n.flashError(e.toString()));
     } finally {
       setState(() => _isProcessing = false);
     }
   }
 
-  Future<void> _showFlashPlan(String plan) async {
+  Future<void> _showFlashPlan(String plan, AppLocalizations l10n) async {
     await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         icon: const Icon(Icons.terminal),
-        title: const Text('Flash Dry Run'),
+        title: Text(l10n.flashDryRun),
         content: ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 360, maxWidth: 700),
           child: SingleChildScrollView(
@@ -806,27 +818,27 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           FilledButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
+            child: Text(l10n.closeButton),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _showSafetyError(SafetyCheck safetyCheck) async {
+  Future<void> _showSafetyError(SafetyCheck safetyCheck, AppLocalizations l10n) async {
     await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         icon: const Icon(Icons.dangerous, color: Colors.red, size: 48),
-        title: const Text('Safety Check Failed'),
+        title: Text(l10n.safetyCheckFailed),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Cannot flash this device due to safety concerns:',
-              style: TextStyle(fontWeight: FontWeight.bold),
+            Text(
+              l10n.cannotFlashSafety,
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             ...safetyCheck.errors.map((e) => Padding(
@@ -845,20 +857,20 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           FilledButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+            child: Text(l10n.okButton),
           ),
         ],
       ),
     );
   }
 
-  Future<bool?> _showFlashConfirmation(List<String> warnings) async {
+  Future<bool?> _showFlashConfirmation(List<String> warnings, AppLocalizations l10n) async {
     return showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         icon: const Icon(Icons.warning_amber, color: Colors.orange, size: 48),
-        title: const Text('Confirm Flash Operation'),
+        title: Text(l10n.confirmFlashOperation),
         content: ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 360),
           child: SingleChildScrollView(
@@ -866,21 +878,21 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'You are about to write firmware to:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                Text(
+                  l10n.aboutToWriteFirmware,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
-                _buildDeviceInfoRow('Device', _device!.name),
-                _buildDeviceInfoRow('Path', _device!.path),
-                _buildDeviceInfoRow('Size', _device!.sizeFormatted),
+                _buildDeviceInfoRow(l10n.deviceLabel, _device!.name),
+                _buildDeviceInfoRow(l10n.pathLabel, _device!.path),
+                _buildDeviceInfoRow(l10n.sizeLabel, _device!.sizeFormatted),
                 _buildDeviceInfoRow('VID:PID',
                     '${_device!.vendorId.toRadixString(16).toUpperCase()}:'
                     '${_device!.productId.toRadixString(16).toUpperCase()}'),
                 const SizedBox(height: 16),
-                const Text(
-                  'Firmware:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                Text(
+                  l10n.firmwareLabel,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -889,9 +901,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 if (warnings.isNotEmpty) ...[
                   const SizedBox(height: 16),
-                  const Text(
-                    'Warnings:',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
+                  Text(
+                    l10n.warningsLabel,
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
                   ),
                   const SizedBox(height: 8),
                   ...warnings.map((w) => Padding(
@@ -914,15 +926,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Colors.red.shade700),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Icon(Icons.warning, color: Colors.red),
-                      SizedBox(width: 8),
+                      const Icon(Icons.warning, color: Colors.red),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'This will ERASE ALL DATA on the device. '
-                          'This action cannot be undone.',
-                          style: TextStyle(color: Colors.red),
+                          l10n.eraseWarning,
+                          style: const TextStyle(color: Colors.red),
                         ),
                       ),
                     ],
@@ -935,12 +946,12 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancelButton),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Flash Device'),
+            child: Text(l10n.flashDeviceButton),
           ),
         ],
       ),

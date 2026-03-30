@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/download_state.dart';
 import '../models/installer_phase.dart';
 import '../models/region.dart';
@@ -119,10 +120,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       body: Column(
         children: [
-          if (!_isElevated) _buildElevationWarning(),
+          if (!_isElevated) _buildElevationWarning(l10n),
           Expanded(
             child: Row(
               children: [
@@ -136,7 +138,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                       Expanded(
                         child: Padding(
                           padding: const EdgeInsets.all(32),
-                          child: _buildPhaseContent(),
+                          child: _buildPhaseContent(l10n),
                         ),
                       ),
                       _buildStatusBar(),
@@ -151,18 +153,18 @@ class _InstallerScreenState extends State<InstallerScreen> {
     );
   }
 
-  Widget _buildElevationWarning() {
+  Widget _buildElevationWarning(AppLocalizations l10n) {
     return Container(
       width: double.infinity,
       color: Colors.orange.shade900,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(Icons.warning, color: Colors.orange, size: 16),
-          SizedBox(width: 8),
+          const Icon(Icons.warning, color: Colors.orange, size: 16),
+          const SizedBox(width: 8),
           Text(
-            'Running without administrator privileges. Some operations may fail.',
-            style: TextStyle(color: Colors.orange, fontSize: 12),
+            l10n.elevationWarning,
+            style: const TextStyle(color: Colors.orange, fontSize: 12),
           ),
         ],
       ),
@@ -207,54 +209,54 @@ class _InstallerScreenState extends State<InstallerScreen> {
     );
   }
 
-  Widget _buildPhaseContent() {
+  Widget _buildPhaseContent(AppLocalizations l10n) {
     return switch (_currentPhase) {
-      InstallerPhase.welcome => _buildWelcome(),
-      InstallerPhase.physicalPrep => _buildPhysicalPrep(),
-      InstallerPhase.mdbConnect => _buildMdbConnect(),
-      InstallerPhase.healthCheck => _buildHealthCheck(),
-      InstallerPhase.batteryRemoval => _buildBatteryRemoval(),
-      InstallerPhase.mdbToUms => _buildMdbToUms(),
-      InstallerPhase.mdbFlash => _buildMdbFlash(),
-      InstallerPhase.scooterPrep => _buildScooterPrep(),
-      InstallerPhase.mdbBoot => _buildMdbBoot(),
-      InstallerPhase.cbbReconnect => _buildCbbReconnect(),
-      InstallerPhase.dbcPrep => _buildDbcPrep(),
-      InstallerPhase.dbcFlash => _buildDbcFlash(),
-      InstallerPhase.reconnect => _buildReconnect(),
-      InstallerPhase.finish => _buildFinish(),
+      InstallerPhase.welcome => _buildWelcome(l10n),
+      InstallerPhase.physicalPrep => _buildPhysicalPrep(l10n),
+      InstallerPhase.mdbConnect => _buildMdbConnect(l10n),
+      InstallerPhase.healthCheck => _buildHealthCheck(l10n),
+      InstallerPhase.batteryRemoval => _buildBatteryRemoval(l10n),
+      InstallerPhase.mdbToUms => _buildMdbToUms(l10n),
+      InstallerPhase.mdbFlash => _buildMdbFlash(l10n),
+      InstallerPhase.scooterPrep => _buildScooterPrep(l10n),
+      InstallerPhase.mdbBoot => _buildMdbBoot(l10n),
+      InstallerPhase.cbbReconnect => _buildCbbReconnect(l10n),
+      InstallerPhase.dbcPrep => _buildDbcPrep(l10n),
+      InstallerPhase.dbcFlash => _buildDbcFlash(l10n),
+      InstallerPhase.reconnect => _buildReconnect(l10n),
+      InstallerPhase.finish => _buildFinish(l10n),
     };
   }
 
-  Widget _buildWelcome() {
+  Widget _buildWelcome(AppLocalizations l10n) {
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Welcome to LibreScoot Installer',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          Text(l10n.welcomeHeading,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          Text('This wizard will guide you through installing LibreScoot firmware on your scooter.',
+          Text(l10n.welcomeSubheading,
               style: TextStyle(color: Colors.grey.shade400)),
           const SizedBox(height: 24),
 
           // Prerequisites
-          const Text('What you need:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          Text(l10n.whatYouNeed, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 8),
-          _prerequisite('PH2 or H4 screwdriver for footwell screws'),
-          _prerequisite('Flat head or PH1 screwdriver for USB cable'),
-          _prerequisite('USB cable (laptop to Mini-B)'),
-          _prerequisite('About 45 minutes'),
+          _prerequisite(l10n.prerequisiteScrewdriverPH2),
+          _prerequisite(l10n.prerequisiteScrewdriverFlat),
+          _prerequisite(l10n.prerequisiteUsbCable),
+          _prerequisite(l10n.prerequisiteTime),
           const SizedBox(height: 24),
 
           // Channel selection
-          const Text('Firmware Channel', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          Text(l10n.firmwareChannel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 8),
           SegmentedButton<DownloadChannel>(
-            segments: const [
-              ButtonSegment(value: DownloadChannel.stable, label: Text('Stable')),
-              ButtonSegment(value: DownloadChannel.testing, label: Text('Testing')),
-              ButtonSegment(value: DownloadChannel.nightly, label: Text('Nightly')),
+            segments: [
+              ButtonSegment(value: DownloadChannel.stable, label: Text(l10n.channelStable)),
+              ButtonSegment(value: DownloadChannel.testing, label: Text(l10n.channelTesting)),
+              ButtonSegment(value: DownloadChannel.nightly, label: Text(l10n.channelNightly)),
             ],
             selected: {_downloadState.channel},
             onSelectionChanged: (selected) {
@@ -264,11 +266,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
           const SizedBox(height: 24),
 
           // Online/offline
-          const Text('Connectivity', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          Text(l10n.connectivity, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 8),
           SwitchListTile(
-            title: const Text('Scooter will be offline'),
-            subtitle: const Text('Most scooters are offline — download maps for navigation'),
+            title: Text(l10n.scooterOffline),
+            subtitle: Text(l10n.scooterOfflineSubtitle),
             value: _downloadState.isOffline,
             onChanged: (v) => setState(() {
               _downloadState.isOffline = v;
@@ -277,8 +279,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
           ),
           if (!_downloadState.isOffline)
             SwitchListTile(
-              title: const Text('Download offline maps anyway'),
-              subtitle: const Text('Faster and more reliable navigation'),
+              title: Text(l10n.downloadOfflineMaps),
+              subtitle: Text(l10n.downloadOfflineMapsSubtitle),
               value: _downloadState.wantsOfflineMaps,
               onChanged: (v) => setState(() => _downloadState.wantsOfflineMaps = v),
             ),
@@ -286,13 +288,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
           // Region selection
           if (_downloadState.wantsOfflineMaps) ...[
             const SizedBox(height: 16),
-            const Text('Region', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(l10n.region, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 8),
             DropdownButtonFormField<Region>(
               initialValue: _downloadState.selectedRegion,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                hintText: 'Select your region',
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                hintText: l10n.selectRegion,
               ),
               items: Region.all
                   .map((r) => DropdownMenuItem(value: r, child: Text(r.name)))
@@ -315,7 +317,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             child: FilledButton.icon(
               onPressed: _isProcessing ? null : _startDownloadsAndContinue,
               icon: const Icon(Icons.arrow_forward),
-              label: const Text('Start Installation'),
+              label: Text(l10n.startInstallation),
             ),
           ),
         ],
@@ -337,13 +339,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _startDownloadsAndContinue() async {
+    final l10n = AppLocalizations.of(context)!;
     if (_downloadState.wantsOfflineMaps && _downloadState.selectedRegion == null) {
-      _setStatus('Please select a region for offline maps');
+      _setStatus(l10n.selectRegionError);
       return;
     }
 
     setState(() => _isProcessing = true);
-    _setStatus('Resolving releases...');
+    _setStatus(l10n.resolvingReleases);
 
     try {
       final items = await _downloadService.buildDownloadQueue(
@@ -359,7 +362,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // Move to next phase immediately
       _setPhase(InstallerPhase.physicalPrep);
     } catch (e) {
-      _setStatus('Error: $e');
+      _setStatus(l10n.errorPrefix(e.toString()));
     } finally {
       setState(() => _isProcessing = false);
     }
@@ -379,33 +382,33 @@ class _InstallerScreenState extends State<InstallerScreen> {
       }
     }
   }
-  Widget _buildPhysicalPrep() {
+  Widget _buildPhysicalPrep(AppLocalizations l10n) {
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Physical Preparation',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          Text(l10n.physicalPrepHeading,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          Text('Prepare your scooter for USB connection.',
+          Text(l10n.physicalPrepSubheading,
               style: TextStyle(color: Colors.grey.shade400)),
           const SizedBox(height: 24),
-          const InstructionStep(
+          InstructionStep(
             number: 1,
-            title: 'Remove footwell cover',
-            description: 'Use a PH2 or H4 screwdriver to remove the footwell cover screws.',
-            imagePlaceholder: '[Photo: footwell cover with screw locations highlighted]',
+            title: l10n.removeFootwellCover,
+            description: l10n.removeFootwellCoverDesc,
+            imagePlaceholder: l10n.removeFootwellCoverImage,
           ),
-          const InstructionStep(
+          InstructionStep(
             number: 2,
-            title: 'Unscrew USB cable from MDB',
-            description: 'Disconnect the internal DBC USB cable from the MDB board. Use a flat head or PH1 screwdriver.',
-            imagePlaceholder: '[Photo: USB Mini-B connector on MDB, close-up]',
+            title: l10n.unscrewUsbCable,
+            description: l10n.unscrewUsbCableDesc,
+            imagePlaceholder: l10n.unscrewUsbCableImage,
           ),
-          const InstructionStep(
+          InstructionStep(
             number: 3,
-            title: 'Connect laptop USB cable',
-            description: 'Plug your USB cable into the MDB port and connect the other end to your laptop.',
+            title: l10n.connectLaptopUsb,
+            description: l10n.connectLaptopUsbDesc,
           ),
           const SizedBox(height: 24),
           if (_downloadState.items.isNotEmpty)
@@ -416,7 +419,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             child: FilledButton.icon(
               onPressed: () => _setPhase(InstallerPhase.mdbConnect),
               icon: const Icon(Icons.arrow_forward),
-              label: const Text('Done — Detect Device'),
+              label: Text(l10n.doneDetectDevice),
             ),
           ),
         ],
@@ -424,7 +427,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     );
   }
 
-  Widget _buildMdbConnect() {
+  Widget _buildMdbConnect(AppLocalizations l10n) {
     if (!_mdbConnectStarted && !_isProcessing) {
       _mdbConnectStarted = true;
       Future.microtask(_autoConnectMdb);
@@ -434,14 +437,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('Connecting to MDB',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          Text(l10n.connectingToMdb,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
           if (_isProcessing) ...[
             const SizedBox(width: 48, height: 48, child: CircularProgressIndicator()),
             const SizedBox(height: 16),
           ],
-          Text(_statusMessage.isEmpty ? 'Waiting for USB device...' : _statusMessage,
+          Text(_statusMessage.isEmpty ? l10n.waitingForUsbDevice : _statusMessage,
               style: TextStyle(color: Colors.grey.shade400)),
         ],
       ),
@@ -449,34 +452,35 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _autoConnectMdb() async {
+    final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
 
-    _setStatus('Waiting for RNDIS device (VID 0525:A4A2)...');
+    _setStatus(l10n.waitingForRndis);
     await _waitForDevice(DeviceMode.ethernet);
 
     if (Platform.isWindows) {
-      _setStatus('Checking RNDIS driver...');
+      _setStatus(l10n.checkingRndisDriver);
       if (!await DriverService.isDriverInstalled()) {
-        _setStatus('Installing RNDIS driver...');
+        _setStatus(l10n.installingRndisDriver);
         await DriverService.installDriver();
       }
     }
 
-    _setStatus('Configuring network...');
+    _setStatus(l10n.configuringNetwork);
     final networkService = NetworkService();
     final iface = await networkService.findLibreScootInterface();
     if (iface != null) {
       await networkService.configureInterface(iface);
     }
 
-    _setStatus('Connecting via SSH...');
+    _setStatus(l10n.connectingSsh);
     try {
       await _sshService.connectToMdb();
-      _setStatus('Connected!');
+      _setStatus(l10n.connected);
       setState(() => _isProcessing = false);
       _setPhase(InstallerPhase.healthCheck);
     } catch (e) {
-      _setStatus('SSH connection failed: $e. Check cable and retry.');
+      _setStatus(l10n.sshConnectionFailed(e.toString()));
       setState(() => _isProcessing = false);
     }
   }
@@ -488,7 +492,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
   }
 
-  Widget _buildHealthCheck() {
+  Widget _buildHealthCheck(AppLocalizations l10n) {
     if (!_healthCheckStarted && _scooterHealth == null && !_isProcessing) {
       _healthCheckStarted = true;
       Future.microtask(_runHealthCheck);
@@ -498,10 +502,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('Health Check',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          Text(l10n.healthCheckHeading,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          Text('Verifying scooter readiness...',
+          Text(l10n.verifyingReadiness,
               style: TextStyle(color: Colors.grey.shade400)),
           const SizedBox(height: 24),
           if (_scooterHealth != null)
@@ -511,7 +515,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             FilledButton.icon(
               onPressed: () => _setPhase(InstallerPhase.batteryRemoval),
               icon: const Icon(Icons.arrow_forward),
-              label: const Text('Continue'),
+              label: Text(l10n.continueButton),
             ),
           if (_scooterHealth != null && !_scooterHealth!.allOk)
             OutlinedButton.icon(
@@ -522,7 +526,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 });
               },
               icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
+              label: Text(l10n.retryButton),
             ),
         ],
       ),
@@ -530,41 +534,42 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _runHealthCheck() async {
+    final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
     try {
       final health = await _sshService.queryHealth();
       setState(() => _scooterHealth = health);
     } catch (e) {
-      _setStatus('Health check failed: $e');
+      _setStatus(l10n.healthCheckFailed(e.toString()));
     } finally {
       setState(() => _isProcessing = false);
     }
   }
 
-  Widget _buildBatteryRemoval() {
+  Widget _buildBatteryRemoval(AppLocalizations l10n) {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('Battery Removal',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          Text(l10n.batteryRemovalHeading,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 24),
           if (_scooterHealth?.batteryPresent == true) ...[
-            const InstructionStep(
+            InstructionStep(
               number: 1,
-              title: 'Seatbox is opening...',
-              description: 'The seatbox will open automatically.',
+              title: l10n.seatboxOpening,
+              description: l10n.seatboxOpeningDesc,
             ),
-            const InstructionStep(
+            InstructionStep(
               number: 2,
-              title: 'Remove the main battery',
-              description: 'Lift the main battery (Fahrakku) out of the seatbox.',
+              title: l10n.removeMainBattery,
+              description: l10n.removeMainBatteryDesc,
             ),
             const SizedBox(height: 16),
             if (!_isProcessing)
               FilledButton(
                 onPressed: _openSeatboxAndWaitForBattery,
-                child: const Text('Open Seatbox'),
+                child: Text(l10n.openSeatbox),
               ),
             if (_isProcessing) ...[
               const CircularProgressIndicator(),
@@ -574,12 +579,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
           ] else ...[
             const Icon(Icons.check_circle, size: 48, color: Colors.tealAccent),
             const SizedBox(height: 16),
-            const Text('Main battery already removed'),
+            Text(l10n.mainBatteryAlreadyRemoved),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: () => _setPhase(InstallerPhase.mdbToUms),
               icon: const Icon(Icons.arrow_forward),
-              label: const Text('Continue'),
+              label: Text(l10n.continueButton),
             ),
           ],
         ],
@@ -588,23 +593,25 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _openSeatboxAndWaitForBattery() async {
+    final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
-    _setStatus('Opening seatbox...');
+    _setStatus(l10n.openingSeatbox);
     await _sshService.openSeatbox();
 
-    _setStatus('Waiting for battery removal...');
+    _setStatus(l10n.waitingForBatteryRemoval);
     while (await _sshService.isBatteryPresent()) {
       await Future.delayed(const Duration(seconds: 2));
       if (!mounted) return;
     }
-    _setStatus('Battery removed!');
+
+    _setStatus(l10n.batteryRemoved);
     setState(() {
       _scooterHealth?.batteryPresent = false;
       _isProcessing = false;
     });
     _setPhase(InstallerPhase.mdbToUms);
   }
-  Widget _buildMdbToUms() {
+  Widget _buildMdbToUms(AppLocalizations l10n) {
     if (!_mdbToUmsStarted && !_isProcessing) {
       _mdbToUmsStarted = true;
       Future.microtask(_configureMdbUms);
@@ -613,13 +620,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('Configuring MDB Bootloader',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          Text(l10n.configuringMdbBootloader,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
           if (_isProcessing)
             const SizedBox(width: 48, height: 48, child: CircularProgressIndicator()),
           const SizedBox(height: 16),
-          Text(_statusMessage.isEmpty ? 'Preparing...' : _statusMessage,
+          Text(_statusMessage.isEmpty ? l10n.preparing : _statusMessage,
               style: TextStyle(color: Colors.grey.shade400)),
         ],
       ),
@@ -627,22 +634,23 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _configureMdbUms() async {
+    final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
     try {
-      _setStatus('Uploading bootloader tools...');
+      _setStatus(l10n.uploadingBootloaderTools);
       await _sshService.configureMassStorageMode();
-      _setStatus('Rebooting MDB into mass storage mode...');
+      _setStatus(l10n.rebootingMdbUms);
       await _sshService.reboot();
-      _setStatus('Waiting for UMS device...');
+      _setStatus(l10n.waitingForUmsDevice);
       await _waitForDevice(DeviceMode.massStorage);
       _setPhase(InstallerPhase.mdbFlash);
     } catch (e) {
-      _setStatus('Error: $e');
+      _setStatus(l10n.errorPrefix(e.toString()));
       setState(() => _isProcessing = false);
     }
   }
 
-  Widget _buildMdbFlash() {
+  Widget _buildMdbFlash(AppLocalizations l10n) {
     if (!_mdbFlashStarted && !_isProcessing) {
       _mdbFlashStarted = true;
       Future.microtask(_flashMdb);
@@ -651,10 +659,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('Flashing MDB',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          Text(l10n.flashingMdb,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          Text('Two-phase write: partitions first, boot sector last.',
+          Text(l10n.flashingMdbSubheading,
               style: TextStyle(color: Colors.grey.shade400)),
           const SizedBox(height: 24),
           SizedBox(
@@ -673,11 +681,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _flashMdb() async {
+    final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
 
     var mdbItem = _downloadState.itemOfType(DownloadItemType.mdbFirmware);
     if (mdbItem == null || !mdbItem.isComplete) {
-      _setStatus('Waiting for MDB firmware download...');
+      _setStatus(l10n.waitingForMdbFirmware);
       while (mdbItem == null || !mdbItem.isComplete) {
         await Future.delayed(const Duration(seconds: 1));
         if (!mounted) return;
@@ -687,7 +696,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     try {
       if (_device?.path == null || _device!.path.isEmpty) {
-        _setStatus('Error: no device path available');
+        _setStatus(l10n.noDevicePath);
         setState(() => _isProcessing = false);
         return;
       }
@@ -701,39 +710,36 @@ class _InstallerScreenState extends State<InstallerScreen> {
         },
       );
 
-      _setStatus('MDB flash complete!');
+      _setStatus(l10n.mdbFlashComplete);
       await Future.delayed(const Duration(seconds: 1));
       _setPhase(InstallerPhase.scooterPrep);
     } catch (e) {
-      _setStatus('Flash error: $e');
+      _setStatus(l10n.flashError(e.toString()));
       setState(() => _isProcessing = false);
     }
   }
 
-  Widget _buildScooterPrep() {
+  Widget _buildScooterPrep(AppLocalizations l10n) {
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Scooter Preparation',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          Text(l10n.scooterPrepHeading,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          Text('MDB firmware has been written. Now prepare for reboot.',
+          Text(l10n.scooterPrepSubheading,
               style: TextStyle(color: Colors.grey.shade400)),
           const SizedBox(height: 24),
-          const InstructionStep(
+          InstructionStep(
             number: 1,
-            title: 'Disconnect the CBB',
-            description: 'The main battery must already be removed before disconnecting CBB. '
-                'Failure to follow this order risks electrical damage.',
+            title: l10n.disconnectCbb,
+            description: l10n.disconnectCbbDesc,
             isWarning: true,
           ),
-          const InstructionStep(
+          InstructionStep(
             number: 2,
-            title: 'Disconnect one AUX pole',
-            description: 'Remove ONLY the positive pole (outermost, color-coded red) to avoid '
-                'risk of inverting polarity. This will remove power from the MDB — '
-                'the USB connection will disappear.',
+            title: l10n.disconnectAuxPole,
+            description: l10n.disconnectAuxPoleDesc,
             isWarning: true,
           ),
           const SizedBox(height: 16),
@@ -744,15 +750,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: Colors.orange.shade700),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.warning, color: Colors.orange),
-                SizedBox(width: 12),
+                const Icon(Icons.warning, color: Colors.orange),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'The USB connection will be lost when you disconnect AUX. '
-                    'This is expected — the installer will wait for the MDB to reboot.',
-                    style: TextStyle(color: Colors.orange, fontSize: 13),
+                    l10n.auxDisconnectWarning,
+                    style: const TextStyle(color: Colors.orange, fontSize: 13),
                   ),
                 ),
               ],
@@ -764,7 +769,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             child: FilledButton.icon(
               onPressed: () => _setPhase(InstallerPhase.mdbBoot),
               icon: const Icon(Icons.arrow_forward),
-              label: const Text('Done — I disconnected CBB and AUX'),
+              label: Text(l10n.doneCbbAuxDisconnected),
             ),
           ),
         ],
@@ -772,7 +777,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     );
   }
 
-  Widget _buildMdbBoot() {
+  Widget _buildMdbBoot(AppLocalizations l10n) {
     if (!_mdbBootStarted && !_isProcessing) {
       _mdbBootStarted = true;
       Future.microtask(_waitForMdbBoot);
@@ -781,22 +786,22 @@ class _InstallerScreenState extends State<InstallerScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('Waiting for MDB Boot',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          Text(l10n.waitingForMdbBoot,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
-          const InstructionStep(
+          InstructionStep(
             number: 1,
-            title: 'Reconnect the AUX pole',
-            description: 'Reconnect the positive AUX pole. The MDB will power on and boot into LibreScoot.',
+            title: l10n.reconnectAuxPole,
+            description: l10n.reconnectAuxPoleDesc,
           ),
           const SizedBox(height: 16),
-          Text('DBC LED: orange = starting, green = booting, off = running',
+          Text(l10n.dbcLedHint,
               style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
           const SizedBox(height: 16),
           if (_isProcessing)
             const SizedBox(width: 48, height: 48, child: CircularProgressIndicator()),
           const SizedBox(height: 8),
-          Text(_statusMessage.isEmpty ? 'Waiting for USB device...' : _statusMessage,
+          Text(_statusMessage.isEmpty ? l10n.waitingForUsbDevice : _statusMessage,
               style: TextStyle(color: Colors.grey.shade400)),
         ],
       ),
@@ -804,16 +809,17 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _waitForMdbBoot() async {
+    final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
 
-    _setStatus('Waiting for USB device...');
+    _setStatus(l10n.waitingForUsbDevice);
     while (_device == null) {
       await Future.delayed(const Duration(seconds: 1));
       if (!mounted) return;
     }
 
     if (_device?.mode == DeviceMode.massStorage) {
-      _setStatus('MDB still in UMS mode — flash may not have taken. Retrying...');
+      _setStatus(l10n.mdbStillUms);
       setState(() {
         _isProcessing = false;
         _mdbFlashStarted = false;
@@ -822,23 +828,23 @@ class _InstallerScreenState extends State<InstallerScreen> {
       return;
     }
 
-    _setStatus('MDB detected in network mode. Waiting for stable connection...');
+    _setStatus(l10n.mdbDetectedNetwork);
 
     var stableCount = 0;
     while (stableCount < 10) {
       final reachable = await _pingMdb();
       if (reachable) {
         stableCount++;
-        _setStatus('Ping stable: $stableCount/10');
+        _setStatus(l10n.pingStable(stableCount));
       } else {
         stableCount = 0;
-        _setStatus('Waiting for stable connection...');
+        _setStatus(l10n.waitingStableConnection);
       }
       await Future.delayed(const Duration(seconds: 1));
       if (!mounted) return;
     }
 
-    _setStatus('Reconnecting SSH...');
+    _setStatus(l10n.reconnectingSsh);
     final iface = await NetworkService().findLibreScootInterface();
     if (iface != null) {
       await NetworkService().configureInterface(iface);
@@ -847,7 +853,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       await _sshService.connectToMdb();
       _setPhase(InstallerPhase.cbbReconnect);
     } catch (e) {
-      _setStatus('SSH reconnection failed: $e');
+      _setStatus(l10n.sshReconnectionFailed(e.toString()));
     }
     setState(() => _isProcessing = false);
   }
@@ -863,18 +869,18 @@ class _InstallerScreenState extends State<InstallerScreen> {
       return false;
     }
   }
-  Widget _buildCbbReconnect() {
+  Widget _buildCbbReconnect(AppLocalizations l10n) {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('Reconnect CBB',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          Text(l10n.reconnectCbbHeading,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 24),
-          const InstructionStep(
+          InstructionStep(
             number: 1,
-            title: 'Reconnect the CBB',
-            description: 'Plug the CBB cable back in. This provides more power for the DBC flash.',
+            title: l10n.reconnectCbb,
+            description: l10n.reconnectCbbDesc,
           ),
           const SizedBox(height: 16),
           if (_isProcessing) ...[
@@ -884,7 +890,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
           ] else
             FilledButton(
               onPressed: _waitForCbb,
-              child: const Text('Verify CBB Connection'),
+              child: Text(l10n.verifyCbbConnection),
             ),
         ],
       ),
@@ -892,26 +898,27 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _waitForCbb() async {
+    final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
-    _setStatus('Checking CBB...');
+    _setStatus(l10n.checkingCbb);
     var attempts = 0;
     while (attempts < 30) {
       if (await _sshService.isCbbPresent()) {
-        _setStatus('CBB connected!');
+        _setStatus(l10n.cbbConnected);
         await Future.delayed(const Duration(seconds: 1));
         _setPhase(InstallerPhase.dbcPrep);
         return;
       }
       attempts++;
-      _setStatus('Waiting for CBB... ($attempts)');
+      _setStatus(l10n.waitingForCbb(attempts));
       await Future.delayed(const Duration(seconds: 2));
       if (!mounted) return;
     }
-    _setStatus('CBB not detected. Please check the connection.');
+    _setStatus(l10n.cbbNotDetected);
     setState(() => _isProcessing = false);
   }
 
-  Widget _buildDbcPrep() {
+  Widget _buildDbcPrep(AppLocalizations l10n) {
     if (!_dbcPrepStarted && !_isProcessing) {
       _dbcPrepStarted = true;
       Future.microtask(_uploadDbcFiles);
@@ -920,8 +927,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('Preparing DBC Flash',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          Text(l10n.preparingDbcFlash,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
           SizedBox(
             width: 400,
@@ -939,10 +946,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _uploadDbcFiles() async {
+    final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
 
     if (!_downloadState.allReady) {
-      _setStatus('Waiting for downloads to complete...');
+      _setStatus(l10n.waitingForDownloads);
       while (!_downloadState.allReady) {
         await Future.delayed(const Duration(seconds: 1));
         if (mounted) setState(() {});
@@ -966,34 +974,34 @@ class _InstallerScreenState extends State<InstallerScreen> {
         },
       );
 
-      _setStatus('Starting trampoline script...');
+      _setStatus(l10n.startingTrampoline);
       await trampolineService.start();
       await Future.delayed(const Duration(seconds: 1));
       _setPhase(InstallerPhase.dbcFlash);
     } catch (e) {
-      _setStatus('Upload error: $e');
+      _setStatus(l10n.uploadError(e.toString()));
       setState(() => _isProcessing = false);
     }
   }
 
-  Widget _buildDbcFlash() {
+  Widget _buildDbcFlash(AppLocalizations l10n) {
     return SingleChildScrollView(
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('DBC Flash in Progress',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            Text(l10n.dbcFlashInProgress,
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             const SizedBox(height: 24),
-            const InstructionStep(
+            InstructionStep(
               number: 1,
-              title: 'Disconnect USB from laptop',
-              description: 'Unplug the USB cable from your laptop.',
+              title: l10n.disconnectUsbFromLaptop,
+              description: l10n.disconnectUsbFromLaptopDesc,
             ),
-            const InstructionStep(
+            InstructionStep(
               number: 2,
-              title: 'Reconnect DBC USB cable to MDB',
-              description: 'Screw the internal DBC USB cable back into the MDB port.',
+              title: l10n.reconnectDbcUsbToMdb,
+              description: l10n.reconnectDbcUsbToMdbDesc,
             ),
             const SizedBox(height: 16),
             Container(
@@ -1005,16 +1013,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('The MDB is now flashing the DBC autonomously.',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(l10n.mdbFlashingDbcAutonomously,
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  Text('Watch the scooter lights for progress:',
+                  Text(l10n.watchLightsForProgress,
                       style: TextStyle(color: Colors.grey.shade400)),
                   const SizedBox(height: 8),
-                  _ledSignal('Front ring on (constant)', 'Working'),
-                  _ledSignal('Position lights on', 'DBC connected / flashing'),
-                  _ledSignal('Boot LED green', 'Success — reconnect laptop'),
-                  _ledSignal('Hazard flashers', 'Error — reconnect laptop to see log'),
+                  _ledSignal(l10n.ledFrontRingOn, l10n.ledFrontRingMeaning),
+                  _ledSignal(l10n.ledPositionLightsOn, l10n.ledPositionLightsMeaning),
+                  _ledSignal(l10n.ledBootGreen, l10n.ledBootGreenMeaning),
+                  _ledSignal(l10n.ledHazardFlashers, l10n.ledHazardFlashersMeaning),
                 ],
               ),
             ),
@@ -1022,13 +1030,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
             FilledButton.icon(
               onPressed: () => _setPhase(InstallerPhase.reconnect),
               icon: const Icon(Icons.arrow_forward),
-              label: const Text('Boot LED is green — Reconnect Laptop'),
+              label: Text(l10n.bootLedGreenReconnect),
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
               onPressed: () => _setPhase(InstallerPhase.reconnect),
               icon: const Icon(Icons.warning, color: Colors.orange),
-              label: const Text('Hazard flashers — Check Error'),
+              label: Text(l10n.hazardFlashersCheckError),
             ),
           ],
         ),
@@ -1051,7 +1059,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     );
   }
 
-  Widget _buildReconnect() {
+  Widget _buildReconnect(AppLocalizations l10n) {
     if (!_reconnectStarted && !_isProcessing) {
       _reconnectStarted = true;
       Future.microtask(_verifyDbcFlash);
@@ -1060,13 +1068,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('Verifying DBC Installation',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          Text(l10n.verifyingDbcInstallation,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
           if (_isProcessing)
             const SizedBox(width: 48, height: 48, child: CircularProgressIndicator()),
           const SizedBox(height: 8),
-          Text(_statusMessage.isEmpty ? 'Reconnect USB to laptop...' : _statusMessage,
+          Text(_statusMessage.isEmpty ? l10n.reconnectUsbToLaptop : _statusMessage,
               style: TextStyle(color: Colors.grey.shade400)),
         ],
       ),
@@ -1074,58 +1082,59 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _verifyDbcFlash() async {
+    final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
 
-    _setStatus('Waiting for RNDIS device...');
+    _setStatus(l10n.waitingForRndisDevice);
     await _waitForDevice(DeviceMode.ethernet);
 
-    _setStatus('Configuring network...');
+    _setStatus(l10n.configuringNetwork);
     final iface = await NetworkService().findLibreScootInterface();
     if (iface != null) {
       await NetworkService().configureInterface(iface);
     }
 
-    _setStatus('Connecting SSH...');
+    _setStatus(l10n.connectingSsh);
     try {
       await _sshService.connectToMdb();
     } catch (e) {
-      _setStatus('SSH connection failed: $e');
+      _setStatus(l10n.sshConnectionFailed(e.toString()));
       setState(() => _isProcessing = false);
       return;
     }
 
-    _setStatus('Reading trampoline status...');
+    _setStatus(l10n.readingTrampolineStatus);
     final status = await _sshService.readTrampolineStatus();
 
     if (status.result == TrampolineResult.success) {
-      _setStatus('DBC flash successful!');
+      _setStatus(l10n.dbcFlashSuccessful);
       await Future.delayed(const Duration(seconds: 2));
       _setPhase(InstallerPhase.finish);
     } else if (status.result == TrampolineResult.error) {
-      _setStatus('DBC flash failed: ${status.message}');
+      _setStatus(l10n.dbcFlashFailed(status.message ?? ''));
       if (mounted && status.errorLog != null) {
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('DBC Flash Error'),
+            title: Text(l10n.dbcFlashError),
             content: SingleChildScrollView(
               child: SelectableText(status.errorLog!,
                   style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+              TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.closeButton)),
             ],
           ),
         );
       }
       setState(() => _isProcessing = false);
     } else {
-      _setStatus('Trampoline status unknown. Check /data/trampoline.log on MDB.');
+      _setStatus(l10n.trampolineStatusUnknown);
       setState(() => _isProcessing = false);
     }
   }
 
-  Widget _buildFinish() {
+  Widget _buildFinish(AppLocalizations l10n) {
     return SingleChildScrollView(
       child: Center(
         child: Column(
@@ -1133,42 +1142,42 @@ class _InstallerScreenState extends State<InstallerScreen> {
           children: [
             const Icon(Icons.celebration, size: 64, color: Colors.tealAccent),
             const SizedBox(height: 16),
-            const Text('Welcome to LibreScoot!',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+            Text(l10n.welcomeToLibreScoot,
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
             const SizedBox(height: 24),
-            const Text('Final steps:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(l10n.finalSteps, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 16),
-            const InstructionStep(
+            InstructionStep(
               number: 1,
-              title: 'Disconnect USB from laptop',
-              description: 'Unplug the USB cable from your laptop.',
+              title: l10n.disconnectUsbFromLaptopFinal,
+              description: l10n.disconnectUsbFromLaptopFinalDesc,
             ),
-            const InstructionStep(
+            InstructionStep(
               number: 2,
-              title: 'Reconnect DBC USB cable',
-              description: 'Screw the internal DBC USB cable back into MDB.',
+              title: l10n.reconnectDbcUsbCable,
+              description: l10n.reconnectDbcUsbCableDesc,
             ),
-            const InstructionStep(
+            InstructionStep(
               number: 3,
-              title: 'Insert main battery',
-              description: 'Place the main battery back into the seatbox.',
+              title: l10n.insertMainBattery,
+              description: l10n.insertMainBatteryDesc,
             ),
-            const InstructionStep(
+            InstructionStep(
               number: 4,
-              title: 'Close seatbox and footwell',
-              description: 'Close the seatbox and replace the footwell cover.',
+              title: l10n.closeSeatboxAndFootwell,
+              description: l10n.closeSeatboxAndFootwellDesc,
             ),
-            const InstructionStep(
+            InstructionStep(
               number: 5,
-              title: 'Unlock your scooter',
-              description: 'Keycard and Bluetooth pairing will be set up during LibreScoot first run.',
+              title: l10n.unlockScooter,
+              description: l10n.unlockScooterDesc,
             ),
             const SizedBox(height: 24),
             if (_downloadState.items.isNotEmpty)
               OutlinedButton.icon(
                 onPressed: _offerCleanup,
                 icon: const Icon(Icons.delete_outline),
-                label: Text('Delete cached downloads (${_totalCacheSizeMb()} MB)'),
+                label: Text(l10n.deleteCachedDownloads(_totalCacheSizeMb())),
               ),
           ],
         ),
@@ -1182,9 +1191,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _offerCleanup() async {
+    final l10n = AppLocalizations.of(context)!;
     final freed = await _downloadService.deleteCache(_downloadState.items);
     if (mounted) {
-      _setStatus('Deleted ${(freed / 1024 / 1024).toStringAsFixed(0)} MB');
+      _setStatus(l10n.deletedCache((freed / 1024 / 1024).toStringAsFixed(0)));
     }
   }
 }

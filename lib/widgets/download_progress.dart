@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
 import '../models/download_state.dart';
 
 class DownloadProgressWidget extends StatelessWidget {
@@ -10,10 +11,11 @@ class DownloadProgressWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     if (items.isEmpty) return const SizedBox.shrink();
 
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Downloads', style: TextStyle(fontWeight: FontWeight.bold)),
+        Text(l10n.downloads, style: const TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         for (final item in items)
           Padding(
@@ -34,7 +36,7 @@ class DownloadProgressWidget extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    _labelFor(item.type),
+                    _labelFor(item.type, l10n),
                     style: TextStyle(fontSize: 13, color: Colors.grey.shade300),
                   ),
                 ),
@@ -51,10 +53,10 @@ class DownloadProgressWidget extends StatelessWidget {
     );
   }
 
-  String _labelFor(DownloadItemType type) => switch (type) {
-        DownloadItemType.mdbFirmware => 'MDB Firmware',
-        DownloadItemType.dbcFirmware => 'DBC Firmware',
-        DownloadItemType.osmTiles => 'Map Tiles',
-        DownloadItemType.valhallaTiles => 'Routing Tiles',
+  String _labelFor(DownloadItemType type, AppLocalizations l10n) => switch (type) {
+        DownloadItemType.mdbFirmware => l10n.downloadMdbFirmware,
+        DownloadItemType.dbcFirmware => l10n.downloadDbcFirmware,
+        DownloadItemType.osmTiles => l10n.downloadMapTiles,
+        DownloadItemType.valhallaTiles => l10n.downloadRoutingTiles,
       };
 }
