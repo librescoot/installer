@@ -508,7 +508,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     setState(() => _isProcessing = true);
 
     // Elevate if needed (prompts for password, relaunches with selected options)
-    if (!_isElevated && !_isDryRun) {
+    if (!_isElevated) {
       _setStatus('Requesting administrator privileges...');
       final extraArgs = LaunchArgs(
         channel: _downloadState.channel.name,
