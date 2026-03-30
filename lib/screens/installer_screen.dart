@@ -179,7 +179,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     return Scaffold(
       body: Column(
         children: [
-          if (!_isElevated && _currentPhase != InstallerPhase.welcome) _buildElevationWarning(l10n),
+          if (!_isElevated && !_showElevatedHandoff && _currentPhase != InstallerPhase.welcome) _buildElevationWarning(l10n),
           Expanded(
             child: Row(
               children: [
@@ -508,7 +508,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     setState(() => _isProcessing = true);
 
     // Elevate if needed (prompts for password, relaunches with selected options)
-    if (!_isElevated) {
+    if (!_isElevated && !_isDryRun) {
       _setStatus('Requesting administrator privileges...');
       final extraArgs = LaunchArgs(
         channel: _downloadState.channel.name,
