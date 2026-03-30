@@ -129,6 +129,7 @@
   "disconnectCbbDesc": "The main battery must already be removed before disconnecting CBB. Failure to follow this order risks electrical damage.",
   "disconnectAuxPole": "Disconnect one AUX pole",
   "disconnectAuxPoleDesc": "Remove ONLY the positive pole (outermost, color-coded red) to avoid risk of inverting polarity. This will remove power from the MDB \u2014 the USB connection will disappear.",
+  "disconnectAuxPoleImage": "[Photo: AUX battery poles, positive (red/outermost) highlighted]",
   "auxDisconnectWarning": "The USB connection will be lost when you disconnect AUX. This is expected \u2014 the installer will wait for the MDB to reboot.",
   "doneCbbAuxDisconnected": "Done \u2014 I disconnected CBB and AUX",
 

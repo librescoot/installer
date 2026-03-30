@@ -119,6 +119,7 @@
   "disconnectCbbDesc": "Der Fahrakku muss bereits entnommen sein, bevor du die CBB trennst. Bei falscher Reihenfolge droht ein elektrischer Schaden.",
   "disconnectAuxPole": "Einen AUX-Pol trennen",
   "disconnectAuxPoleDesc": "Entferne NUR den Pluspol (au\u00dfen, rot markiert), um eine Verpolung zu vermeiden. Dadurch wird das MDB stromlos \u2014 die USB-Verbindung geht verloren.",
+  "disconnectAuxPoleImage": "[Foto: AUX-Batteriepole, Pluspol (rot/au\u00dfen) markiert]",
   "auxDisconnectWarning": "Die USB-Verbindung geht verloren, wenn du AUX trennst. Das ist normal \u2014 der Installer wartet auf den Neustart des MDB.",
   "doneCbbAuxDisconnected": "Fertig \u2014 CBB und AUX getrennt",
 

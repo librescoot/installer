@@ -746,6 +746,12 @@ abstract class AppLocalizations {
   /// **'Remove ONLY the positive pole (outermost, color-coded red) to avoid risk of inverting polarity. This will remove power from the MDB — the USB connection will disappear.'**
   String get disconnectAuxPoleDesc;
 
+  /// No description provided for @disconnectAuxPoleImage.
+  ///
+  /// In en, this message translates to:
+  /// **'[Photo: AUX battery poles, positive (red/outermost) highlighted]'**
+  String get disconnectAuxPoleImage;
+
   /// No description provided for @auxDisconnectWarning.
   ///
   /// In en, this message translates to:

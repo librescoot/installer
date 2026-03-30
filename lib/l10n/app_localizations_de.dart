@@ -358,6 +358,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Entferne NUR den Pluspol (außen, rot markiert), um eine Verpolung zu vermeiden. Dadurch wird das MDB stromlos — die USB-Verbindung geht verloren.';
 
   @override
+  String get disconnectAuxPoleImage =>
+      '[Foto: AUX-Batteriepole, Pluspol (rot/außen) markiert]';
+
+  @override
   String get auxDisconnectWarning =>
       'Die USB-Verbindung geht verloren, wenn du AUX trennst. Das ist normal — der Installer wartet auf den Neustart des MDB.';
 

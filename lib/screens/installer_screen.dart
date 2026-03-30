@@ -990,6 +990,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             title: l10n.disconnectAuxPole,
             description: l10n.disconnectAuxPoleDesc,
             isWarning: true,
+            imagePlaceholder: l10n.disconnectAuxPoleImage,
           ),
           const SizedBox(height: 16),
           Container(
