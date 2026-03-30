@@ -8,17 +8,44 @@ A Flutter desktop application (Windows, macOS, Linux) that guides users through 
 
 ### Phase 0: Welcome
 
-- Display prerequisites: Phillips screwdriver, USB cable, ~45 minutes
+- Display prerequisites: PH2 screwdriver or H4 screwdriver for footwell screws, flat head screwdriver or PH1 for USB cable, USB laptop to Mini-B cable, ~45 minutes
 - Channel selection: `stable` (default if available) → `testing` (fallback) → `nightly` (opt-in)
-- Begin background download of MDB + DBC firmware images from GitHub releases
+- Ask: "Will your scooter be online or offline?" (most are offline)
+- If offline: select region from German states for offline map + routing tile download
+- If online: ask if user wants offline maps anyway (for faster/reliable navigation) or will use online tiles + routing
+- Begin background downloads in priority order:
+  1. MDB firmware image (needed first)
+  2. DBC firmware image
+  3. Display map tiles (`.mbtiles`, 12–500 MB depending on region)
+  4. Routing tiles (`.tar`, 12–712 MB depending on region)
 - Show download progress; can proceed to Phase 1 while downloading
+
+**Region selection (15 options):**
+
+| Region | OSM Tiles | Valhalla Tiles |
+|--------|-----------|---------------|
+| Baden-Württemberg | 317 MB | 479 MB |
+| Bayern | 384 MB | 712 MB |
+| Berlin & Brandenburg | 141 MB | 214 MB |
+| Bremen | 12 MB | 12 MB |
+| Hamburg | 24 MB | 20 MB |
+| Hessen | 172 MB | 224 MB |
+| Mecklenburg-Vorpommern | 60 MB | 75 MB |
+| Niedersachsen | 266 MB | 373 MB |
+| Nordrhein-Westfalen | 500 MB | 548 MB |
+| Rheinland-Pfalz | 133 MB | 174 MB |
+| Saarland | 31 MB | 27 MB |
+| Sachsen | 119 MB | 141 MB |
+| Sachsen-Anhalt | 88 MB | 97 MB |
+| Schleswig-Holstein | 85 MB | 116 MB |
+| Thüringen | 79 MB | 84 MB |
 
 ### Phase 1: Physical Prep
 
-Instructions with descriptions (images deferred):
+Instructions with descriptions and images (use placeholders for now):
 
-1. Remove footwell cover (Fußraumabdeckung)
-2. Unscrew internal DBC USB cable from MDB
+1. Remove footwell cover (Fußraumabdeckung) - image shows footwell cover and highlights screw locations
+2. Unscrew internal DBC USB cable from MDB - image shows USB connector close up
 3. Connect laptop USB cable to MDB
 
 ### Phase 2: MDB Connect
@@ -39,14 +66,14 @@ Query Redis on MDB to verify scooter readiness:
 | AUX battery charge | `HGET aux-battery charge` | ≥ 50% |
 | CBB state of health | `HGET cb-battery state-of-health` | ≥ 99% |
 | CBB charge | `HGET cb-battery charge` | ≥ 80% |
-| Main battery present | `HGET battery:0 present` | = `true` (must be present to remove safely) |
+| Main battery present | `HGET battery:0 present` | if `true`, user is told to remove it in phase 4; if `false`, we continue |
 
 If any check fails, display current values and instruct user to charge/fix before retrying.
 
 ### Phase 4: Battery Removal
 
 1. Open seatbox via Redis: `LPUSH scooter:seatbox open`
-2. Instruct user to remove main battery (Fahrakku)
+2. Instruct user to remove main battery (Fahrakku) IF present
 3. Poll `HGET battery:0 present` until `false`
 4. Seatbox remains open for the rest of the installation
 
@@ -95,7 +122,7 @@ Progress tracking via dd stderr output parsing.
 MDB is in UMS mode (no OS running) — instructions only, no Redis verification. **Strong warnings required.**
 
 1. **Disconnect CBB** — Emphasize: "The main battery must already be removed before disconnecting CBB. Failure to follow this order risks electrical damage."
-2. **Disconnect one AUX pole** — This removes power from MDB. USB connection will disappear.
+2. **Disconnect one AUX pole** — This removes power from MDB. USB connection will disappear. Emphasize that ONLY one pole, ideally the positive pole (the outermost one, color-coded red) should be removed, so avoid risk of inverting polarity.
 
 ### Phase 8: MDB Boot
 
@@ -113,13 +140,19 @@ MDB is in UMS mode (no OS running) — instructions only, no Redis verification.
 1. Instruct user to reconnect CBB (more power capacity for DBC flash phases)
 2. Verify via Redis: `HGET cb-battery present` = `true`
 
-### Phase 10: DBC Prep
+### Phase 10: DBC Prep & Configuration
 
-1. Upload DBC firmware image (`librescoot-unu-dbc-*.sdimg.gz`) to MDB `/data` via SCP
-2. Generate and upload trampoline shell script to MDB
-3. Ensure download is complete (block here if background download still running)
-4. Start trampoline script on MDB in background (`nohup`)
-5. Instruct user: "Please disconnect USB from laptop and reconnect the DBC USB cable to MDB"
+Parallel uploads to MDB `/data` via SCP (block if any background downloads still running):
+
+1. Upload DBC firmware image (`librescoot-unu-dbc-*.sdimg.gz`)
+2. Upload display map tiles (`tiles_{region}.mbtiles`) — if offline maps selected
+3. Upload routing tiles (`valhalla_tiles_{region}.tar`) — if offline routing selected
+4. Upload SHA256 checksums for tile verification
+5. Generate and upload trampoline shell script (includes tile installation steps)
+6. Start trampoline script on MDB in background (`nohup`)
+7. Instruct user: "Please disconnect USB from laptop and reconnect the DBC USB cable to MDB"
+
+**Meanwhile (future — keycards, BT pairing):** additional configuration can happen here while uploads are in progress.
 
 ### Phase 11: DBC Flash
 
@@ -149,9 +182,14 @@ Trampoline script runs autonomously on MDB. Installer cannot communicate with MD
 11. Switch MDB USB back to gadget mode (reload `g_ether`)
 12. Power cycle DBC
 13. Wait for DBC to boot, SSH in
-14. Run firstrun: `systemctl start firstrun` → DBC displays "Erfolgreich!"
-15. Write status file to `/data/trampoline-status` (success/failure + details)
-16. Boot LED → green (success) or red (error)
+14. Install map tiles on DBC (if selected):
+    - Copy `/data/tiles_{region}.mbtiles` → DBC `/data/maps/map.mbtiles`
+    - Copy `/data/valhalla_tiles_{region}.tar` → DBC `/data/valhalla/tiles.tar`
+    - Verify SHA256 checksums
+    - Restart Valhalla routing service: `systemctl restart valhalla`
+15. Run firstrun: `systemctl start firstrun` → DBC displays "Erfolgreich!"
+16. Write status file to `/data/trampoline-status` (success/failure + details)
+17. Boot LED → green (success) or red (error)
 
 **LED signals during trampoline:**
 
@@ -192,11 +230,19 @@ Trampoline script runs autonomously on MDB. Installer cannot communicate with MD
 
 ### Release Resolution
 
+**Firmware images:**
 - GitHub API: `GET /repos/librescoot/librescoot/releases`
 - Channel matching: find latest release where tag starts with channel name (`stable-*`, `testing-*`, `nightly-*`)
 - Channel priority for default: `stable` → `testing` (only if no stable release exists)
 - Asset selection: `librescoot-unu-mdb-<tag>.sdimg.gz` and `librescoot-unu-dbc-<tag>.sdimg.gz`
 - Filter to `unu-*` variants only
+
+**Map tiles (if offline maps selected):**
+- Display tiles: `GET /repos/librescoot/osm-tiles/releases/tags/latest`
+  - Asset: `tiles_{slug}.mbtiles` + `tiles_{slug}.mbtiles.sha256`
+- Routing tiles: `GET /repos/librescoot/valhalla-tiles/releases/tags/latest`
+  - Asset: `valhalla_tiles_{slug}.tar` + `valhalla_tiles_{slug}.tar.sha256`
+- Region slug mapping: lowercase with hyphens (e.g. `schleswig-holstein`), Berlin+Brandenburg combined as `berlin_brandenburg`
 
 ### Caching
 
@@ -211,7 +257,8 @@ Trampoline script runs autonomously on MDB. Installer cannot communicate with MD
 
 - Starts in background during Phase 0 after channel selection
 - Progress: MB downloaded / total MB with progress bar
-- Must complete before Phase 6 (MDB Flash) — downloads can overlap with Phases 1-5
+- Firmware must complete before Phase 6 (MDB Flash) — firmware downloads can overlap with Phases 1-5
+- Tile downloads must complete before Phase 10 (DBC Prep) — tiles can download during Phases 1-9
 - On failure: retry with exponential backoff, offer local file selection as fallback
 - No GitHub authentication required (public releases)
 
@@ -228,8 +275,8 @@ Trampoline script runs autonomously on MDB. Installer cannot communicate with MD
 
 ### Services (new)
 
-- **DownloadService** — GitHub API client, release resolution by channel, download with progress callbacks, cache management.
-- **TrampolineService** — Generate trampoline shell script (templated with DBC image path, timeouts), upload to MDB via SCP, upload DBC image, parse status file after reconnect.
+- **DownloadService** — GitHub API client, release resolution by channel, download with progress callbacks, cache management. Handles firmware images (librescoot/librescoot), display tiles (librescoot/osm-tiles), and routing tiles (librescoot/valhalla-tiles).
+- **TrampolineService** — Generate trampoline shell script (templated with DBC image path, tile paths, timeouts), upload to MDB via SCP, upload DBC image + tiles, parse status file after reconnect.
 
 ### Models
 
@@ -318,6 +365,7 @@ MDB has one physical USB connector (ci_hdrc.0, OTG). An internal cable normally 
 ## Scoped Out / Deferred
 
 - **MDB backup** (dd of running system before flash) — deferred to future version
-- **Scooter configuration** (keycards, BT pairing, offline maps) — separate tool, launched from Phase 13
+- **Keycard enrollment** — deferred, will be part of scooter configuration tool
+- **Bluetooth pairing** — deferred, will be part of scooter configuration tool
 - **Advanced mode** — use CLI installer or manual steps
 - **Redis-verified physical steps during UMS mode** (Phase 7) — impossible, instruction-only
