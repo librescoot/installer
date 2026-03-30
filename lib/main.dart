@@ -44,12 +44,11 @@ void main(List<String> args) async {
 
   // If we were launched as the elevated process, bring ourselves to front
   if (launchArgs.autoStart && Platform.isMacOS) {
-    // Small delay to let the window render, then activate
     Future.delayed(const Duration(seconds: 1), () {
+      // Activate by bundle ID — no Accessibility permissions needed
       Process.run('osascript', [
         '-e',
-        'tell application "System Events" to set frontmost of '
-            'process "librescoot_installer" to true',
+        'tell application id "io.librescoot.librescootInstaller" to activate',
       ]);
     });
   }
