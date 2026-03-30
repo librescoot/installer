@@ -660,6 +660,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     _setStatus(l10n.connectingSsh);
     try {
+      await _sshService.loadPasswords('assets');
       await _sshService.connectToMdb();
       _setStatus(l10n.connected);
       setState(() => _isProcessing = false);

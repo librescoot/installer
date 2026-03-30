@@ -53,6 +53,9 @@ dependencies:
   # Archive handling for gzip firmware images
   archive: ^3.0.0
 
+  # AES decryption for auth assets
+  pointycastle: ^3.9.1
+
   # HTTP client for GitHub API and firmware downloads
   http: ^1.2.0
   flutter_svg: ^2.2.4
