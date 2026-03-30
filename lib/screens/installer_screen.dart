@@ -7,6 +7,7 @@ import '../models/download_state.dart';
 import '../models/installer_phase.dart';
 import '../models/region.dart';
 import '../models/scooter_health.dart';
+import '../models/trampoline_status.dart';
 import '../services/services.dart';
 import '../widgets/download_progress.dart';
 import '../widgets/health_check_panel.dart';
@@ -44,6 +45,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _mdbToUmsStarted = false;
   bool _mdbFlashStarted = false;
   bool _mdbBootStarted = false;
+  bool _dbcPrepStarted = false;
+  bool _reconnectStarted = false;
 
   StreamSubscription<UsbDevice?>? _deviceSub;
 
@@ -195,21 +198,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
       InstallerPhase.reconnect => _buildReconnect(),
       InstallerPhase.finish => _buildFinish(),
     };
-  }
-
-  Widget _phasePlaceholder(String extra) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(_currentPhase.title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text(_currentPhase.description, style: TextStyle(color: Colors.grey.shade400)),
-          const SizedBox(height: 16),
-          Text(extra, style: TextStyle(color: Colors.grey.shade600)),
-        ],
-      ),
-    );
   }
 
   Widget _buildWelcome() {
@@ -849,9 +837,328 @@ class _InstallerScreenState extends State<InstallerScreen> {
       return false;
     }
   }
-  Widget _buildCbbReconnect() => _phasePlaceholder('TODO: verify CBB');
-  Widget _buildDbcPrep() => _phasePlaceholder('TODO: upload + trampoline');
-  Widget _buildDbcFlash() => _phasePlaceholder('TODO: waiting screen');
-  Widget _buildReconnect() => _phasePlaceholder('TODO: verify status');
-  Widget _buildFinish() => _phasePlaceholder('TODO: reassemble instructions');
+  Widget _buildCbbReconnect() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Reconnect CBB',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 24),
+          const InstructionStep(
+            number: 1,
+            title: 'Reconnect the CBB',
+            description: 'Plug the CBB cable back in. This provides more power for the DBC flash.',
+          ),
+          const SizedBox(height: 16),
+          if (_isProcessing) ...[
+            const CircularProgressIndicator(),
+            const SizedBox(height: 8),
+            Text(_statusMessage, style: TextStyle(color: Colors.grey.shade400)),
+          ] else
+            FilledButton(
+              onPressed: _waitForCbb,
+              child: const Text('Verify CBB Connection'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _waitForCbb() async {
+    setState(() => _isProcessing = true);
+    _setStatus('Checking CBB...');
+    var attempts = 0;
+    while (attempts < 30) {
+      if (await _sshService.isCbbPresent()) {
+        _setStatus('CBB connected!');
+        await Future.delayed(const Duration(seconds: 1));
+        _setPhase(InstallerPhase.dbcPrep);
+        return;
+      }
+      attempts++;
+      _setStatus('Waiting for CBB... ($attempts)');
+      await Future.delayed(const Duration(seconds: 2));
+      if (!mounted) return;
+    }
+    _setStatus('CBB not detected. Please check the connection.');
+    setState(() => _isProcessing = false);
+  }
+
+  Widget _buildDbcPrep() {
+    if (!_dbcPrepStarted && !_isProcessing) {
+      _dbcPrepStarted = true;
+      Future.microtask(_uploadDbcFiles);
+    }
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Preparing DBC Flash',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: 400,
+            child: Column(
+              children: [
+                LinearProgressIndicator(value: _progress, minHeight: 8),
+                const SizedBox(height: 8),
+                Text(_statusMessage, style: TextStyle(color: Colors.grey.shade400)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _uploadDbcFiles() async {
+    setState(() => _isProcessing = true);
+
+    if (!_downloadState.allReady) {
+      _setStatus('Waiting for downloads to complete...');
+      while (!_downloadState.allReady) {
+        await Future.delayed(const Duration(seconds: 1));
+        if (mounted) setState(() {});
+        if (!mounted) return;
+      }
+    }
+
+    try {
+      final trampolineService = TrampolineService(_sshService);
+      final dbcItem = _downloadState.itemOfType(DownloadItemType.dbcFirmware);
+      final osmItem = _downloadState.itemOfType(DownloadItemType.osmTiles);
+      final valhallaItem = _downloadState.itemOfType(DownloadItemType.valhallaTiles);
+
+      await trampolineService.uploadAll(
+        dbcImageLocalPath: dbcItem!.localPath!,
+        osmTilesLocalPath: osmItem?.localPath,
+        valhallaTilesLocalPath: valhallaItem?.localPath,
+        region: _downloadState.selectedRegion,
+        onProgress: (status, progress) {
+          _setStatus(status, progress: progress);
+        },
+      );
+
+      _setStatus('Starting trampoline script...');
+      await trampolineService.start();
+      await Future.delayed(const Duration(seconds: 1));
+      _setPhase(InstallerPhase.dbcFlash);
+    } catch (e) {
+      _setStatus('Upload error: $e');
+      setState(() => _isProcessing = false);
+    }
+  }
+
+  Widget _buildDbcFlash() {
+    return SingleChildScrollView(
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('DBC Flash in Progress',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 24),
+            const InstructionStep(
+              number: 1,
+              title: 'Disconnect USB from laptop',
+              description: 'Unplug the USB cable from your laptop.',
+            ),
+            const InstructionStep(
+              number: 2,
+              title: 'Reconnect DBC USB cable to MDB',
+              description: 'Screw the internal DBC USB cable back into the MDB port.',
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF222222),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('The MDB is now flashing the DBC autonomously.',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Text('Watch the scooter lights for progress:',
+                      style: TextStyle(color: Colors.grey.shade400)),
+                  const SizedBox(height: 8),
+                  _ledSignal('Front ring on (constant)', 'Working'),
+                  _ledSignal('Position lights on', 'DBC connected / flashing'),
+                  _ledSignal('Boot LED green', 'Success — reconnect laptop'),
+                  _ledSignal('Hazard flashers', 'Error — reconnect laptop to see log'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: () => _setPhase(InstallerPhase.reconnect),
+              icon: const Icon(Icons.arrow_forward),
+              label: const Text('Boot LED is green — Reconnect Laptop'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () => _setPhase(InstallerPhase.reconnect),
+              icon: const Icon(Icons.warning, color: Colors.orange),
+              label: const Text('Hazard flashers — Check Error'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _ledSignal(String signal, String meaning) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          const SizedBox(width: 8),
+          const Icon(Icons.circle, size: 8, color: Colors.tealAccent),
+          const SizedBox(width: 8),
+          Expanded(child: Text(signal, style: const TextStyle(fontSize: 13))),
+          Text(meaning, style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReconnect() {
+    if (!_reconnectStarted && !_isProcessing) {
+      _reconnectStarted = true;
+      Future.microtask(_verifyDbcFlash);
+    }
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Verifying DBC Installation',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          if (_isProcessing)
+            const SizedBox(width: 48, height: 48, child: CircularProgressIndicator()),
+          const SizedBox(height: 8),
+          Text(_statusMessage.isEmpty ? 'Reconnect USB to laptop...' : _statusMessage,
+              style: TextStyle(color: Colors.grey.shade400)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _verifyDbcFlash() async {
+    setState(() => _isProcessing = true);
+
+    _setStatus('Waiting for RNDIS device...');
+    await _waitForDevice(DeviceMode.ethernet);
+
+    _setStatus('Configuring network...');
+    final iface = await NetworkService().findLibreScootInterface();
+    if (iface != null) {
+      await NetworkService().configureInterface(iface);
+    }
+
+    _setStatus('Connecting SSH...');
+    try {
+      await _sshService.connectToMdb();
+    } catch (e) {
+      _setStatus('SSH connection failed: $e');
+      setState(() => _isProcessing = false);
+      return;
+    }
+
+    _setStatus('Reading trampoline status...');
+    final status = await _sshService.readTrampolineStatus();
+
+    if (status.result == TrampolineResult.success) {
+      _setStatus('DBC flash successful!');
+      await Future.delayed(const Duration(seconds: 2));
+      _setPhase(InstallerPhase.finish);
+    } else if (status.result == TrampolineResult.error) {
+      _setStatus('DBC flash failed: ${status.message}');
+      if (mounted && status.errorLog != null) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('DBC Flash Error'),
+            content: SingleChildScrollView(
+              child: SelectableText(status.errorLog!,
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+            ],
+          ),
+        );
+      }
+      setState(() => _isProcessing = false);
+    } else {
+      _setStatus('Trampoline status unknown. Check /data/trampoline.log on MDB.');
+      setState(() => _isProcessing = false);
+    }
+  }
+
+  Widget _buildFinish() {
+    return SingleChildScrollView(
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.celebration, size: 64, color: Colors.tealAccent),
+            const SizedBox(height: 16),
+            const Text('Welcome to LibreScoot!',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+            const SizedBox(height: 24),
+            const Text('Final steps:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 16),
+            const InstructionStep(
+              number: 1,
+              title: 'Disconnect USB from laptop',
+              description: 'Unplug the USB cable from your laptop.',
+            ),
+            const InstructionStep(
+              number: 2,
+              title: 'Reconnect DBC USB cable',
+              description: 'Screw the internal DBC USB cable back into MDB.',
+            ),
+            const InstructionStep(
+              number: 3,
+              title: 'Insert main battery',
+              description: 'Place the main battery back into the seatbox.',
+            ),
+            const InstructionStep(
+              number: 4,
+              title: 'Close seatbox and footwell',
+              description: 'Close the seatbox and replace the footwell cover.',
+            ),
+            const InstructionStep(
+              number: 5,
+              title: 'Unlock your scooter',
+              description: 'Keycard and Bluetooth pairing will be set up during LibreScoot first run.',
+            ),
+            const SizedBox(height: 24),
+            if (_downloadState.items.isNotEmpty)
+              OutlinedButton.icon(
+                onPressed: _offerCleanup,
+                icon: const Icon(Icons.delete_outline),
+                label: Text('Delete cached downloads (${_totalCacheSizeMb()} MB)'),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _totalCacheSizeMb() {
+    final total = _downloadState.items.fold<int>(0, (sum, i) => sum + i.expectedSize);
+    return (total / 1024 / 1024).toStringAsFixed(0);
+  }
+
+  Future<void> _offerCleanup() async {
+    final freed = await _downloadService.deleteCache(_downloadState.items);
+    if (mounted) {
+      _setStatus('Deleted ${(freed / 1024 / 1024).toStringAsFixed(0)} MB');
+    }
+  }
 }
