@@ -364,31 +364,20 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
           const SizedBox(height: 24),
 
-          // Admin notice + Start button
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              if (!_isElevated)
-                Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.admin_panel_settings, size: 16, color: Colors.grey.shade500),
-                      const SizedBox(width: 4),
-                      Text(l10n.willAskForAdminPassword,
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-                    ],
-                  ),
-                ),
-              FilledButton.icon(
-                onPressed: _isProcessing || _downloadState.selectedRegion == null
-                    ? null
-                    : _startDownloadsAndContinue,
-                icon: const Icon(Icons.arrow_forward),
-                label: Text(l10n.startInstallation),
-              ),
-            ],
+          // Start button (with elevation hint on macOS/Linux if not elevated)
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
+              onPressed: _isProcessing || _downloadState.selectedRegion == null
+                  ? null
+                  : _startDownloadsAndContinue,
+              icon: !_isElevated && !Platform.isWindows
+                  ? const Icon(Icons.admin_panel_settings)
+                  : const Icon(Icons.arrow_forward),
+              label: Text(!_isElevated && !Platform.isWindows
+                  ? l10n.willAskForElevation
+                  : l10n.startInstallation),
+            ),
           ),
         ],
       ),

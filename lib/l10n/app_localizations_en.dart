@@ -831,7 +831,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get regionHint => 'For offline maps and navigation support';
 
   @override
-  String get willAskForAdminPassword => 'Will ask for administrator password';
+  String get willAskForElevation =>
+      'Start Installation (will ask for elevation)';
 
   @override
   String get installationContinuesInNewWindow =>
