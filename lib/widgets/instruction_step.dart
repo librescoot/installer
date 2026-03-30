@@ -8,6 +8,7 @@ class InstructionStep extends StatelessWidget {
     required this.description,
     this.isWarning = false,
     this.imagePlaceholder,
+    this.imageAsset,
   });
 
   final int number;
@@ -15,6 +16,7 @@ class InstructionStep extends StatelessWidget {
   final String description;
   final bool isWarning;
   final String? imagePlaceholder;
+  final String? imageAsset;
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +47,13 @@ class InstructionStep extends StatelessWidget {
                 Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                 const SizedBox(height: 4),
                 Text(description, style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
-                if (imagePlaceholder != null) ...[
+                if (imageAsset != null) ...[
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: Image.asset(imageAsset!, height: 200, fit: BoxFit.cover),
+                  ),
+                ] else if (imagePlaceholder != null) ...[
                   const SizedBox(height: 8),
                   Container(
                     height: 120,
