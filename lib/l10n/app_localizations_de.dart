@@ -837,7 +837,8 @@ class AppLocalizationsDe extends AppLocalizations {
   String get regionHint => 'Für Offline-Karten und Navigationsunterstützung';
 
   @override
-  String get willAskForAdminPassword => 'Administrator-Passwort wird benötigt';
+  String get willAskForElevation =>
+      'Installation starten (fragt nach Berechtigung)';
 
   @override
   String get installationContinuesInNewWindow =>

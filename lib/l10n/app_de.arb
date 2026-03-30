@@ -268,7 +268,7 @@
   "errorPrefix": "Fehler: {error}",
 
   "regionHint": "F\u00fcr Offline-Karten und Navigationsunterst\u00fctzung",
-  "willAskForAdminPassword": "Administrator-Passwort wird ben\u00f6tigt",
+  "willAskForElevation": "Installation starten (fragt nach Berechtigung)",
   "installationContinuesInNewWindow": "Die Installation wird im neuen Fenster fortgesetzt",
   "youCanCloseThisWindow": "Du kannst dieses Fenster schlie\u00dfen."
 }

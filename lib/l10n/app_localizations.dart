@@ -1586,11 +1586,11 @@ abstract class AppLocalizations {
   /// **'For offline maps and navigation support'**
   String get regionHint;
 
-  /// No description provided for @willAskForAdminPassword.
+  /// No description provided for @willAskForElevation.
   ///
   /// In en, this message translates to:
-  /// **'Will ask for administrator password'**
-  String get willAskForAdminPassword;
+  /// **'Start Installation (will ask for elevation)'**
+  String get willAskForElevation;
 
   /// No description provided for @installationContinuesInNewWindow.
   ///

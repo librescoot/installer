@@ -55,6 +55,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _dbcPrepStarted = false;
   bool _reconnectStarted = false;
   bool _showElevatedHandoff = false;
+  bool _dbcFlashSimulateError = false;
 
   StreamSubscription<UsbDevice?>? _deviceSub;
 
@@ -363,31 +364,20 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
           const SizedBox(height: 24),
 
-          // Admin notice + Start button
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              if (!_isElevated)
-                Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.admin_panel_settings, size: 16, color: Colors.grey.shade500),
-                      const SizedBox(width: 4),
-                      Text(l10n.willAskForAdminPassword,
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-                    ],
-                  ),
-                ),
-              FilledButton.icon(
-                onPressed: _isProcessing || _downloadState.selectedRegion == null
-                    ? null
-                    : _startDownloadsAndContinue,
-                icon: const Icon(Icons.arrow_forward),
-                label: Text(l10n.startInstallation),
-              ),
-            ],
+          // Start button (with elevation hint on macOS/Linux if not elevated)
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
+              onPressed: _isProcessing || _downloadState.selectedRegion == null
+                  ? null
+                  : _startDownloadsAndContinue,
+              icon: !_isElevated && !Platform.isWindows
+                  ? const Icon(Icons.admin_panel_settings)
+                  : const Icon(Icons.arrow_forward),
+              label: Text(!_isElevated && !Platform.isWindows
+                  ? l10n.willAskForElevation
+                  : l10n.startInstallation),
+            ),
           ),
         ],
       ),
@@ -1299,13 +1289,19 @@ class _InstallerScreenState extends State<InstallerScreen> {
             ),
             const SizedBox(height: 24),
             FilledButton.icon(
-              onPressed: () => _setPhase(InstallerPhase.reconnect),
+              onPressed: () {
+                _dbcFlashSimulateError = false;
+                _setPhase(InstallerPhase.reconnect);
+              },
               icon: const Icon(Icons.arrow_forward),
               label: Text(l10n.bootLedGreenReconnect),
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
-              onPressed: () => _setPhase(InstallerPhase.reconnect),
+              onPressed: () {
+                _dbcFlashSimulateError = true;
+                _setPhase(InstallerPhase.reconnect);
+              },
               icon: const Icon(Icons.warning, color: Colors.orange),
               label: Text(l10n.hazardFlashersCheckError),
             ),
@@ -1357,8 +1353,39 @@ class _InstallerScreenState extends State<InstallerScreen> {
     setState(() => _isProcessing = true);
 
     if (_isDryRun) {
-      _setStatus('[DRY RUN] DBC flash successful!');
       await Future.delayed(const Duration(seconds: 1));
+      if (_dbcFlashSimulateError) {
+        _setStatus('[DRY RUN] DBC flash failed!');
+        setState(() => _isProcessing = false);
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Text(l10n.dbcFlashError),
+              content: const SingleChildScrollView(
+                child: SelectableText(
+                  '12:34:56 Trampoline started\n'
+                  '12:34:57 Waiting for laptop to disconnect...\n'
+                  '12:35:02 Laptop disconnected\n'
+                  '12:35:03 Powering on DBC...\n'
+                  '12:35:18 DBC is reachable\n'
+                  '12:35:19 Configuring DBC bootloader...\n'
+                  '12:35:25 Rebooting DBC...\n'
+                  '12:35:30 Switching USB to host mode...\n'
+                  '12:35:32 Waiting for DBC UMS device...\n'
+                  '12:37:32 ERROR: DBC UMS device not found within 120s',
+                  style: TextStyle(fontFamily: 'monospace', fontSize: 12),
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.closeButton)),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+      _setStatus('[DRY RUN] DBC flash successful!');
       _setPhase(InstallerPhase.finish);
       return;
     }
