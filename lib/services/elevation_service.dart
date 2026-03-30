@@ -80,26 +80,25 @@ class ElevationService {
   }
 
   static Future<bool> _elevateMacOS(String executable, List<String> args) async {
-    // Write a launcher script to avoid all shell quoting issues with osascript.
+    // Write a launcher script to avoid shell quoting issues with osascript.
+    // The script logs to /tmp for debugging and does NOT use exec (so & works).
     final launcher = File('/tmp/librescoot-elevate.sh');
     final argLine = args.map((a) => "'${a.replaceAll("'", "'\\''")}'").join(' ');
     await launcher.writeAsString(
       '#!/bin/sh\n'
-      'exec \'${executable.replaceAll("'", "'\\''")}\' $argLine\n',
+      'echo "Launching elevated: \$(date)" >> /tmp/librescoot-elevate.log\n'
+      '\'${executable.replaceAll("'", "'\\''")}\' $argLine >> /tmp/librescoot-elevate.log 2>&1 &\n'
+      'echo "PID: \$!" >> /tmp/librescoot-elevate.log\n',
     );
     await Process.run('chmod', ['+x', launcher.path]);
 
     try {
-      // osascript prompts for password. The & backgrounds the launcher so
-      // do shell script returns immediately after auth succeeds.
       final result = await Process.run('osascript', [
         '-e',
-        'do shell script "/tmp/librescoot-elevate.sh >/dev/null 2>&1 &" with administrator privileges',
+        'do shell script "/tmp/librescoot-elevate.sh" with administrator privileges',
       ]);
-      launcher.delete().ignore();
       return result.exitCode == 0;
     } catch (_) {
-      launcher.delete().ignore();
       return false;
     }
   }
