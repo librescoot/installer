@@ -925,41 +925,44 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _setPhase(InstallerPhase.mdbFlash);
       return;
     }
-    try {
-      _setStatus(l10n.uploadingBootloaderTools);
-      await _sshService.configureMassStorageMode();
-      _setStatus(l10n.rebootingMdbUms);
-      await _sshService.reboot();
-      _setStatus(l10n.waitingForUmsDevice);
-      final found = await _waitForDevice(DeviceMode.massStorage, timeout: const Duration(seconds: 30));
-      if (found) {
-        _setPhase(InstallerPhase.mdbFlash);
-      } else {
-        // UMS didn't appear — MDB probably booted back into Linux.
-        // Try to reconnect via SSH and let the user retry.
-        _setStatus('UMS device not found. MDB may have booted normally. Reconnecting...');
+    const maxAttempts = 3;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        _setStatus('${l10n.uploadingBootloaderTools} (attempt $attempt/$maxAttempts)');
+        await _sshService.configureMassStorageMode();
+        _setStatus(l10n.rebootingMdbUms);
+        await _sshService.reboot();
+        _setStatus(l10n.waitingForUmsDevice);
+        final found = await _waitForDevice(DeviceMode.massStorage, timeout: const Duration(seconds: 60));
+        if (found) {
+          _setPhase(InstallerPhase.mdbFlash);
+          return;
+        }
+        // UMS didn't appear — reconnect and retry
+        _setStatus('UMS not found (attempt $attempt/$maxAttempts). Reconnecting to retry...');
+        await _waitForDevice(DeviceMode.ethernet, timeout: const Duration(seconds: 30));
+        final iface = await NetworkService().findLibreScootInterface();
+        if (iface != null) await NetworkService().configureInterface(iface);
+        await _sshService.loadDeviceConfig('assets');
+        await _sshService.connectToMdb();
+      } catch (e) {
+        _setStatus('Attempt $attempt failed: $e');
+        if (attempt == maxAttempts) break;
+        // Try to reconnect for next attempt
         try {
           await _waitForDevice(DeviceMode.ethernet, timeout: const Duration(seconds: 30));
           final iface = await NetworkService().findLibreScootInterface();
           if (iface != null) await NetworkService().configureInterface(iface);
           await _sshService.loadDeviceConfig('assets');
           await _sshService.connectToMdb();
-          _setStatus('MDB reconnected. fw_setenv may have failed — check bootloader config and retry.');
-        } catch (_) {
-          _setStatus('Could not reconnect to MDB. Check USB connection.');
-        }
-        setState(() {
-          _isProcessing = false;
-          _mdbToUmsStarted = false; // allow retry
-        });
+        } catch (_) {}
       }
-    } catch (e) {
-      _setStatus(l10n.errorPrefix(e.toString()));
-      setState(() {
-        _isProcessing = false;
-        _mdbToUmsStarted = false;
-      });
     }
+    _setStatus('Failed to enter UMS mode after $maxAttempts attempts. Check log for details.');
+    setState(() {
+      _isProcessing = false;
+      _mdbToUmsStarted = false;
+    });
   }
 
   Widget _buildMdbFlash(AppLocalizations l10n) {
