@@ -93,6 +93,7 @@
   "verifyingReadiness": "Verifying scooter readiness...",
   "continueButton": "Continue",
   "retryButton": "Retry",
+  "proceedAtOwnRisk": "Proceed at my own risk",
   "auxBatteryCharge": "AUX battery charge",
   "cbbStateOfHealth": "CBB state of health",
   "cbbCharge": "CBB charge",

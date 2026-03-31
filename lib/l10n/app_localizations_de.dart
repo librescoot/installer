@@ -256,6 +256,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get retryButton => 'Erneut versuchen';
 
   @override
+  String get proceedAtOwnRisk => 'Auf eigenes Risiko fortfahren';
+
+  @override
   String get auxBatteryCharge => 'AUX-Akku-Ladung';
 
   @override
