@@ -383,11 +383,13 @@ class SshService {
     // Set bootloader variables for USB mass storage mode.
     // Some boards need fuse programming in bootcmd (legacy).
     // If that fails, fall back to plain UMS bootcmd.
+    // Use single quotes so the remote shell passes semicolons through
+    // to fw_setenv as a single value argument.
     final fullBootcmd =
-        '$fwSetenvCmd $configFlag bootcmd "fuse prog -y 0 5 0x00002860; '
-        'fuse prog -y 0 6 0x00000010; ums 0 mmc 1;"';
+        "$fwSetenvCmd $configFlag bootcmd 'fuse prog -y 0 5 0x00002860; "
+        "fuse prog -y 0 6 0x00000010; ums 0 mmc 1'";
     final fallbackBootcmd =
-        '$fwSetenvCmd $configFlag bootcmd "ums 0 mmc 1"';
+        "$fwSetenvCmd $configFlag bootcmd 'ums 0 mmc 1'";
 
     try {
       debugPrint('SSH: running: $fullBootcmd');

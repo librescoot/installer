@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../main.dart' show LaunchArgs, launchArgs;
 import '../l10n/app_localizations.dart';
@@ -27,6 +28,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   InstallerPhase _currentPhase = InstallerPhase.welcome;
   final Set<InstallerPhase> _completedPhases = {};
   String _statusMessage = '';
+  final List<String> _logMessages = [];
   bool _isProcessing = false;
   double _progress = 0.0;
   bool _isElevated = false;
@@ -177,10 +179,43 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   void _setStatus(String message, {double? progress}) {
+    if (message.isNotEmpty) {
+      _logMessages.add('${DateTime.now().toIso8601String().substring(11, 19)} $message');
+    }
     setState(() {
       _statusMessage = message;
       if (progress != null) _progress = progress;
     });
+  }
+
+  void _showLogDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Log'),
+        content: SizedBox(
+          width: 600,
+          height: 400,
+          child: SelectableText(
+            _logMessages.join('\n'),
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: _logMessages.join('\n')));
+              Navigator.pop(ctx);
+            },
+            child: const Text('Copy to clipboard'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -268,6 +303,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
             Text(
               '${(_progress * 100).toStringAsFixed(0)}%',
               style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+            ),
+          if (_logMessages.isNotEmpty)
+            IconButton(
+              onPressed: _showLogDialog,
+              icon: Icon(Icons.article_outlined, size: 16, color: Colors.grey.shade600),
+              tooltip: 'Show log',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
             ),
         ],
       ),
@@ -780,11 +823,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _batteryRemovalStarted = false;
 
   Widget _buildBatteryRemoval(AppLocalizations l10n) {
-    if (_scooterHealth?.batteryPresent == true && !_batteryRemovalStarted && !_isProcessing) {
-      _batteryRemovalStarted = true;
-      Future.microtask(_openSeatboxAndWaitForBattery);
-    }
-
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -804,6 +842,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
               description: l10n.removeMainBatteryDesc,
             ),
             const SizedBox(height: 16),
+            if (!_isProcessing)
+              FilledButton(
+                onPressed: _openSeatboxAndWaitForBattery,
+                child: Text(l10n.openSeatbox),
+              ),
             if (_isProcessing) ...[
               const CircularProgressIndicator(),
               const SizedBox(height: 8),
