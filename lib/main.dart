@@ -12,29 +12,37 @@ class LaunchArgs {
   final String? channel;
   final String? region;
   final String? lang;
+  final String? mdbImage;
+  final String? dbcImage;
   final bool autoStart;
   final bool dryRun;
 
-  LaunchArgs({this.channel, this.region, this.lang, this.autoStart = false, this.dryRun = false});
+  LaunchArgs({this.channel, this.region, this.lang, this.mdbImage, this.dbcImage, this.autoStart = false, this.dryRun = false});
 
   factory LaunchArgs.fromArgs(List<String> args) {
-    String? channel, region, lang;
+    String? channel, region, lang, mdbImage, dbcImage;
     var autoStart = false;
     var dryRun = false;
     for (final arg in args) {
       if (arg.startsWith('--channel=')) channel = arg.split('=')[1];
       if (arg.startsWith('--region=')) region = arg.split('=')[1];
       if (arg.startsWith('--lang=')) lang = arg.split('=')[1];
+      if (arg.startsWith('--mdb-image=')) mdbImage = arg.split('=')[1];
+      if (arg.startsWith('--dbc-image=')) dbcImage = arg.split('=')[1];
       if (arg == '--auto-start') autoStart = true;
       if (arg == '--dry-run') dryRun = true;
     }
-    return LaunchArgs(channel: channel, region: region, lang: lang, autoStart: autoStart, dryRun: dryRun);
+    return LaunchArgs(channel: channel, region: region, lang: lang, mdbImage: mdbImage, dbcImage: dbcImage, autoStart: autoStart, dryRun: dryRun);
   }
+
+  bool get hasLocalImages => mdbImage != null || dbcImage != null;
 
   List<String> toArgs() => [
         if (channel != null) '--channel=$channel',
         if (region != null) '--region=$region',
         if (lang != null) '--lang=$lang',
+        if (mdbImage != null) '--mdb-image=$mdbImage',
+        if (dbcImage != null) '--dbc-image=$dbcImage',
         if (dryRun) '--dry-run',
         '--auto-start',
       ];

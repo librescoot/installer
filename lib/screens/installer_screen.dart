@@ -541,7 +541,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   Future<void> _startDownloadsAndContinue() async {
     final l10n = AppLocalizations.of(context)!;
-    if (_downloadState.selectedRegion == null) {
+    if (_downloadState.selectedRegion == null && !launchArgs.hasLocalImages) {
       _setStatus(l10n.selectRegionError);
       return;
     }
@@ -555,6 +555,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
         channel: _downloadState.channel.name,
         region: _downloadState.selectedRegion?.slug,
         lang: launchArgs.lang,
+        mdbImage: launchArgs.mdbImage,
+        dbcImage: launchArgs.dbcImage,
         dryRun: launchArgs.dryRun,
       ).toArgs();
       final elevated = await ElevationService.elevateIfNeeded(extraArgs: extraArgs);
@@ -572,18 +574,42 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // Failed to elevate — continue anyway, warn later
     }
 
-    _setStatus(l10n.resolvingReleases);
-
     try {
-      final items = await _downloadService.buildDownloadQueue(
-        channel: _downloadState.channel,
-        region: _downloadState.selectedRegion,
-        wantsOfflineMaps: true,
-      );
-      setState(() => _downloadState.items = items);
+      if (launchArgs.hasLocalImages) {
+        // Use local images instead of downloading
+        _setStatus('Using local firmware images');
+        final items = <DownloadItem>[];
+        if (launchArgs.mdbImage != null) {
+          items.add(DownloadItem(
+            type: DownloadItemType.mdbFirmware,
+            url: '',
+            filename: File(launchArgs.mdbImage!).uri.pathSegments.last,
+            expectedSize: await File(launchArgs.mdbImage!).length(),
+          )..localPath = launchArgs.mdbImage
+           ..bytesDownloaded = await File(launchArgs.mdbImage!).length());
+        }
+        if (launchArgs.dbcImage != null) {
+          items.add(DownloadItem(
+            type: DownloadItemType.dbcFirmware,
+            url: '',
+            filename: File(launchArgs.dbcImage!).uri.pathSegments.last,
+            expectedSize: await File(launchArgs.dbcImage!).length(),
+          )..localPath = launchArgs.dbcImage
+           ..bytesDownloaded = await File(launchArgs.dbcImage!).length());
+        }
+        setState(() => _downloadState.items = items);
+      } else {
+        _setStatus(l10n.resolvingReleases);
+        final items = await _downloadService.buildDownloadQueue(
+          channel: _downloadState.channel,
+          region: _downloadState.selectedRegion,
+          wantsOfflineMaps: true,
+        );
+        setState(() => _downloadState.items = items);
 
-      // Start downloads in background
-      _downloadInBackground();
+        // Start downloads in background
+        _downloadInBackground();
+      }
 
       // Move to next phase immediately
       _setPhase(InstallerPhase.physicalPrep);
