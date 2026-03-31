@@ -541,9 +541,6 @@ class FlashService {
           : devicePath;
       final diskName = rawDevice.replaceFirst('/dev/rdisk', '/dev/disk');
 
-      debugPrint('Flash: unmounting $diskName');
-      await Process.run('diskutil', ['unmountDisk', diskName]);
-
       final command = '"$diskwriterPath" --two-phase --boot-blocks=$bootAreaBlocks '
           '--image="$imagePath" $rawDevice';
 
@@ -554,13 +551,20 @@ class FlashService {
       process.stdout.listen((_) {}); // drain
 
       var currentPhase = 'A';
+      final stderrBuf = StringBuffer();
       await for (final chunk in process.stderr.transform(utf8.decoder)) {
+        stderrBuf.write(chunk);
         for (final line in chunk.split('\n')) {
           if (line.startsWith('PHASE:')) {
             currentPhase = line.substring(6).trim();
             if (currentPhase == 'B') {
-              onProgress?.call(0.9, 'Phase B: Writing boot sector...');
+              onProgress?.call(0.85, 'Phase B: Writing boot sector...');
+            } else if (currentPhase == 'VERIFY') {
+              onProgress?.call(0.95, 'Verifying boot sector...');
             }
+          }
+          if (line.startsWith('VERIFY:')) {
+            debugPrint('Flash: $line');
           }
           final progressMatch = RegExp(r'PROGRESS:(\d+)').firstMatch(line);
           if (progressMatch != null) {
@@ -569,8 +573,10 @@ class FlashService {
               final mb = bytes / (1024 * 1024);
               if (currentPhase == 'A') {
                 onProgress?.call(0.5, 'Phase A: ${mb.toStringAsFixed(1)} MB written');
-              } else {
-                onProgress?.call(0.95, 'Phase B: ${mb.toStringAsFixed(1)} MB written');
+              } else if (currentPhase == 'B') {
+                onProgress?.call(0.9, 'Phase B: ${mb.toStringAsFixed(1)} MB written');
+              } else if (currentPhase == 'VERIFY') {
+                onProgress?.call(0.97, 'Verifying: ${mb.toStringAsFixed(1)} MB checked');
               }
             }
           }
@@ -580,12 +586,16 @@ class FlashService {
       final exitCode = await process.exitCode;
       debugPrint('Flash: diskwriter exit code: $exitCode');
       if (exitCode != 0) {
+        final output = stderrBuf.toString();
+        debugPrint('Flash: diskwriter output: $output');
+        if (output.contains('VERIFY:FAIL')) {
+          throw Exception('Boot sector verification FAILED — device may be corrupt. Check log.');
+        }
         throw Exception('diskwriter failed with exit code $exitCode');
       }
 
       onProgress?.call(1.0, 'Syncing...');
       await Process.run('sync', []);
-      await Process.run('diskutil', ['eject', diskName]);
     } else {
       // Linux: two separate dd phases
       onProgress?.call(0.0, 'Phase A: Writing partitions...');

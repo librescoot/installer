@@ -336,6 +336,61 @@ int main(int argc, char *argv[]) {
             close(device_fd);
             return 6;
         }
+
+        // Verify boot sector by reading back and comparing
+        fprintf(stderr, "PHASE:VERIFY\n");
+        FILE *verify_src = popen(decompress_cmd, "r");
+        if (!verify_src) {
+            fprintf(stderr, "Failed to open image for verification\n");
+            close(device_fd);
+            return 7;
+        }
+
+        lseek(device_fd, 0, SEEK_SET);
+        char src_buf[BLOCK_SIZE];
+        char dev_buf[BLOCK_SIZE];
+        int verify_ok = 1;
+        off_t verify_offset = 0;
+
+        for (int i = 0; i < boot_area_blocks; i++) {
+            ssize_t src_read = read_exact(fileno(verify_src), src_buf, BLOCK_SIZE);
+            if (src_read <= 0) {
+                fprintf(stderr, "Verify: failed to read source block %d\n", i);
+                verify_ok = 0;
+                break;
+            }
+            ssize_t dev_read = read_exact(device_fd, dev_buf, src_read);
+            if (dev_read != src_read) {
+                fprintf(stderr, "Verify: failed to read device block %d (got %zd, expected %zd)\n", i, dev_read, src_read);
+                verify_ok = 0;
+                break;
+            }
+            if (memcmp(src_buf, dev_buf, src_read) != 0) {
+                // Find first mismatch
+                for (ssize_t j = 0; j < src_read; j++) {
+                    if (src_buf[j] != dev_buf[j]) {
+                        fprintf(stderr, "Verify: MISMATCH at offset %lld (block %d + %zd): expected 0x%02x, got 0x%02x\n",
+                                (long long)(verify_offset + j), i, j,
+                                (unsigned char)src_buf[j], (unsigned char)dev_buf[j]);
+                        break;
+                    }
+                }
+                verify_ok = 0;
+                break;
+            }
+            verify_offset += src_read;
+            fprintf(stderr, "PROGRESS:%lld\n", (long long)verify_offset);
+        }
+        pclose(verify_src);
+
+        if (!verify_ok) {
+            fprintf(stderr, "VERIFY:FAIL\n");
+            fprintf(stderr, "Boot sector verification FAILED — device may be corrupt!\n");
+            close(device_fd);
+            return 8;
+        }
+        fprintf(stderr, "VERIFY:OK\n");
+        fprintf(stderr, "Boot sector verified: %lld bytes match\n", (long long)verify_offset);
     } else {
         // Single-phase write from stdin
         int result = write_phase(device_fd, STDIN_FILENO, skip_blocks, seek_blocks, count_blocks, "Write");
