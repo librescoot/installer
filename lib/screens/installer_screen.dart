@@ -736,6 +736,37 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   bool get _isDryRun => launchArgs.dryRun;
 
+  /// Wait for MDB to reboot into RNDIS, reconfigure network, reconnect SSH.
+  Future<bool> _reconnectToMdb() async {
+    try {
+      _setStatus('Waiting for MDB to reboot...');
+      final found = await _waitForDevice(DeviceMode.ethernet, timeout: const Duration(seconds: 60));
+      if (!found) return false;
+
+      // MDB needs time to fully boot after RNDIS appears
+      _setStatus('MDB detected, waiting for SSH...');
+      await Future.delayed(const Duration(seconds: 10));
+
+      final iface = await NetworkService().findLibreScootInterface();
+      if (iface != null) await NetworkService().configureInterface(iface);
+
+      // Retry SSH connection a few times (MDB may still be starting sshd)
+      for (var i = 0; i < 5; i++) {
+        try {
+          await _sshService.loadDeviceConfig('assets');
+          await _sshService.connectToMdb();
+          _setStatus('Reconnected to MDB');
+          return true;
+        } catch (_) {
+          await Future.delayed(const Duration(seconds: 5));
+        }
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<bool> _waitForDevice(DeviceMode mode, {Duration timeout = const Duration(seconds: 120)}) async {
     if (_isDryRun) {
       await Future.delayed(const Duration(seconds: 1));
@@ -928,7 +959,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     const maxAttempts = 3;
     for (var attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        _setStatus('${l10n.uploadingBootloaderTools} (attempt $attempt/$maxAttempts)');
+        _setStatus('Configuring bootloader (attempt $attempt/$maxAttempts)...');
         await _sshService.configureMassStorageMode();
         _setStatus(l10n.rebootingMdbUms);
         await _sshService.reboot();
@@ -938,24 +969,18 @@ class _InstallerScreenState extends State<InstallerScreen> {
           _setPhase(InstallerPhase.mdbFlash);
           return;
         }
-        // UMS didn't appear — reconnect and retry
-        _setStatus('UMS not found (attempt $attempt/$maxAttempts). Reconnecting to retry...');
-        await _waitForDevice(DeviceMode.ethernet, timeout: const Duration(seconds: 30));
-        final iface = await NetworkService().findLibreScootInterface();
-        if (iface != null) await NetworkService().configureInterface(iface);
-        await _sshService.loadDeviceConfig('assets');
-        await _sshService.connectToMdb();
       } catch (e) {
         _setStatus('Attempt $attempt failed: $e');
-        if (attempt == maxAttempts) break;
-        // Try to reconnect for next attempt
-        try {
-          await _waitForDevice(DeviceMode.ethernet, timeout: const Duration(seconds: 30));
-          final iface = await NetworkService().findLibreScootInterface();
-          if (iface != null) await NetworkService().configureInterface(iface);
-          await _sshService.loadDeviceConfig('assets');
-          await _sshService.connectToMdb();
-        } catch (_) {}
+      }
+
+      // UMS didn't appear or error — try to reconnect for retry
+      if (attempt < maxAttempts) {
+        _setStatus('UMS not found. Waiting for MDB to come back (attempt $attempt/$maxAttempts)...');
+        final reconnected = await _reconnectToMdb();
+        if (!reconnected) {
+          _setStatus('Could not reconnect to MDB. Check USB connection.');
+          break;
+        }
       }
     }
     _setStatus('Failed to enter UMS mode after $maxAttempts attempts. Check log for details.');
