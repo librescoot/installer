@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../main.dart' show LaunchArgs, launchArgs;
 import '../l10n/app_localizations.dart';
@@ -27,6 +28,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   InstallerPhase _currentPhase = InstallerPhase.welcome;
   final Set<InstallerPhase> _completedPhases = {};
   String _statusMessage = '';
+  final List<String> _logMessages = [];
   bool _isProcessing = false;
   double _progress = 0.0;
   bool _isElevated = false;
@@ -177,10 +179,43 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   void _setStatus(String message, {double? progress}) {
+    if (message.isNotEmpty) {
+      _logMessages.add('${DateTime.now().toIso8601String().substring(11, 19)} $message');
+    }
     setState(() {
       _statusMessage = message;
       if (progress != null) _progress = progress;
     });
+  }
+
+  void _showLogDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Log'),
+        content: SizedBox(
+          width: 600,
+          height: 400,
+          child: SelectableText(
+            _logMessages.join('\n'),
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: _logMessages.join('\n')));
+              Navigator.pop(ctx);
+            },
+            child: const Text('Copy to clipboard'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -268,6 +303,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
             Text(
               '${(_progress * 100).toStringAsFixed(0)}%',
               style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+            ),
+          if (_logMessages.isNotEmpty)
+            IconButton(
+              onPressed: _showLogDialog,
+              icon: Icon(Icons.article_outlined, size: 16, color: Colors.grey.shade600),
+              tooltip: 'Show log',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
             ),
         ],
       ),
@@ -693,6 +736,37 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   bool get _isDryRun => launchArgs.dryRun;
 
+  /// Wait for MDB to reboot into RNDIS, reconfigure network, reconnect SSH.
+  Future<bool> _reconnectToMdb() async {
+    try {
+      _setStatus('Waiting for MDB to reboot...');
+      final found = await _waitForDevice(DeviceMode.ethernet, timeout: const Duration(seconds: 60));
+      if (!found) return false;
+
+      // MDB needs time to fully boot after RNDIS appears
+      _setStatus('MDB detected, waiting for SSH...');
+      await Future.delayed(const Duration(seconds: 10));
+
+      final iface = await NetworkService().findLibreScootInterface();
+      if (iface != null) await NetworkService().configureInterface(iface);
+
+      // Retry SSH connection a few times (MDB may still be starting sshd)
+      for (var i = 0; i < 5; i++) {
+        try {
+          await _sshService.loadDeviceConfig('assets');
+          await _sshService.connectToMdb();
+          _setStatus('Reconnected to MDB');
+          return true;
+        } catch (_) {
+          await Future.delayed(const Duration(seconds: 5));
+        }
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<bool> _waitForDevice(DeviceMode mode, {Duration timeout = const Duration(seconds: 120)}) async {
     if (_isDryRun) {
       await Future.delayed(const Duration(seconds: 1));
@@ -780,11 +854,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _batteryRemovalStarted = false;
 
   Widget _buildBatteryRemoval(AppLocalizations l10n) {
-    if (_scooterHealth?.batteryPresent == true && !_batteryRemovalStarted && !_isProcessing) {
-      _batteryRemovalStarted = true;
-      Future.microtask(_openSeatboxAndWaitForBattery);
-    }
-
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -804,6 +873,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
               description: l10n.removeMainBatteryDesc,
             ),
             const SizedBox(height: 16),
+            if (!_isProcessing)
+              FilledButton(
+                onPressed: _openSeatboxAndWaitForBattery,
+                child: Text(l10n.openSeatbox),
+              ),
             if (_isProcessing) ...[
               const CircularProgressIndicator(),
               const SizedBox(height: 8),
@@ -868,6 +942,28 @@ class _InstallerScreenState extends State<InstallerScreen> {
           const SizedBox(height: 16),
           Text(_statusMessage.isEmpty ? l10n.preparing : _statusMessage,
               style: TextStyle(color: Colors.grey.shade400)),
+          if (!_isProcessing && !_mdbToUmsStarted) ...[
+            const SizedBox(height: 24),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FilledButton.icon(
+                  onPressed: () {
+                    _mdbToUmsStarted = true;
+                    _configureMdbUms();
+                  },
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry'),
+                ),
+                const SizedBox(width: 16),
+                OutlinedButton.icon(
+                  onPressed: _showLogDialog,
+                  icon: const Icon(Icons.article_outlined),
+                  label: const Text('Show Log'),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -885,15 +981,32 @@ class _InstallerScreenState extends State<InstallerScreen> {
     try {
       _setStatus(l10n.uploadingBootloaderTools);
       await _sshService.configureMassStorageMode();
+
+      // Verify the bootcmd was actually set
+      _setStatus('Verifying bootloader config...');
+      final bootcmd = await _sshService.runCommand('fw_printenv bootcmd');
+      debugPrint('SSH: verified bootcmd = $bootcmd');
+      if (!bootcmd.contains('ums')) {
+        _setStatus('fw_setenv failed — bootcmd is still: ${bootcmd.trim()}');
+        setState(() { _isProcessing = false; _mdbToUmsStarted = false; });
+        return;
+      }
+
       _setStatus(l10n.rebootingMdbUms);
       await _sshService.reboot();
       _setStatus(l10n.waitingForUmsDevice);
-      await _waitForDevice(DeviceMode.massStorage);
-      _setPhase(InstallerPhase.mdbFlash);
+      final found = await _waitForDevice(DeviceMode.massStorage, timeout: const Duration(seconds: 60));
+      if (found) {
+        _setPhase(InstallerPhase.mdbFlash);
+        return;
+      }
+
+      // UMS didn't appear — show retry/log buttons
+      _setStatus('UMS device not detected within 60s. MDB may have booted back into Linux.');
     } catch (e) {
-      _setStatus(l10n.errorPrefix(e.toString()));
-      setState(() => _isProcessing = false);
+      _setStatus('Error: $e');
     }
+    setState(() { _isProcessing = false; _mdbToUmsStarted = false; });
   }
 
   Widget _buildMdbFlash(AppLocalizations l10n) {

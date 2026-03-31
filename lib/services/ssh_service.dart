@@ -357,42 +357,49 @@ class SshService {
       throw Exception('Not connected');
     }
 
-    // Upload fw_setenv binary and config from local assets.
-    final fwSetenv = await _readToolAsset('fw_setenv');
-    final fwEnvConfig = await _readToolAsset('fw_env.config');
-    await uploadFile(fwSetenv, '/tmp/fw_setenv');
-    await uploadFile(fwEnvConfig, '/tmp/fw_env.config');
-    debugPrint('SSH: uploaded fw_setenv and fw_env.config to /tmp');
+    // Check if the device already has fw_setenv and fw_env.config (LibreScoot).
+    // If so, use the device's own tools and config (correct env offsets).
+    // If not (stock scooterOS), upload our bundled versions.
+    final hasNativeFwSetenv = (await runCommand('test -x /usr/sbin/fw_setenv && echo yes || echo no')).trim() == 'yes';
+    final hasNativeConfig = (await runCommand('test -f /etc/fw_env.config && echo yes || echo no')).trim() == 'yes';
 
-    // Set bootloader variables for USB mass storage mode
+    final String fwSetenvCmd;
+    final String configFlag;
+
+    if (hasNativeFwSetenv && hasNativeConfig) {
+      debugPrint('SSH: using device-native fw_setenv and /etc/fw_env.config');
+      fwSetenvCmd = 'fw_setenv';
+      configFlag = '';
+    } else {
+      debugPrint('SSH: uploading bundled fw_setenv and fw_env.config');
+      final fwSetenv = await _readToolAsset('fw_setenv');
+      final fwEnvConfig = await _readToolAsset('fw_env.config');
+      await uploadFile(fwSetenv, '/tmp/fw_setenv');
+      await uploadFile(fwEnvConfig, '/tmp/fw_env.config');
+      fwSetenvCmd = '/tmp/fw_setenv';
+      configFlag = '-c /tmp/fw_env.config';
+    }
+
+    // Set bootloader variables for USB mass storage mode.
+    // Some boards need fuse programming in bootcmd (legacy).
+    // If that fails, fall back to plain UMS bootcmd.
+    // Use single quotes so the remote shell passes semicolons through
+    // to fw_setenv as a single value argument.
     final fullBootcmd =
-        '/tmp/fw_setenv -c /tmp/fw_env.config bootcmd "fuse prog -y 0 5 0x00002860; '
-        'fuse prog -y 0 6 0x00000010; ums 0 mmc 1;"';
+        "$fwSetenvCmd $configFlag bootcmd 'fuse prog -y 0 5 0x00002860; "
+        "fuse prog -y 0 6 0x00000010; ums 0 mmc 1'";
     final fallbackBootcmd =
-        '/tmp/fw_setenv -c /tmp/fw_env.config bootcmd "ums 0 mmc 1"';
+        "$fwSetenvCmd $configFlag bootcmd 'ums 0 mmc 1'";
 
-    // Some boards need fuse programming in bootcmd (legacy flashing-tool
-    // behavior). If that fails, fall back to plain UMS bootcmd.
     try {
-      debugPrint('SSH: running prepare command: $fullBootcmd');
-      final result = await runCommand(fullBootcmd);
-      if (result.trim().isNotEmpty) {
-        debugPrint('SSH: prepare command output: ${result.trim()}');
-      }
+      debugPrint('SSH: running: $fullBootcmd');
+      await runCommand(fullBootcmd);
     } catch (e) {
-      debugPrint('SSH: full bootcmd failed, trying fallback UMS bootcmd: $e');
-      final fallbackResult = await runCommand(fallbackBootcmd);
-      if (fallbackResult.trim().isNotEmpty) {
-        debugPrint('SSH: fallback bootcmd output: ${fallbackResult.trim()}');
-      }
+      debugPrint('SSH: full bootcmd failed, trying fallback: $e');
+      await runCommand(fallbackBootcmd);
     }
 
-    final bootdelayCmd = '/tmp/fw_setenv -c /tmp/fw_env.config bootdelay 0';
-    debugPrint('SSH: running prepare command: $bootdelayCmd');
-    final delayResult = await runCommand(bootdelayCmd);
-    if (delayResult.trim().isNotEmpty) {
-      debugPrint('SSH: prepare command output: ${delayResult.trim()}');
-    }
+    await runCommand('$fwSetenvCmd $configFlag bootdelay 0');
     debugPrint('SSH: bootloader configured for mass storage mode');
   }
 
