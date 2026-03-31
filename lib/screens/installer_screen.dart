@@ -110,16 +110,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _detectResumeState() async {
-    await Future.delayed(const Duration(seconds: 2));
-    if (_device == null) return;
-
-    if (_device!.mode == DeviceMode.massStorage) {
-      // MDB is in UMS mode — flashing is the only path forward.
-      // But we need firmware. Show a status message on the welcome screen
-      // so the user knows they need to select channel/region and start.
-      _setStatus('MDB detected in UMS mode — select firmware and start to flash.');
-    }
-    // Don't auto-advance for RNDIS — user goes through the normal flow.
+    // Detection happens in _autoConnectMdb — no early jumping here.
   }
 
   @override
@@ -720,14 +711,21 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
 
     _setStatus(l10n.waitingForRndis);
-    final found = await _waitForDevice(DeviceMode.ethernet);
-    if (!found) {
-      _setStatus(l10n.errorPrefix('USB device not found. Check cable and try again.'));
-      setState(() => _isProcessing = false);
-      _mdbConnectStarted = false; // Allow retry
+    // Wait for any USB device (RNDIS or UMS)
+    while (_device == null) {
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return;
+    }
+
+    if (_device!.mode == DeviceMode.massStorage) {
+      // Device is already in UMS mode — skip ahead to flash
+      _setStatus('MDB detected in UMS mode — skipping to flash.');
+      await Future.delayed(const Duration(seconds: 1));
+      _setPhase(InstallerPhase.mdbFlash);
       return;
     }
 
+    // RNDIS mode — normal flow
     if (Platform.isWindows) {
       _setStatus(l10n.checkingRndisDriver);
       if (!await DriverService.isDriverInstalled()) {
