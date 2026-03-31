@@ -195,16 +195,25 @@ class _InstallerScreenState extends State<InstallerScreen> {
         content: SizedBox(
           width: 600,
           height: 400,
-          child: SelectableText(
-            installerLog.join('\n'),
-            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+          child: SingleChildScrollView(
+            child: SelectableText(
+              installerLog.join('\n'),
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+            ),
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: installerLog.join('\n')));
-              Navigator.pop(ctx);
+            onPressed: () async {
+              final text = installerLog.join('\n');
+              if (Platform.isMacOS) {
+                final proc = await Process.start('pbcopy', []);
+                proc.stdin.write(text);
+                await proc.stdin.close();
+              } else {
+                await Clipboard.setData(ClipboardData(text: text));
+              }
+              if (ctx.mounted) Navigator.pop(ctx);
             },
             child: const Text('Copy to clipboard'),
           ),
@@ -1089,11 +1098,19 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
 
     try {
+      // Wait for USB detector to resolve the device path (can take a few seconds)
+      _setStatus('Waiting for device path...');
+      for (var i = 0; i < 15; i++) {
+        if (_device?.path != null && _device!.path.isNotEmpty) break;
+        await Future.delayed(const Duration(seconds: 1));
+        if (!mounted) return;
+      }
       if (_device?.path == null || _device!.path.isEmpty) {
-        _setStatus(l10n.noDevicePath);
-        setState(() => _isProcessing = false);
+        _setStatus('No device path found. Check USB connection and retry.');
+        setState(() { _isProcessing = false; _mdbFlashStarted = false; });
         return;
       }
+      debugPrint('Flash: device path resolved: ${_device!.path}');
 
       final flashService = FlashService();
       await flashService.writeTwoPhase(
