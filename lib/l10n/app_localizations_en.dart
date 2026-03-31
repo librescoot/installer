@@ -253,6 +253,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get retryButton => 'Retry';
 
   @override
+  String get proceedAtOwnRisk => 'Proceed at my own risk';
+
+  @override
   String get auxBatteryCharge => 'AUX battery charge';
 
   @override

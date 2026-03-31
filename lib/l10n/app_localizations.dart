@@ -554,6 +554,12 @@ abstract class AppLocalizations {
   /// **'Retry'**
   String get retryButton;
 
+  /// No description provided for @proceedAtOwnRisk.
+  ///
+  /// In en, this message translates to:
+  /// **'Proceed at my own risk'**
+  String get proceedAtOwnRisk;
+
   /// No description provided for @auxBatteryCharge.
   ///
   /// In en, this message translates to:

@@ -732,7 +732,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
               icon: const Icon(Icons.arrow_forward),
               label: Text(l10n.continueButton),
             ),
-          if (_scooterHealth != null && !_scooterHealth!.allOk)
+          if (_scooterHealth != null && !_scooterHealth!.allOk) ...[
             OutlinedButton.icon(
               onPressed: () {
                 setState(() {
@@ -743,6 +743,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
               icon: const Icon(Icons.refresh),
               label: Text(l10n.retryButton),
             ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => _setPhase(InstallerPhase.batteryRemoval),
+              child: Text(l10n.proceedAtOwnRisk,
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+            ),
+          ],
         ],
       ),
     );

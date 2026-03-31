@@ -83,6 +83,7 @@
   "verifyingReadiness": "Roller-Bereitschaft wird gepr\u00fcft...",
   "continueButton": "Weiter",
   "retryButton": "Erneut versuchen",
+  "proceedAtOwnRisk": "Auf eigenes Risiko fortfahren",
   "auxBatteryCharge": "AUX-Akku-Ladung",
   "cbbStateOfHealth": "CBB-Zustand",
   "cbbCharge": "CBB-Ladung",
