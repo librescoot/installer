@@ -942,6 +942,28 @@ class _InstallerScreenState extends State<InstallerScreen> {
           const SizedBox(height: 16),
           Text(_statusMessage.isEmpty ? l10n.preparing : _statusMessage,
               style: TextStyle(color: Colors.grey.shade400)),
+          if (!_isProcessing && !_mdbToUmsStarted) ...[
+            const SizedBox(height: 24),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FilledButton.icon(
+                  onPressed: () {
+                    _mdbToUmsStarted = true;
+                    _configureMdbUms();
+                  },
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry'),
+                ),
+                const SizedBox(width: 16),
+                OutlinedButton.icon(
+                  onPressed: _showLogDialog,
+                  icon: const Icon(Icons.article_outlined),
+                  label: const Text('Show Log'),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -956,38 +978,35 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _setPhase(InstallerPhase.mdbFlash);
       return;
     }
-    const maxAttempts = 3;
-    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        _setStatus('Configuring bootloader (attempt $attempt/$maxAttempts)...');
-        await _sshService.configureMassStorageMode();
-        _setStatus(l10n.rebootingMdbUms);
-        await _sshService.reboot();
-        _setStatus(l10n.waitingForUmsDevice);
-        final found = await _waitForDevice(DeviceMode.massStorage, timeout: const Duration(seconds: 60));
-        if (found) {
-          _setPhase(InstallerPhase.mdbFlash);
-          return;
-        }
-      } catch (e) {
-        _setStatus('Attempt $attempt failed: $e');
+    try {
+      _setStatus(l10n.uploadingBootloaderTools);
+      await _sshService.configureMassStorageMode();
+
+      // Verify the bootcmd was actually set
+      _setStatus('Verifying bootloader config...');
+      final bootcmd = await _sshService.runCommand('fw_printenv bootcmd');
+      debugPrint('SSH: verified bootcmd = $bootcmd');
+      if (!bootcmd.contains('ums')) {
+        _setStatus('fw_setenv failed — bootcmd is still: ${bootcmd.trim()}');
+        setState(() { _isProcessing = false; _mdbToUmsStarted = false; });
+        return;
       }
 
-      // UMS didn't appear or error — try to reconnect for retry
-      if (attempt < maxAttempts) {
-        _setStatus('UMS not found. Waiting for MDB to come back (attempt $attempt/$maxAttempts)...');
-        final reconnected = await _reconnectToMdb();
-        if (!reconnected) {
-          _setStatus('Could not reconnect to MDB. Check USB connection.');
-          break;
-        }
+      _setStatus(l10n.rebootingMdbUms);
+      await _sshService.reboot();
+      _setStatus(l10n.waitingForUmsDevice);
+      final found = await _waitForDevice(DeviceMode.massStorage, timeout: const Duration(seconds: 60));
+      if (found) {
+        _setPhase(InstallerPhase.mdbFlash);
+        return;
       }
+
+      // UMS didn't appear — show retry/log buttons
+      _setStatus('UMS device not detected within 60s. MDB may have booted back into Linux.');
+    } catch (e) {
+      _setStatus('Error: $e');
     }
-    _setStatus('Failed to enter UMS mode after $maxAttempts attempts. Check log for details.');
-    setState(() {
-      _isProcessing = false;
-      _mdbToUmsStarted = false;
-    });
+    setState(() { _isProcessing = false; _mdbToUmsStarted = false; });
   }
 
   Widget _buildMdbFlash(AppLocalizations l10n) {
