@@ -166,44 +166,107 @@ class _InstallerScreenState extends State<InstallerScreen> {
     });
   }
 
+  final _debugController = TextEditingController();
+
   void _showLogDialog() {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Log'),
-        content: SizedBox(
-          width: 600,
-          height: 400,
-          child: SingleChildScrollView(
-            child: SelectableText(
-              installerLog.join('\n'),
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Log & Debug Shell'),
+          content: SizedBox(
+            width: 700,
+            height: 500,
+            child: Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    reverse: true,
+                    child: SelectableText(
+                      installerLog.join('\n'),
+                      style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+                    ),
+                  ),
+                ),
+                const Divider(),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _debugController,
+                        style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                        decoration: const InputDecoration(
+                          hintText: 'Run a command in the installer context...',
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        ),
+                        onSubmitted: (cmd) async {
+                          if (cmd.trim().isEmpty) return;
+                          installerLog.add('> $cmd');
+                          setDialogState(() {});
+                          try {
+                            final result = await Process.run('/bin/sh', ['-c', cmd]);
+                            final out = result.stdout.toString().trim();
+                            final err = result.stderr.toString().trim();
+                            if (out.isNotEmpty) installerLog.add(out);
+                            if (err.isNotEmpty) installerLog.add('stderr: $err');
+                            installerLog.add('exit: ${result.exitCode}');
+                          } catch (e) {
+                            installerLog.add('error: $e');
+                          }
+                          _debugController.clear();
+                          setDialogState(() {});
+                        },
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.play_arrow),
+                      onPressed: () async {
+                        final cmd = _debugController.text;
+                        if (cmd.trim().isEmpty) return;
+                        installerLog.add('> $cmd');
+                        setDialogState(() {});
+                        try {
+                          final result = await Process.run('/bin/sh', ['-c', cmd]);
+                          final out = result.stdout.toString().trim();
+                          final err = result.stderr.toString().trim();
+                          if (out.isNotEmpty) installerLog.add(out);
+                          if (err.isNotEmpty) installerLog.add('stderr: $err');
+                          installerLog.add('exit: ${result.exitCode}');
+                        } catch (e) {
+                          installerLog.add('error: $e');
+                        }
+                        _debugController.clear();
+                        setDialogState(() {});
+                      },
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                final text = installerLog.join('\n');
+                if (Platform.isMacOS) {
+                  final uid = (await Process.run('stat', ['-f', '%u', '/dev/console'])).stdout.toString().trim();
+                  final proc = await Process.start('launchctl', ['asuser', uid, 'pbcopy']);
+                  proc.stdin.write(text);
+                  await proc.stdin.close();
+                } else {
+                  await Clipboard.setData(ClipboardData(text: text));
+                }
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: const Text('Copy to clipboard'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Close'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              final text = installerLog.join('\n');
-              if (Platform.isMacOS) {
-                // When running as root, pbcopy goes to root's pasteboard.
-                // Use the console user's pasteboard via launchctl.
-                final uid = (await Process.run('stat', ['-f', '%u', '/dev/console'])).stdout.toString().trim();
-                final proc = await Process.start('launchctl', ['asuser', uid, 'pbcopy']);
-                proc.stdin.write(text);
-                await proc.stdin.close();
-              } else {
-                await Clipboard.setData(ClipboardData(text: text));
-              }
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: const Text('Copy to clipboard'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close'),
-          ),
-        ],
       ),
     );
   }

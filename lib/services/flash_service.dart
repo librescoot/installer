@@ -620,8 +620,13 @@ class FlashService {
       command = 'dd if="$imagePath" of=$rawDevice ${ddParams.join(' ')} 2>&1';
     }
 
-    debugPrint('Flash: running: $command');
-    final process = await Process.start('/bin/sh', ['-c', command]);
+    // On macOS, raw disk writes need sudo even when running as root
+    // (macOS TCC/SIP restrictions). Use sudo which gets proper PAM context.
+    final sudoPrefix = Platform.isMacOS ? 'sudo ' : '';
+    final fullCommand = '${sudoPrefix}sh -c \'$command\'';
+
+    debugPrint('Flash: running: $fullCommand');
+    final process = await Process.start('/bin/sh', ['-c', fullCommand]);
 
     final output = StringBuffer();
     await for (final line in process.stdout.transform(utf8.decoder)) {
