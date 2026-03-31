@@ -186,7 +186,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
             onPressed: () async {
               final text = installerLog.join('\n');
               if (Platform.isMacOS) {
-                final proc = await Process.start('pbcopy', []);
+                // When running as root, pbcopy goes to root's pasteboard.
+                // Use the console user's pasteboard via launchctl.
+                final uid = (await Process.run('stat', ['-f', '%u', '/dev/console'])).stdout.toString().trim();
+                final proc = await Process.start('launchctl', ['asuser', uid, 'pbcopy']);
                 proc.stdin.write(text);
                 await proc.stdin.close();
               } else {

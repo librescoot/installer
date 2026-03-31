@@ -587,9 +587,19 @@ class FlashService {
     int? count,
     void Function(double progress, String message)? onProgress,
   }) async {
-    final rawDevice = Platform.isMacOS
+    // On macOS, use rdisk for raw (faster) access — but only if not already rdisk
+    final rawDevice = Platform.isMacOS && !devicePath.contains('rdisk')
         ? devicePath.replaceFirst('/dev/disk', '/dev/rdisk')
         : devicePath;
+    final diskName = rawDevice.replaceFirst('/dev/rdisk', '/dev/disk').replaceFirst('/dev/r', '/dev/');
+
+    // Unmount the disk first (macOS auto-mounts)
+    if (Platform.isMacOS) {
+      debugPrint('Flash: unmounting $diskName');
+      final unmountResult = await Process.run('diskutil', ['unmountDisk', diskName]);
+      debugPrint('Flash: unmount result: ${unmountResult.exitCode} ${unmountResult.stderr}');
+    }
+
     final bs = Platform.isMacOS ? 'bs=4m' : 'bs=4M';
     final oflag = Platform.isLinux ? 'oflag=direct' : '';
 
@@ -609,9 +619,12 @@ class FlashService {
       command = 'dd if="$imagePath" of=$rawDevice ${ddParams.join(' ')} 2>&1';
     }
 
+    debugPrint('Flash: running: $command');
     final process = await Process.start('/bin/sh', ['-c', command]);
 
+    final output = StringBuffer();
     await for (final line in process.stdout.transform(utf8.decoder)) {
+      output.write(line);
       final bytesMatch = RegExp(r'(\d+)\s+bytes').firstMatch(line);
       if (bytesMatch != null) {
         final bytes = int.tryParse(bytesMatch.group(1)!);
@@ -621,7 +634,11 @@ class FlashService {
       }
     }
     final exitCode = await process.exitCode;
-    if (exitCode != 0) throw Exception('dd failed with exit code $exitCode');
+    debugPrint('Flash: dd exit code: $exitCode');
+    if (exitCode != 0) {
+      debugPrint('Flash: dd output: $output');
+      throw Exception('dd failed with exit code $exitCode');
+    }
   }
 
   Future<void> _runDdPhaseWindows(
