@@ -72,8 +72,8 @@ class FlashService {
       if (isCompressed) {
         return [
           'diskutil unmountDisk $diskName',
-          'gunzip -c "$imagePath" | sudo dd of="$devicePath" bs=4m status=progress',
-          '# macOS dd progress: press Ctrl+T while command is running',
+          'gunzip -c "$imagePath" | diskwriter $devicePath',
+          '# diskwriter uses macOS Authorization Services for raw disk access',
           'sync',
           'diskutil eject $diskName',
         ].join('\n');
@@ -81,8 +81,8 @@ class FlashService {
 
       return [
         'diskutil unmountDisk $diskName',
-        'sudo dd if=$imagePath of=$devicePath bs=4m status=progress',
-        '# macOS dd progress: press Ctrl+T while command is running',
+        'cat $imagePath | diskwriter $devicePath',
+        '# diskwriter uses macOS Authorization Services for raw disk access',
         'sync',
         'diskutil eject $diskName',
       ].join('\n');
@@ -362,8 +362,11 @@ class FlashService {
   ) async {
     onProgress?.call(0.1, 'Unmounting disk...');
 
-    // Unmount disk first
-    final diskName = devicePath.replaceFirst('/dev/rdisk', '/dev/disk');
+    final rawDevice = !devicePath.contains('rdisk')
+        ? devicePath.replaceFirst('/dev/disk', '/dev/rdisk')
+        : devicePath;
+    final diskName = rawDevice.replaceFirst('/dev/rdisk', '/dev/disk');
+
     final unmountResult = await Process.run('diskutil', ['unmountDisk', diskName]);
     if (unmountResult.exitCode != 0) {
       // Ignore unmount errors - disk might not be mounted
@@ -371,39 +374,43 @@ class FlashService {
 
     onProgress?.call(0.2, 'Writing image...');
 
+    final diskwriterPath = await _getDiskwriterPath();
+    if (diskwriterPath == null) {
+      return FlashResult(success: false, error: 'diskwriter binary not found in app bundle');
+    }
+
     final imageSize = await _estimateImageSizeBytes(imagePath, isCompressed);
+
+    // Use diskwriter for authorized raw disk access
+    final String command;
+    if (isCompressed) {
+      command = 'gunzip -c "$imagePath" | "$diskwriterPath" $rawDevice';
+    } else {
+      command = 'cat "$imagePath" | "$diskwriterPath" $rawDevice';
+    }
+
+    final process = await Process.start('/bin/sh', ['-c', command]);
     final stderrBuffer = StringBuffer();
     int? lastBytesWritten;
-
-    Process process;
-    if (isCompressed) {
-      // gunzip -c image.wic.gz | dd of=/dev/rdiskX bs=4m
-      process = await Process.start(
-        'sh',
-        [
-          '-c',
-          'gunzip -c "$imagePath" | dd of="$devicePath" bs=4m status=progress',
-        ],
-      );
-    } else {
-      process = await Process.start(
-        'dd',
-        ['if=$imagePath', 'of=$devicePath', 'bs=4m', 'status=progress'],
-      );
-    }
 
     process.stdout.listen((_) {});
     await for (final chunk in process.stderr.transform(utf8.decoder)) {
       stderrBuffer.write(chunk);
-      final bytes = _extractLastDdBytes(chunk);
-      if (bytes != null && bytes != lastBytesWritten) {
-        lastBytesWritten = bytes;
-        if (imageSize != null && imageSize > 0) {
-          final fraction = (bytes / imageSize).clamp(0.0, 1.0);
-          onProgress?.call(0.2 + (0.7 * fraction), 'Writing image... ${(fraction * 100).toStringAsFixed(1)}%');
-        } else {
-          final mb = bytes / (1024 * 1024);
-          onProgress?.call(0.2, 'Writing image... ${mb.toStringAsFixed(1)} MB written');
+      // Parse diskwriter progress: "PROGRESS:<bytes>"
+      for (final line in chunk.split('\n')) {
+        final progressMatch = RegExp(r'PROGRESS:(\d+)').firstMatch(line);
+        if (progressMatch != null) {
+          final bytes = int.tryParse(progressMatch.group(1)!);
+          if (bytes != null && bytes != lastBytesWritten) {
+            lastBytesWritten = bytes;
+            if (imageSize != null && imageSize > 0) {
+              final fraction = (bytes / imageSize).clamp(0.0, 1.0);
+              onProgress?.call(0.2 + (0.7 * fraction), 'Writing image... ${(fraction * 100).toStringAsFixed(1)}%');
+            } else {
+              final mb = bytes / (1024 * 1024);
+              onProgress?.call(0.2, 'Writing image... ${mb.toStringAsFixed(1)} MB written');
+            }
+          }
         }
       }
     }
@@ -414,15 +421,10 @@ class FlashService {
     }
 
     onProgress?.call(0.9, 'Syncing...');
-
-    // Sync to ensure all data is written
     await Process.run('sync', []);
-
-    // Eject disk
     await Process.run('diskutil', ['eject', diskName]);
 
     onProgress?.call(1.0, 'Complete');
-
     return FlashResult(success: true);
   }
 
@@ -443,12 +445,6 @@ class FlashService {
       }
     } catch (_) {}
     return null;
-  }
-
-  int? _extractLastDdBytes(String text) {
-    final matches = RegExp(r'(\d+)\s+bytes').allMatches(text);
-    if (matches.isEmpty) return null;
-    return int.tryParse(matches.last.group(1)!);
   }
 
   Future<FlashResult> _writeLinux(
@@ -588,45 +584,113 @@ class FlashService {
     int? count,
     void Function(double progress, String message)? onProgress,
   }) async {
-    // On macOS, use rdisk for raw (faster) access — but only if not already rdisk
-    final rawDevice = Platform.isMacOS && !devicePath.contains('rdisk')
+    if (Platform.isMacOS) {
+      return _runDdPhaseMacOS(imagePath, devicePath, isCompressed,
+          skip: skip, seek: seek, count: count, onProgress: onProgress);
+    }
+    return _runDdPhaseLinux(imagePath, devicePath, isCompressed,
+        skip: skip, seek: seek, count: count, onProgress: onProgress);
+  }
+
+  /// macOS: use the diskwriter helper binary to get authorized raw disk access
+  /// via AuthorizationCreate + authopen fd-passing.
+  Future<void> _runDdPhaseMacOS(
+    String imagePath,
+    String devicePath,
+    bool isCompressed, {
+    int? skip,
+    int? seek,
+    int? count,
+    void Function(double progress, String message)? onProgress,
+  }) async {
+    final rawDevice = !devicePath.contains('rdisk')
         ? devicePath.replaceFirst('/dev/disk', '/dev/rdisk')
         : devicePath;
-    final diskName = rawDevice.replaceFirst('/dev/rdisk', '/dev/disk').replaceFirst('/dev/r', '/dev/');
+    final diskName = rawDevice.replaceFirst('/dev/rdisk', '/dev/disk');
 
     // Unmount the disk first (macOS auto-mounts)
-    if (Platform.isMacOS) {
-      debugPrint('Flash: unmounting $diskName');
-      final unmountResult = await Process.run('diskutil', ['unmountDisk', diskName]);
-      debugPrint('Flash: unmount result: ${unmountResult.exitCode} ${unmountResult.stderr}');
+    debugPrint('Flash: unmounting $diskName');
+    final unmountResult = await Process.run('diskutil', ['unmountDisk', diskName]);
+    debugPrint('Flash: unmount result: ${unmountResult.exitCode} ${unmountResult.stderr}');
+
+    // Locate the diskwriter binary bundled in the app
+    final diskwriterPath = await _getDiskwriterPath();
+    if (diskwriterPath == null) {
+      throw Exception('diskwriter binary not found in app bundle');
     }
 
-    final bs = Platform.isMacOS ? 'bs=4m' : 'bs=4M';
-    final oflag = Platform.isLinux ? 'oflag=direct' : '';
+    final dwArgs = <String>[
+      if (skip != null) '--skip=$skip',
+      if (seek != null) '--seek=$seek',
+      if (count != null) '--count=$count',
+      rawDevice,
+    ];
 
+    // Build the pipeline: decompress (if needed) | diskwriter
+    final String command;
+    if (isCompressed) {
+      command = 'gunzip -c "$imagePath" | "$diskwriterPath" ${dwArgs.join(' ')}';
+    } else {
+      command = 'cat "$imagePath" | "$diskwriterPath" ${dwArgs.join(' ')}';
+    }
+
+    debugPrint('Flash: running: $command');
+    final process = await Process.start('/bin/sh', ['-c', command]);
+
+    final stderrBuf = StringBuffer();
+    process.stdout.listen((_) {}); // drain stdout
+
+    await for (final chunk in process.stderr.transform(utf8.decoder)) {
+      stderrBuf.write(chunk);
+      // Parse progress lines: "PROGRESS:<bytes>"
+      for (final line in chunk.split('\n')) {
+        final progressMatch = RegExp(r'PROGRESS:(\d+)').firstMatch(line);
+        if (progressMatch != null) {
+          final bytes = int.tryParse(progressMatch.group(1)!);
+          if (bytes != null) {
+            final mb = bytes / (1024 * 1024);
+            onProgress?.call(0.5, '${mb.toStringAsFixed(1)} MB written');
+          }
+        }
+      }
+    }
+
+    final exitCode = await process.exitCode;
+    debugPrint('Flash: diskwriter exit code: $exitCode');
+    if (exitCode != 0) {
+      debugPrint('Flash: diskwriter output: $stderrBuf');
+      throw Exception('diskwriter failed with exit code $exitCode: $stderrBuf');
+    }
+  }
+
+  /// Linux: use dd directly (may need sudo configured separately)
+  Future<void> _runDdPhaseLinux(
+    String imagePath,
+    String devicePath,
+    bool isCompressed, {
+    int? skip,
+    int? seek,
+    int? count,
+    void Function(double progress, String message)? onProgress,
+  }) async {
     final ddParams = <String>[
-      bs,
+      'bs=4M',
       if (skip != null) 'skip=$skip',
       if (seek != null) 'seek=$seek',
       if (count != null) 'count=$count',
-      if (oflag.isNotEmpty) oflag,
+      'oflag=direct',
       'status=progress',
     ];
 
     final String command;
     if (isCompressed) {
-      command = 'gunzip -c "$imagePath" | dd of=$rawDevice ${ddParams.join(' ')} 2>&1';
+      command = 'gunzip -c "$imagePath" | dd of=$devicePath ${ddParams.join(' ')} 2>&1';
     } else {
-      command = 'dd if="$imagePath" of=$rawDevice ${ddParams.join(' ')} 2>&1';
+      command = 'dd if="$imagePath" of=$devicePath ${ddParams.join(' ')} 2>&1';
     }
 
-    // On macOS, raw disk writes need sudo even when running as root
-    // (macOS TCC/SIP restrictions). Use sudo which gets proper PAM context.
-    final sudoPrefix = Platform.isMacOS ? 'sudo ' : '';
-    final fullCommand = '${sudoPrefix}sh -c \'$command\'';
-
-    debugPrint('Flash: running: $fullCommand');
-    final process = await Process.start('/bin/sh', ['-c', fullCommand]);
+    debugPrint('Flash: running: $command');
+    final process = await Process.start('/bin/sh', ['-c', command]);
 
     final output = StringBuffer();
     await for (final line in process.stdout.transform(utf8.decoder)) {
@@ -645,6 +709,29 @@ class FlashService {
       debugPrint('Flash: dd output: $output');
       throw Exception('dd failed with exit code $exitCode');
     }
+  }
+
+  /// Locate the diskwriter binary in the macOS app bundle
+  Future<String?> _getDiskwriterPath() async {
+    // When running from Xcode / flutter run, the binary is in the app's Resources
+    final execDir = path.dirname(Platform.resolvedExecutable);
+    final candidates = [
+      // App bundle: .app/Contents/Resources/diskwriter
+      path.join(execDir, '..', 'Resources', 'diskwriter'),
+      // Development fallback: compiled in project directory
+      path.join(Directory.current.path, 'macos', 'Runner', 'diskwriter_bin'),
+    ];
+
+    for (final candidate in candidates) {
+      final file = File(candidate);
+      if (await file.exists()) {
+        debugPrint('Flash: found diskwriter at $candidate');
+        return candidate;
+      }
+    }
+
+    debugPrint('Flash: diskwriter not found, searched: $candidates');
+    return null;
   }
 
   Future<void> _runDdPhaseWindows(

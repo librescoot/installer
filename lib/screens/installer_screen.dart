@@ -277,7 +277,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
     return Scaffold(
       body: Column(
         children: [
-          if (!_isElevated && !_showElevatedHandoff && _currentPhase != InstallerPhase.welcome) _buildElevationWarning(l10n),
+          // Elevation warning only on Windows/Linux where it's relevant
+          if (!_isElevated && !Platform.isMacOS && _currentPhase != InstallerPhase.welcome) _buildElevationWarning(l10n),
           Expanded(
             child: Row(
               children: [
@@ -476,12 +477,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
               onPressed: _isProcessing || _downloadState.selectedRegion == null
                   ? null
                   : _startDownloadsAndContinue,
-              icon: !_isElevated && !Platform.isWindows
-                  ? const Icon(Icons.admin_panel_settings)
-                  : const Icon(Icons.arrow_forward),
-              label: Text(!_isElevated && !Platform.isWindows
-                  ? l10n.willAskForElevation
-                  : l10n.startInstallation),
+              icon: const Icon(Icons.arrow_forward),
+              label: Text(l10n.startInstallation),
             ),
           ),
         ],
@@ -602,31 +599,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     setState(() => _isProcessing = true);
 
-    // Elevate if needed (prompts for password, relaunches with selected options)
-    if (!_isElevated) {
-      _setStatus('Requesting administrator privileges...');
-      final extraArgs = LaunchArgs(
-        channel: _downloadState.channel.name,
-        region: _downloadState.selectedRegion?.slug,
-        lang: launchArgs.lang,
-        mdbImage: launchArgs.mdbImage,
-        dbcImage: launchArgs.dbcImage,
-        dryRun: launchArgs.dryRun,
-      ).toArgs();
-      final elevated = await ElevationService.elevateIfNeeded(extraArgs: extraArgs);
-      if (elevated) {
-        // Wait briefly for the elevated process to actually start
-        await Future.delayed(const Duration(seconds: 2));
-        // Verify it's running before we die
-        final ps = await Process.run('pgrep', ['-U', '0', 'librescoot_installer']);
-        if (ps.exitCode == 0) {
-          exit(0); // Elevated copy confirmed running, kill this process
-        }
-        // Elevated process not found — fall through and continue unelevated
-        debugPrint('Elevation: elevated process not found after launch, continuing unelevated');
-      }
-      // Failed to elevate — continue anyway, warn later
-    }
+    // On macOS, no self-elevation needed — diskwriter handles authorization
+    // via AuthorizationCreate + authopen when raw disk access is needed.
+    // On Windows, elevation is handled by UAC at app startup.
+    // On Linux, the app should be launched with sudo by the user.
 
     try {
       if (launchArgs.hasLocalImages) {
