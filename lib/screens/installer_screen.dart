@@ -110,28 +110,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _detectResumeState() async {
-    // Give USB detector time to find devices
-    await Future.delayed(const Duration(seconds: 2));
-    if (_device == null) return; // No device — start from beginning
-
-    if (_device!.mode == DeviceMode.massStorage) {
-      // MDB in UMS mode — resume from flash
-      _setPhase(InstallerPhase.mdbFlash);
-    } else if (_device!.mode == DeviceMode.ethernet) {
-      // MDB in RNDIS — check if LibreScoot or stock
-      try {
-        final iface = await NetworkService().findLibreScootInterface();
-        if (iface != null) {
-          await NetworkService().configureInterface(iface);
-        }
-        final info = await _sshService.connectToMdb();
-        if (info.firmwareVersion.toLowerCase().contains('librescoot')) {
-          _setPhase(InstallerPhase.cbbReconnect);
-        }
-      } catch (_) {
-        // Ignore — stay at welcome
-      }
-    }
+    // TODO: resume detection disabled for now — always start from welcome.
+    // Needs proper UX: show what was detected, let user confirm, ensure
+    // downloads are loaded and elevation is handled before resuming.
   }
 
   @override
