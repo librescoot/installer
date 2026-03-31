@@ -360,7 +360,7 @@ class SshService {
     // Check if the device already has fw_setenv and fw_env.config (LibreScoot).
     // If so, use the device's own tools and config (correct env offsets).
     // If not (stock scooterOS), upload our bundled versions.
-    final hasNativeFwSetenv = (await runCommand('test -x /usr/sbin/fw_setenv && echo yes || echo no')).trim() == 'yes';
+    final hasNativeFwSetenv = (await runCommand('command -v fw_setenv >/dev/null 2>&1 && echo yes || echo no')).trim() == 'yes';
     final hasNativeConfig = (await runCommand('test -f /etc/fw_env.config && echo yes || echo no')).trim() == 'yes';
 
     final String fwSetenvCmd;
@@ -393,13 +393,22 @@ class SshService {
 
     try {
       debugPrint('SSH: running: $fullBootcmd');
-      await runCommand(fullBootcmd);
+      final result = await runCommand(fullBootcmd);
+      debugPrint('SSH: fw_setenv bootcmd result: "$result"');
     } catch (e) {
-      debugPrint('SSH: full bootcmd failed, trying fallback: $e');
-      await runCommand(fallbackBootcmd);
+      debugPrint('SSH: full bootcmd failed ($e), trying fallback...');
+      final result = await runCommand(fallbackBootcmd);
+      debugPrint('SSH: fallback fw_setenv result: "$result"');
     }
 
-    await runCommand('$fwSetenvCmd $configFlag bootdelay 0');
+    // Give fw_setenv time to flush to eMMC
+    await Future.delayed(const Duration(seconds: 2));
+
+    final delayResult = await runCommand('$fwSetenvCmd $configFlag bootdelay 0');
+    debugPrint('SSH: fw_setenv bootdelay result: "$delayResult"');
+
+    // Give fw_setenv time to flush
+    await Future.delayed(const Duration(seconds: 2));
     debugPrint('SSH: bootloader configured for mass storage mode');
   }
 

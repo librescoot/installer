@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../main.dart' show LaunchArgs, launchArgs;
+import '../main.dart' show LaunchArgs, installerLog, launchArgs;
 import '../l10n/app_localizations.dart';
 import '../models/download_state.dart';
 import '../models/installer_phase.dart';
@@ -28,7 +28,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
   InstallerPhase _currentPhase = InstallerPhase.welcome;
   final Set<InstallerPhase> _completedPhases = {};
   String _statusMessage = '';
-  final List<String> _logMessages = [];
   bool _isProcessing = false;
   double _progress = 0.0;
   bool _isElevated = false;
@@ -180,7 +179,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   void _setStatus(String message, {double? progress}) {
     if (message.isNotEmpty) {
-      _logMessages.add('${DateTime.now().toIso8601String().substring(11, 19)} $message');
+      installerLog.add('${DateTime.now().toIso8601String().substring(11, 19)} $message');
     }
     setState(() {
       _statusMessage = message;
@@ -197,14 +196,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
           width: 600,
           height: 400,
           child: SelectableText(
-            _logMessages.join('\n'),
+            installerLog.join('\n'),
             style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () {
-              Clipboard.setData(ClipboardData(text: _logMessages.join('\n')));
+              Clipboard.setData(ClipboardData(text: installerLog.join('\n')));
               Navigator.pop(ctx);
             },
             child: const Text('Copy to clipboard'),
@@ -304,7 +303,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
               '${(_progress * 100).toStringAsFixed(0)}%',
               style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
             ),
-          if (_logMessages.isNotEmpty)
+          if (installerLog.isNotEmpty)
             IconButton(
               onPressed: _showLogDialog,
               icon: Icon(Icons.article_outlined, size: 16, color: Colors.grey.shade600),

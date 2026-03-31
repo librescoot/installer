@@ -1,7 +1,11 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'l10n/app_localizations.dart';
 import 'screens/installer_screen.dart';
+
+/// Global log buffer accessible from anywhere.
+final List<String> installerLog = [];
 
 /// CLI args passed from unelevated → elevated process.
 class LaunchArgs {
@@ -41,6 +45,16 @@ late final LaunchArgs launchArgs;
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   launchArgs = LaunchArgs.fromArgs(args);
+
+  // Capture all debugPrint output into the global log
+  final originalDebugPrint = debugPrint;
+  debugPrint = (String? message, {int? wrapWidth}) {
+    if (message != null) {
+      final ts = DateTime.now().toIso8601String().substring(11, 19);
+      installerLog.add('$ts $message');
+    }
+    originalDebugPrint(message, wrapWidth: wrapWidth);
+  };
 
   // If we were launched as the elevated process, bring ourselves to front
   if (launchArgs.autoStart && Platform.isMacOS) {
