@@ -176,6 +176,18 @@ static int authorize_and_open(const char *device_path) {
 
 // Write data from an input fd to the device fd with skip/seek/count support.
 // Returns 0 on success, non-zero on failure.
+// Read exactly n bytes from fd, handling partial reads from pipes.
+static ssize_t read_exact(int fd, void *buf, size_t n) {
+    size_t total = 0;
+    while (total < n) {
+        ssize_t r = read(fd, (char *)buf + total, n - total);
+        if (r < 0) return -1;
+        if (r == 0) break;  // EOF
+        total += r;
+    }
+    return (ssize_t)total;
+}
+
 static int write_phase(int device_fd, int input_fd, int skip_blocks, int seek_blocks, int count_blocks, const char *phase_name) {
     char buf[BLOCK_SIZE];
 
@@ -191,24 +203,26 @@ static int write_phase(int device_fd, int input_fd, int skip_blocks, int seek_bl
         lseek(device_fd, 0, SEEK_SET);
     }
 
-    // Skip input blocks
+    // Skip input blocks (read exactly BLOCK_SIZE per block)
     for (int i = 0; i < skip_blocks; i++) {
-        ssize_t r = read(input_fd, buf, BLOCK_SIZE);
-        if (r <= 0) {
-            fprintf(stderr, "%s: failed to skip block %d\n", phase_name, i);
+        ssize_t r = read_exact(input_fd, buf, BLOCK_SIZE);
+        if (r < BLOCK_SIZE) {
+            fprintf(stderr, "%s: failed to skip block %d (got %zd bytes)\n", phase_name, i, r);
             return 1;
         }
     }
     if (skip_blocks > 0) {
-        fprintf(stderr, "%s: skipped %d input blocks\n", phase_name, skip_blocks);
+        fprintf(stderr, "%s: skipped %d input blocks (%lld bytes)\n", phase_name, skip_blocks, (long long)skip_blocks * BLOCK_SIZE);
     }
 
-    // Write
+    // Write full blocks
     off_t total_written = 0;
     int blocks_written = 0;
-    ssize_t bytes_read;
 
-    while ((bytes_read = read(input_fd, buf, BLOCK_SIZE)) > 0) {
+    while (count_blocks < 0 || blocks_written < count_blocks) {
+        ssize_t bytes_read = read_exact(input_fd, buf, BLOCK_SIZE);
+        if (bytes_read <= 0) break;  // EOF or error
+
         ssize_t wr = 0;
         while (wr < bytes_read) {
             ssize_t w = write(device_fd, buf + wr, bytes_read - wr);
@@ -273,6 +287,11 @@ int main(int argc, char *argv[]) {
     }
 
     fprintf(stderr, "Got authorized fd %d for %s\n", device_fd, device_path);
+
+    // Bypass buffer cache (equivalent to oflag=direct)
+    if (fcntl(device_fd, F_NOCACHE, 1) < 0) {
+        fprintf(stderr, "Warning: F_NOCACHE failed: %s\n", strerror(errno));
+    }
 
     if (two_phase && image_path) {
         // Two-phase flash: partitions first (safe), boot sector last (commits).
