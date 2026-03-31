@@ -888,11 +888,34 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _setStatus(l10n.rebootingMdbUms);
       await _sshService.reboot();
       _setStatus(l10n.waitingForUmsDevice);
-      await _waitForDevice(DeviceMode.massStorage);
-      _setPhase(InstallerPhase.mdbFlash);
+      final found = await _waitForDevice(DeviceMode.massStorage, timeout: const Duration(seconds: 30));
+      if (found) {
+        _setPhase(InstallerPhase.mdbFlash);
+      } else {
+        // UMS didn't appear — MDB probably booted back into Linux.
+        // Try to reconnect via SSH and let the user retry.
+        _setStatus('UMS device not found. MDB may have booted normally. Reconnecting...');
+        try {
+          await _waitForDevice(DeviceMode.ethernet, timeout: const Duration(seconds: 30));
+          final iface = await NetworkService().findLibreScootInterface();
+          if (iface != null) await NetworkService().configureInterface(iface);
+          await _sshService.loadDeviceConfig('assets');
+          await _sshService.connectToMdb();
+          _setStatus('MDB reconnected. fw_setenv may have failed — check bootloader config and retry.');
+        } catch (_) {
+          _setStatus('Could not reconnect to MDB. Check USB connection.');
+        }
+        setState(() {
+          _isProcessing = false;
+          _mdbToUmsStarted = false; // allow retry
+        });
+      }
     } catch (e) {
       _setStatus(l10n.errorPrefix(e.toString()));
-      setState(() => _isProcessing = false);
+      setState(() {
+        _isProcessing = false;
+        _mdbToUmsStarted = false;
+      });
     }
   }
 
