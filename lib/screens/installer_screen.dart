@@ -110,9 +110,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _detectResumeState() async {
-    // TODO: resume detection disabled for now — always start from welcome.
-    // Needs proper UX: show what was detected, let user confirm, ensure
-    // downloads are loaded and elevation is handled before resuming.
+    await Future.delayed(const Duration(seconds: 2));
+    if (_device == null) return;
+
+    if (_device!.mode == DeviceMode.massStorage) {
+      // MDB is in UMS mode — flashing is the only path forward.
+      // But we need firmware. Show a status message on the welcome screen
+      // so the user knows they need to select channel/region and start.
+      _setStatus('MDB detected in UMS mode — select firmware and start to flash.');
+    }
+    // Don't auto-advance for RNDIS — user goes through the normal flow.
   }
 
   @override
