@@ -35,6 +35,27 @@ class TrampolineService {
     return template;
   }
 
+  /// Check if a remote file exists and matches the local file's md5.
+  Future<bool> _remoteFileMatches(String localPath, String remotePath) async {
+    try {
+      // Get local md5
+      final localResult = await Process.run('md5sum', [localPath]);
+      if (localResult.exitCode != 0) return false;
+      final localMd5 = localResult.stdout.toString().split(' ').first.trim();
+
+      // Get remote md5
+      final remoteMd5 = (await _ssh.runCommand('md5sum "$remotePath" 2>/dev/null')).trim().split(' ').first;
+
+      final match = localMd5.isNotEmpty && localMd5 == remoteMd5;
+      if (match) {
+        debugPrint('Trampoline: $remotePath already exists and matches (md5=$localMd5)');
+      }
+      return match;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Upload DBC image, tiles, and trampoline script to MDB.
   Future<void> uploadAll({
     required String dbcImageLocalPath,
@@ -55,16 +76,80 @@ class TrampolineService {
       filesToUpload.add(MapEntry(valhallaTilesLocalPath, '/data/${region.valhallaTilesFilename}'));
     }
 
-    var uploaded = 0;
+    // Check which files need uploading
+    onProgress?.call('Checking existing files...', 0.0);
+    final needsUpload = <bool>[];
+    final fileSizes = <int>[];
+    var totalBytes = 0;
     for (final entry in filesToUpload) {
+      final size = await File(entry.key).length();
+      fileSizes.add(size);
       final filename = File(entry.key).uri.pathSegments.last;
-      onProgress?.call('Uploading $filename...', uploaded / filesToUpload.length);
-      final bytes = await File(entry.key).readAsBytes();
-      await _ssh.uploadFile(Uint8List.fromList(bytes), entry.value);
-      uploaded++;
+      onProgress?.call('Checking $filename...', 0.0);
+      final matches = await _remoteFileMatches(entry.key, entry.value);
+      needsUpload.add(!matches);
+      if (!matches) totalBytes += size;
     }
 
-    onProgress?.call('Uploading trampoline script...', 0.95);
+    if (totalBytes == 0) {
+      onProgress?.call('All files already on device', 0.95);
+    } else {
+      final skipped = needsUpload.where((n) => !n).length;
+      if (skipped > 0) {
+        debugPrint('Trampoline: skipping $skipped files that already match');
+      }
+
+      var bytesSoFar = 0;
+      for (var i = 0; i < filesToUpload.length; i++) {
+        if (!needsUpload[i]) continue;
+
+        final entry = filesToUpload[i];
+        final filename = File(entry.key).uri.pathSegments.last;
+        onProgress?.call('Uploading $filename...', bytesSoFar / totalBytes);
+        final bytes = await File(entry.key).readAsBytes();
+        final baseBytes = bytesSoFar;
+        await _ssh.uploadFile(
+          Uint8List.fromList(bytes),
+          entry.value,
+          onProgress: (sent, total) {
+            final overall = (baseBytes + sent) / totalBytes;
+            final mb = sent / (1024 * 1024);
+            final totalMb = total / (1024 * 1024);
+            onProgress?.call(
+              'Uploading $filename... ${mb.toStringAsFixed(0)}/${totalMb.toStringAsFixed(0)} MB',
+              overall,
+            );
+          },
+        );
+        bytesSoFar += fileSizes[i];
+      }
+    }
+
+    // Upload stock DBC fw_setenv binary + DBC-specific fw_env config
+    // These are the DBC-specific versions (different binary than MDB)
+    onProgress?.call('Uploading DBC tools...', 0.96);
+    try {
+      await _ssh.runCommand('mkdir -p /data/fwtools/stock-dbc');
+
+      final stockFwSetenv = await rootBundle.load('assets/tools/fw_setenv-dbc');
+      await _ssh.uploadFile(
+        stockFwSetenv.buffer.asUint8List(),
+        '/data/fwtools/stock-dbc/fw_setenv',
+      );
+      // Make executable
+      await _ssh.runCommand('chmod +x /data/fwtools/stock-dbc/fw_setenv');
+
+      final dbcFwEnvConfig = await rootBundle.load('assets/tools/fw_env-dbc.config');
+      await _ssh.uploadFile(
+        dbcFwEnvConfig.buffer.asUint8List(),
+        '/data/fwtools/stock-dbc/fw_env.config',
+      );
+    } catch (e) {
+      debugPrint('Trampoline: failed to upload DBC tools: $e');
+    }
+
+    // Always regenerate the trampoline script (small, config may have changed)
+    onProgress?.call('Uploading trampoline script...', 0.98);
     final dbcRemotePath = '/data/$dbcFilename';
     final script = await generateScript(
       dbcImagePath: dbcRemotePath,

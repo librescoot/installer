@@ -57,6 +57,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _reconnectStarted = false;
   bool _showElevatedHandoff = false;
   bool _dbcFlashSimulateError = false;
+  bool _cbbCheckFailed = false;
+  DeviceInfo? _mdbInfo;
+  bool _skipMdbFlash = false;
+  bool _skipDbcFlash = false;
+  bool _isCriticalOperation = false; // prevent quit during flash/upload
 
   StreamSubscription<UsbDevice?>? _deviceSub;
 
@@ -271,14 +276,30 @@ class _InstallerScreenState extends State<InstallerScreen> {
     );
   }
 
+  void _setCritical(bool critical) {
+    if (_isCriticalOperation == critical) return;
+    setState(() => _isCriticalOperation = critical);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return Scaffold(
+    return PopScope(
+      canPop: !_isCriticalOperation,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _isCriticalOperation) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Cannot quit while flashing is in progress'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      },
+      child: Scaffold(
       body: Column(
         children: [
-          // Elevation warning only on Windows/Linux where it's relevant
-          if (!_isElevated && !Platform.isMacOS && _currentPhase != InstallerPhase.welcome) _buildElevationWarning(l10n),
+          // Elevation is handled at flash time via pkexec/sudo, no warning needed
           Expanded(
             child: Row(
               children: [
@@ -304,6 +325,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -730,6 +752,17 @@ class _InstallerScreenState extends State<InstallerScreen> {
           ],
           Text(_statusMessage.isEmpty ? l10n.waitingForUsbDevice : _statusMessage,
               style: TextStyle(color: Colors.grey.shade400)),
+          if (!_isProcessing && !_mdbConnectStarted) ...[
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () {
+                setState(() => _mdbConnectStarted = true);
+                Future.microtask(_autoConnectMdb);
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+            ),
+          ],
         ],
       ),
     );
@@ -786,13 +819,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
     _setStatus(l10n.connectingSsh);
     try {
       await _sshService.loadDeviceConfig('assets');
-      await _sshService.connectToMdb();
+      final info = await _sshService.connectToMdb();
+      setState(() => _mdbInfo = info);
+      debugPrint('SSH: firmware=${info.firmwareVersion}, serial=${info.serialNumber ?? "unknown"}');
       _setStatus(l10n.connected);
       setState(() => _isProcessing = false);
       _setPhase(InstallerPhase.healthCheck);
     } catch (e) {
       _setStatus(l10n.sshConnectionFailed(e.toString()));
-      setState(() => _isProcessing = false);
+      setState(() { _isProcessing = false; _mdbConnectStarted = false; });
     }
   }
 
@@ -843,50 +878,114 @@ class _InstallerScreenState extends State<InstallerScreen> {
     return true;
   }
 
+  bool get _isLibreScootFirmware {
+    final v = _mdbInfo?.firmwareVersion ?? '';
+    return v.contains('librescoot') || v.contains('nightly') ||
+        v.contains('testing') || v.contains('stable');
+  }
+
   Widget _buildHealthCheck(AppLocalizations l10n) {
     if (!_healthCheckStarted && _scooterHealth == null && !_isProcessing) {
       _healthCheckStarted = true;
       Future.microtask(_runHealthCheck);
     }
 
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(l10n.healthCheckHeading,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text(l10n.verifyingReadiness,
-              style: TextStyle(color: Colors.grey.shade400)),
-          const SizedBox(height: 24),
-          if (_scooterHealth != null)
-            SizedBox(width: 400, child: HealthCheckPanel(health: _scooterHealth!)),
-          const SizedBox(height: 24),
-          if (_scooterHealth != null && _scooterHealth!.allOk)
-            FilledButton.icon(
-              onPressed: () => _setPhase(InstallerPhase.batteryRemoval),
-              icon: const Icon(Icons.arrow_forward),
-              label: Text(l10n.continueButton),
-            ),
-          if (_scooterHealth != null && !_scooterHealth!.allOk) ...[
-            OutlinedButton.icon(
-              onPressed: () {
-                setState(() {
-                  _scooterHealth = null;
-                  _healthCheckStarted = false;
-                });
-              },
-              icon: const Icon(Icons.refresh),
-              label: Text(l10n.retryButton),
-            ),
+    void proceed() {
+      if (_skipMdbFlash) {
+        // Skip MDB flash entirely — jump to after MDB boot
+        if (_skipDbcFlash) {
+          _setPhase(InstallerPhase.finish);
+        } else {
+          _setPhase(InstallerPhase.cbbReconnect);
+        }
+      } else {
+        _setPhase(InstallerPhase.batteryRemoval);
+      }
+    }
+
+    return SingleChildScrollView(
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(l10n.healthCheckHeading,
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            TextButton(
-              onPressed: () => _setPhase(InstallerPhase.batteryRemoval),
-              child: Text(l10n.proceedAtOwnRisk,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-            ),
+            if (_mdbInfo != null)
+              Text('Firmware: ${_mdbInfo!.firmwareVersion}',
+                  style: TextStyle(color: Colors.grey.shade400)),
+            const SizedBox(height: 8),
+            Text(l10n.verifyingReadiness,
+                style: TextStyle(color: Colors.grey.shade400)),
+            const SizedBox(height: 24),
+            if (_scooterHealth != null)
+              SizedBox(width: 400, child: HealthCheckPanel(health: _scooterHealth!)),
+
+            // LibreScoot detected — offer to skip MDB reflash
+            if (_scooterHealth != null && _isLibreScootFirmware) ...[
+              const SizedBox(height: 24),
+              Container(
+                width: 400,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.teal.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.teal.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('LibreScoot firmware detected',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+                    const SizedBox(height: 12),
+                    CheckboxListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Skip MDB reflash'),
+                      subtitle: const Text('Keep current MDB firmware'),
+                      value: _skipMdbFlash,
+                      onChanged: (v) => setState(() => _skipMdbFlash = v ?? false),
+                    ),
+                    CheckboxListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Skip DBC flash'),
+                      subtitle: const Text('Only flash MDB, skip DBC entirely'),
+                      value: _skipDbcFlash,
+                      onChanged: (v) => setState(() => _skipDbcFlash = v ?? false),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 24),
+            if (_scooterHealth != null && _scooterHealth!.allOk)
+              FilledButton.icon(
+                onPressed: proceed,
+                icon: const Icon(Icons.arrow_forward),
+                label: Text(l10n.continueButton),
+              ),
+            if (_scooterHealth != null && !_scooterHealth!.allOk) ...[
+              OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _scooterHealth = null;
+                    _healthCheckStarted = false;
+                  });
+                },
+                icon: const Icon(Icons.refresh),
+                label: Text(l10n.retryButton),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: proceed,
+                child: Text(l10n.proceedAtOwnRisk,
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -1096,6 +1195,19 @@ class _InstallerScreenState extends State<InstallerScreen> {
               ],
             ),
           ),
+          if (!_isProcessing && !_mdbFlashStarted) ...[
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () {
+                setState(() {
+                  _mdbFlashStarted = true;
+                });
+                Future.microtask(_flashMdb);
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+            ),
+          ],
         ],
       ),
     );
@@ -1104,6 +1216,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _flashMdb() async {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
+    _setCritical(true);
 
     if (_isDryRun) {
       for (var i = 0; i <= 10; i++) {
@@ -1149,12 +1262,35 @@ class _InstallerScreenState extends State<InstallerScreen> {
         },
       );
 
+      _setCritical(false);
       _setStatus(l10n.mdbFlashComplete);
       await Future.delayed(const Duration(seconds: 1));
       _setPhase(InstallerPhase.scooterPrep);
     } catch (e) {
-      _setStatus(l10n.flashError(e.toString()));
-      setState(() => _isProcessing = false);
+      _setCritical(false);
+      // Diagnose: is the device still present and what state is it in?
+      String diagnosis = e.toString();
+      if (_device == null) {
+        diagnosis += '\n\nDevice disconnected. Reconnect USB and retry.';
+      } else if (_device!.mode == DeviceMode.massStorage) {
+        final devName = _device!.path.split('/').last;
+        final sizeCheck = await Process.run('cat', ['/sys/block/$devName/size']);
+        final size = int.tryParse(sizeCheck.stdout.toString().trim()) ?? 0;
+        if (size == 0) {
+          diagnosis += '\n\nDevice is connected but reports 0 size. '
+              'Power cycle the board and retry.';
+        } else {
+          diagnosis += '\n\nDevice is still available — you can retry.';
+        }
+      } else {
+        diagnosis += '\n\nDevice is in ${_device!.mode.name} mode, not mass storage. '
+            'Power cycle the board to re-enter UMS mode.';
+      }
+      _setStatus(diagnosis);
+      setState(() {
+        _isProcessing = false;
+        _mdbFlashStarted = false;
+      });
     }
   }
 
@@ -1247,6 +1383,17 @@ class _InstallerScreenState extends State<InstallerScreen> {
           const SizedBox(height: 8),
           Text(_statusMessage.isEmpty ? l10n.waitingForUsbDevice : _statusMessage,
               style: TextStyle(color: Colors.grey.shade400)),
+          if (!_isProcessing && !_mdbBootStarted) ...[
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () {
+                setState(() => _mdbBootStarted = true);
+                Future.microtask(_waitForMdbBoot);
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+            ),
+          ],
         ],
       ),
     );
@@ -1302,11 +1449,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
     try {
       await _sshService.connectToMdb();
-      _setPhase(InstallerPhase.cbbReconnect);
+      if (_skipDbcFlash) {
+        _setPhase(InstallerPhase.finish);
+      } else {
+        _setPhase(InstallerPhase.cbbReconnect);
+      }
     } catch (e) {
       _setStatus(l10n.sshReconnectionFailed(e.toString()));
     }
-    setState(() => _isProcessing = false);
+    setState(() { _isProcessing = false; _mdbBootStarted = false; });
   }
 
   Future<bool> _pingMdb() async {
@@ -1339,11 +1490,19 @@ class _InstallerScreenState extends State<InstallerScreen> {
             const CircularProgressIndicator(),
             const SizedBox(height: 8),
             Text(_statusMessage, style: TextStyle(color: Colors.grey.shade400)),
-          ] else
+          ] else ...[
             FilledButton(
               onPressed: _waitForCbb,
               child: Text(l10n.verifyCbbConnection),
             ),
+            if (_cbbCheckFailed) ...[
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => _setPhase(InstallerPhase.dbcPrep),
+                child: const Text('Proceed without CBB'),
+              ),
+            ],
+          ],
         ],
       ),
     );
@@ -1373,7 +1532,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
       if (!mounted) return;
     }
     _setStatus(l10n.cbbNotDetected);
-    setState(() => _isProcessing = false);
+    setState(() {
+      _isProcessing = false;
+      _cbbCheckFailed = true;
+    });
   }
 
   Widget _buildDbcPrep(AppLocalizations l10n) {
@@ -1398,6 +1560,17 @@ class _InstallerScreenState extends State<InstallerScreen> {
               ],
             ),
           ),
+          if (!_isProcessing && !_dbcPrepStarted) ...[
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () {
+                setState(() => _dbcPrepStarted = true);
+                Future.microtask(_uploadDbcFiles);
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+            ),
+          ],
         ],
       ),
     );
@@ -1406,6 +1579,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _uploadDbcFiles() async {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
+    _setCritical(true);
 
     if (_isDryRun) {
       _setStatus('[DRY RUN] Simulating DBC upload...');
@@ -1441,11 +1615,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
       _setStatus(l10n.startingTrampoline);
       await trampolineService.start();
+      _setCritical(false);
       await Future.delayed(const Duration(seconds: 1));
       _setPhase(InstallerPhase.dbcFlash);
     } catch (e) {
+      _setCritical(false);
       _setStatus(l10n.uploadError(e.toString()));
-      setState(() => _isProcessing = false);
+      setState(() {
+        _isProcessing = false;
+        _dbcPrepStarted = false;
+      });
     }
   }
 
@@ -1487,6 +1666,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                   _ledSignal(l10n.ledFrontRingPulse, l10n.ledFrontRingPulseMeaning),
                   _ledSignal(l10n.ledFrontRingSolid, l10n.ledFrontRingSolidMeaning),
                   _ledSignal(l10n.ledBlinkerProgress, l10n.ledBlinkerProgressMeaning),
+                  _ledSignal('Boot LED amber', 'Flashing in progress'),
                   _ledSignal(l10n.ledBootGreen, l10n.ledBootGreenMeaning),
                   _ledSignal(l10n.ledHazardFlashers, l10n.ledHazardFlashersMeaning),
                 ],
@@ -1548,6 +1728,22 @@ class _InstallerScreenState extends State<InstallerScreen> {
           const SizedBox(height: 8),
           Text(_statusMessage.isEmpty ? l10n.reconnectUsbToLaptop : _statusMessage,
               style: TextStyle(color: Colors.grey.shade400)),
+          if (!_isProcessing && !_reconnectStarted) ...[
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () {
+                setState(() => _reconnectStarted = true);
+                Future.microtask(_verifyDbcFlash);
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => _setPhase(InstallerPhase.finish),
+              child: const Text('Skip to finish'),
+            ),
+          ],
         ],
       ),
     );
@@ -1609,7 +1805,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       await _sshService.connectToMdb();
     } catch (e) {
       _setStatus(l10n.sshConnectionFailed(e.toString()));
-      setState(() => _isProcessing = false);
+      setState(() { _isProcessing = false; _reconnectStarted = false; });
       return;
     }
 
@@ -1637,10 +1833,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
           ),
         );
       }
-      setState(() => _isProcessing = false);
+      setState(() { _isProcessing = false; _reconnectStarted = false; });
     } else {
       _setStatus(l10n.trampolineStatusUnknown);
-      setState(() => _isProcessing = false);
+      setState(() { _isProcessing = false; _reconnectStarted = false; });
     }
   }
 
