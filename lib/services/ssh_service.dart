@@ -51,7 +51,9 @@ class SshService {
       debugPrint('SSH: loading device config (dev fallback)');
       yamlContent = await plainFile.readAsString();
     } else {
-      throw Exception('Device config not found at $assetsPath');
+      debugPrint('SSH: no device config found at $assetsPath (empty password may still work)');
+      _deviceConfig = {};
+      return;
     }
 
     final yaml = loadYaml(yamlContent) as YamlMap;
@@ -127,6 +129,11 @@ class SshService {
         username: sshUser,
         onPasswordRequest: () {
           authAttempts++;
+          // First attempt: try empty password (LibreScoot boards have no root password)
+          if (authAttempts == 1) {
+            debugPrint('SSH: auth attempt #1 — trying empty password');
+            return '';
+          }
           final credential = _resolveDeviceCredential(authVersion);
           debugPrint('SSH: auth attempt #$authAttempts for version $authVersion');
           return credential;
@@ -230,7 +237,11 @@ class SshService {
 
   String _normalizeVersion(String raw) {
     final trimmed = raw.trim();
-    return trimmed.startsWith('v') ? trimmed : 'v$trimmed';
+    // Only add 'v' prefix for semver-like versions (e.g. 1.15.0), not channel tags
+    if (trimmed.startsWith('v') || !RegExp(r'^\d').hasMatch(trimmed)) {
+      return trimmed;
+    }
+    return 'v$trimmed';
   }
 
   String? _extractVersionFromText(String text) {
@@ -249,8 +260,9 @@ class SshService {
   }
 
   String _resolveDeviceCredential(String version) {
-    if (_deviceConfig == null) {
-      throw Exception('Device config not loaded. Call loadDeviceConfig() first.');
+    if (_deviceConfig == null || _deviceConfig!.isEmpty) {
+      debugPrint('SSH: no device config available, returning empty password');
+      return '';
     }
 
     final normalized = _normalizeVersion(version);
@@ -333,22 +345,72 @@ class SshService {
     return stdout.toString();
   }
 
-  /// Upload a file to the device
-  Future<void> uploadFile(Uint8List content, String remotePath) async {
+  /// Upload a file to the device via SFTP with progress reporting.
+  /// Falls back to cat-over-stdin if SFTP is unavailable.
+  Future<void> uploadFile(
+    Uint8List content,
+    String remotePath, {
+    void Function(int bytesSent, int totalBytes)? onProgress,
+  }) async {
     if (_client == null) {
       throw Exception('Not connected');
     }
 
-    // Use cat to write file content via stdin
-    final session = await _client!.execute('cat > $remotePath');
-    session.stdin.add(content);
-    await session.stdin.close();
-    await session.done;
+    try {
+      await _uploadViaSftp(content, remotePath, onProgress);
+    } catch (e) {
+      debugPrint('SSH: SFTP upload failed ($e), falling back to cat');
+      await _uploadViaCat(content, remotePath);
+    }
 
     // Make executable if needed
     if (remotePath.endsWith('.sh') || remotePath.contains('fw_setenv')) {
       await runCommand('chmod +x $remotePath');
     }
+  }
+
+  Future<void> _uploadViaSftp(
+    Uint8List content,
+    String remotePath,
+    void Function(int bytesSent, int totalBytes)? onProgress,
+  ) async {
+    final sftp = await _client!.sftp();
+    try {
+      final file = await sftp.open(
+        remotePath,
+        mode: SftpFileOpenMode.write | SftpFileOpenMode.create | SftpFileOpenMode.truncate,
+      );
+      try {
+        const chunkSize = 64 * 1024;
+        final stream = Stream<Uint8List>.fromIterable(
+          Iterable.generate(
+            (content.length + chunkSize - 1) ~/ chunkSize,
+            (i) {
+              final start = i * chunkSize;
+              final end = (start + chunkSize).clamp(0, content.length);
+              return Uint8List.sublistView(content, start, end);
+            },
+          ),
+        );
+
+        final writer = file.write(
+          stream,
+          onProgress: (total) => onProgress?.call(total, content.length),
+        );
+        await writer.done;
+      } finally {
+        await file.close();
+      }
+    } finally {
+      sftp.close();
+    }
+  }
+
+  Future<void> _uploadViaCat(Uint8List content, String remotePath) async {
+    final session = await _client!.execute('cat > $remotePath');
+    session.stdin.add(content);
+    await session.stdin.close();
+    await session.done;
   }
 
   /// Upload fw_setenv and configure bootloader for mass storage mode

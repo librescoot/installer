@@ -240,6 +240,9 @@ class DownloadService {
       }
     }
 
+    // Sort by enum index so downloads proceed in priority order:
+    // MDB firmware -> DBC firmware -> OSM tiles -> routing tiles
+    items.sort((a, b) => a.type.index.compareTo(b.type.index));
     return items;
   }
 

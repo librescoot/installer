@@ -1,4 +1,4 @@
-enum TrampolineResult { success, error, unknown }
+enum TrampolineResult { success, rebooting, error, unknown }
 
 class TrampolineStatus {
   TrampolineStatus({
@@ -16,7 +16,7 @@ class TrampolineStatus {
     if (lines.isEmpty) return TrampolineStatus(result: TrampolineResult.unknown);
 
     final resultLine = lines.first.trim().toLowerCase();
-    if (resultLine == 'success') {
+    if (resultLine == 'success' || resultLine == 'rebooting') {
       return TrampolineStatus(
         result: TrampolineResult.success,
         message: lines.length > 1 ? lines.sublist(1).join('\n') : null,

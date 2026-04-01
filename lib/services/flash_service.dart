@@ -92,7 +92,7 @@ class FlashService {
       if (isCompressed) {
         return [
           'umount <partitions of $devicePath>',
-          'gunzip -c "$imagePath" | sudo dd of="$devicePath" bs=4M oflag=direct status=progress',
+          'gunzip -c "$imagePath" | sudo dd of="$devicePath" bs=4M iflag=fullblock oflag=direct status=progress',
           'sync',
         ].join('\n');
       }
@@ -422,7 +422,6 @@ class FlashService {
 
     onProgress?.call(0.9, 'Syncing...');
     await Process.run('sync', []);
-    await Process.run('diskutil', ['eject', diskName]);
 
     onProgress?.call(1.0, 'Complete');
     return FlashResult(success: true);
@@ -455,7 +454,7 @@ class FlashService {
   ) async {
     onProgress?.call(0.1, 'Unmounting partitions...');
 
-    // Unmount any partitions
+    // Unmount any partitions before writing
     final partitions = await _findLinuxPartitions(devicePath);
     for (final partition in partitions) {
       await Process.run('umount', [partition]);
@@ -469,7 +468,7 @@ class FlashService {
         'sh',
         [
           '-c',
-          'gunzip -c "$imagePath" | dd of="$devicePath" bs=4M oflag=direct status=progress',
+          'gunzip -c "$imagePath" | dd of="$devicePath" bs=4M iflag=fullblock oflag=direct status=progress',
         ],
       );
     } else {
@@ -597,28 +596,8 @@ class FlashService {
       onProgress?.call(1.0, 'Syncing...');
       await Process.run('sync', []);
     } else {
-      // Linux: two separate dd phases
-      onProgress?.call(0.0, 'Phase A: Writing partitions...');
-      await _runDdPhase(
-        imagePath: imagePath,
-        devicePath: devicePath,
-        isCompressed: isCompressed,
-        skip: bootAreaBlocks,
-        seek: bootAreaBlocks,
-        onProgress: (p, msg) => onProgress?.call(p * 0.9, 'Phase A: $msg'),
-      );
-
-      onProgress?.call(0.9, 'Phase B: Writing boot sector...');
-      await _runDdPhase(
-        imagePath: imagePath,
-        devicePath: devicePath,
-        isCompressed: isCompressed,
-        count: bootAreaBlocks,
-        onProgress: (p, msg) => onProgress?.call(0.9 + p * 0.1, 'Phase B: $msg'),
-      );
-
-      onProgress?.call(1.0, 'Syncing...');
-      await Process.run('sync', []);
+      // Linux: single pkexec elevation for both dd phases + verify
+      await _writeTwoPhaseLinux(imagePath, devicePath, isCompressed, onProgress);
     }
   }
 
@@ -726,7 +705,7 @@ class FlashService {
     }
   }
 
-  /// Linux: use dd directly (may need sudo configured separately)
+  /// Linux: use dd, elevating via pkexec if not already root.
   Future<void> _runDdPhaseLinux(
     String imagePath,
     String devicePath,
@@ -736,6 +715,9 @@ class FlashService {
     int? count,
     void Function(double progress, String message)? onProgress,
   }) async {
+    final isRoot = Platform.environment['USER'] == 'root' ||
+        (await Process.run('id', ['-u'])).stdout.toString().trim() == '0';
+
     final ddParams = <String>[
       'bs=4M',
       if (skip != null) 'skip=$skip',
@@ -745,11 +727,14 @@ class FlashService {
       'status=progress',
     ];
 
+    // When not root, wrap dd in pkexec for a one-time auth prompt
+    final ddPrefix = isRoot ? 'dd' : 'pkexec dd';
+
     final String command;
     if (isCompressed) {
-      command = 'gunzip -c "$imagePath" | dd of=$devicePath ${ddParams.join(' ')} 2>&1';
+      command = 'gunzip -c "$imagePath" | $ddPrefix of=$devicePath iflag=fullblock ${ddParams.join(' ')} 2>&1';
     } else {
-      command = 'dd if="$imagePath" of=$devicePath ${ddParams.join(' ')} 2>&1';
+      command = '$ddPrefix if="$imagePath" of=$devicePath ${ddParams.join(' ')} 2>&1';
     }
 
     debugPrint('Flash: running: $command');
@@ -795,6 +780,160 @@ class FlashService {
 
     debugPrint('Flash: diskwriter not found, searched: $candidates');
     return null;
+  }
+
+  /// Linux two-phase flash: single pkexec auth, both phases + verify in one script.
+  Future<void> _writeTwoPhaseLinux(
+    String imagePath,
+    String devicePath,
+    bool isCompressed,
+    void Function(double progress, String message)? onProgress,
+  ) async {
+    // Unmount any auto-mounted partitions before writing
+    final partitions = await _findLinuxPartitions(devicePath);
+    for (final partition in partitions) {
+      await Process.run('umount', [partition]);
+    }
+
+    final isRoot = (await Process.run('id', ['-u'])).stdout.toString().trim() == '0';
+
+    final decompressPrefix = isCompressed
+        ? 'gunzip -c "$imagePath" |'
+        : '';
+    final inputArg = isCompressed
+        ? 'iflag=fullblock'
+        : 'if="$imagePath"';
+
+    // Single shell script that does Phase A, Phase B, sync, and verify
+    final script = '''
+set -e
+echo "PHASE:A"
+$decompressPrefix dd $inputArg of=$devicePath bs=4M skip=$bootAreaBlocks seek=$bootAreaBlocks oflag=direct status=progress 2>&1
+echo "PHASE:B"
+$decompressPrefix dd $inputArg of=$devicePath bs=4M count=$bootAreaBlocks oflag=direct status=progress 2>&1
+echo "PHASE:SYNC"
+sync
+echo "PHASE:VERIFY"
+SRC_HASH=\$($decompressPrefix dd ${isCompressed ? 'iflag=fullblock' : 'if="$imagePath"'} bs=4M count=$bootAreaBlocks 2>/dev/null | md5sum | cut -d' ' -f1)
+DEV_HASH=\$(dd if=$devicePath bs=4M count=$bootAreaBlocks iflag=direct 2>/dev/null | md5sum | cut -d' ' -f1)
+echo "VERIFY:SRC=\$SRC_HASH"
+echo "VERIFY:DEV=\$DEV_HASH"
+if [ "\$SRC_HASH" != "\$DEV_HASH" ]; then
+  echo "VERIFY:FAIL"
+  exit 1
+fi
+echo "VERIFY:OK"
+''';
+
+    final scriptFile = File('/tmp/librescoot-flash.sh');
+    await scriptFile.writeAsString(script);
+    await Process.run('chmod', ['+x', scriptFile.path]);
+
+    final command = isRoot
+        ? '/bin/sh ${scriptFile.path}'
+        : 'pkexec /bin/sh ${scriptFile.path}';
+
+    debugPrint('Flash: running two-phase script via ${isRoot ? "sh" : "pkexec"}');
+    onProgress?.call(0.0, 'Phase A: Writing partitions...');
+
+    final process = await Process.start('/bin/sh', ['-c', command]);
+
+    var currentPhase = 'A';
+    final output = StringBuffer();
+
+    await for (final chunk in process.stdout.transform(utf8.decoder)) {
+      output.write(chunk);
+      for (final line in chunk.split('\n')) {
+        if (line.startsWith('PHASE:')) {
+          currentPhase = line.substring(6).trim();
+          switch (currentPhase) {
+            case 'B':
+              onProgress?.call(0.8, 'Phase B: Writing boot sector...');
+            case 'SYNC':
+              onProgress?.call(0.9, 'Syncing...');
+            case 'VERIFY':
+              onProgress?.call(0.92, 'Verifying boot sector...');
+          }
+        }
+        if (line.startsWith('VERIFY:')) {
+          debugPrint('Flash: $line');
+        }
+        final bytesMatch = RegExp(r'(\d+)\s+bytes').firstMatch(line);
+        if (bytesMatch != null) {
+          final bytes = int.tryParse(bytesMatch.group(1)!);
+          if (bytes != null) {
+            final mb = bytes / (1024 * 1024);
+            if (currentPhase == 'A') {
+              onProgress?.call(0.5, 'Phase A: ${mb.toStringAsFixed(1)} MB written');
+            } else if (currentPhase == 'B') {
+              onProgress?.call(0.85, 'Phase B: ${mb.toStringAsFixed(1)} MB written');
+            }
+          }
+        }
+      }
+    }
+
+    final exitCode = await process.exitCode;
+    debugPrint('Flash: two-phase script exit code: $exitCode');
+
+    // Clean up script
+    try { await scriptFile.delete(); } catch (_) {}
+
+    if (exitCode != 0) {
+      final out = output.toString();
+      debugPrint('Flash: script output: $out');
+      if (out.contains('VERIFY:FAIL')) {
+        throw Exception('Boot sector verification FAILED — checksum mismatch. Check log.');
+      }
+      if (exitCode == 126) {
+        throw Exception('Authorization was dismissed — flash incomplete');
+      }
+      throw Exception('Flash failed with exit code $exitCode');
+    }
+
+    onProgress?.call(1.0, 'Boot sector verified');
+  }
+
+  /// Verify the boot sector written to disk matches the source image.
+  /// Compares md5sum of the first bootAreaBlocks (24 MB) from image vs device.
+  Future<void> _verifyBootSector(
+    String imagePath,
+    String devicePath,
+    bool isCompressed,
+  ) async {
+    // Hash the first bootAreaBlocks from the source image
+    final String sourceCmd;
+    if (isCompressed) {
+      sourceCmd = 'gunzip -c "$imagePath" | dd bs=4M count=$bootAreaBlocks iflag=fullblock 2>/dev/null | md5sum';
+    } else {
+      sourceCmd = 'dd if="$imagePath" bs=4M count=$bootAreaBlocks 2>/dev/null | md5sum';
+    }
+
+    // Hash the first bootAreaBlocks from the device
+    final deviceCmd = 'dd if="$devicePath" bs=4M count=$bootAreaBlocks iflag=direct 2>/dev/null | md5sum';
+
+    debugPrint('Flash: verifying boot sector...');
+    final results = await Future.wait([
+      Process.run('sh', ['-c', sourceCmd]),
+      Process.run('sh', ['-c', deviceCmd]),
+    ]);
+
+    final sourceHash = results[0].stdout.toString().split(' ').first.trim();
+    final deviceHash = results[1].stdout.toString().split(' ').first.trim();
+
+    debugPrint('Flash: VERIFY source=$sourceHash device=$deviceHash');
+
+    if (sourceHash.isEmpty || deviceHash.isEmpty) {
+      throw Exception('Boot sector verification failed: could not compute checksums');
+    }
+    if (sourceHash != deviceHash) {
+      throw Exception(
+        'Boot sector verification FAILED — checksum mismatch!\n'
+        'Expected: $sourceHash\n'
+        'Got:      $deviceHash',
+      );
+    }
+    debugPrint('Flash: boot sector verified OK');
   }
 
   Future<void> _runDdPhaseWindows(

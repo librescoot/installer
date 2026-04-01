@@ -2,6 +2,7 @@ import 'region.dart';
 
 enum DownloadChannel { stable, testing, nightly }
 
+/// Order defines download priority (lowest index = downloaded first).
 enum DownloadItemType { mdbFirmware, dbcFirmware, osmTiles, valhallaTiles }
 
 class DownloadItem {
