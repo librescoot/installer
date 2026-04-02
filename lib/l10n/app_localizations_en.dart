@@ -870,27 +870,39 @@ class AppLocalizationsEn extends AppLocalizations {
       'Pair your phone or other Bluetooth devices with the scooter.';
 
   @override
-  String get startPairing => 'Start pairing';
+  String get startPairing => 'Unlock and start pairing';
 
   @override
   String get skipPairing => 'Skip';
 
   @override
-  String get pairingActive => 'Pairing mode active — searching for devices...';
+  String get pairingActive => 'Scooter unlocked';
 
   @override
-  String blePinCode(String pin) {
-    return 'PIN: $pin';
-  }
+  String get pairingActiveHint =>
+      'Search for the scooter in your phone\'s Bluetooth settings and pair it. Press Done when finished.';
 
   @override
-  String get blePinHint => 'Enter this PIN on your device to complete pairing.';
+  String get pairingDone => 'Done';
 
   @override
-  String get pairingComplete => 'Pairing complete!';
+  String get keycardLearningHeading => 'Keycard Setup';
 
   @override
-  String get pairAnotherDevice => 'Pair another device';
+  String get keycardLearningStep1 =>
+      '1. The DBC LED blinks green — no keycards are registered yet.';
+
+  @override
+  String get keycardLearningStep2 =>
+      '2. Hold your first NFC card to the reader. This becomes the master key, and the LED stops blinking.';
+
+  @override
+  String get keycardLearningStep3 =>
+      '3. Tap the master key again to enter learning mode, then tap each card you want to register as a key.';
+
+  @override
+  String get keycardLearningStep4 =>
+      '4. Tap the master key once more to exit learning mode.';
 
   @override
   String get willAskForElevation =>

@@ -1661,7 +1661,7 @@ abstract class AppLocalizations {
   /// No description provided for @startPairing.
   ///
   /// In en, this message translates to:
-  /// **'Start pairing'**
+  /// **'Unlock and start pairing'**
   String get startPairing;
 
   /// No description provided for @skipPairing.
@@ -1673,32 +1673,50 @@ abstract class AppLocalizations {
   /// No description provided for @pairingActive.
   ///
   /// In en, this message translates to:
-  /// **'Pairing mode active — searching for devices...'**
+  /// **'Scooter unlocked'**
   String get pairingActive;
 
-  /// No description provided for @blePinCode.
+  /// No description provided for @pairingActiveHint.
   ///
   /// In en, this message translates to:
-  /// **'PIN: {pin}'**
-  String blePinCode(String pin);
+  /// **'Search for the scooter in your phone\'s Bluetooth settings and pair it. Press Done when finished.'**
+  String get pairingActiveHint;
 
-  /// No description provided for @blePinHint.
+  /// No description provided for @pairingDone.
   ///
   /// In en, this message translates to:
-  /// **'Enter this PIN on your device to complete pairing.'**
-  String get blePinHint;
+  /// **'Done'**
+  String get pairingDone;
 
-  /// No description provided for @pairingComplete.
+  /// No description provided for @keycardLearningHeading.
   ///
   /// In en, this message translates to:
-  /// **'Pairing complete!'**
-  String get pairingComplete;
+  /// **'Keycard Setup'**
+  String get keycardLearningHeading;
 
-  /// No description provided for @pairAnotherDevice.
+  /// No description provided for @keycardLearningStep1.
   ///
   /// In en, this message translates to:
-  /// **'Pair another device'**
-  String get pairAnotherDevice;
+  /// **'1. The DBC LED blinks green — no keycards are registered yet.'**
+  String get keycardLearningStep1;
+
+  /// No description provided for @keycardLearningStep2.
+  ///
+  /// In en, this message translates to:
+  /// **'2. Hold your first NFC card to the reader. This becomes the master key, and the LED stops blinking.'**
+  String get keycardLearningStep2;
+
+  /// No description provided for @keycardLearningStep3.
+  ///
+  /// In en, this message translates to:
+  /// **'3. Tap the master key again to enter learning mode, then tap each card you want to register as a key.'**
+  String get keycardLearningStep3;
+
+  /// No description provided for @keycardLearningStep4.
+  ///
+  /// In en, this message translates to:
+  /// **'4. Tap the master key once more to exit learning mode.'**
+  String get keycardLearningStep4;
 
   /// No description provided for @willAskForElevation.
   ///

@@ -63,9 +63,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _skipDbcFlash = false;
   String? _radioGagaBackupPath;
   bool _flashConfirmed = false;
-  String? _blePinCode;
   bool _btPairingActive = false;
-  Timer? _blePinPollTimer;
   bool _isCriticalOperation = false; // prevent quit during flash/upload
 
   StreamSubscription<UsbDevice?>? _deviceSub;
@@ -127,7 +125,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
   void dispose() {
     _deviceSub?.cancel();
     _usbDetector.stopMonitoring();
-    _blePinPollTimer?.cancel();
     super.dispose();
   }
 
@@ -1931,7 +1928,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 style: TextStyle(color: Colors.grey.shade400)),
             const SizedBox(height: 24),
 
-            if (!_btPairingActive && _blePinCode == null) ...[
+            if (!_btPairingActive) ...[
               FilledButton.icon(
                 onPressed: _startBluetoothPairing,
                 icon: const Icon(Icons.bluetooth_searching),
@@ -1939,57 +1936,39 @@ class _InstallerScreenState extends State<InstallerScreen> {
               ),
               const SizedBox(height: 12),
               TextButton(
-                onPressed: () {
-                  _stopBlePinPolling();
-                  _setPhase(InstallerPhase.finish);
-                },
+                onPressed: () => _setPhase(InstallerPhase.finish),
                 child: Text(l10n.skipPairing),
               ),
             ],
 
-            if (_btPairingActive && _blePinCode == null) ...[
-              const SizedBox(height: 16),
-              const CircularProgressIndicator(),
-              const SizedBox(height: 16),
-              Text(l10n.pairingActive,
-                  style: TextStyle(color: Colors.grey.shade400)),
-              const SizedBox(height: 24),
-              TextButton(
-                onPressed: () {
-                  _stopBlePinPolling();
-                  _setPhase(InstallerPhase.finish);
-                },
-                child: Text(l10n.skipPairing),
-              ),
-            ],
-
-            if (_blePinCode != null) ...[
+            if (_btPairingActive) ...[
               const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                width: 400,
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.blueAccent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
                 ),
-                child: Text(_blePinCode!,
-                    style: const TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 8,
-                      fontFamily: 'monospace',
-                    )),
+                child: Column(
+                  children: [
+                    const Icon(Icons.bluetooth_connected, size: 32, color: Colors.blueAccent),
+                    const SizedBox(height: 12),
+                    Text(l10n.pairingActive,
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Text(l10n.pairingActiveHint,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+                  ],
+                ),
               ),
-              const SizedBox(height: 12),
-              Text(l10n.blePinHint,
-                  style: TextStyle(color: Colors.grey.shade400)),
               const SizedBox(height: 24),
-              TextButton(
-                onPressed: () {
-                  _stopBlePinPolling();
-                  _setPhase(InstallerPhase.finish);
-                },
-                child: Text(l10n.skipPairing),
+              FilledButton.icon(
+                onPressed: _stopBluetoothPairing,
+                icon: const Icon(Icons.check),
+                label: Text(l10n.pairingDone),
               ),
             ],
           ],
@@ -1999,56 +1978,25 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _startBluetoothPairing() async {
-    setState(() {
-      _btPairingActive = true;
-      _blePinCode = null;
-    });
-
     try {
-      await _sshService.redisLpush('scooter:bluetooth', 'advertising-restart-no-whitelisting');
-      debugPrint('UI: BLE pairing mode enabled');
+      await _sshService.redisLpush('scooter:state', 'unlock');
+      debugPrint('UI: scooter unlocked for BT pairing');
+      setState(() => _btPairingActive = true);
     } catch (e) {
-      debugPrint('UI: failed to enable BLE pairing: $e');
-      _setStatus('Failed to enable pairing: $e');
-      setState(() => _btPairingActive = false);
-      return;
+      debugPrint('UI: failed to unlock scooter: $e');
+      _setStatus('Failed to unlock scooter: $e');
     }
-
-    _startBlePinPolling();
   }
 
-  void _startBlePinPolling() {
-    _blePinPollTimer?.cancel();
-    _blePinPollTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
-      if (!mounted) {
-        _stopBlePinPolling();
-        return;
-      }
-      try {
-        final pin = await _sshService.redisHget('ble', 'pin-code');
-        if (pin != null && pin.isNotEmpty) {
-          if (_blePinCode != pin) {
-            setState(() => _blePinCode = pin);
-          }
-        } else if (_blePinCode != null) {
-          // PIN was cleared — pairing completed
-          _stopBlePinPolling();
-          if (!mounted) return;
-          _setStatus(AppLocalizations.of(context)!.pairingComplete);
-          setState(() {
-            _blePinCode = null;
-            _btPairingActive = false;
-          });
-        }
-      } catch (_) {
-        // SSH error during polling — ignore, will retry
-      }
-    });
-  }
-
-  void _stopBlePinPolling() {
-    _blePinPollTimer?.cancel();
-    _blePinPollTimer = null;
+  Future<void> _stopBluetoothPairing() async {
+    try {
+      await _sshService.redisLpush('scooter:state', 'lock');
+      debugPrint('UI: scooter locked after BT pairing');
+    } catch (e) {
+      debugPrint('UI: failed to lock scooter: $e');
+    }
+    setState(() => _btPairingActive = false);
+    _setPhase(InstallerPhase.finish);
   }
 
   Widget _buildFinish(AppLocalizations l10n) {
@@ -2088,6 +2036,42 @@ class _InstallerScreenState extends State<InstallerScreen> {
               number: 5,
               title: l10n.unlockScooter,
               description: l10n.unlockScooterDesc,
+            ),
+            const SizedBox(height: 24),
+            // Keycard learning instructions
+            Container(
+              width: 400,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.teal.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.teal.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.nfc, color: Colors.tealAccent, size: 20),
+                      const SizedBox(width: 8),
+                      Text(l10n.keycardLearningHeading,
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(l10n.keycardLearningStep1,
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
+                  const SizedBox(height: 8),
+                  Text(l10n.keycardLearningStep2,
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
+                  const SizedBox(height: 8),
+                  Text(l10n.keycardLearningStep3,
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
+                  const SizedBox(height: 8),
+                  Text(l10n.keycardLearningStep4,
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
+                ],
+              ),
             ),
             const SizedBox(height: 24),
             if (_downloadState.items.isNotEmpty)

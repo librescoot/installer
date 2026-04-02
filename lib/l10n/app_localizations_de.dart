@@ -876,28 +876,39 @@ class AppLocalizationsDe extends AppLocalizations {
       'Koppele dein Handy oder andere Bluetooth-Geräte mit dem Roller.';
 
   @override
-  String get startPairing => 'Kopplung starten';
+  String get startPairing => 'Entsperren und Kopplung starten';
 
   @override
   String get skipPairing => 'Überspringen';
 
   @override
-  String get pairingActive => 'Kopplungsmodus aktiv — suche nach Geräten...';
+  String get pairingActive => 'Roller entsperrt';
 
   @override
-  String blePinCode(String pin) {
-    return 'PIN: $pin';
-  }
+  String get pairingActiveHint =>
+      'Suche den Roller in den Bluetooth-Einstellungen deines Handys und koppele ihn. Drücke Fertig wenn du fertig bist.';
 
   @override
-  String get blePinHint =>
-      'Gib diese PIN auf deinem Gerät ein, um die Kopplung abzuschließen.';
+  String get pairingDone => 'Fertig';
 
   @override
-  String get pairingComplete => 'Kopplung erfolgreich!';
+  String get keycardLearningHeading => 'Schlüsselkarten einrichten';
 
   @override
-  String get pairAnotherDevice => 'Weiteres Gerät koppeln';
+  String get keycardLearningStep1 =>
+      '1. Die LED am DBC blinkt grün — es sind noch keine Schlüsselkarten registriert.';
+
+  @override
+  String get keycardLearningStep2 =>
+      '2. Halte deine erste NFC-Karte an den Leser. Diese wird zum Anlernschlüssel, und das Blinken hört auf.';
+
+  @override
+  String get keycardLearningStep3 =>
+      '3. Tippe den Anlernschlüssel erneut an, um den Anlernmodus zu starten, dann tippe jede Karte an, die als Schlüssel registriert werden soll.';
+
+  @override
+  String get keycardLearningStep4 =>
+      '4. Tippe den Anlernschlüssel noch einmal an, um den Anlernmodus zu beenden.';
 
   @override
   String get willAskForElevation =>
