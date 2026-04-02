@@ -834,6 +834,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get regionHint => 'For offline maps and navigation support';
 
   @override
+  String get skipOfflineMaps => 'Skip offline maps';
+
+  @override
+  String get skipOfflineMapsHint =>
+      'You can install maps later via the scooter\'s web interface';
+
+  @override
   String get willAskForElevation =>
       'Start Installation (will ask for elevation)';
 

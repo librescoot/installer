@@ -478,16 +478,27 @@ class _InstallerScreenState extends State<InstallerScreen> {
           Text(l10n.regionHint,
               style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
           const SizedBox(height: 8),
-          DropdownButtonFormField<Region>(
-            initialValue: _downloadState.selectedRegion,
-            decoration: InputDecoration(
-              border: const OutlineInputBorder(),
-              hintText: l10n.selectRegion,
+          if (_downloadState.wantsOfflineMaps)
+            DropdownButtonFormField<Region>(
+              initialValue: _downloadState.selectedRegion,
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                hintText: l10n.selectRegion,
+              ),
+              items: Region.all
+                  .map((r) => DropdownMenuItem(value: r, child: Text(r.name)))
+                  .toList(),
+              onChanged: (r) => setState(() => _downloadState.selectedRegion = r),
             ),
-            items: Region.all
-                .map((r) => DropdownMenuItem(value: r, child: Text(r.name)))
-                .toList(),
-            onChanged: (r) => setState(() => _downloadState.selectedRegion = r),
+          CheckboxListTile(
+            value: !_downloadState.wantsOfflineMaps,
+            contentPadding: EdgeInsets.zero,
+            title: Text(l10n.skipOfflineMaps),
+            subtitle: Text(l10n.skipOfflineMapsHint,
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+            onChanged: (v) => setState(() {
+              _downloadState.wantsOfflineMaps = !(v ?? false);
+            }),
           ),
 
           const SizedBox(height: 24),
@@ -496,7 +507,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
           Align(
             alignment: Alignment.centerRight,
             child: FilledButton.icon(
-              onPressed: _isProcessing || _downloadState.selectedRegion == null
+              onPressed: _isProcessing ||
+                      (_downloadState.wantsOfflineMaps && _downloadState.selectedRegion == null)
                   ? null
                   : _startDownloadsAndContinue,
               icon: const Icon(Icons.arrow_forward),
@@ -614,7 +626,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   Future<void> _startDownloadsAndContinue() async {
     final l10n = AppLocalizations.of(context)!;
-    if (_downloadState.selectedRegion == null && !launchArgs.hasLocalImages) {
+    if (_downloadState.wantsOfflineMaps && _downloadState.selectedRegion == null && !launchArgs.hasLocalImages) {
       _setStatus(l10n.selectRegionError);
       return;
     }
@@ -655,7 +667,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         final items = await _downloadService.buildDownloadQueue(
           channel: _downloadState.channel,
           region: _downloadState.selectedRegion,
-          wantsOfflineMaps: true,
+          wantsOfflineMaps: _downloadState.wantsOfflineMaps,
         );
         setState(() => _downloadState.items = items);
 

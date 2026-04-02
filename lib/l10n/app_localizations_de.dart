@@ -840,6 +840,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get regionHint => 'Für Offline-Karten und Navigationsunterstützung';
 
   @override
+  String get skipOfflineMaps => 'Offline-Karten überspringen';
+
+  @override
+  String get skipOfflineMapsHint =>
+      'Karten können später über das Web-Interface des Rollers installiert werden';
+
+  @override
   String get willAskForElevation =>
       'Installation starten (fragt nach Berechtigung)';
 

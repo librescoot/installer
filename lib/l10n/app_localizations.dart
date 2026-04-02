@@ -1592,6 +1592,18 @@ abstract class AppLocalizations {
   /// **'For offline maps and navigation support'**
   String get regionHint;
 
+  /// No description provided for @skipOfflineMaps.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip offline maps'**
+  String get skipOfflineMaps;
+
+  /// No description provided for @skipOfflineMapsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'You can install maps later via the scooter\'s web interface'**
+  String get skipOfflineMapsHint;
+
   /// No description provided for @willAskForElevation.
   ///
   /// In en, this message translates to:
