@@ -886,6 +886,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pairingDone => 'Done';
 
   @override
+  String get blePinHint => 'Enter this PIN on your device to complete pairing.';
+
+  @override
   String get keycardLearningHeading => 'Keycard Setup';
 
   @override

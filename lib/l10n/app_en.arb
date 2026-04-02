@@ -372,6 +372,7 @@
   "pairingActive": "Scooter unlocked",
   "pairingActiveHint": "Search for the scooter in your phone's Bluetooth settings and pair it. Press Done when finished.",
   "pairingDone": "Done",
+  "blePinHint": "Enter this PIN on your device to complete pairing.",
   "keycardLearningHeading": "Keycard Setup",
   "keycardLearningStep1": "1. The DBC LED blinks green — no keycards are registered yet.",
   "keycardLearningStep2": "2. Hold your first NFC card to the reader. This becomes the master key, and the LED stops blinking.",

@@ -892,6 +892,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get pairingDone => 'Fertig';
 
   @override
+  String get blePinHint =>
+      'Gib diese PIN auf deinem Gerät ein, um die Kopplung abzuschließen.';
+
+  @override
   String get keycardLearningHeading => 'Schlüsselkarten einrichten';
 
   @override

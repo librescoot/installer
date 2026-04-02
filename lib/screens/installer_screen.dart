@@ -64,6 +64,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
   String? _radioGagaBackupPath;
   bool _flashConfirmed = false;
   bool _btPairingActive = false;
+  String? _blePinCode;
+  Timer? _blePinPollTimer;
   bool _isCriticalOperation = false; // prevent quit during flash/upload
 
   StreamSubscription<UsbDevice?>? _deviceSub;
@@ -125,6 +127,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   void dispose() {
     _deviceSub?.cancel();
     _usbDetector.stopMonitoring();
+    _blePinPollTimer?.cancel();
     super.dispose();
   }
 
@@ -1964,6 +1967,27 @@ class _InstallerScreenState extends State<InstallerScreen> {
                   ],
                 ),
               ),
+              if (_blePinCode != null) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.blueAccent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.4)),
+                  ),
+                  child: Text(_blePinCode!,
+                      style: const TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 8,
+                        fontFamily: 'monospace',
+                      )),
+                ),
+                const SizedBox(height: 8),
+                Text(l10n.blePinHint,
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+              ],
               const SizedBox(height: 24),
               FilledButton.icon(
                 onPressed: _stopBluetoothPairing,
@@ -1981,21 +2005,51 @@ class _InstallerScreenState extends State<InstallerScreen> {
     try {
       await _sshService.redisLpush('scooter:state', 'unlock');
       debugPrint('UI: scooter unlocked for BT pairing');
-      setState(() => _btPairingActive = true);
+      setState(() {
+        _btPairingActive = true;
+        _blePinCode = null;
+      });
+      _startBlePinPolling();
     } catch (e) {
       debugPrint('UI: failed to unlock scooter: $e');
       _setStatus('Failed to unlock scooter: $e');
     }
   }
 
+  void _startBlePinPolling() {
+    _blePinPollTimer?.cancel();
+    _blePinPollTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
+      if (!mounted) {
+        _blePinPollTimer?.cancel();
+        return;
+      }
+      try {
+        final pin = await _sshService.redisHget('ble', 'pin-code');
+        if (pin != null && pin.isNotEmpty) {
+          if (_blePinCode != pin) {
+            setState(() => _blePinCode = pin);
+          }
+        } else if (_blePinCode != null) {
+          // PIN cleared — pairing completed for this device
+          setState(() => _blePinCode = null);
+        }
+      } catch (_) {}
+    });
+  }
+
   Future<void> _stopBluetoothPairing() async {
+    _blePinPollTimer?.cancel();
+    _blePinPollTimer = null;
     try {
       await _sshService.redisLpush('scooter:state', 'lock');
       debugPrint('UI: scooter locked after BT pairing');
     } catch (e) {
       debugPrint('UI: failed to lock scooter: $e');
     }
-    setState(() => _btPairingActive = false);
+    setState(() {
+      _btPairingActive = false;
+      _blePinCode = null;
+    });
     _setPhase(InstallerPhase.finish);
   }
 

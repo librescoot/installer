@@ -1688,6 +1688,12 @@ abstract class AppLocalizations {
   /// **'Done'**
   String get pairingDone;
 
+  /// No description provided for @blePinHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter this PIN on your device to complete pairing.'**
+  String get blePinHint;
+
   /// No description provided for @keycardLearningHeading.
   ///
   /// In en, this message translates to:
