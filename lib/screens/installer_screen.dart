@@ -67,6 +67,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   String? _blePinCode;
   bool _bleConnected = false;
   Timer? _blePinPollTimer;
+  bool _keycardLearning = false;
   bool _isCriticalOperation = false; // prevent quit during flash/upload
 
   StreamSubscription<UsbDevice?>? _deviceSub;
@@ -2084,6 +2085,28 @@ class _InstallerScreenState extends State<InstallerScreen> {
     _setPhase(InstallerPhase.finish);
   }
 
+  Future<void> _startKeycardLearning() async {
+    try {
+      await _sshService.redisLpush('scooter:keycard', 'set-master:NONE');
+      await _sshService.redisLpush('scooter:keycard', 'learn:start');
+      debugPrint('UI: keycard learning started (no master)');
+      setState(() => _keycardLearning = true);
+    } catch (e) {
+      debugPrint('UI: failed to start keycard learning: $e');
+      _setStatus('Failed to start keycard learning: $e');
+    }
+  }
+
+  Future<void> _stopKeycardLearning() async {
+    try {
+      await _sshService.redisLpush('scooter:keycard', 'learn:stop');
+      debugPrint('UI: keycard learning stopped');
+    } catch (e) {
+      debugPrint('UI: failed to stop keycard learning: $e');
+    }
+    setState(() => _keycardLearning = false);
+  }
+
   Widget _buildFinish(AppLocalizations l10n) {
     return SingleChildScrollView(
       child: Center(
@@ -2144,17 +2167,64 @@ class _InstallerScreenState extends State<InstallerScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
+                  Text(l10n.keycardMasterHeading,
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade200)),
+                  const SizedBox(height: 8),
                   Text(l10n.keycardLearningStep1,
                       style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Text(l10n.keycardLearningStep2,
                       style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Text(l10n.keycardLearningStep3,
                       style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Text(l10n.keycardLearningStep4,
                       style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 12),
+                  Text(l10n.keycardNoMasterHeading,
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade200)),
+                  const SizedBox(height: 8),
+                  Text(l10n.keycardNoMasterHint,
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
+                  const SizedBox(height: 12),
+                  if (!_keycardLearning)
+                    OutlinedButton.icon(
+                      onPressed: _sshService.isConnected ? _startKeycardLearning : null,
+                      icon: const Icon(Icons.nfc, size: 18),
+                      label: Text(l10n.keycardStartLearning),
+                    )
+                  else ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.tealAccent.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.tealAccent.withValues(alpha: 0.3)),
+                      ),
+                      child: Column(
+                        children: [
+                          const Icon(Icons.contactless, size: 28, color: Colors.tealAccent),
+                          const SizedBox(height: 8),
+                          Text(l10n.keycardLearningActive,
+                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+                          const SizedBox(height: 4),
+                          Text(l10n.keycardLearningActiveHint,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: _stopKeycardLearning,
+                      icon: const Icon(Icons.check, size: 18),
+                      label: Text(l10n.keycardStopLearning),
+                    ),
+                  ],
                 ],
               ),
             ),

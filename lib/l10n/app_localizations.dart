@@ -1724,6 +1724,12 @@ abstract class AppLocalizations {
   /// **'Keycard Setup'**
   String get keycardLearningHeading;
 
+  /// No description provided for @keycardMasterHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'With a master card:'**
+  String get keycardMasterHeading;
+
   /// No description provided for @keycardLearningStep1.
   ///
   /// In en, this message translates to:
@@ -1747,6 +1753,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'4. Tap the master key once more to exit learning mode.'**
   String get keycardLearningStep4;
+
+  /// No description provided for @keycardNoMasterHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Without a master card:'**
+  String get keycardNoMasterHeading;
+
+  /// No description provided for @keycardNoMasterHint.
+  ///
+  /// In en, this message translates to:
+  /// **'If you don\'t have a dedicated master card, you can register keycards directly via the installer while the USB cable is still connected.'**
+  String get keycardNoMasterHint;
+
+  /// No description provided for @keycardStartLearning.
+  ///
+  /// In en, this message translates to:
+  /// **'Start keycard learning'**
+  String get keycardStartLearning;
+
+  /// No description provided for @keycardLearningActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Learning mode active'**
+  String get keycardLearningActive;
+
+  /// No description provided for @keycardLearningActiveHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap each NFC card you want to register as a key. Press Done when finished.'**
+  String get keycardLearningActiveHint;
+
+  /// No description provided for @keycardStopLearning.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get keycardStopLearning;
 
   /// No description provided for @willAskForElevation.
   ///

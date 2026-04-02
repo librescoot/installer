@@ -905,6 +905,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get keycardLearningHeading => 'Keycard Setup';
 
   @override
+  String get keycardMasterHeading => 'With a master card:';
+
+  @override
   String get keycardLearningStep1 =>
       '1. The DBC LED blinks green — no keycards are registered yet.';
 
@@ -919,6 +922,26 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get keycardLearningStep4 =>
       '4. Tap the master key once more to exit learning mode.';
+
+  @override
+  String get keycardNoMasterHeading => 'Without a master card:';
+
+  @override
+  String get keycardNoMasterHint =>
+      'If you don\'t have a dedicated master card, you can register keycards directly via the installer while the USB cable is still connected.';
+
+  @override
+  String get keycardStartLearning => 'Start keycard learning';
+
+  @override
+  String get keycardLearningActive => 'Learning mode active';
+
+  @override
+  String get keycardLearningActiveHint =>
+      'Tap each NFC card you want to register as a key. Press Done when finished.';
+
+  @override
+  String get keycardStopLearning => 'Done';
 
   @override
   String get willAskForElevation =>

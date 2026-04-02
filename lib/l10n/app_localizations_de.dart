@@ -913,6 +913,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get keycardLearningHeading => 'Schlüsselkarten einrichten';
 
   @override
+  String get keycardMasterHeading => 'Mit Anlernschlüssel:';
+
+  @override
   String get keycardLearningStep1 =>
       '1. Die LED am DBC blinkt grün — es sind noch keine Schlüsselkarten registriert.';
 
@@ -927,6 +930,26 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get keycardLearningStep4 =>
       '4. Tippe den Anlernschlüssel noch einmal an, um den Anlernmodus zu beenden.';
+
+  @override
+  String get keycardNoMasterHeading => 'Ohne Anlernschlüssel:';
+
+  @override
+  String get keycardNoMasterHint =>
+      'Wenn du keinen separaten Anlernschlüssel hast, kannst du Schlüsselkarten direkt über den Installer registrieren, solange das USB-Kabel noch verbunden ist.';
+
+  @override
+  String get keycardStartLearning => 'Kartenanlernung starten';
+
+  @override
+  String get keycardLearningActive => 'Anlernmodus aktiv';
+
+  @override
+  String get keycardLearningActiveHint =>
+      'Tippe jede NFC-Karte an, die als Schlüssel registriert werden soll. Drücke Fertig wenn du fertig bist.';
+
+  @override
+  String get keycardStopLearning => 'Fertig';
 
   @override
   String get willAskForElevation =>
