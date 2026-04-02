@@ -65,6 +65,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _flashConfirmed = false;
   bool _btPairingActive = false;
   String? _blePinCode;
+  bool _bleConnected = false;
   Timer? _blePinPollTimer;
   bool _isCriticalOperation = false; // prevent quit during flash/upload
 
@@ -1946,27 +1947,50 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
             if (_btPairingActive) ...[
               const SizedBox(height: 16),
-              Container(
-                width: 400,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.blueAccent.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
+              if (_bleConnected)
+                Container(
+                  width: 400,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.bluetooth_connected, size: 32, color: Colors.green),
+                      const SizedBox(height: 12),
+                      Text(l10n.bleAlreadyConnected,
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                      const SizedBox(height: 8),
+                      Text(l10n.bleAlreadyConnectedHint,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+                    ],
+                  ),
+                )
+              else
+                Container(
+                  width: 400,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blueAccent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.bluetooth_searching, size: 32, color: Colors.blueAccent),
+                      const SizedBox(height: 12),
+                      Text(l10n.pairingActive,
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Text(l10n.pairingActiveHint,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+                    ],
+                  ),
                 ),
-                child: Column(
-                  children: [
-                    const Icon(Icons.bluetooth_connected, size: 32, color: Colors.blueAccent),
-                    const SizedBox(height: 12),
-                    Text(l10n.pairingActive,
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    Text(l10n.pairingActiveHint,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
-                  ],
-                ),
-              ),
               if (_blePinCode != null) ...[
                 const SizedBox(height: 16),
                 Container(
@@ -2024,6 +2048,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
         return;
       }
       try {
+        final connected = await _sshService.redisHget('ble', 'connected');
+        final isConnected = connected == 'true';
+        if (isConnected != _bleConnected) {
+          setState(() => _bleConnected = isConnected);
+        }
+
         final pin = await _sshService.redisHget('ble', 'pin-code');
         if (pin != null && pin.isNotEmpty) {
           if (_blePinCode != pin) {
@@ -2049,6 +2079,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     setState(() {
       _btPairingActive = false;
       _blePinCode = null;
+      _bleConnected = false;
     });
     _setPhase(InstallerPhase.finish);
   }

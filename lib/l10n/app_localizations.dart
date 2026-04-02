@@ -266,6 +266,18 @@ abstract class AppLocalizations {
   /// **'Verify DBC installation'**
   String get phaseReconnectDescription;
 
+  /// No description provided for @phaseBluetoothPairingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Bluetooth'**
+  String get phaseBluetoothPairingTitle;
+
+  /// No description provided for @phaseBluetoothPairingDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Pair phone or other devices'**
+  String get phaseBluetoothPairingDescription;
+
   /// No description provided for @phaseFinishTitle.
   ///
   /// In en, this message translates to:
@@ -1693,6 +1705,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Enter this PIN on your device to complete pairing.'**
   String get blePinHint;
+
+  /// No description provided for @bleAlreadyConnected.
+  ///
+  /// In en, this message translates to:
+  /// **'A device is already connected'**
+  String get bleAlreadyConnected;
+
+  /// No description provided for @bleAlreadyConnectedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'You can pair additional devices or press Done to continue.'**
+  String get bleAlreadyConnectedHint;
 
   /// No description provided for @keycardLearningHeading.
   ///

@@ -31,6 +31,8 @@
   "phaseDbcFlashDescription": "Autonome DBC-Installation",
   "phaseReconnectTitle": "Verbinden",
   "phaseReconnectDescription": "DBC-Installation pr\u00fcfen",
+  "phaseBluetoothPairingTitle": "Bluetooth",
+  "phaseBluetoothPairingDescription": "Handy oder andere Ger\u00e4te koppeln",
   "phaseFinishTitle": "Fertig",
   "phaseFinishDescription": "Zusammenbau und Abschluss",
 
@@ -286,6 +288,8 @@
   "pairingActiveHint": "Suche den Roller in den Bluetooth-Einstellungen deines Handys und koppele ihn. Dr\u00fccke Fertig wenn du fertig bist.",
   "pairingDone": "Fertig",
   "blePinHint": "Gib diese PIN auf deinem Ger\u00e4t ein, um die Kopplung abzuschlie\u00dfen.",
+  "bleAlreadyConnected": "Ein Ger\u00e4t ist bereits verbunden",
+  "bleAlreadyConnectedHint": "Du kannst weitere Ger\u00e4te koppeln oder auf Fertig dr\u00fccken.",
   "keycardLearningHeading": "Schl\u00fcsselkarten einrichten",
   "keycardLearningStep1": "1. Die LED am DBC blinkt gr\u00fcn \u2014 es sind noch keine Schl\u00fcsselkarten registriert.",
   "keycardLearningStep2": "2. Halte deine erste NFC-Karte an den Leser. Diese wird zum Anlernschl\u00fcssel, und das Blinken h\u00f6rt auf.",

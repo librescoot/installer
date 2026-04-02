@@ -31,6 +31,8 @@
   "phaseDbcFlashDescription": "Autonomous DBC installation",
   "phaseReconnectTitle": "Reconnect",
   "phaseReconnectDescription": "Verify DBC installation",
+  "phaseBluetoothPairingTitle": "Bluetooth",
+  "phaseBluetoothPairingDescription": "Pair phone or other devices",
   "phaseFinishTitle": "Finish",
   "phaseFinishDescription": "Reassemble and welcome",
 
@@ -373,6 +375,8 @@
   "pairingActiveHint": "Search for the scooter in your phone's Bluetooth settings and pair it. Press Done when finished.",
   "pairingDone": "Done",
   "blePinHint": "Enter this PIN on your device to complete pairing.",
+  "bleAlreadyConnected": "A device is already connected",
+  "bleAlreadyConnectedHint": "You can pair additional devices or press Done to continue.",
   "keycardLearningHeading": "Keycard Setup",
   "keycardLearningStep1": "1. The DBC LED blinks green — no keycards are registered yet.",
   "keycardLearningStep2": "2. Hold your first NFC card to the reader. This becomes the master key, and the LED stops blinking.",

@@ -95,6 +95,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get phaseReconnectDescription => 'Verify DBC installation';
 
   @override
+  String get phaseBluetoothPairingTitle => 'Bluetooth';
+
+  @override
+  String get phaseBluetoothPairingDescription => 'Pair phone or other devices';
+
+  @override
   String get phaseFinishTitle => 'Finish';
 
   @override
@@ -887,6 +893,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get blePinHint => 'Enter this PIN on your device to complete pairing.';
+
+  @override
+  String get bleAlreadyConnected => 'A device is already connected';
+
+  @override
+  String get bleAlreadyConnectedHint =>
+      'You can pair additional devices or press Done to continue.';
 
   @override
   String get keycardLearningHeading => 'Keycard Setup';
