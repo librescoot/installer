@@ -266,6 +266,7 @@
   "backingUpConfig": "Ger\u00e4tekonfiguration wird gesichert...",
   "configBackedUp": "Ger\u00e4tekonfiguration gesichert",
   "noConfigFound": "Keine Ger\u00e4tekonfiguration zum Sichern gefunden",
+  "restoringConfig": "Ger\u00e4tekonfiguration wird wiederhergestellt...",
   "healthCheckFailed": "Statuspr\u00fcfung fehlgeschlagen: {error}",
   "flashError": "Flash-Fehler: {error}",
   "flashComplete": "Flash abgeschlossen!",

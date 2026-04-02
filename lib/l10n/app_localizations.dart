@@ -1580,6 +1580,12 @@ abstract class AppLocalizations {
   /// **'No device configuration found to back up'**
   String get noConfigFound;
 
+  /// No description provided for @restoringConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'Restoring device configuration...'**
+  String get restoringConfig;
+
   /// No description provided for @healthCheckFailed.
   ///
   /// In en, this message translates to:

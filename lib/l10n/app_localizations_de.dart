@@ -828,6 +828,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get noConfigFound => 'Keine Gerätekonfiguration zum Sichern gefunden';
 
   @override
+  String get restoringConfig => 'Gerätekonfiguration wird wiederhergestellt...';
+
+  @override
   String healthCheckFailed(String error) {
     return 'Statusprüfung fehlgeschlagen: $error';
   }

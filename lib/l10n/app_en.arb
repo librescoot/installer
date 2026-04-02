@@ -338,6 +338,7 @@
   "backingUpConfig": "Backing up device configuration...",
   "configBackedUp": "Device configuration backed up",
   "noConfigFound": "No device configuration found to back up",
+  "restoringConfig": "Restoring device configuration...",
   "healthCheckFailed": "Health check failed: {error}",
   "@healthCheckFailed": {
     "placeholders": {

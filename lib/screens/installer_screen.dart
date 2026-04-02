@@ -1488,6 +1488,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
     try {
       await _sshService.connectToMdb();
+
+      // Restore radio-gaga config if we backed it up
+      if (_radioGagaBackupPath != null) {
+        _setStatus(l10n.restoringConfig);
+        final restored = await _sshService.restoreRadioGagaConfig(_radioGagaBackupPath!);
+        if (restored) {
+          debugPrint('UI: radio-gaga config restored to /data/radio-gaga/');
+        }
+      }
+
       if (_skipDbcFlash) {
         _setPhase(InstallerPhase.finish);
       } else {

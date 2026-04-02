@@ -690,6 +690,28 @@ class SshService {
       await File(path.join(targetDir.path, 'radio-gaga.yml')).writeAsBytes(stockConfig);
       debugPrint('SSH: backed up /etc/rescoot/radio-gaga.yml');
       found = true;
+
+      // Parse YAML to find referenced files (e.g. mqtt.ca_cert) and back those up too
+      try {
+        final yamlStr = utf8.decode(stockConfig);
+        final yaml = loadYaml(yamlStr);
+        if (yaml is Map) {
+          final mqtt = yaml['mqtt'];
+          if (mqtt is Map) {
+            final caCertPath = mqtt['ca_cert'] as String?;
+            if (caCertPath != null && caCertPath.isNotEmpty) {
+              final certData = await downloadFile(caCertPath);
+              if (certData != null && certData.isNotEmpty) {
+                final certFilename = path.basename(caCertPath);
+                await File(path.join(targetDir.path, certFilename)).writeAsBytes(certData);
+                debugPrint('SSH: backed up CA cert $caCertPath');
+              }
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('SSH: failed to parse stock config for cert paths: $e');
+      }
     }
 
     if (!found) {
@@ -699,6 +721,72 @@ class SshService {
 
     debugPrint('SSH: radio-gaga config backed up to ${backupDir.path}');
     return backupDir.path;
+  }
+
+  /// Restore a backed-up radio-gaga config to /data/radio-gaga/ on the MDB.
+  /// Handles stock configs by rewriting ca_cert paths to /data/radio-gaga/.
+  Future<bool> restoreRadioGagaConfig(String backupPath) async {
+    final backupDir = Directory(backupPath);
+    if (!await backupDir.exists()) return false;
+
+    await runCommand('mkdir -p /data/radio-gaga');
+
+    // Prefer LibreScoot backup (already in the right format)
+    final librescootDir = Directory(path.join(backupPath, 'data-radio-gaga'));
+    if (await librescootDir.exists()) {
+      for (final file in await librescootDir.list().toList()) {
+        if (file is! File) continue;
+        final filename = path.basename(file.path);
+        final data = await file.readAsBytes();
+        await uploadFile(Uint8List.fromList(data), '/data/radio-gaga/$filename');
+        debugPrint('SSH: restored /data/radio-gaga/$filename');
+      }
+      return true;
+    }
+
+    // Stock backup — needs path rewriting
+    final stockDir = Directory(path.join(backupPath, 'etc-rescoot'));
+    if (!await stockDir.exists()) return false;
+
+    final configFile = File(path.join(stockDir.path, 'radio-gaga.yml'));
+    if (!await configFile.exists()) return false;
+
+    // Upload any non-YAML files first (certs, keys)
+    for (final file in await stockDir.list().toList()) {
+      if (file is! File) continue;
+      final filename = path.basename(file.path);
+      if (filename == 'radio-gaga.yml') continue;
+      final data = await file.readAsBytes();
+      await uploadFile(Uint8List.fromList(data), '/data/radio-gaga/$filename');
+      debugPrint('SSH: restored /data/radio-gaga/$filename');
+    }
+
+    // Rewrite ca_cert path in the config and upload
+    var configContent = await configFile.readAsString();
+    try {
+      final yaml = loadYaml(configContent);
+      if (yaml is Map) {
+        final mqtt = yaml['mqtt'];
+        if (mqtt is Map) {
+          final caCertPath = mqtt['ca_cert'] as String?;
+          if (caCertPath != null && caCertPath.isNotEmpty) {
+            final certFilename = path.basename(caCertPath);
+            final newPath = '/data/radio-gaga/$certFilename';
+            configContent = configContent.replaceAll(caCertPath, newPath);
+            debugPrint('SSH: rewrote ca_cert path: $caCertPath → $newPath');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('SSH: failed to rewrite cert paths, uploading config as-is: $e');
+    }
+
+    await uploadFile(
+      Uint8List.fromList(utf8.encode(configContent)),
+      '/data/radio-gaga/radio-gaga.yml',
+    );
+    debugPrint('SSH: restored /data/radio-gaga/radio-gaga.yml');
+    return true;
   }
 
   /// Read the trampoline status file from MDB.
