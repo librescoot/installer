@@ -324,6 +324,16 @@ class AppLocalizationsDe extends AppLocalizations {
   String get waitingForUmsDevice => 'Warte auf UMS-Gerät...';
 
   @override
+  String get readyToFlash => 'Bereit zum Flashen';
+
+  @override
+  String get readyToFlashHint =>
+      'Das Gerät ist im Flash-Modus. Du kannst vor dem Fortfahren manuelle Backups per SSH erstellen.';
+
+  @override
+  String get beginFlashing => 'Flashen starten';
+
+  @override
   String get flashingMdb => 'MDB wird geflasht';
 
   @override

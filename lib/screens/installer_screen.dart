@@ -62,6 +62,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _skipMdbFlash = false;
   bool _skipDbcFlash = false;
   String? _radioGagaBackupPath;
+  bool _flashConfirmed = false;
   bool _isCriticalOperation = false; // prevent quit during flash/upload
 
   StreamSubscription<UsbDevice?>? _deviceSub;
@@ -1210,6 +1211,27 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Widget _buildMdbFlash(AppLocalizations l10n) {
+    if (!_flashConfirmed) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(l10n.readyToFlash,
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text(l10n.readyToFlashHint,
+                style: TextStyle(color: Colors.grey.shade400)),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: () => setState(() => _flashConfirmed = true),
+              icon: const Icon(Icons.flash_on),
+              label: Text(l10n.beginFlashing),
+            ),
+          ],
+        ),
+      );
+    }
+
     if (!_mdbFlashStarted && !_isProcessing) {
       _mdbFlashStarted = true;
       Future.microtask(_flashMdb);

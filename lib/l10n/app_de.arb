@@ -108,6 +108,9 @@
   "rebootingMdbUms": "MDB wird im Mass-Storage-Modus neu gestartet...",
   "waitingForUmsDevice": "Warte auf UMS-Ger\u00e4t...",
 
+  "readyToFlash": "Bereit zum Flashen",
+  "readyToFlashHint": "Das Ger\u00e4t ist im Flash-Modus. Du kannst vor dem Fortfahren manuelle Backups per SSH erstellen.",
+  "beginFlashing": "Flashen starten",
   "flashingMdb": "MDB wird geflasht",
   "flashingMdbSubheading": "Zweiphasiges Schreiben: erst Partitionen, dann Bootsektor.",
   "waitingForMdbFirmware": "Warte auf MDB-Firmware-Download...",

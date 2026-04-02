@@ -686,6 +686,24 @@ abstract class AppLocalizations {
   /// **'Waiting for UMS device...'**
   String get waitingForUmsDevice;
 
+  /// No description provided for @readyToFlash.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready to begin flashing'**
+  String get readyToFlash;
+
+  /// No description provided for @readyToFlashHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The device is in flashing mode. You can create manual backups via SSH before proceeding.'**
+  String get readyToFlashHint;
+
+  /// No description provided for @beginFlashing.
+  ///
+  /// In en, this message translates to:
+  /// **'Begin flashing'**
+  String get beginFlashing;
+
   /// No description provided for @flashingMdb.
   ///
   /// In en, this message translates to:

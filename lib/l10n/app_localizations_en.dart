@@ -320,6 +320,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get waitingForUmsDevice => 'Waiting for UMS device...';
 
   @override
+  String get readyToFlash => 'Ready to begin flashing';
+
+  @override
+  String get readyToFlashHint =>
+      'The device is in flashing mode. You can create manual backups via SSH before proceeding.';
+
+  @override
+  String get beginFlashing => 'Begin flashing';
+
+  @override
   String get flashingMdb => 'Flashing MDB';
 
   @override

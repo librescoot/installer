@@ -118,6 +118,9 @@
   "rebootingMdbUms": "Rebooting MDB into mass storage mode...",
   "waitingForUmsDevice": "Waiting for UMS device...",
 
+  "readyToFlash": "Ready to begin flashing",
+  "readyToFlashHint": "The device is in flashing mode. You can create manual backups via SSH before proceeding.",
+  "beginFlashing": "Begin flashing",
   "flashingMdb": "Flashing MDB",
   "flashingMdbSubheading": "Two-phase write: partitions first, boot sector last.",
   "waitingForMdbFirmware": "Waiting for MDB firmware download...",

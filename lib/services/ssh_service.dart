@@ -667,18 +667,35 @@ class SshService {
 
     var found = false;
 
-    // LibreScoot path: /data/radio-gaga/ (directory with config files)
-    final librescootFiles = await listRemoteDir('/data/radio-gaga');
-    if (librescootFiles.isNotEmpty) {
+    // LibreScoot path: /data/radio-gaga/config.yaml + any referenced certs
+    final lsConfig = await downloadFile('/data/radio-gaga/config.yaml');
+    if (lsConfig != null && lsConfig.isNotEmpty) {
       final targetDir = Directory(path.join(backupDir.path, 'data-radio-gaga'));
       await targetDir.create(recursive: true);
-      for (final filename in librescootFiles) {
-        final data = await downloadFile('/data/radio-gaga/$filename');
-        if (data != null && data.isNotEmpty) {
-          await File(path.join(targetDir.path, filename)).writeAsBytes(data);
-          debugPrint('SSH: backed up /data/radio-gaga/$filename');
-          found = true;
+      await File(path.join(targetDir.path, 'config.yaml')).writeAsBytes(lsConfig);
+      debugPrint('SSH: backed up /data/radio-gaga/config.yaml');
+      found = true;
+
+      // Also back up any referenced cert files
+      try {
+        final yamlStr = utf8.decode(lsConfig);
+        final yaml = loadYaml(yamlStr);
+        if (yaml is Map) {
+          final mqtt = yaml['mqtt'];
+          if (mqtt is Map) {
+            final caCertPath = mqtt['ca_cert'] as String?;
+            if (caCertPath != null && caCertPath.isNotEmpty) {
+              final certData = await downloadFile(caCertPath);
+              if (certData != null && certData.isNotEmpty) {
+                final certFilename = path.basename(caCertPath);
+                await File(path.join(targetDir.path, certFilename)).writeAsBytes(certData);
+                debugPrint('SSH: backed up CA cert $caCertPath');
+              }
+            }
+          }
         }
+      } catch (e) {
+        debugPrint('SSH: failed to parse LS config for cert paths: $e');
       }
     }
 
@@ -783,9 +800,9 @@ class SshService {
 
     await uploadFile(
       Uint8List.fromList(utf8.encode(configContent)),
-      '/data/radio-gaga/radio-gaga.yml',
+      '/data/radio-gaga/config.yaml',
     );
-    debugPrint('SSH: restored /data/radio-gaga/radio-gaga.yml');
+    debugPrint('SSH: restored /data/radio-gaga/config.yaml (converted from stock)');
     return true;
   }
 
