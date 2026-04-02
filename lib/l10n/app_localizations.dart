@@ -1562,6 +1562,24 @@ abstract class AppLocalizations {
   /// **'Mode: {mode}'**
   String modeLabel(String mode);
 
+  /// No description provided for @backingUpConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'Backing up device configuration...'**
+  String get backingUpConfig;
+
+  /// No description provided for @configBackedUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Device configuration backed up'**
+  String get configBackedUp;
+
+  /// No description provided for @noConfigFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No device configuration found to back up'**
+  String get noConfigFound;
+
   /// No description provided for @healthCheckFailed.
   ///
   /// In en, this message translates to:

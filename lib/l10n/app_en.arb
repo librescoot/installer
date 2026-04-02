@@ -335,6 +335,9 @@
       "mode": { "type": "String" }
     }
   },
+  "backingUpConfig": "Backing up device configuration...",
+  "configBackedUp": "Device configuration backed up",
+  "noConfigFound": "No device configuration found to back up",
   "healthCheckFailed": "Health check failed: {error}",
   "@healthCheckFailed": {
     "placeholders": {

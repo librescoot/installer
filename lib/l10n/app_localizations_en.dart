@@ -813,6 +813,15 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get backingUpConfig => 'Backing up device configuration...';
+
+  @override
+  String get configBackedUp => 'Device configuration backed up';
+
+  @override
+  String get noConfigFound => 'No device configuration found to back up';
+
+  @override
   String healthCheckFailed(String error) {
     return 'Health check failed: $error';
   }

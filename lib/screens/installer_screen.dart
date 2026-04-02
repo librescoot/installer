@@ -61,6 +61,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   DeviceInfo? _mdbInfo;
   bool _skipMdbFlash = false;
   bool _skipDbcFlash = false;
+  String? _radioGagaBackupPath;
   bool _isCriticalOperation = false; // prevent quit during flash/upload
 
   StreamSubscription<UsbDevice?>? _deviceSub;
@@ -933,6 +934,23 @@ class _InstallerScreenState extends State<InstallerScreen> {
             if (_scooterHealth != null)
               SizedBox(width: 400, child: HealthCheckPanel(health: _scooterHealth!)),
 
+            // Config backup status
+            if (_scooterHealth != null && _radioGagaBackupPath != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: SizedBox(
+                  width: 400,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(l10n.configBackedUp,
+                          style: TextStyle(fontSize: 13, color: Colors.grey.shade400))),
+                    ],
+                  ),
+                ),
+              ),
+
             // LibreScoot detected — offer to skip MDB reflash
             if (_scooterHealth != null && _isLibreScootFirmware) ...[
               const SizedBox(height: 24),
@@ -1017,6 +1035,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
     try {
       final health = await _sshService.queryHealth();
       setState(() => _scooterHealth = health);
+
+      // Back up radio-gaga config before we flash anything
+      _setStatus(l10n.backingUpConfig);
+      final cacheDir = await DownloadService.getCacheDir();
+      final backupPath = await _sshService.backupRadioGagaConfig(cacheDir.path);
+      if (backupPath != null) {
+        setState(() => _radioGagaBackupPath = backupPath);
+        debugPrint('UI: radio-gaga config backed up to $backupPath');
+      }
     } catch (e) {
       _setStatus(l10n.healthCheckFailed(e.toString()));
     } finally {

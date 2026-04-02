@@ -629,6 +629,78 @@ class SshService {
     return present == 'true';
   }
 
+  /// Download a remote file's contents via cat. Returns null if the file doesn't exist.
+  Future<Uint8List?> downloadFile(String remotePath) async {
+    if (_client == null) throw Exception('Not connected');
+    try {
+      final session = await _client!.execute('cat ${_shellEscape(remotePath)}');
+      final chunks = <int>[];
+      await for (final data in session.stdout) {
+        chunks.addAll(data);
+      }
+      await session.done;
+      if (session.exitCode != 0) return null;
+      return Uint8List.fromList(chunks);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// List files in a remote directory. Returns empty list if directory doesn't exist.
+  Future<List<String>> listRemoteDir(String remotePath) async {
+    try {
+      final output = await runCommand('ls -1 ${_shellEscape(remotePath)} 2>/dev/null');
+      return output.trim().split('\n').where((l) => l.isNotEmpty).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  String _shellEscape(String s) => "'${s.replaceAll("'", "'\\''")}'";
+
+  /// Back up radio-gaga config from the MDB to a local directory.
+  /// Checks both LibreScoot (/data/radio-gaga/) and stock (/etc/rescoot/) paths.
+  /// Returns the backup directory path, or null if no config was found.
+  Future<String?> backupRadioGagaConfig(String backupBaseDir) async {
+    final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-').split('.').first;
+    final backupDir = Directory(path.join(backupBaseDir, 'radio-gaga-backup-$timestamp'));
+
+    var found = false;
+
+    // LibreScoot path: /data/radio-gaga/ (directory with config files)
+    final librescootFiles = await listRemoteDir('/data/radio-gaga');
+    if (librescootFiles.isNotEmpty) {
+      final targetDir = Directory(path.join(backupDir.path, 'data-radio-gaga'));
+      await targetDir.create(recursive: true);
+      for (final filename in librescootFiles) {
+        final data = await downloadFile('/data/radio-gaga/$filename');
+        if (data != null && data.isNotEmpty) {
+          await File(path.join(targetDir.path, filename)).writeAsBytes(data);
+          debugPrint('SSH: backed up /data/radio-gaga/$filename');
+          found = true;
+        }
+      }
+    }
+
+    // Stock scooterOS path: /etc/rescoot/radio-gaga.yml
+    final stockConfig = await downloadFile('/etc/rescoot/radio-gaga.yml');
+    if (stockConfig != null && stockConfig.isNotEmpty) {
+      final targetDir = Directory(path.join(backupDir.path, 'etc-rescoot'));
+      await targetDir.create(recursive: true);
+      await File(path.join(targetDir.path, 'radio-gaga.yml')).writeAsBytes(stockConfig);
+      debugPrint('SSH: backed up /etc/rescoot/radio-gaga.yml');
+      found = true;
+    }
+
+    if (!found) {
+      debugPrint('SSH: no radio-gaga config found to back up');
+      return null;
+    }
+
+    debugPrint('SSH: radio-gaga config backed up to ${backupDir.path}');
+    return backupDir.path;
+  }
+
   /// Read the trampoline status file from MDB.
   Future<TrampolineStatus> readTrampolineStatus() async {
     try {
