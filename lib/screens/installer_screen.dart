@@ -63,6 +63,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _skipDbcFlash = false;
   String? _radioGagaBackupPath;
   bool _flashConfirmed = false;
+  String? _blePinCode;
+  bool _btPairingActive = false;
+  Timer? _blePinPollTimer;
   bool _isCriticalOperation = false; // prevent quit during flash/upload
 
   StreamSubscription<UsbDevice?>? _deviceSub;
@@ -124,6 +127,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   void dispose() {
     _deviceSub?.cancel();
     _usbDetector.stopMonitoring();
+    _blePinPollTimer?.cancel();
     super.dispose();
   }
 
@@ -426,6 +430,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       InstallerPhase.dbcPrep => _buildDbcPrep(l10n),
       InstallerPhase.dbcFlash => _buildDbcFlash(l10n),
       InstallerPhase.reconnect => _buildReconnect(l10n),
+      InstallerPhase.bluetoothPairing => _buildBluetoothPairing(l10n),
       InstallerPhase.finish => _buildFinish(l10n),
     };
   }
@@ -908,7 +913,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       if (_skipMdbFlash) {
         // Skip MDB flash entirely — jump to after MDB boot
         if (_skipDbcFlash) {
-          _setPhase(InstallerPhase.finish);
+          _setPhase(InstallerPhase.bluetoothPairing);
         } else {
           _setPhase(InstallerPhase.cbbReconnect);
         }
@@ -1521,7 +1526,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       }
 
       if (_skipDbcFlash) {
-        _setPhase(InstallerPhase.finish);
+        _setPhase(InstallerPhase.bluetoothPairing);
       } else {
         _setPhase(InstallerPhase.cbbReconnect);
       }
@@ -1811,7 +1816,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             ),
             const SizedBox(height: 8),
             TextButton(
-              onPressed: () => _setPhase(InstallerPhase.finish),
+              onPressed: () => _setPhase(InstallerPhase.bluetoothPairing),
               child: const Text('Skip to finish'),
             ),
           ],
@@ -1858,7 +1863,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         return;
       }
       _setStatus('[DRY RUN] DBC flash successful!');
-      _setPhase(InstallerPhase.finish);
+      _setPhase(InstallerPhase.bluetoothPairing);
       return;
     }
 
@@ -1886,7 +1891,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     if (status.result == TrampolineResult.success) {
       _setStatus(l10n.dbcFlashSuccessful);
       await Future.delayed(const Duration(seconds: 2));
-      _setPhase(InstallerPhase.finish);
+      _setPhase(InstallerPhase.bluetoothPairing);
     } else if (status.result == TrampolineResult.error) {
       _setStatus(l10n.dbcFlashFailed(status.message ?? ''));
       if (mounted && status.errorLog != null) {
@@ -1909,6 +1914,141 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _setStatus(l10n.trampolineStatusUnknown);
       setState(() { _isProcessing = false; _reconnectStarted = false; });
     }
+  }
+
+  Widget _buildBluetoothPairing(AppLocalizations l10n) {
+    return SingleChildScrollView(
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.bluetooth, size: 48, color: Colors.blueAccent),
+            const SizedBox(height: 16),
+            Text(l10n.bluetoothPairingHeading,
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text(l10n.bluetoothPairingHint,
+                style: TextStyle(color: Colors.grey.shade400)),
+            const SizedBox(height: 24),
+
+            if (!_btPairingActive && _blePinCode == null) ...[
+              FilledButton.icon(
+                onPressed: _startBluetoothPairing,
+                icon: const Icon(Icons.bluetooth_searching),
+                label: Text(l10n.startPairing),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () {
+                  _stopBlePinPolling();
+                  _setPhase(InstallerPhase.finish);
+                },
+                child: Text(l10n.skipPairing),
+              ),
+            ],
+
+            if (_btPairingActive && _blePinCode == null) ...[
+              const SizedBox(height: 16),
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(l10n.pairingActive,
+                  style: TextStyle(color: Colors.grey.shade400)),
+              const SizedBox(height: 24),
+              TextButton(
+                onPressed: () {
+                  _stopBlePinPolling();
+                  _setPhase(InstallerPhase.finish);
+                },
+                child: Text(l10n.skipPairing),
+              ),
+            ],
+
+            if (_blePinCode != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
+                ),
+                child: Text(_blePinCode!,
+                    style: const TextStyle(
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 8,
+                      fontFamily: 'monospace',
+                    )),
+              ),
+              const SizedBox(height: 12),
+              Text(l10n.blePinHint,
+                  style: TextStyle(color: Colors.grey.shade400)),
+              const SizedBox(height: 24),
+              TextButton(
+                onPressed: () {
+                  _stopBlePinPolling();
+                  _setPhase(InstallerPhase.finish);
+                },
+                child: Text(l10n.skipPairing),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _startBluetoothPairing() async {
+    setState(() {
+      _btPairingActive = true;
+      _blePinCode = null;
+    });
+
+    try {
+      await _sshService.redisLpush('scooter:bluetooth', 'advertising-restart-no-whitelisting');
+      debugPrint('UI: BLE pairing mode enabled');
+    } catch (e) {
+      debugPrint('UI: failed to enable BLE pairing: $e');
+      _setStatus('Failed to enable pairing: $e');
+      setState(() => _btPairingActive = false);
+      return;
+    }
+
+    _startBlePinPolling();
+  }
+
+  void _startBlePinPolling() {
+    _blePinPollTimer?.cancel();
+    _blePinPollTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
+      if (!mounted) {
+        _stopBlePinPolling();
+        return;
+      }
+      try {
+        final pin = await _sshService.redisHget('ble', 'pin-code');
+        if (pin != null && pin.isNotEmpty) {
+          if (_blePinCode != pin) {
+            setState(() => _blePinCode = pin);
+          }
+        } else if (_blePinCode != null) {
+          // PIN was cleared — pairing completed
+          _stopBlePinPolling();
+          if (!mounted) return;
+          _setStatus(AppLocalizations.of(context)!.pairingComplete);
+          setState(() {
+            _blePinCode = null;
+            _btPairingActive = false;
+          });
+        }
+      } catch (_) {
+        // SSH error during polling — ignore, will retry
+      }
+    });
+  }
+
+  void _stopBlePinPolling() {
+    _blePinPollTimer?.cancel();
+    _blePinPollTimer = null;
   }
 
   Widget _buildFinish(AppLocalizations l10n) {

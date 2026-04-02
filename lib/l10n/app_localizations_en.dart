@@ -863,6 +863,36 @@ class AppLocalizationsEn extends AppLocalizations {
       'You can install maps later via the scooter\'s web interface';
 
   @override
+  String get bluetoothPairingHeading => 'Bluetooth Pairing';
+
+  @override
+  String get bluetoothPairingHint =>
+      'Pair your phone or other Bluetooth devices with the scooter.';
+
+  @override
+  String get startPairing => 'Start pairing';
+
+  @override
+  String get skipPairing => 'Skip';
+
+  @override
+  String get pairingActive => 'Pairing mode active — searching for devices...';
+
+  @override
+  String blePinCode(String pin) {
+    return 'PIN: $pin';
+  }
+
+  @override
+  String get blePinHint => 'Enter this PIN on your device to complete pairing.';
+
+  @override
+  String get pairingComplete => 'Pairing complete!';
+
+  @override
+  String get pairAnotherDevice => 'Pair another device';
+
+  @override
   String get willAskForElevation =>
       'Start Installation (will ask for elevation)';
 

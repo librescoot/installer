@@ -869,6 +869,37 @@ class AppLocalizationsDe extends AppLocalizations {
       'Karten können später über das Web-Interface des Rollers installiert werden';
 
   @override
+  String get bluetoothPairingHeading => 'Bluetooth-Kopplung';
+
+  @override
+  String get bluetoothPairingHint =>
+      'Koppele dein Handy oder andere Bluetooth-Geräte mit dem Roller.';
+
+  @override
+  String get startPairing => 'Kopplung starten';
+
+  @override
+  String get skipPairing => 'Überspringen';
+
+  @override
+  String get pairingActive => 'Kopplungsmodus aktiv — suche nach Geräten...';
+
+  @override
+  String blePinCode(String pin) {
+    return 'PIN: $pin';
+  }
+
+  @override
+  String get blePinHint =>
+      'Gib diese PIN auf deinem Gerät ein, um die Kopplung abzuschließen.';
+
+  @override
+  String get pairingComplete => 'Kopplung erfolgreich!';
+
+  @override
+  String get pairAnotherDevice => 'Weiteres Gerät koppeln';
+
+  @override
   String get willAskForElevation =>
       'Installation starten (fragt nach Berechtigung)';
 

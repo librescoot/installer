@@ -278,6 +278,20 @@
   "regionHint": "F\u00fcr Offline-Karten und Navigationsunterst\u00fctzung",
   "skipOfflineMaps": "Offline-Karten \u00fcberspringen",
   "skipOfflineMapsHint": "Karten k\u00f6nnen sp\u00e4ter \u00fcber das Web-Interface des Rollers installiert werden",
+  "bluetoothPairingHeading": "Bluetooth-Kopplung",
+  "bluetoothPairingHint": "Koppele dein Handy oder andere Bluetooth-Ger\u00e4te mit dem Roller.",
+  "startPairing": "Kopplung starten",
+  "skipPairing": "\u00dcberspringen",
+  "pairingActive": "Kopplungsmodus aktiv \u2014 suche nach Ger\u00e4ten...",
+  "blePinCode": "PIN: {pin}",
+  "@blePinCode": {
+    "placeholders": {
+      "pin": { "type": "String" }
+    }
+  },
+  "blePinHint": "Gib diese PIN auf deinem Ger\u00e4t ein, um die Kopplung abzuschlie\u00dfen.",
+  "pairingComplete": "Kopplung erfolgreich!",
+  "pairAnotherDevice": "Weiteres Ger\u00e4t koppeln",
   "willAskForElevation": "Installation starten (fragt nach Berechtigung)",
   "installationContinuesInNewWindow": "Die Installation wird im neuen Fenster fortgesetzt",
   "youCanCloseThisWindow": "Du kannst dieses Fenster schlie\u00dfen."

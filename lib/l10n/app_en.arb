@@ -365,6 +365,20 @@
   "regionHint": "For offline maps and navigation support",
   "skipOfflineMaps": "Skip offline maps",
   "skipOfflineMapsHint": "You can install maps later via the scooter's web interface",
+  "bluetoothPairingHeading": "Bluetooth Pairing",
+  "bluetoothPairingHint": "Pair your phone or other Bluetooth devices with the scooter.",
+  "startPairing": "Start pairing",
+  "skipPairing": "Skip",
+  "pairingActive": "Pairing mode active — searching for devices...",
+  "blePinCode": "PIN: {pin}",
+  "@blePinCode": {
+    "placeholders": {
+      "pin": { "type": "String" }
+    }
+  },
+  "blePinHint": "Enter this PIN on your device to complete pairing.",
+  "pairingComplete": "Pairing complete!",
+  "pairAnotherDevice": "Pair another device",
   "willAskForElevation": "Start Installation (will ask for elevation)",
   "installationContinuesInNewWindow": "Installation continues in the new window",
   "youCanCloseThisWindow": "You can close this window."

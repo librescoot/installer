@@ -1646,6 +1646,60 @@ abstract class AppLocalizations {
   /// **'You can install maps later via the scooter\'s web interface'**
   String get skipOfflineMapsHint;
 
+  /// No description provided for @bluetoothPairingHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Bluetooth Pairing'**
+  String get bluetoothPairingHeading;
+
+  /// No description provided for @bluetoothPairingHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Pair your phone or other Bluetooth devices with the scooter.'**
+  String get bluetoothPairingHint;
+
+  /// No description provided for @startPairing.
+  ///
+  /// In en, this message translates to:
+  /// **'Start pairing'**
+  String get startPairing;
+
+  /// No description provided for @skipPairing.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip'**
+  String get skipPairing;
+
+  /// No description provided for @pairingActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Pairing mode active — searching for devices...'**
+  String get pairingActive;
+
+  /// No description provided for @blePinCode.
+  ///
+  /// In en, this message translates to:
+  /// **'PIN: {pin}'**
+  String blePinCode(String pin);
+
+  /// No description provided for @blePinHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter this PIN on your device to complete pairing.'**
+  String get blePinHint;
+
+  /// No description provided for @pairingComplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Pairing complete!'**
+  String get pairingComplete;
+
+  /// No description provided for @pairAnotherDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Pair another device'**
+  String get pairAnotherDevice;
+
   /// No description provided for @willAskForElevation.
   ///
   /// In en, this message translates to:

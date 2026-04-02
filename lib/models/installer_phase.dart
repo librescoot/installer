@@ -64,6 +64,11 @@ enum InstallerPhase {
     description: 'Verify DBC installation',
     isManual: true,
   ),
+  bluetoothPairing(
+    title: 'Bluetooth',
+    description: 'Pair phone or other devices',
+    isManual: true,
+  ),
   finish(
     title: 'Finish',
     description: 'Reassemble and welcome',
