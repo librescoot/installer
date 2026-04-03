@@ -2,8 +2,8 @@ name: Build Desktop
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -17,14 +17,27 @@ jobs:
         include:
           - os: ubuntu-latest
             target: linux-x64
+            platform: linux
+            arch: x64
           - os: macos-latest
             target: macos
+            platform: macos
+            arch: universal
           - os: windows-latest
             target: windows
+            platform: windows
+            arch: x64
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: version
+        shell: bash
+        run: echo "describe=$(git describe --tags --always --dirty 2>/dev/null || echo dev)" >> "$GITHUB_OUTPUT"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -66,28 +79,51 @@ jobs:
         if: matrix.target == 'macos'
         run: |
           cd build/macos/Build/Products/Release
-          tar czf librescoot-installer-macos.tar.gz librescoot_installer.app
+          tar czf librescoot-installer-${{ matrix.platform }}-${{ matrix.arch }}-${{ steps.version.outputs.describe }}.tar.gz librescoot_installer.app
 
-      - name: Upload macOS artifact
-        if: matrix.target == 'macos'
-        uses: actions/upload-artifact@v4
-        with:
-          name: librescoot-installer-macos
-          path: build/macos/Build/Products/Release/librescoot-installer-macos.tar.gz
-          if-no-files-found: error
-
-      - name: Upload Windows artifact
-        if: matrix.target == 'windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: librescoot-installer-windows
-          path: build/windows/x64/runner/Release
-          if-no-files-found: error
-
-      - name: Upload Linux artifact
+      - name: Package Linux app
         if: runner.os == 'Linux'
+        run: |
+          cd build/linux/x64/release
+          tar czf librescoot-installer-${{ matrix.platform }}-${{ matrix.arch }}-${{ steps.version.outputs.describe }}.tar.gz bundle/
+
+      - name: Package Windows app
+        if: matrix.target == 'windows'
+        shell: bash
+        run: |
+          cd build/windows/x64/runner
+          7z a librescoot-installer-${{ matrix.platform }}-${{ matrix.arch }}-${{ steps.version.outputs.describe }}.zip Release/
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: librescoot-installer-linux
-          path: build/linux/x64/release/bundle
+          name: librescoot-installer-${{ matrix.platform }}-${{ matrix.arch }}-${{ steps.version.outputs.describe }}
+          path: |
+            build/macos/Build/Products/Release/librescoot-installer-*.tar.gz
+            build/linux/x64/release/librescoot-installer-*.tar.gz
+            build/windows/x64/runner/librescoot-installer-*.zip
           if-no-files-found: error
+
+  release:
+    name: Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      - name: List artifacts
+        run: find dist/ -type f
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
