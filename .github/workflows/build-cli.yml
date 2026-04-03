@@ -15,6 +15,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: version
+        run: echo "describe=$(git describe --tags --always --dirty 2>/dev/null || echo dev)" >> "$GITHUB_OUTPUT"
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -26,10 +32,23 @@ jobs:
         working-directory: cli
         run: make build-all
 
+      - name: Rename binaries with version
+        working-directory: cli/bin
+        run: |
+          VERSION="${{ steps.version.outputs.describe }}"
+          for f in librescoot-install-*; do
+            # Insert version: librescoot-install-linux-amd64 -> librescoot-install-linux-amd64-v0.3.2
+            base="${f%.exe}"
+            ext=""
+            [[ "$f" == *.exe ]] && ext=".exe"
+            mv "$f" "${base}-${VERSION}${ext}"
+          done
+          ls -la
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: librescoot-install
+          name: librescoot-install-${{ steps.version.outputs.describe }}
           path: cli/bin/librescoot-install-*
           if-no-files-found: error
 
@@ -45,8 +64,8 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: librescoot-install
           path: dist/
+          merge-multiple: true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
