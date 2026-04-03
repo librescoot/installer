@@ -167,6 +167,12 @@ class SshService {
       }
     }
 
+    // Stop power manager to prevent suspend/hibernate during flashing
+    try {
+      await runCommand('systemctl stop librescoot-pm 2>/dev/null; systemctl stop pm-service 2>/dev/null; true');
+      debugPrint('SSH: stopped power manager');
+    } catch (_) {}
+
     final detectedVersion = await _detectFirmwareVersion();
     if (detectedVersion != null) {
       authVersion = detectedVersion;
