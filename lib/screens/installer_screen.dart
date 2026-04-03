@@ -70,6 +70,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Timer? _blePinPollTimer;
   bool _keycardLearning = false;
   bool _isCriticalOperation = false; // prevent quit during flash/upload
+  Process? _caffeinateProcess; // macOS sleep prevention
 
   StreamSubscription<UsbDevice?>? _deviceSub;
 
@@ -131,6 +132,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     _deviceSub?.cancel();
     _usbDetector.stopMonitoring();
     _blePinPollTimer?.cancel();
+    _allowSleep();
     super.dispose();
   }
 
@@ -304,6 +306,29 @@ class _InstallerScreenState extends State<InstallerScreen> {
   void _setCritical(bool critical) {
     if (_isCriticalOperation == critical) return;
     setState(() => _isCriticalOperation = critical);
+    if (critical) {
+      _preventSleep();
+    } else {
+      _allowSleep();
+    }
+  }
+
+  void _preventSleep() {
+    if (Platform.isMacOS) {
+      _caffeinateProcess?.kill();
+      Process.start('caffeinate', ['-s']).then((p) {
+        _caffeinateProcess = p;
+        debugPrint('UI: sleep prevention started (caffeinate pid ${p.pid})');
+      }).catchError((_) {});
+    }
+  }
+
+  void _allowSleep() {
+    if (_caffeinateProcess != null) {
+      debugPrint('UI: sleep prevention stopped');
+      _caffeinateProcess!.kill();
+      _caffeinateProcess = null;
+    }
   }
 
   @override
