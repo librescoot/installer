@@ -127,7 +127,7 @@ static int authorize_and_open(const char *device_path) {
         close(stdin_pipe[0]);
 
         char mode_str[16];
-        snprintf(mode_str, sizeof(mode_str), "%d", O_WRONLY);
+        snprintf(mode_str, sizeof(mode_str), "%d", O_RDWR);
 
         execl("/usr/libexec/authopen", "authopen",
               "-stdoutpipe", "-extauth",
@@ -189,14 +189,16 @@ static ssize_t read_exact(int fd, void *buf, size_t n) {
 }
 
 static int write_phase(int device_fd, int input_fd, int skip_blocks, int seek_blocks, int count_blocks, const char *phase_name) {
-    char buf[BLOCK_SIZE];
+    char *buf = malloc(BLOCK_SIZE);
+    if (!buf) { fprintf(stderr, "%s: malloc failed\n", phase_name); return 1; }
+    int rc = 0;
 
     // Seek on the device
     if (seek_blocks > 0) {
         off_t offset = (off_t)seek_blocks * BLOCK_SIZE;
         if (lseek(device_fd, offset, SEEK_SET) < 0) {
             fprintf(stderr, "%s: lseek to %lld failed: %s\n", phase_name, (long long)offset, strerror(errno));
-            return 1;
+            rc = 1; goto out;
         }
         fprintf(stderr, "%s: seeked to offset %lld\n", phase_name, (long long)offset);
     } else {
@@ -208,7 +210,7 @@ static int write_phase(int device_fd, int input_fd, int skip_blocks, int seek_bl
         ssize_t r = read_exact(input_fd, buf, BLOCK_SIZE);
         if (r < BLOCK_SIZE) {
             fprintf(stderr, "%s: failed to skip block %d (got %zd bytes)\n", phase_name, i, r);
-            return 1;
+            rc = 1; goto out;
         }
     }
     if (skip_blocks > 0) {
@@ -216,32 +218,35 @@ static int write_phase(int device_fd, int input_fd, int skip_blocks, int seek_bl
     }
 
     // Write full blocks
-    off_t total_written = 0;
-    int blocks_written = 0;
+    {
+        off_t total_written = 0;
+        int blocks_written = 0;
 
-    while (count_blocks < 0 || blocks_written < count_blocks) {
-        ssize_t bytes_read = read_exact(input_fd, buf, BLOCK_SIZE);
-        if (bytes_read <= 0) break;  // EOF or error
+        while (count_blocks < 0 || blocks_written < count_blocks) {
+            ssize_t bytes_read = read_exact(input_fd, buf, BLOCK_SIZE);
+            if (bytes_read <= 0) break;
 
-        ssize_t wr = 0;
-        while (wr < bytes_read) {
-            ssize_t w = write(device_fd, buf + wr, bytes_read - wr);
-            if (w < 0) {
-                fprintf(stderr, "%s: write error: %s\n", phase_name, strerror(errno));
-                return 1;
+            ssize_t wr = 0;
+            while (wr < bytes_read) {
+                ssize_t w = write(device_fd, buf + wr, bytes_read - wr);
+                if (w < 0) {
+                    fprintf(stderr, "%s: write error: %s\n", phase_name, strerror(errno));
+                    rc = 1; goto out;
+                }
+                wr += w;
             }
-            wr += w;
+            total_written += wr;
+            blocks_written++;
+            fprintf(stderr, "PROGRESS:%lld\n", (long long)total_written);
         }
-        total_written += wr;
-        blocks_written++;
-        fprintf(stderr, "PROGRESS:%lld\n", (long long)total_written);
 
-        if (count_blocks > 0 && blocks_written >= count_blocks) break;
+        fsync(device_fd);
+        fprintf(stderr, "%s: done, %lld bytes written\n", phase_name, (long long)total_written);
     }
 
-    fsync(device_fd);
-    fprintf(stderr, "%s: done, %lld bytes written\n", phase_name, (long long)total_written);
-    return 0;
+out:
+    free(buf);
+    return rc;
 }
 
 int main(int argc, char *argv[]) {
@@ -347,8 +352,15 @@ int main(int argc, char *argv[]) {
         }
 
         lseek(device_fd, 0, SEEK_SET);
-        char src_buf[BLOCK_SIZE];
-        char dev_buf[BLOCK_SIZE];
+        char *src_buf = malloc(BLOCK_SIZE);
+        char *dev_buf = malloc(BLOCK_SIZE);
+        if (!src_buf || !dev_buf) {
+            fprintf(stderr, "Verify: malloc failed\n");
+            free(src_buf); free(dev_buf);
+            pclose(verify_src);
+            close(device_fd);
+            return 7;
+        }
         int verify_ok = 1;
         off_t verify_offset = 0;
 
@@ -366,7 +378,6 @@ int main(int argc, char *argv[]) {
                 break;
             }
             if (memcmp(src_buf, dev_buf, src_read) != 0) {
-                // Find first mismatch
                 for (ssize_t j = 0; j < src_read; j++) {
                     if (src_buf[j] != dev_buf[j]) {
                         fprintf(stderr, "Verify: MISMATCH at offset %lld (block %d + %zd): expected 0x%02x, got 0x%02x\n",
@@ -381,6 +392,8 @@ int main(int argc, char *argv[]) {
             verify_offset += src_read;
             fprintf(stderr, "PROGRESS:%lld\n", (long long)verify_offset);
         }
+        free(src_buf);
+        free(dev_buf);
         pclose(verify_src);
 
         if (!verify_ok) {
