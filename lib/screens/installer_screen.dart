@@ -1360,24 +1360,28 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
 
     try {
-      // Wait for USB detector to resolve the device path (can take a few seconds)
+      // Resolve the block device path (macOS needs diskutil lookup)
       _setStatus('Waiting for device path...');
+      String? devicePath;
       for (var i = 0; i < 15; i++) {
-        if (_device?.path != null && _device!.path.isNotEmpty) break;
+        devicePath = _device?.path;
+        if (devicePath != null && devicePath.isNotEmpty) break;
+        devicePath = await _usbDetector.resolveDevicePath();
+        if (devicePath != null && devicePath.isNotEmpty) break;
         await Future.delayed(const Duration(seconds: 1));
         if (!mounted) return;
       }
-      if (_device?.path == null || _device!.path.isEmpty) {
+      if (devicePath == null || devicePath.isEmpty) {
         _setStatus('No device path found. Check USB connection and retry.');
         setState(() { _isProcessing = false; _mdbFlashStarted = false; });
         return;
       }
-      debugPrint('Flash: device path resolved: ${_device!.path}');
+      debugPrint('Flash: device path resolved: $devicePath');
 
       final flashService = FlashService();
       await flashService.writeTwoPhase(
         mdbItem.localPath!,
-        _device!.path,
+        devicePath,
         onProgress: (progress, message) {
           _setStatus(message, progress: progress);
         },

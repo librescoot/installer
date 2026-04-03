@@ -75,24 +75,26 @@ jobs:
         if: matrix.target == 'windows'
         run: flutter build windows --release --dart-define=AUTH_KEY=${{ secrets.AUTH_KEY }}
 
-      - name: Package macOS app
+      - name: Package macOS
         if: matrix.target == 'macos'
         run: |
           cd build/macos/Build/Products/Release
-          tar czf librescoot-installer-${{ matrix.platform }}-${{ matrix.arch }}-${{ steps.version.outputs.describe }}.tar.gz librescoot_installer.app
+          tar czf librescoot-installer-macos-universal-${{ steps.version.outputs.describe }}.tar.gz librescoot_installer.app
 
-      - name: Package Linux app
+      - name: Package Linux
         if: runner.os == 'Linux'
         run: |
           cd build/linux/x64/release
-          tar czf librescoot-installer-${{ matrix.platform }}-${{ matrix.arch }}-${{ steps.version.outputs.describe }}.tar.gz bundle/
+          mv bundle librescoot-installer
+          tar czf librescoot-installer-linux-x64-${{ steps.version.outputs.describe }}.tar.gz librescoot-installer/
 
-      - name: Package Windows app
+      - name: Package Windows
         if: matrix.target == 'windows'
         shell: bash
         run: |
           cd build/windows/x64/runner
-          7z a librescoot-installer-${{ matrix.platform }}-${{ matrix.arch }}-${{ steps.version.outputs.describe }}.zip Release/
+          mv Release librescoot-installer
+          7z a librescoot-installer-windows-x64-${{ steps.version.outputs.describe }}.zip librescoot-installer/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -116,11 +118,13 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: dist/
-          merge-multiple: true
+          path: artifacts/
 
-      - name: List artifacts
-        run: find dist/ -type f
+      - name: Collect release files
+        run: |
+          mkdir -p dist/
+          find artifacts/ -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} dist/ \;
+          ls -la dist/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

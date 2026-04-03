@@ -43,8 +43,11 @@ class TrampolineService {
       if (localResult.exitCode != 0) return false;
       final localMd5 = localResult.stdout.toString().split(' ').first.trim();
 
-      // Get remote md5
-      final remoteMd5 = (await _ssh.runCommand('md5sum "$remotePath" 2>/dev/null')).trim().split(' ').first;
+      // Get remote md5 (large files can take a while)
+      final remoteMd5 = (await _ssh.runCommand(
+        'md5sum "$remotePath" 2>/dev/null',
+        timeout: const Duration(minutes: 5),
+      )).trim().split(' ').first;
 
       final match = localMd5.isNotEmpty && localMd5 == remoteMd5;
       if (match) {

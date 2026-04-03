@@ -96,6 +96,19 @@ class UsbDetector {
   Stream<UsbDevice?> get deviceStream => _deviceController.stream;
   UsbDevice? get currentDevice => _lastDevice;
 
+  /// Resolve the block device path for a mass storage device.
+  /// On macOS, runs diskutil to find the matching external disk.
+  Future<String?> resolveDevicePath() async {
+    if (!Platform.isMacOS) return _lastDevice?.path;
+    if (_macDiskInfoCache != null) return _macDiskInfoCache!['path'] as String?;
+    final info = await _findMacOSDiskInfo();
+    if (info != null) {
+      _macDiskInfoCache = info;
+      return info['path'] as String?;
+    }
+    return null;
+  }
+
   /// Start monitoring for USB devices
   void startMonitoring({Duration interval = const Duration(seconds: 1)}) {
     stopMonitoring();

@@ -326,7 +326,7 @@ class SshService {
   }
 
   /// Run a command on the connected device
-  Future<String> runCommand(String command) async {
+  Future<String> runCommand(String command, {Duration timeout = const Duration(seconds: 60)}) async {
     if (_client == null) {
       throw Exception('Not connected');
     }
@@ -348,7 +348,7 @@ class SshService {
     }();
 
     await Future.wait([stdoutDone, stderrDone, session.done])
-        .timeout(const Duration(seconds: 60));
+        .timeout(timeout);
 
     final exitCode = session.exitCode;
     if (exitCode != null && exitCode != 0) {
@@ -372,19 +372,20 @@ class SshService {
       throw Exception('Not connected');
     }
 
+    // Scale timeout with file size: at least 60s, plus 1s per 100KB
+    final timeoutSecs = 60 + (content.length / (100 * 1024)).ceil();
+    final timeout = Duration(seconds: timeoutSecs);
+
     if (_sftpAvailable) {
       try {
-        await _uploadViaSftp(content, remotePath, onProgress)
-            .timeout(const Duration(seconds: 60));
+        await _uploadViaSftp(content, remotePath, onProgress).timeout(timeout);
       } catch (e) {
         debugPrint('SSH: SFTP upload failed ($e), falling back to cat');
         _sftpAvailable = false;
-        await _uploadViaCat(content, remotePath)
-            .timeout(const Duration(seconds: 60));
+        await _uploadViaCat(content, remotePath).timeout(timeout);
       }
     } else {
-      await _uploadViaCat(content, remotePath)
-          .timeout(const Duration(seconds: 60));
+      await _uploadViaCat(content, remotePath).timeout(timeout);
     }
 
     // Make executable if needed
