@@ -54,6 +54,9 @@ func (inst *Installer) Run() error {
 		logInfo("Serial:   %s", serial)
 	}
 
+	// Stop power manager to prevent suspend/hibernate during flashing
+	inst.mdbSSH("systemctl stop librescoot-pm pm-service 2>/dev/null")
+
 	logStep("Configuring bootloader for mass storage mode...")
 	if inst.dryRun {
 		logInfo("[dry-run] would upload fw_setenv and configure bootcmd")
