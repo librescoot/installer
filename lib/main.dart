@@ -64,6 +64,19 @@ void main(List<String> args) async {
     originalDebugPrint(message, wrapWidth: wrapWidth);
   };
 
+  // On fresh Windows installs, the CA certificate store may be incomplete.
+  // Windows lazily downloads missing CA certs when SChannel-based apps (like
+  // curl.exe) connect to HTTPS endpoints, but Dart's HTTP client only reads
+  // what's already in the store. Warm up the store by hitting the endpoints
+  // we'll need.
+  if (Platform.isWindows) {
+    Future.wait([
+      Process.run('curl.exe', ['-s', '-o', 'NUL', 'https://api.github.com/']),
+      Process.run('curl.exe', ['-s', '-o', 'NUL', 'https://github.com/']),
+      Process.run('curl.exe', ['-s', '-o', 'NUL', 'https://release-assets.githubusercontent.com/']),
+    ]).catchError((_) => <ProcessResult>[]);
+  }
+
   // If we were launched as the elevated process, bring ourselves to front
   if (launchArgs.autoStart && Platform.isMacOS) {
     Future.delayed(const Duration(seconds: 1), () {
