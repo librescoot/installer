@@ -63,6 +63,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _skipDbcFlash = false;
   String? _radioGagaBackupPath;
   bool _flashConfirmed = false;
+  final Map<String, int> _retryCounts = {};
   bool _btPairingActive = false;
   String? _blePinCode;
   bool _bleConnected = false;
@@ -132,6 +133,22 @@ class _InstallerScreenState extends State<InstallerScreen> {
     _blePinPollTimer?.cancel();
     super.dispose();
   }
+
+  /// Returns true if the operation should be retried, false if max retries exceeded.
+  /// Handles backoff delay and retry counting.
+  Future<bool> _shouldRetry(String key, {int maxRetries = 5, int delaySecs = 5}) async {
+    _retryCounts[key] = (_retryCounts[key] ?? 0) + 1;
+    final count = _retryCounts[key]!;
+    if (count >= maxRetries) {
+      debugPrint('$key: giving up after $count attempts');
+      return false;
+    }
+    debugPrint('$key: retry $count/$maxRetries in ${delaySecs}s');
+    await Future.delayed(Duration(seconds: delaySecs));
+    return mounted;
+  }
+
+  void _resetRetries(String key) => _retryCounts.remove(key);
 
   Future<void> _resolveAvailableChannels() async {
     try {
@@ -848,7 +865,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _setPhase(InstallerPhase.healthCheck);
     } catch (e) {
       _setStatus(l10n.sshConnectionFailed(e.toString()));
-      setState(() { _isProcessing = false; _mdbConnectStarted = false; });
+      setState(() => _isProcessing = false);
+      if (await _shouldRetry('mdbConnect')) {
+        setState(() => _mdbConnectStarted = false);
+      }
     }
   }
 
@@ -1190,14 +1210,22 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _setStatus(l10n.uploadingBootloaderTools);
       await _sshService.configureMassStorageMode();
 
-      // Verify the bootcmd was actually set
+      // Verify the bootcmd was actually set.
+      // fw_setenv behaves as fw_printenv when invoked under that name.
       _setStatus('Verifying bootloader config...');
-      final bootcmd = await _sshService.runCommand('fw_printenv bootcmd');
-      debugPrint('SSH: verified bootcmd = $bootcmd');
-      if (!bootcmd.contains('ums')) {
-        _setStatus('fw_setenv failed — bootcmd is still: ${bootcmd.trim()}');
-        setState(() { _isProcessing = false; _mdbToUmsStarted = false; });
-        return;
+      try {
+        await _sshService.runCommand('ln -sf /tmp/fw_setenv /tmp/fw_printenv');
+        final bootcmd = await _sshService.runCommand(
+          'fw_printenv bootcmd 2>/dev/null || /tmp/fw_printenv -c /tmp/fw_env.config bootcmd'
+        );
+        debugPrint('SSH: verified bootcmd = $bootcmd');
+        if (!bootcmd.contains('ums')) {
+          _setStatus('fw_setenv failed — bootcmd is still: ${bootcmd.trim()}');
+          setState(() { _isProcessing = false; _mdbToUmsStarted = false; });
+          return;
+        }
+      } catch (e) {
+        debugPrint('SSH: bootcmd verification failed ($e), proceeding');
       }
 
       _setStatus(l10n.rebootingMdbUms);
@@ -1230,7 +1258,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 style: TextStyle(color: Colors.grey.shade400)),
             const SizedBox(height: 24),
             FilledButton.icon(
-              onPressed: () => setState(() => _flashConfirmed = true),
+              onPressed: () { _resetRetries('mdbFlash'); setState(() => _flashConfirmed = true); },
               icon: const Icon(Icons.flash_on),
               label: Text(l10n.beginFlashing),
             ),
@@ -1355,10 +1383,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
             'Power cycle the board to re-enter UMS mode.';
       }
       _setStatus(diagnosis);
-      setState(() {
-        _isProcessing = false;
-        _mdbFlashStarted = false;
-      });
+      setState(() => _isProcessing = false);
+      if (await _shouldRetry('mdbFlash')) {
+        setState(() => _mdbFlashStarted = false);
+      }
     }
   }
 

@@ -366,7 +366,7 @@
 
   "regionHint": "For offline maps and navigation support",
   "skipOfflineMaps": "Skip offline maps",
-  "skipOfflineMapsHint": "You can install maps later via the scooter's web interface",
+  "skipOfflineMapsHint": "You can install maps later by re-running the installer",
   "bluetoothPairingHeading": "Bluetooth Pairing",
   "bluetoothPairingHint": "Pair your phone or other Bluetooth devices with the scooter.",
   "startPairing": "Unlock and start pairing",

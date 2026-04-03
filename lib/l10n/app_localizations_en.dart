@@ -866,7 +866,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get skipOfflineMapsHint =>
-      'You can install maps later via the scooter\'s web interface';
+      'You can install maps later by re-running the installer';
 
   @override
   String get bluetoothPairingHeading => 'Bluetooth Pairing';

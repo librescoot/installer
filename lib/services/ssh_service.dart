@@ -33,6 +33,7 @@ class SshService {
 
   SSHClient? _client;
   Map<String, String>? _deviceConfig;
+  bool _sftpAvailable = false;
 
   /// Auth key injected at build time via --dart-define=AUTH_KEY=...
   static const _authKey = String.fromEnvironment('AUTH_KEY');
@@ -62,7 +63,7 @@ class SshService {
       final version = entry.key.toString();
       final encoded = entry.value.toString();
       final decodedRaw = utf8.decode(base64.decode(encoded));
-      _deviceConfig![version] = decodedRaw.replaceAll(RegExp(r'[\r\n]+\$'), '');
+      _deviceConfig![version] = decodedRaw.trim();
     }
     debugPrint('SSH: device config loaded (${_deviceConfig!.length} versions)');
   }
@@ -122,20 +123,19 @@ class SshService {
       );
       debugPrint('SSH: connected socket to $host:$sshPort');
 
-      var authAttempts = 0;
       var bannerVersionSeen = authVersion;
       _client = SSHClient(
         socket,
         username: sshUser,
         onPasswordRequest: () {
-          authAttempts++;
-          // First attempt: try empty password (LibreScoot boards have no root password)
-          if (authAttempts == 1) {
-            debugPrint('SSH: auth attempt #1 — trying empty password');
+          if (!attemptedRetry) {
+            // First connection: try empty password (LibreScoot boards have no root password)
+            debugPrint('SSH: trying empty password');
             return '';
           }
+          // Retry connection: use version-specific credential
           final credential = _resolveDeviceCredential(authVersion);
-          debugPrint('SSH: auth attempt #$authAttempts for version $authVersion');
+          debugPrint('SSH: trying credential for version $authVersion');
           return credential;
         },
         onUserauthBanner: (banner) {
@@ -169,9 +169,18 @@ class SshService {
 
     // Stop power manager to prevent suspend/hibernate during flashing
     try {
-      await runCommand('systemctl stop librescoot-pm 2>/dev/null; systemctl stop pm-service 2>/dev/null; true');
+      await runCommand('systemctl stop librescoot-pm 2>/dev/null; systemctl stop pm-service 2>/dev/null; systemctl stop unu-pm 2>/dev/null; true');
       debugPrint('SSH: stopped power manager');
     } catch (_) {}
+
+    // Check if SFTP subsystem is available (stock scooterOS doesn't have it)
+    try {
+      final sftpCheck = (await runCommand('test -e /usr/libexec/sftp-server -o -e /usr/lib/openssh/sftp-server && echo yes || echo no')).trim();
+      _sftpAvailable = sftpCheck == 'yes';
+      debugPrint('SSH: SFTP ${_sftpAvailable ? "available" : "not available"}');
+    } catch (_) {
+      _sftpAvailable = false;
+    }
 
     final detectedVersion = await _detectFirmwareVersion();
     if (detectedVersion != null) {
@@ -338,7 +347,8 @@ class SshService {
       }
     }();
 
-    await Future.wait([stdoutDone, stderrDone, session.done]);
+    await Future.wait([stdoutDone, stderrDone, session.done])
+        .timeout(const Duration(seconds: 60));
 
     final exitCode = session.exitCode;
     if (exitCode != null && exitCode != 0) {
@@ -362,11 +372,19 @@ class SshService {
       throw Exception('Not connected');
     }
 
-    try {
-      await _uploadViaSftp(content, remotePath, onProgress);
-    } catch (e) {
-      debugPrint('SSH: SFTP upload failed ($e), falling back to cat');
-      await _uploadViaCat(content, remotePath);
+    if (_sftpAvailable) {
+      try {
+        await _uploadViaSftp(content, remotePath, onProgress)
+            .timeout(const Duration(seconds: 60));
+      } catch (e) {
+        debugPrint('SSH: SFTP upload failed ($e), falling back to cat');
+        _sftpAvailable = false;
+        await _uploadViaCat(content, remotePath)
+            .timeout(const Duration(seconds: 60));
+      }
+    } else {
+      await _uploadViaCat(content, remotePath)
+          .timeout(const Duration(seconds: 60));
     }
 
     // Make executable if needed
@@ -416,7 +434,10 @@ class SshService {
     final session = await _client!.execute('cat > $remotePath');
     session.stdin.add(content);
     await session.stdin.close();
-    await session.done;
+    // Drain stdout/stderr to prevent blocking
+    final stdoutDone = () async { await for (final _ in session.stdout) {} }();
+    final stderrDone = () async { await for (final _ in session.stderr) {} }();
+    await Future.wait([stdoutDone, stderrDone, session.done]);
   }
 
   /// Upload fw_setenv and configure bootloader for mass storage mode
@@ -442,8 +463,11 @@ class SshService {
       debugPrint('SSH: uploading bundled fw_setenv and fw_env.config');
       final fwSetenv = await _readToolAsset('fw_setenv');
       final fwEnvConfig = await _readToolAsset('fw_env.config');
+      debugPrint('SSH: uploading fw_setenv (${fwSetenv.length} bytes)...');
       await uploadFile(fwSetenv, '/tmp/fw_setenv');
+      debugPrint('SSH: uploading fw_env.config (${fwEnvConfig.length} bytes)...');
       await uploadFile(fwEnvConfig, '/tmp/fw_env.config');
+      debugPrint('SSH: uploads complete');
       fwSetenvCmd = '/tmp/fw_setenv';
       configFlag = '-c /tmp/fw_env.config';
     }
@@ -641,10 +665,17 @@ class SshService {
     try {
       final session = await _client!.execute('cat ${_shellEscape(remotePath)}');
       final chunks = <int>[];
-      await for (final data in session.stdout) {
-        chunks.addAll(data);
-      }
-      await session.done;
+      final stdoutDone = () async {
+        await for (final data in session.stdout) {
+          chunks.addAll(data);
+        }
+      }();
+      // Must drain stderr to prevent the session from blocking
+      final stderrDone = () async {
+        await for (final _ in session.stderr) {}
+      }();
+      await Future.wait([stdoutDone, stderrDone, session.done])
+          .timeout(const Duration(seconds: 30));
       if (session.exitCode != 0) return null;
       return Uint8List.fromList(chunks);
     } catch (_) {
@@ -705,13 +736,19 @@ class SshService {
       }
     }
 
-    // Stock scooterOS path: /etc/rescoot/radio-gaga.yml
-    final stockConfig = await downloadFile('/etc/rescoot/radio-gaga.yml');
-    if (stockConfig != null && stockConfig.isNotEmpty) {
+    // Stock scooterOS paths
+    const stockPaths = [
+      '/etc/rescoot/radio-gaga.yml',
+      '/home/root/radio-gaga/radio-gaga.yml',
+    ];
+    for (final stockPath in stockPaths) {
+      final stockConfig = await downloadFile(stockPath);
+      if (stockConfig == null || stockConfig.isEmpty) continue;
+
       final targetDir = Directory(path.join(backupDir.path, 'etc-rescoot'));
       await targetDir.create(recursive: true);
       await File(path.join(targetDir.path, 'radio-gaga.yml')).writeAsBytes(stockConfig);
-      debugPrint('SSH: backed up /etc/rescoot/radio-gaga.yml');
+      debugPrint('SSH: backed up $stockPath');
       found = true;
 
       // Parse YAML to find referenced files (e.g. mqtt.ca_cert) and back those up too
@@ -735,6 +772,7 @@ class SshService {
       } catch (e) {
         debugPrint('SSH: failed to parse stock config for cert paths: $e');
       }
+      break; // found one, no need to check others
     }
 
     if (!found) {

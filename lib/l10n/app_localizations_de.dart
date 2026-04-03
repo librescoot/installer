@@ -873,7 +873,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get skipOfflineMapsHint =>
-      'Karten können später über das Web-Interface des Rollers installiert werden';
+      'Karten können später durch erneutes Ausführen des Installers installiert werden';
 
   @override
   String get bluetoothPairingHeading => 'Bluetooth-Kopplung';

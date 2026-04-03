@@ -279,7 +279,7 @@
 
   "regionHint": "F\u00fcr Offline-Karten und Navigationsunterst\u00fctzung",
   "skipOfflineMaps": "Offline-Karten \u00fcberspringen",
-  "skipOfflineMapsHint": "Karten k\u00f6nnen sp\u00e4ter \u00fcber das Web-Interface des Rollers installiert werden",
+  "skipOfflineMapsHint": "Karten k\u00f6nnen sp\u00e4ter durch erneutes Ausf\u00fchren des Installers installiert werden",
   "bluetoothPairingHeading": "Bluetooth-Kopplung",
   "bluetoothPairingHint": "Koppele dein Handy oder andere Bluetooth-Ger\u00e4te mit dem Roller.",
   "startPairing": "Entsperren und Kopplung starten",
