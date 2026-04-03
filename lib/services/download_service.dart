@@ -163,18 +163,21 @@ class DownloadService {
     final items = <DownloadItem>[];
     final cacheDir = await getCacheDir();
 
-    // Firmware images
+    // Firmware images and bmap files
     final release = await resolveRelease(channel);
     for (final asset in release.assets) {
       final name = asset['name'] as String;
       if (!name.contains('unu-')) continue;
-      if (!name.endsWith('.sdimg.gz')) continue;
+
+      final bool isBmap = name.endsWith('.sdimg.bmap');
+      final bool isFirmware = name.endsWith('.sdimg.gz');
+      if (!isFirmware && !isBmap) continue;
 
       final DownloadItemType type;
       if (name.contains('unu-mdb-')) {
-        type = DownloadItemType.mdbFirmware;
+        type = isBmap ? DownloadItemType.mdbBmap : DownloadItemType.mdbFirmware;
       } else if (name.contains('unu-dbc-')) {
-        type = DownloadItemType.dbcFirmware;
+        type = isBmap ? DownloadItemType.dbcBmap : DownloadItemType.dbcFirmware;
       } else {
         continue;
       }

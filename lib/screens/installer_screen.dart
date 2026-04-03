@@ -1738,8 +1738,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
       final osmItem = _downloadState.itemOfType(DownloadItemType.osmTiles);
       final valhallaItem = _downloadState.itemOfType(DownloadItemType.valhallaTiles);
 
+      final dbcBmapItem = _downloadState.itemOfType(DownloadItemType.dbcBmap);
+
       await trampolineService.uploadAll(
         dbcImageLocalPath: dbcItem!.localPath!,
+        dbcBmapLocalPath: dbcBmapItem?.localPath,
         osmTilesLocalPath: osmItem?.localPath,
         valhallaTilesLocalPath: valhallaItem?.localPath,
         region: _downloadState.selectedRegion,

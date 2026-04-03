@@ -5,6 +5,7 @@
 STATUS_FILE="/data/trampoline-status"
 LOG_FILE="/data/trampoline.log"
 DBC_IMAGE="{{DBC_IMAGE_PATH}}"
+DBC_BMAP="${DBC_IMAGE%.sdimg.gz}.sdimg.bmap"
 DBC_IP="192.168.7.2"
 BOOT_AREA_BLOCKS=6
 INSTALL_TILES="{{INSTALL_TILES}}"
@@ -290,10 +291,18 @@ while [ $ATTEMPT -lt 3 ]; do
   log "  flash attempt $ATTEMPT/3..."
 
   signal_progress 0
-  gunzip -c "$DBC_IMAGE" | dd bs=4M iflag=fullblock of=$DBC_DEV oflag=sync status=progress 2>&1 \
-    | monitor_progress "$IMAGE_SIZE"
-  DD_RC=0  # rely on md5 verification to catch failures
-  log "  dd exit: $DD_RC"
+  if [ -f "$DBC_BMAP" ] && command -v bmap-writer >/dev/null 2>&1; then
+    log "  using bmap-writer (bmap: $DBC_BMAP)"
+    bmap-writer --bmap "$DBC_BMAP" "$DBC_IMAGE" "$DBC_DEV" 2>&1 | tee -a "$LOG_FILE"
+    DD_RC=$?
+  else
+    [ ! -f "$DBC_BMAP" ] && log "  no bmap file, using dd"
+    ! command -v bmap-writer >/dev/null 2>&1 && log "  bmap-writer not found, using dd"
+    gunzip -c "$DBC_IMAGE" | dd bs=4M iflag=fullblock of=$DBC_DEV oflag=sync status=progress 2>&1 \
+      | monitor_progress "$IMAGE_SIZE"
+    DD_RC=0  # rely on md5 verification to catch failures
+  fi
+  log "  flash exit: $DD_RC"
 
   if [ $DD_RC -ne 0 ]; then
     log "  dd failed, retrying..."

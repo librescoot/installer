@@ -62,6 +62,7 @@ class TrampolineService {
   /// Upload DBC image, tiles, and trampoline script to MDB.
   Future<void> uploadAll({
     required String dbcImageLocalPath,
+    String? dbcBmapLocalPath,
     String? osmTilesLocalPath,
     String? valhallaTilesLocalPath,
     Region? region,
@@ -71,6 +72,11 @@ class TrampolineService {
 
     final dbcFilename = File(dbcImageLocalPath).uri.pathSegments.last;
     filesToUpload.add(MapEntry(dbcImageLocalPath, '/data/$dbcFilename'));
+
+    if (dbcBmapLocalPath != null) {
+      final bmapFilename = File(dbcBmapLocalPath).uri.pathSegments.last;
+      filesToUpload.add(MapEntry(dbcBmapLocalPath, '/data/$bmapFilename'));
+    }
 
     if (osmTilesLocalPath != null && region != null) {
       filesToUpload.add(MapEntry(osmTilesLocalPath, '/data/${region.osmTilesFilename}'));

@@ -3,7 +3,7 @@ import 'region.dart';
 enum DownloadChannel { stable, testing, nightly }
 
 /// Order defines download priority (lowest index = downloaded first).
-enum DownloadItemType { mdbFirmware, dbcFirmware, osmTiles, valhallaTiles }
+enum DownloadItemType { mdbFirmware, dbcFirmware, mdbBmap, dbcBmap, osmTiles, valhallaTiles }
 
 class DownloadItem {
   DownloadItem({
@@ -41,4 +41,12 @@ class DownloadState {
 
   DownloadItem? itemOfType(DownloadItemType type) =>
       items.where((i) => i.type == type).firstOrNull;
+
+  /// Get the bmap file path for a firmware type, if downloaded.
+  String? bmapPathFor(DownloadItemType firmwareType) {
+    final bmapType = firmwareType == DownloadItemType.mdbFirmware
+        ? DownloadItemType.mdbBmap
+        : DownloadItemType.dbcBmap;
+    return itemOfType(bmapType)?.localPath;
+  }
 }
