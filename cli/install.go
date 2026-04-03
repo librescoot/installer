@@ -55,7 +55,7 @@ func (inst *Installer) Run() error {
 	}
 
 	// Stop power manager to prevent suspend/hibernate during flashing
-	inst.mdbSSH("systemctl stop librescoot-pm pm-service 2>/dev/null")
+	inst.mdbSSH("systemctl stop librescoot-pm 2>/dev/null; systemctl stop pm-service 2>/dev/null; true")
 
 	logStep("Configuring bootloader for mass storage mode...")
 	if inst.dryRun {
