@@ -144,6 +144,65 @@ func downloadMDBImage(tag, cacheDir string) (string, error) {
 	return destPath, nil
 }
 
+// downloadMDBBmap downloads the MDB .sdimg.bmap for a given release tag.
+// Returns the local file path, or "" if no bmap is available.
+func downloadMDBBmap(tag, cacheDir string) string {
+	url := fmt.Sprintf("%s/repos/%s/releases/tags/%s", apiBase, githubRepo, tag)
+	resp, err := http.Get(url)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return ""
+	}
+
+	var release ghRelease
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return ""
+	}
+
+	var asset *ghAsset
+	for i := range release.Assets {
+		a := &release.Assets[i]
+		if strings.Contains(a.Name, "unu-mdb") && strings.HasSuffix(a.Name, ".sdimg.bmap") {
+			asset = a
+			break
+		}
+	}
+	if asset == nil {
+		return ""
+	}
+
+	destDir := filepath.Join(cacheDir, tag)
+	destPath := filepath.Join(destDir, asset.Name)
+
+	if info, err := os.Stat(destPath); err == nil && info.Size() == asset.Size {
+		return destPath
+	}
+
+	os.MkdirAll(destDir, 0o755)
+	dlResp, err := http.Get(asset.BrowserDownloadURL)
+	if err != nil {
+		return ""
+	}
+	defer dlResp.Body.Close()
+	if dlResp.StatusCode != 200 {
+		return ""
+	}
+
+	data, err := io.ReadAll(dlResp.Body)
+	if err != nil {
+		return ""
+	}
+	if err := os.WriteFile(destPath, data, 0o644); err != nil {
+		return ""
+	}
+
+	logInfo("Downloaded bmap: %s (%s)", asset.Name, formatBytes(int64(len(data))))
+	return destPath
+}
+
 type progressReader struct {
 	reader  io.Reader
 	total   int64

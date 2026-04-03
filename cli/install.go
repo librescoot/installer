@@ -28,6 +28,7 @@ type Installer struct {
 	mdbPassword string
 	cacheDir    string
 	imagePath   string
+	bmapPath    string
 	dryRun      bool
 }
 
@@ -430,14 +431,36 @@ func (inst *Installer) flashImage(devicePath string) error {
 		runSudo("umount", part)
 	}
 
-	// Build dd command
+	// Use bmap-writer if available and bmap file exists, otherwise fall back to dd
 	var cmd string
-	if strings.HasSuffix(inst.imagePath, ".gz") {
-		cmd = fmt.Sprintf("gunzip -c '%s' | sudo dd of='%s' bs=4M iflag=fullblock oflag=direct status=progress",
-			inst.imagePath, devicePath)
+	hasBmap := inst.bmapPath != ""
+	if !hasBmap {
+		// Check for bmap file next to the image
+		bmapCandidate := strings.TrimSuffix(inst.imagePath, ".gz") + ".bmap"
+		if _, err := os.Stat(bmapCandidate); err == nil {
+			inst.bmapPath = bmapCandidate
+			hasBmap = true
+		}
+	}
+
+	_, bmapWriterErr := exec.LookPath("bmap-writer")
+	hasBmapWriter := bmapWriterErr == nil
+
+	if hasBmap && hasBmapWriter {
+		logInfo("Using bmap-writer (faster, block-level checksums)")
+		cmd = fmt.Sprintf("sudo bmap-writer --bmap '%s' '%s' '%s'",
+			inst.bmapPath, inst.imagePath, devicePath)
 	} else {
-		cmd = fmt.Sprintf("sudo dd if='%s' of='%s' bs=4M iflag=fullblock oflag=direct status=progress",
-			inst.imagePath, devicePath)
+		if hasBmap && !hasBmapWriter {
+			logWarn("bmap file available but bmap-writer not found, falling back to dd")
+		}
+		if strings.HasSuffix(inst.imagePath, ".gz") {
+			cmd = fmt.Sprintf("gunzip -c '%s' | sudo dd of='%s' bs=4M iflag=fullblock oflag=direct status=progress",
+				inst.imagePath, devicePath)
+		} else {
+			cmd = fmt.Sprintf("sudo dd if='%s' of='%s' bs=4M iflag=fullblock oflag=direct status=progress",
+				inst.imagePath, devicePath)
+		}
 	}
 
 	logInfo("Writing image...")
@@ -447,7 +470,7 @@ func (inst *Installer) flashImage(devicePath string) error {
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
 	if err := c.Run(); err != nil {
-		return fmt.Errorf("dd failed: %w", err)
+		return fmt.Errorf("flash failed: %w", err)
 	}
 
 	logInfo("Syncing...")

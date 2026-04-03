@@ -78,6 +78,8 @@ func main() {
 		if err != nil {
 			fatal("failed to download firmware: %v", err)
 		}
+		// Try to download bmap file (optional, speeds up flashing)
+		installer.bmapPath = downloadMDBBmap(tag, *cacheDir)
 	}
 
 	if err := installer.Run(); err != nil {
