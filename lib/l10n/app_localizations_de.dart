@@ -964,4 +964,175 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get youCanCloseThisWindow => 'Du kannst dieses Fenster schließen.';
+
+  @override
+  String get cannotQuitWhileFlashing =>
+      'Beenden während des Flashens nicht möglich';
+
+  @override
+  String get showLogTooltip => 'Log anzeigen';
+
+  @override
+  String get retryMdbConnect => 'Erneut versuchen';
+
+  @override
+  String get retryMdbToUms => 'Erneut versuchen';
+
+  @override
+  String get showLog => 'Log anzeigen';
+
+  @override
+  String get retryMdbFlash => 'Erneut versuchen';
+
+  @override
+  String get retryMdbBoot => 'Erneut versuchen';
+
+  @override
+  String get retryDbcPrep => 'Erneut versuchen';
+
+  @override
+  String get retryVerification => 'Überprüfung wiederholen';
+
+  @override
+  String get retryDbcFlash => 'DBC-Flash wiederholen';
+
+  @override
+  String get skipToFinish => 'Zum Abschluss springen';
+
+  @override
+  String get skipKeycardSetup => 'Überspringen';
+
+  @override
+  String get finished => 'Fertig';
+
+  @override
+  String get keepCachedDownloads => 'Heruntergeladene Dateien behalten';
+
+  @override
+  String get libreScootFirmwareDetected => 'LibreScoot-Firmware erkannt';
+
+  @override
+  String get skipMdbReflash => 'MDB nicht neu flashen';
+
+  @override
+  String get keepCurrentMdbFirmware => 'Aktuelle MDB-Firmware behalten';
+
+  @override
+  String get skipDbcFlashOption => 'DBC-Flash überspringen';
+
+  @override
+  String get onlyFlashMdbSkipDbc => 'Nur MDB flashen, DBC überspringen';
+
+  @override
+  String firmwareVersionDisplay(String version) {
+    return 'Firmware: $version';
+  }
+
+  @override
+  String get openSeatboxButton => 'Sitzbank öffnen';
+
+  @override
+  String get reconnectCbbStep => 'CBB wieder anschließen';
+
+  @override
+  String get reconnectCbbStepDesc =>
+      'Stecke das CBB-Kabel wieder in den Anschluss unter der Sitzbank.';
+
+  @override
+  String get insertMainBatteryStep => 'Fahrakku einsetzen';
+
+  @override
+  String get insertMainBatteryStepDesc =>
+      'Setze den Fahrakku wieder in die Sitzbank ein. Der Roller braucht volle Leistung für den DBC-Flash.';
+
+  @override
+  String get cbbDetected => 'CBB erkannt';
+
+  @override
+  String get batteryDetected => 'Akku erkannt';
+
+  @override
+  String get proceedWithoutCbb => 'Auf eigenes Risiko fortfahren';
+
+  @override
+  String get checkingCbbAndBattery => 'CBB und Akku werden geprüft...';
+
+  @override
+  String get waitingForUsbDisconnect => 'Warte auf USB-Trennung...';
+
+  @override
+  String get dbcWillCyclePower =>
+      'Das DBC wird während dieses Vorgangs mehrmals ein- und ausgeschaltet. Trenne das USB-Kabel zwischen MDB und DBC nicht.';
+
+  @override
+  String get ledBootAmber => 'Boot-LED gelb-orange';
+
+  @override
+  String get ledBootAmberMeaning => 'Flash läuft';
+
+  @override
+  String get ledBootRedError => 'Boot-LED rot';
+
+  @override
+  String get ledBootRedMeaning => 'Fehler — Laptop verbinden und Log prüfen';
+
+  @override
+  String get flashingTakesAbout10Min =>
+      'Das Flashen dauert etwa 10 Minuten. Schließe danach das Laptop-USB-Kabel wieder an.';
+
+  @override
+  String get waitingForMdbToReconnect => 'Warte auf MDB-Wiederverbindung...';
+
+  @override
+  String get ledIsGreen => 'LED ist grün';
+
+  @override
+  String get ledIsRed => 'LED ist rot';
+
+  @override
+  String get phaseKeycardSetupTitle => 'Schlüsselkarten einrichten';
+
+  @override
+  String get phaseKeycardSetupDescription =>
+      'Anlernschlüssel und Schlüsselkarten registrieren';
+
+  @override
+  String get usingLocalFirmwareImages =>
+      'Lokale Firmware-Images werden verwendet';
+
+  @override
+  String get mdbDetectedUmsSkipping =>
+      'MDB im UMS-Modus erkannt — direkt zum Flashen.';
+
+  @override
+  String get waitingForMdbToReboot => 'Warte auf MDB-Neustart...';
+
+  @override
+  String get mdbDetectedWaitingForSsh => 'MDB erkannt, warte auf SSH...';
+
+  @override
+  String get reconnectedToMdb => 'MDB wieder verbunden';
+
+  @override
+  String get verifyingBootloaderConfig =>
+      'Bootloader-Konfiguration wird überprüft...';
+
+  @override
+  String get umsNotDetectedTimeout =>
+      'UMS-Gerät nicht innerhalb von 60 s erkannt. MDB ist möglicherweise wieder in Linux gebootet.';
+
+  @override
+  String get waitingForDevicePath => 'Warte auf Gerätepfad...';
+
+  @override
+  String get noDevicePathFound =>
+      'Kein Gerätepfad gefunden. USB-Verbindung prüfen und erneut versuchen.';
+
+  @override
+  String get mdbDisconnectedFlashingDbc =>
+      'MDB getrennt — DBC wird autonom geflasht...';
+
+  @override
+  String get mdbReconnectedVerifying =>
+      'MDB wieder verbunden! Überprüfung läuft...';
 }

@@ -341,8 +341,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop && _isCriticalOperation) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Cannot quit while flashing is in progress'),
+            SnackBar(
+              content: Text(l10n.cannotQuitWhileFlashing),
               backgroundColor: Colors.red,
             ),
           );
@@ -375,7 +375,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                           ),
                         ),
                       ),
-                      _buildStatusBar(),
+                      _buildStatusBar(l10n),
                     ],
                   ),
                 ),
@@ -406,7 +406,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     );
   }
 
-  Widget _buildStatusBar() {
+  Widget _buildStatusBar(AppLocalizations l10n) {
     return Container(
       height: 36,
       color: const Color(0xFF1A1A2E),
@@ -443,7 +443,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             IconButton(
               onPressed: _showLogDialog,
               icon: Icon(Icons.article_outlined, size: 16, color: Colors.grey.shade600),
-              tooltip: 'Show log',
+              tooltip: l10n.showLogTooltip,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
             ),
@@ -700,7 +700,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     try {
       if (launchArgs.hasLocalImages) {
         // Use local images instead of downloading
-        _setStatus('Using local firmware images');
+        _setStatus(l10n.usingLocalFirmwareImages);
         final items = <DownloadItem>[];
         if (launchArgs.mdbImage != null) {
           items.add(DownloadItem(
@@ -826,7 +826,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 Future.microtask(_autoConnectMdb);
               },
               icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
+              label: Text(l10n.retryMdbConnect),
             ),
           ],
         ],
@@ -860,7 +860,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     if (_device!.mode == DeviceMode.massStorage) {
       // Device is already in UMS mode — skip ahead to flash
-      _setStatus('MDB detected in UMS mode — skipping to flash.');
+      _setStatus(l10n.mdbDetectedUmsSkipping);
       await Future.delayed(const Duration(seconds: 1));
       _setPhase(InstallerPhase.mdbFlash);
       return;
@@ -901,13 +901,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   /// Wait for MDB to reboot into RNDIS, reconfigure network, reconnect SSH.
   Future<bool> _reconnectToMdb() async {
+    final l10n = AppLocalizations.of(context)!;
     try {
-      _setStatus('Waiting for MDB to reboot...');
+      _setStatus(l10n.waitingForMdbToReboot);
       final found = await _waitForDevice(DeviceMode.ethernet, timeout: const Duration(seconds: 60));
       if (!found) return false;
 
       // MDB needs time to fully boot after RNDIS appears
-      _setStatus('MDB detected, waiting for SSH...');
+      _setStatus(l10n.mdbDetectedWaitingForSsh);
       await Future.delayed(const Duration(seconds: 10));
 
       final iface = await NetworkService().findLibreScootInterface();
@@ -918,7 +919,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         try {
           await _sshService.loadDeviceConfig('assets');
           await _sshService.connectToMdb();
-          _setStatus('Reconnected to MDB');
+          _setStatus(l10n.reconnectedToMdb);
           return true;
         } catch (_) {
           await Future.delayed(const Duration(seconds: 5));
@@ -983,7 +984,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           if (_mdbInfo != null)
-            Text('Firmware: ${_mdbInfo!.firmwareVersion}',
+            Text(l10n.firmwareVersionDisplay(_mdbInfo!.firmwareVersion),
                 style: TextStyle(color: Colors.grey.shade400)),
           const SizedBox(height: 8),
           Text(l10n.verifyingReadiness,
@@ -1023,22 +1024,22 @@ class _InstallerScreenState extends State<InstallerScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('LibreScoot firmware detected',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+                  Text(l10n.libreScootFirmwareDetected,
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.tealAccent)),
                   const SizedBox(height: 12),
                   CheckboxListTile(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Skip MDB reflash'),
-                    subtitle: const Text('Keep current MDB firmware'),
+                    title: Text(l10n.skipMdbReflash),
+                    subtitle: Text(l10n.keepCurrentMdbFirmware),
                     value: _skipMdbFlash,
                     onChanged: (v) => setState(() => _skipMdbFlash = v ?? false),
                   ),
                   CheckboxListTile(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Skip DBC flash'),
-                    subtitle: const Text('Only flash MDB, skip DBC entirely'),
+                    title: Text(l10n.skipDbcFlashOption),
+                    subtitle: Text(l10n.onlyFlashMdbSkipDbc),
                     value: _skipDbcFlash,
                     onChanged: (v) => setState(() => _skipDbcFlash = v ?? false),
                   ),
@@ -1210,13 +1211,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
                     _configureMdbUms();
                   },
                   icon: const Icon(Icons.refresh),
-                  label: const Text('Retry'),
+                  label: Text(l10n.retryMdbToUms),
                 ),
                 const SizedBox(width: 16),
                 OutlinedButton.icon(
                   onPressed: _showLogDialog,
                   icon: const Icon(Icons.article_outlined),
-                  label: const Text('Show Log'),
+                  label: Text(l10n.showLog),
                 ),
               ],
             ),
@@ -1241,7 +1242,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
       // Verify the bootcmd was actually set.
       // fw_setenv behaves as fw_printenv when invoked under that name.
-      _setStatus('Verifying bootloader config...');
+      _setStatus(l10n.verifyingBootloaderConfig);
       try {
         await _sshService.runCommand('ln -sf /tmp/fw_setenv /tmp/fw_printenv');
         final bootcmd = await _sshService.runCommand(
@@ -1267,7 +1268,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       }
 
       // UMS didn't appear — show retry/log buttons
-      _setStatus('UMS device not detected within 60s. MDB may have booted back into Linux.');
+      _setStatus(l10n.umsNotDetectedTimeout);
     } catch (e) {
       _setStatus('Error: $e');
     }
@@ -1330,7 +1331,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 Future.microtask(_flashMdb);
               },
               icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
+              label: Text(l10n.retryMdbFlash),
             ),
           ],
         ],
@@ -1365,7 +1366,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     try {
       // Resolve the block device path (macOS needs diskutil lookup)
-      _setStatus('Waiting for device path...');
+      _setStatus(l10n.waitingForDevicePath);
       String? devicePath;
       for (var i = 0; i < 15; i++) {
         devicePath = _device?.path;
@@ -1376,7 +1377,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         if (!mounted) return;
       }
       if (devicePath == null || devicePath.isEmpty) {
-        _setStatus('No device path found. Check USB connection and retry.');
+        _setStatus(l10n.noDevicePathFound);
         setState(() { _isProcessing = false; _mdbFlashStarted = false; });
         return;
       }
@@ -1520,7 +1521,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 Future.microtask(_waitForMdbBoot);
               },
               icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
+              label: Text(l10n.retryMdbBoot),
             ),
           ],
         ],
@@ -1646,19 +1647,19 @@ class _InstallerScreenState extends State<InstallerScreen> {
             try { await _sshService.runCommand('lsc open'); } catch (_) {}
           } : null,
           icon: const Icon(Icons.lock_open, size: 18),
-          label: const Text('Open seatbox'),
+          label: Text(l10n.openSeatboxButton),
         ),
         const SizedBox(height: 16),
         InstructionStep(
           number: 1,
-          title: 'Reconnect the CBB',
-          description: 'Plug the CBB cable back into the connector under the seat.',
+          title: l10n.reconnectCbbStep,
+          description: l10n.reconnectCbbStepDesc,
           imageAsset: 'assets/images/lsi-unu_scooter_cbb_connected.jpg',
         ),
         InstructionStep(
           number: 2,
-          title: 'Insert the main battery',
-          description: 'Put the main battery back in the seatbox. The scooter needs full power for the DBC flash.',
+          title: l10n.insertMainBatteryStep,
+          description: l10n.insertMainBatteryStepDesc,
         ),
         if (_cbbDetected || _batteryDetected)
           Padding(
@@ -1671,7 +1672,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                     children: [
                       const Icon(Icons.check_circle, size: 16, color: Colors.tealAccent),
                       const SizedBox(width: 8),
-                      Text('CBB detected', style: TextStyle(color: Colors.tealAccent, fontSize: 13)),
+                      Text(l10n.cbbDetected, style: TextStyle(color: Colors.tealAccent, fontSize: 13)),
                     ],
                   ),
                 if (_batteryDetected)
@@ -1680,7 +1681,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                     children: [
                       const Icon(Icons.check_circle, size: 16, color: Colors.tealAccent),
                       const SizedBox(width: 8),
-                      Text('Battery detected', style: TextStyle(color: Colors.tealAccent, fontSize: 13)),
+                      Text(l10n.batteryDetected, style: TextStyle(color: Colors.tealAccent, fontSize: 13)),
                     ],
                   ),
               ],
@@ -1699,7 +1700,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
           const SizedBox(height: 12),
           TextButton(
             onPressed: () => _setPhase(InstallerPhase.dbcPrep),
-            child: Text('Proceed at own risk',
+            child: Text(l10n.proceedWithoutCbb,
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
           ),
         ],
@@ -1717,7 +1718,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _setPhase(InstallerPhase.dbcPrep);
       return;
     }
-    _setStatus('Checking CBB and battery...');
+    _setStatus(l10n.checkingCbbAndBattery);
     var attempts = 0;
     while (attempts < 30) {
       if (await _sshService.isCbbPresent()) {
@@ -1773,7 +1774,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 });
               },
               icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
+              label: Text(l10n.retryDbcPrep),
             ),
           ],
         ],
@@ -1865,7 +1866,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
               description: l10n.reconnectDbcUsbToMdbDesc,
             ),
             const SizedBox(height: 16),
-            Text('Waiting for USB disconnect...',
+            Text(l10n.waitingForUsbDisconnect,
                 style: TextStyle(color: Colors.grey.shade400)),
             const SizedBox(height: 8),
             const CircularProgressIndicator(),
@@ -1894,8 +1895,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 Text(l10n.mdbFlashingDbcAutonomously,
                     style: const TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                Text('The DBC will turn on and off multiple times during this process. '
-                    'Do not disconnect the USB cable between MDB and DBC.',
+                Text(l10n.dbcWillCyclePower,
                     style: TextStyle(color: Colors.orange.shade300, fontSize: 13)),
                 const SizedBox(height: 12),
                 Text(l10n.watchLightsForProgress,
@@ -1903,20 +1903,20 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 const SizedBox(height: 8),
                 _ledSignal(l10n.ledFrontRingPulse, l10n.ledFrontRingPulseMeaning),
                 _ledSignal(l10n.ledBlinkerProgress, l10n.ledBlinkerProgressMeaning),
-                _ledSignal('Boot LED amber', 'Flashing in progress'),
+                _ledSignal(l10n.ledBootAmber, l10n.ledBootAmberMeaning),
                 _ledSignal(l10n.ledBootGreen, l10n.ledBootGreenMeaning),
-                _ledSignal('Boot LED red', 'Error — reconnect laptop to check log'),
+                _ledSignal(l10n.ledBootRedError, l10n.ledBootRedMeaning),
                 _ledSignal(l10n.ledRearLightSolid, l10n.ledRearLightSolidMeaning),
               ],
             ),
           ),
           const SizedBox(height: 16),
           const SizedBox(height: 8),
-          Text('Flashing takes about 10 minutes. Reconnect the laptop USB cable when done.',
+          Text(l10n.flashingTakesAbout10Min,
               style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
           const SizedBox(height: 16),
           Text(_statusMessage.isEmpty
-              ? 'Waiting for MDB to reconnect...'
+              ? l10n.waitingForMdbToReconnect
               : _statusMessage,
               style: TextStyle(color: Colors.grey.shade400)),
           const SizedBox(height: 8),
@@ -1931,7 +1931,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                   _setPhase(InstallerPhase.reconnect);
                 },
                 icon: const Icon(Icons.check_circle, color: Colors.green),
-                label: const Text('LED is green'),
+                label: Text(l10n.ledIsGreen),
               ),
               const SizedBox(width: 12),
               OutlinedButton.icon(
@@ -1940,7 +1940,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                   _setPhase(InstallerPhase.reconnect);
                 },
                 icon: const Icon(Icons.error, color: Colors.red),
-                label: const Text('LED is red'),
+                label: Text(l10n.ledIsRed),
               ),
             ],
           ),
@@ -1955,14 +1955,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
       await Future.delayed(const Duration(seconds: 1));
     }
     if (!mounted) return;
+    final l10n = AppLocalizations.of(context)!;
     setState(() => _dbcUsbDisconnected = true);
-    _setStatus('MDB disconnected — flashing DBC autonomously...');
+    _setStatus(l10n.mdbDisconnectedFlashingDbc);
 
     // Poll for MDB reconnect every 10s
     while (mounted) {
       await Future.delayed(const Duration(seconds: 10));
       if (_device != null && _device!.mode == DeviceMode.ethernet) {
-        _setStatus('MDB reconnected! Verifying...');
+        _setStatus(l10n.mdbReconnectedVerifying);
         await Future.delayed(const Duration(seconds: 2));
         if (mounted) {
           _setPhase(InstallerPhase.reconnect);
@@ -2012,7 +2013,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 Future.microtask(_verifyDbcFlash);
               },
               icon: const Icon(Icons.refresh),
-              label: const Text('Retry verification'),
+              label: Text(l10n.retryVerification),
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
@@ -2024,12 +2025,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 _setPhase(InstallerPhase.dbcPrep);
               },
               icon: const Icon(Icons.replay),
-              label: const Text('Retry DBC flash'),
+              label: Text(l10n.retryDbcFlash),
             ),
             const SizedBox(height: 8),
             TextButton(
               onPressed: () => _setPhase(InstallerPhase.bluetoothPairing),
-              child: const Text('Skip to finish'),
+              child: Text(l10n.skipToFinish),
             ),
           ],
         ],
@@ -2405,7 +2406,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             children: [
               TextButton(
                 onPressed: () => _setPhase(InstallerPhase.finish),
-                child: const Text('Skip'),
+                child: Text(l10n.skipKeycardSetup),
               ),
               const SizedBox(width: 16),
               FilledButton.icon(
@@ -2461,7 +2462,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
           CheckboxListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
-            title: const Text('Keep cached downloads'),
+            title: Text(l10n.keepCachedDownloads),
             subtitle: Text('${_totalCacheSizeMb()} MB on disk',
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
             value: _keepCache,
@@ -2476,7 +2477,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
               if (mounted) exit(0);
             },
             icon: const Icon(Icons.check_circle),
-            label: const Text('Finished'),
+            label: Text(l10n.finished),
           ),
         ],
       ),

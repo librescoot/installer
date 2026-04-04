@@ -391,5 +391,70 @@
   "keycardStopLearning": "Done",
   "willAskForElevation": "Start Installation (will ask for elevation)",
   "installationContinuesInNewWindow": "Installation continues in the new window",
-  "youCanCloseThisWindow": "You can close this window."
+  "youCanCloseThisWindow": "You can close this window.",
+
+  "cannotQuitWhileFlashing": "Cannot quit while flashing is in progress",
+  "showLogTooltip": "Show log",
+  "retryMdbConnect": "Retry",
+  "retryMdbToUms": "Retry",
+  "showLog": "Show Log",
+  "retryMdbFlash": "Retry",
+  "retryMdbBoot": "Retry",
+  "retryDbcPrep": "Retry",
+  "retryVerification": "Retry verification",
+  "retryDbcFlash": "Retry DBC flash",
+  "skipToFinish": "Skip to finish",
+  "skipKeycardSetup": "Skip",
+  "finished": "Finished",
+  "keepCachedDownloads": "Keep cached downloads",
+
+  "libreScootFirmwareDetected": "LibreScoot firmware detected",
+  "skipMdbReflash": "Skip MDB reflash",
+  "keepCurrentMdbFirmware": "Keep current MDB firmware",
+  "skipDbcFlashOption": "Skip DBC flash",
+  "onlyFlashMdbSkipDbc": "Only flash MDB, skip DBC entirely",
+
+  "firmwareVersionDisplay": "Firmware: {version}",
+  "@firmwareVersionDisplay": {
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
+
+  "openSeatboxButton": "Open seatbox",
+  "reconnectCbbStep": "Reconnect the CBB",
+  "reconnectCbbStepDesc": "Plug the CBB cable back into the connector under the seat.",
+  "insertMainBatteryStep": "Insert the main battery",
+  "insertMainBatteryStepDesc": "Put the main battery back in the seatbox. The scooter needs full power for the DBC flash.",
+  "cbbDetected": "CBB detected",
+  "batteryDetected": "Battery detected",
+  "proceedWithoutCbb": "Proceed at own risk",
+
+  "checkingCbbAndBattery": "Checking CBB and battery...",
+
+  "waitingForUsbDisconnect": "Waiting for USB disconnect...",
+  "dbcWillCyclePower": "The DBC will turn on and off multiple times during this process. Do not disconnect the USB cable between MDB and DBC.",
+  "ledBootAmber": "Boot LED amber",
+  "ledBootAmberMeaning": "Flashing in progress",
+  "ledBootRedError": "Boot LED red",
+  "ledBootRedMeaning": "Error — reconnect laptop to check log",
+  "flashingTakesAbout10Min": "Flashing takes about 10 minutes. Reconnect the laptop USB cable when done.",
+  "waitingForMdbToReconnect": "Waiting for MDB to reconnect...",
+  "ledIsGreen": "LED is green",
+  "ledIsRed": "LED is red",
+
+  "phaseKeycardSetupTitle": "Keycard Setup",
+  "phaseKeycardSetupDescription": "Register master and user keycards",
+
+  "usingLocalFirmwareImages": "Using local firmware images",
+  "mdbDetectedUmsSkipping": "MDB detected in UMS mode — skipping to flash.",
+  "waitingForMdbToReboot": "Waiting for MDB to reboot...",
+  "mdbDetectedWaitingForSsh": "MDB detected, waiting for SSH...",
+  "reconnectedToMdb": "Reconnected to MDB",
+  "verifyingBootloaderConfig": "Verifying bootloader config...",
+  "umsNotDetectedTimeout": "UMS device not detected within 60s. MDB may have booted back into Linux.",
+  "waitingForDevicePath": "Waiting for device path...",
+  "noDevicePathFound": "No device path found. Check USB connection and retry.",
+  "mdbDisconnectedFlashingDbc": "MDB disconnected — flashing DBC autonomously...",
+  "mdbReconnectedVerifying": "MDB reconnected! Verifying..."
 }

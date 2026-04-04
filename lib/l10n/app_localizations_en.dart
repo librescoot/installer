@@ -955,4 +955,172 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get youCanCloseThisWindow => 'You can close this window.';
+
+  @override
+  String get cannotQuitWhileFlashing =>
+      'Cannot quit while flashing is in progress';
+
+  @override
+  String get showLogTooltip => 'Show log';
+
+  @override
+  String get retryMdbConnect => 'Retry';
+
+  @override
+  String get retryMdbToUms => 'Retry';
+
+  @override
+  String get showLog => 'Show Log';
+
+  @override
+  String get retryMdbFlash => 'Retry';
+
+  @override
+  String get retryMdbBoot => 'Retry';
+
+  @override
+  String get retryDbcPrep => 'Retry';
+
+  @override
+  String get retryVerification => 'Retry verification';
+
+  @override
+  String get retryDbcFlash => 'Retry DBC flash';
+
+  @override
+  String get skipToFinish => 'Skip to finish';
+
+  @override
+  String get skipKeycardSetup => 'Skip';
+
+  @override
+  String get finished => 'Finished';
+
+  @override
+  String get keepCachedDownloads => 'Keep cached downloads';
+
+  @override
+  String get libreScootFirmwareDetected => 'LibreScoot firmware detected';
+
+  @override
+  String get skipMdbReflash => 'Skip MDB reflash';
+
+  @override
+  String get keepCurrentMdbFirmware => 'Keep current MDB firmware';
+
+  @override
+  String get skipDbcFlashOption => 'Skip DBC flash';
+
+  @override
+  String get onlyFlashMdbSkipDbc => 'Only flash MDB, skip DBC entirely';
+
+  @override
+  String firmwareVersionDisplay(String version) {
+    return 'Firmware: $version';
+  }
+
+  @override
+  String get openSeatboxButton => 'Open seatbox';
+
+  @override
+  String get reconnectCbbStep => 'Reconnect the CBB';
+
+  @override
+  String get reconnectCbbStepDesc =>
+      'Plug the CBB cable back into the connector under the seat.';
+
+  @override
+  String get insertMainBatteryStep => 'Insert the main battery';
+
+  @override
+  String get insertMainBatteryStepDesc =>
+      'Put the main battery back in the seatbox. The scooter needs full power for the DBC flash.';
+
+  @override
+  String get cbbDetected => 'CBB detected';
+
+  @override
+  String get batteryDetected => 'Battery detected';
+
+  @override
+  String get proceedWithoutCbb => 'Proceed at own risk';
+
+  @override
+  String get checkingCbbAndBattery => 'Checking CBB and battery...';
+
+  @override
+  String get waitingForUsbDisconnect => 'Waiting for USB disconnect...';
+
+  @override
+  String get dbcWillCyclePower =>
+      'The DBC will turn on and off multiple times during this process. Do not disconnect the USB cable between MDB and DBC.';
+
+  @override
+  String get ledBootAmber => 'Boot LED amber';
+
+  @override
+  String get ledBootAmberMeaning => 'Flashing in progress';
+
+  @override
+  String get ledBootRedError => 'Boot LED red';
+
+  @override
+  String get ledBootRedMeaning => 'Error — reconnect laptop to check log';
+
+  @override
+  String get flashingTakesAbout10Min =>
+      'Flashing takes about 10 minutes. Reconnect the laptop USB cable when done.';
+
+  @override
+  String get waitingForMdbToReconnect => 'Waiting for MDB to reconnect...';
+
+  @override
+  String get ledIsGreen => 'LED is green';
+
+  @override
+  String get ledIsRed => 'LED is red';
+
+  @override
+  String get phaseKeycardSetupTitle => 'Keycard Setup';
+
+  @override
+  String get phaseKeycardSetupDescription =>
+      'Register master and user keycards';
+
+  @override
+  String get usingLocalFirmwareImages => 'Using local firmware images';
+
+  @override
+  String get mdbDetectedUmsSkipping =>
+      'MDB detected in UMS mode — skipping to flash.';
+
+  @override
+  String get waitingForMdbToReboot => 'Waiting for MDB to reboot...';
+
+  @override
+  String get mdbDetectedWaitingForSsh => 'MDB detected, waiting for SSH...';
+
+  @override
+  String get reconnectedToMdb => 'Reconnected to MDB';
+
+  @override
+  String get verifyingBootloaderConfig => 'Verifying bootloader config...';
+
+  @override
+  String get umsNotDetectedTimeout =>
+      'UMS device not detected within 60s. MDB may have booted back into Linux.';
+
+  @override
+  String get waitingForDevicePath => 'Waiting for device path...';
+
+  @override
+  String get noDevicePathFound =>
+      'No device path found. Check USB connection and retry.';
+
+  @override
+  String get mdbDisconnectedFlashingDbc =>
+      'MDB disconnected — flashing DBC autonomously...';
+
+  @override
+  String get mdbReconnectedVerifying => 'MDB reconnected! Verifying...';
 }

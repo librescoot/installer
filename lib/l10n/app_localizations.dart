@@ -1807,6 +1807,318 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'You can close this window.'**
   String get youCanCloseThisWindow;
+
+  /// No description provided for @cannotQuitWhileFlashing.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot quit while flashing is in progress'**
+  String get cannotQuitWhileFlashing;
+
+  /// No description provided for @showLogTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Show log'**
+  String get showLogTooltip;
+
+  /// No description provided for @retryMdbConnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get retryMdbConnect;
+
+  /// No description provided for @retryMdbToUms.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get retryMdbToUms;
+
+  /// No description provided for @showLog.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Log'**
+  String get showLog;
+
+  /// No description provided for @retryMdbFlash.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get retryMdbFlash;
+
+  /// No description provided for @retryMdbBoot.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get retryMdbBoot;
+
+  /// No description provided for @retryDbcPrep.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get retryDbcPrep;
+
+  /// No description provided for @retryVerification.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry verification'**
+  String get retryVerification;
+
+  /// No description provided for @retryDbcFlash.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry DBC flash'**
+  String get retryDbcFlash;
+
+  /// No description provided for @skipToFinish.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip to finish'**
+  String get skipToFinish;
+
+  /// No description provided for @skipKeycardSetup.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip'**
+  String get skipKeycardSetup;
+
+  /// No description provided for @finished.
+  ///
+  /// In en, this message translates to:
+  /// **'Finished'**
+  String get finished;
+
+  /// No description provided for @keepCachedDownloads.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep cached downloads'**
+  String get keepCachedDownloads;
+
+  /// No description provided for @libreScootFirmwareDetected.
+  ///
+  /// In en, this message translates to:
+  /// **'LibreScoot firmware detected'**
+  String get libreScootFirmwareDetected;
+
+  /// No description provided for @skipMdbReflash.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip MDB reflash'**
+  String get skipMdbReflash;
+
+  /// No description provided for @keepCurrentMdbFirmware.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep current MDB firmware'**
+  String get keepCurrentMdbFirmware;
+
+  /// No description provided for @skipDbcFlashOption.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip DBC flash'**
+  String get skipDbcFlashOption;
+
+  /// No description provided for @onlyFlashMdbSkipDbc.
+  ///
+  /// In en, this message translates to:
+  /// **'Only flash MDB, skip DBC entirely'**
+  String get onlyFlashMdbSkipDbc;
+
+  /// No description provided for @firmwareVersionDisplay.
+  ///
+  /// In en, this message translates to:
+  /// **'Firmware: {version}'**
+  String firmwareVersionDisplay(String version);
+
+  /// No description provided for @openSeatboxButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Open seatbox'**
+  String get openSeatboxButton;
+
+  /// No description provided for @reconnectCbbStep.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect the CBB'**
+  String get reconnectCbbStep;
+
+  /// No description provided for @reconnectCbbStepDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Plug the CBB cable back into the connector under the seat.'**
+  String get reconnectCbbStepDesc;
+
+  /// No description provided for @insertMainBatteryStep.
+  ///
+  /// In en, this message translates to:
+  /// **'Insert the main battery'**
+  String get insertMainBatteryStep;
+
+  /// No description provided for @insertMainBatteryStepDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Put the main battery back in the seatbox. The scooter needs full power for the DBC flash.'**
+  String get insertMainBatteryStepDesc;
+
+  /// No description provided for @cbbDetected.
+  ///
+  /// In en, this message translates to:
+  /// **'CBB detected'**
+  String get cbbDetected;
+
+  /// No description provided for @batteryDetected.
+  ///
+  /// In en, this message translates to:
+  /// **'Battery detected'**
+  String get batteryDetected;
+
+  /// No description provided for @proceedWithoutCbb.
+  ///
+  /// In en, this message translates to:
+  /// **'Proceed at own risk'**
+  String get proceedWithoutCbb;
+
+  /// No description provided for @checkingCbbAndBattery.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking CBB and battery...'**
+  String get checkingCbbAndBattery;
+
+  /// No description provided for @waitingForUsbDisconnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for USB disconnect...'**
+  String get waitingForUsbDisconnect;
+
+  /// No description provided for @dbcWillCyclePower.
+  ///
+  /// In en, this message translates to:
+  /// **'The DBC will turn on and off multiple times during this process. Do not disconnect the USB cable between MDB and DBC.'**
+  String get dbcWillCyclePower;
+
+  /// No description provided for @ledBootAmber.
+  ///
+  /// In en, this message translates to:
+  /// **'Boot LED amber'**
+  String get ledBootAmber;
+
+  /// No description provided for @ledBootAmberMeaning.
+  ///
+  /// In en, this message translates to:
+  /// **'Flashing in progress'**
+  String get ledBootAmberMeaning;
+
+  /// No description provided for @ledBootRedError.
+  ///
+  /// In en, this message translates to:
+  /// **'Boot LED red'**
+  String get ledBootRedError;
+
+  /// No description provided for @ledBootRedMeaning.
+  ///
+  /// In en, this message translates to:
+  /// **'Error — reconnect laptop to check log'**
+  String get ledBootRedMeaning;
+
+  /// No description provided for @flashingTakesAbout10Min.
+  ///
+  /// In en, this message translates to:
+  /// **'Flashing takes about 10 minutes. Reconnect the laptop USB cable when done.'**
+  String get flashingTakesAbout10Min;
+
+  /// No description provided for @waitingForMdbToReconnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for MDB to reconnect...'**
+  String get waitingForMdbToReconnect;
+
+  /// No description provided for @ledIsGreen.
+  ///
+  /// In en, this message translates to:
+  /// **'LED is green'**
+  String get ledIsGreen;
+
+  /// No description provided for @ledIsRed.
+  ///
+  /// In en, this message translates to:
+  /// **'LED is red'**
+  String get ledIsRed;
+
+  /// No description provided for @phaseKeycardSetupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Keycard Setup'**
+  String get phaseKeycardSetupTitle;
+
+  /// No description provided for @phaseKeycardSetupDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Register master and user keycards'**
+  String get phaseKeycardSetupDescription;
+
+  /// No description provided for @usingLocalFirmwareImages.
+  ///
+  /// In en, this message translates to:
+  /// **'Using local firmware images'**
+  String get usingLocalFirmwareImages;
+
+  /// No description provided for @mdbDetectedUmsSkipping.
+  ///
+  /// In en, this message translates to:
+  /// **'MDB detected in UMS mode — skipping to flash.'**
+  String get mdbDetectedUmsSkipping;
+
+  /// No description provided for @waitingForMdbToReboot.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for MDB to reboot...'**
+  String get waitingForMdbToReboot;
+
+  /// No description provided for @mdbDetectedWaitingForSsh.
+  ///
+  /// In en, this message translates to:
+  /// **'MDB detected, waiting for SSH...'**
+  String get mdbDetectedWaitingForSsh;
+
+  /// No description provided for @reconnectedToMdb.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnected to MDB'**
+  String get reconnectedToMdb;
+
+  /// No description provided for @verifyingBootloaderConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'Verifying bootloader config...'**
+  String get verifyingBootloaderConfig;
+
+  /// No description provided for @umsNotDetectedTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'UMS device not detected within 60s. MDB may have booted back into Linux.'**
+  String get umsNotDetectedTimeout;
+
+  /// No description provided for @waitingForDevicePath.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for device path...'**
+  String get waitingForDevicePath;
+
+  /// No description provided for @noDevicePathFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No device path found. Check USB connection and retry.'**
+  String get noDevicePathFound;
+
+  /// No description provided for @mdbDisconnectedFlashingDbc.
+  ///
+  /// In en, this message translates to:
+  /// **'MDB disconnected — flashing DBC autonomously...'**
+  String get mdbDisconnectedFlashingDbc;
+
+  /// No description provided for @mdbReconnectedVerifying.
+  ///
+  /// In en, this message translates to:
+  /// **'MDB reconnected! Verifying...'**
+  String get mdbReconnectedVerifying;
 }
 
 class _AppLocalizationsDelegate

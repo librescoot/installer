@@ -577,9 +577,12 @@ ELAPSED=0
 while [ $STABLE -lt 20 ] && [ $ELAPSED -lt 300 ]; do
   if ping -c 1 -W 2 $DBC_IP >/dev/null 2>&1; then
     STABLE=$((STABLE + 1))
+    DOWN_COUNT=0
   else
     if [ $STABLE -gt 0 ]; then
-      log "  ping dropped after ${STABLE}s stable — DBC probably rebooting, resetting counter"
+      log "  ping dropped after ${STABLE}s stable — DBC rebooting, waiting 5s then turning on..."
+      sleep 5
+      lsc --redis-addr localhost:6379 dbc on 2>/dev/null || true
     fi
     STABLE=0
   fi
@@ -644,35 +647,63 @@ PYEOF
 nohup python3 /tmp/upload_srv.py > /dev/null 2>&1 &' || log "WARNING: failed to start DBC upload server"
 sleep 2
 
+TILE_ERRORS=0
+
+upload_tile() {
+  local src="\$1" dst="\$2" name="\$3"
+  local attempt=0
+  while [ \$attempt -lt 3 ]; do
+    attempt=\$((attempt + 1))
+    log "  uploading \$name (attempt \$attempt/3)..."
+    if curl -T "\$src" "http://\$DBC_IP:8080\$dst" 2>>"\$LOG"; then
+      log "  \$name done"
+      return 0
+    fi
+    log "  \$name upload failed, restarting DBC..."
+    lsc --redis-addr localhost:6379 dbc on-wait 2>/dev/null || true
+    sleep 5
+  done
+  log "ERROR: \$name upload failed after 3 attempts"
+  return 1
+}
+
 if [ -f "$OSM_TILES_FILE" ]; then
-  log "  installing display tiles via HTTP..."
-  curl -T "$OSM_TILES_FILE" "http://\$DBC_IP:8080/data/maps/map.mbtiles" 2>>\$LOG || log "WARNING: display tiles failed"
-  log "  display tiles done"
+  upload_tile "$OSM_TILES_FILE" "/data/maps/map.mbtiles" "display tiles" || TILE_ERRORS=\$((TILE_ERRORS + 1))
 fi
 if [ -f "$VALHALLA_TILES_FILE" ]; then
-  log "  installing routing tiles via HTTP..."
-  curl -T "$VALHALLA_TILES_FILE" "http://\$DBC_IP:8080/data/valhalla/tiles.tar" 2>>\$LOG || log "WARNING: routing tiles failed"
-  dbc_ssh "systemctl restart valhalla" 2>/dev/null || true
-  log "  routing tiles done"
+  if upload_tile "$VALHALLA_TILES_FILE" "/data/valhalla/tiles.tar" "routing tiles"; then
+    dbc_ssh "systemctl restart valhalla" 2>/dev/null || true
+  else
+    TILE_ERRORS=\$((TILE_ERRORS + 1))
+  fi
 fi
 
 # Stop DBC upload server
-dbc_ssh 'kill $(cat /tmp/upload_srv.pid 2>/dev/null) 2>/dev/null; rm -f /tmp/upload_srv.pid' || true
+dbc_ssh 'kill \$(cat /tmp/upload_srv.pid 2>/dev/null) 2>/dev/null; rm -f /tmp/upload_srv.pid' || true
 TILES
 fi
 
 cat >> /data/onboot.sh << 'ONBOOT_END'
-log "=========================================="
-log "Installation complete - SUCCESS"
-log "=========================================="
-echo "success" > "$STATUS_FILE"
-cat "$LOG" >> "$STATUS_FILE"
-
 # Turn off DBC
 lsc --redis-addr localhost:6379 dbc off 2>/dev/null || true
 
-# Set boot LED to green (done)
-i2cset -f -y 2 0x30 0x02 0x00; i2cset -f -y 2 0x30 0x03 0xFF; i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
+if [ "${TILE_ERRORS:-0}" -gt 0 ]; then
+  log "=========================================="
+  log "Installation FAILED — $TILE_ERRORS tile upload(s) failed"
+  log "=========================================="
+  echo "error: $TILE_ERRORS tile upload(s) failed" > "$STATUS_FILE"
+  cat "$LOG" >> "$STATUS_FILE"
+  # Set boot LED red (error)
+  i2cset -f -y 2 0x30 0x02 0x00; i2cset -f -y 2 0x30 0x03 0x00; i2cset -f -y 2 0x30 0x04 0xFF 2>/dev/null
+else
+  log "=========================================="
+  log "Installation complete - SUCCESS"
+  log "=========================================="
+  echo "success" > "$STATUS_FILE"
+  cat "$LOG" >> "$STATUS_FILE"
+  # Restart keycard service — it will blink the boot LED green (success indicator)
+  systemctl start librescoot-keycard 2>/dev/null || systemctl start keycard-service 2>/dev/null || true
+fi
 ONBOOT_END
 chmod +x /data/onboot.sh
 log "  onboot.sh written"
