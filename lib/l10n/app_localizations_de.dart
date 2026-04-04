@@ -131,7 +131,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get prerequisiteUsbCable => 'USB-Kabel (Laptop zu Mini-B)';
 
   @override
-  String get prerequisiteTime => 'Ungefähr 45 Minuten Zeit';
+  String get prerequisiteTime => 'Ungefähr 20 Minuten Zeit';
 
   @override
   String get firmwareChannel => 'Firmware-Kanal';
@@ -282,6 +282,22 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get notPresent => 'nicht vorhanden';
+
+  @override
+  String get riskAuxLow =>
+      'Niedrige 12V-Batterie könnte MDB oder DBC während des Flashens abschalten. LED-Anzeigen könnten ebenfalls ausfallen. Sitzbank mit eingesetztem Fahrakku schließen und warten, bis sie geladen ist.';
+
+  @override
+  String get riskCbbSoh =>
+      'Schlechter CBB-Zustand kann zu unzuverlässiger Stromversorgung während des Flashens führen.';
+
+  @override
+  String get riskCbbCharge =>
+      'Niedriger CBB-Ladezustand erhöht das Risiko eines Stromausfalls beim DBC-Flash. Sitzbank mit eingesetztem Fahrakku schließen und warten, bis der CBB geladen ist.';
+
+  @override
+  String get riskNoBattery =>
+      'Ohne den Fahrakku entlädt sich die 12V-Hilfsbatterie schneller. Der Roller könnte bei längeren Vorgängen herunterfahren.';
 
   @override
   String get batteryRemovalHeading => 'Akku entfernen';
@@ -439,6 +455,9 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get verifyCbbConnection => 'CBB-Verbindung prüfen';
+
+  @override
+  String get verifyBatteryPresence => 'Akku prüfen';
 
   @override
   String get checkingCbb => 'CBB wird geprüft...';
@@ -1036,14 +1055,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get reconnectCbbStepDesc =>
-      'Stecke das CBB-Kabel wieder in den Anschluss unter der Sitzbank.';
+      'Stecke das CBB-Kabel wieder in den Anschluss unter der Sitzbank. Ohne CBB könnte das MDB während des Flashens herunterfahren.';
 
   @override
   String get insertMainBatteryStep => 'Fahrakku einsetzen';
 
   @override
   String get insertMainBatteryStepDesc =>
-      'Setze den Fahrakku wieder in die Sitzbank ein. Der Roller braucht volle Leistung für den DBC-Flash.';
+      'Setze den Fahrakku wieder in die Sitzbank ein. Ohne ihn könnte der CBB oder die 12V-Hilfsbatterie während des Flashens leer werden, was MDB oder DBC zum Absturz bringen kann.';
 
   @override
   String get cbbDetected => 'CBB erkannt';
@@ -1052,7 +1071,8 @@ class AppLocalizationsDe extends AppLocalizations {
   String get batteryDetected => 'Akku erkannt';
 
   @override
-  String get proceedWithoutCbb => 'Auf eigenes Risiko fortfahren';
+  String get proceedWithoutCbb =>
+      'Ich verstehe die Risiken, trotzdem fortfahren';
 
   @override
   String get checkingCbbAndBattery => 'CBB und Akku werden geprüft...';

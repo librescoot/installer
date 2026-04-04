@@ -128,7 +128,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get prerequisiteUsbCable => 'USB cable (laptop to Mini-B)';
 
   @override
-  String get prerequisiteTime => 'About 45 minutes';
+  String get prerequisiteTime => 'About 20 minutes';
 
   @override
   String get firmwareChannel => 'Firmware Channel';
@@ -278,6 +278,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notPresent => 'not present';
+
+  @override
+  String get riskAuxLow =>
+      'Low 12V battery could cause the MDB or DBC to shut down during flashing. The LED indicators may also fail. Close the seatbox with the main battery inserted and wait for it to charge.';
+
+  @override
+  String get riskCbbSoh =>
+      'Degraded CBB health may cause unreliable power delivery during flashing.';
+
+  @override
+  String get riskCbbCharge =>
+      'Low CBB charge increases the risk of power loss during the DBC flash. Close the seatbox with the main battery inserted and wait for the CBB to charge.';
+
+  @override
+  String get riskNoBattery =>
+      'Without the main battery, the 12V auxiliary battery will drain faster. The scooter may shut down during extended operations.';
 
   @override
   String get batteryRemovalHeading => 'Battery Removal';
@@ -433,6 +449,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get verifyCbbConnection => 'Verify CBB Connection';
+
+  @override
+  String get verifyBatteryPresence => 'Verify battery';
 
   @override
   String get checkingCbb => 'Checking CBB...';
@@ -1027,14 +1046,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reconnectCbbStepDesc =>
-      'Plug the CBB cable back into the connector under the seat.';
+      'Plug the CBB cable back into the connector under the seat. Without the CBB, the MDB could shut down during flashing.';
 
   @override
   String get insertMainBatteryStep => 'Insert the main battery';
 
   @override
   String get insertMainBatteryStepDesc =>
-      'Put the main battery back in the seatbox. The scooter needs full power for the DBC flash.';
+      'Put the main battery back in the seatbox. Without it, the CBB or 12V auxiliary battery could run empty during flashing, which may cause the MDB or DBC to shut down.';
 
   @override
   String get cbbDetected => 'CBB detected';
@@ -1043,7 +1062,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get batteryDetected => 'Battery detected';
 
   @override
-  String get proceedWithoutCbb => 'Proceed at own risk';
+  String get proceedWithoutCbb => 'I understand the risks, proceed anyway';
 
   @override
   String get checkingCbbAndBattery => 'Checking CBB and battery...';

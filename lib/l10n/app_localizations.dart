@@ -329,7 +329,7 @@ abstract class AppLocalizations {
   /// No description provided for @prerequisiteTime.
   ///
   /// In en, this message translates to:
-  /// **'About 45 minutes'**
+  /// **'About 20 minutes'**
   String get prerequisiteTime;
 
   /// No description provided for @firmwareChannel.
@@ -608,6 +608,30 @@ abstract class AppLocalizations {
   /// **'not present'**
   String get notPresent;
 
+  /// No description provided for @riskAuxLow.
+  ///
+  /// In en, this message translates to:
+  /// **'Low 12V battery could cause the MDB or DBC to shut down during flashing. The LED indicators may also fail. Close the seatbox with the main battery inserted and wait for it to charge.'**
+  String get riskAuxLow;
+
+  /// No description provided for @riskCbbSoh.
+  ///
+  /// In en, this message translates to:
+  /// **'Degraded CBB health may cause unreliable power delivery during flashing.'**
+  String get riskCbbSoh;
+
+  /// No description provided for @riskCbbCharge.
+  ///
+  /// In en, this message translates to:
+  /// **'Low CBB charge increases the risk of power loss during the DBC flash. Close the seatbox with the main battery inserted and wait for the CBB to charge.'**
+  String get riskCbbCharge;
+
+  /// No description provided for @riskNoBattery.
+  ///
+  /// In en, this message translates to:
+  /// **'Without the main battery, the 12V auxiliary battery will drain faster. The scooter may shut down during extended operations.'**
+  String get riskNoBattery;
+
   /// No description provided for @batteryRemovalHeading.
   ///
   /// In en, this message translates to:
@@ -883,6 +907,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Verify CBB Connection'**
   String get verifyCbbConnection;
+
+  /// No description provided for @verifyBatteryPresence.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify battery'**
+  String get verifyBatteryPresence;
 
   /// No description provided for @checkingCbb.
   ///
@@ -1943,7 +1973,7 @@ abstract class AppLocalizations {
   /// No description provided for @reconnectCbbStepDesc.
   ///
   /// In en, this message translates to:
-  /// **'Plug the CBB cable back into the connector under the seat.'**
+  /// **'Plug the CBB cable back into the connector under the seat. Without the CBB, the MDB could shut down during flashing.'**
   String get reconnectCbbStepDesc;
 
   /// No description provided for @insertMainBatteryStep.
@@ -1955,7 +1985,7 @@ abstract class AppLocalizations {
   /// No description provided for @insertMainBatteryStepDesc.
   ///
   /// In en, this message translates to:
-  /// **'Put the main battery back in the seatbox. The scooter needs full power for the DBC flash.'**
+  /// **'Put the main battery back in the seatbox. Without it, the CBB or 12V auxiliary battery could run empty during flashing, which may cause the MDB or DBC to shut down.'**
   String get insertMainBatteryStepDesc;
 
   /// No description provided for @cbbDetected.
@@ -1973,7 +2003,7 @@ abstract class AppLocalizations {
   /// No description provided for @proceedWithoutCbb.
   ///
   /// In en, this message translates to:
-  /// **'Proceed at own risk'**
+  /// **'I understand the risks, proceed anyway'**
   String get proceedWithoutCbb;
 
   /// No description provided for @checkingCbbAndBattery.

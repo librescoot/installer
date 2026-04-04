@@ -42,7 +42,7 @@
   "prerequisiteScrewdriverPH2": "PH2-Kreuz- oder H4-Innensechskantschraubendreher f\u00fcr die vier Fu\u00dfbrettschrauben",
   "prerequisiteScrewdriverFlat": "Schlitz- oder PH1-Schraubendreher f\u00fcr das USB-Kabel",
   "prerequisiteUsbCable": "USB-Kabel (Laptop zu Mini-B)",
-  "prerequisiteTime": "Ungef\u00e4hr 45 Minuten Zeit",
+  "prerequisiteTime": "Ungef\u00e4hr 20 Minuten Zeit",
   "firmwareChannel": "Firmware-Kanal",
   "channelStable": "Stabil",
   "channelTesting": "Testing",
@@ -92,6 +92,11 @@
   "mainBattery": "Fahrakku",
   "present": "vorhanden",
   "notPresent": "nicht vorhanden",
+
+  "riskAuxLow": "Niedrige 12V-Batterie k\u00f6nnte MDB oder DBC w\u00e4hrend des Flashens abschalten. LED-Anzeigen k\u00f6nnten ebenfalls ausfallen. Sitzbank mit eingesetztem Fahrakku schlie\u00dfen und warten, bis sie geladen ist.",
+  "riskCbbSoh": "Schlechter CBB-Zustand kann zu unzuverl\u00e4ssiger Stromversorgung w\u00e4hrend des Flashens f\u00fchren.",
+  "riskCbbCharge": "Niedriger CBB-Ladezustand erh\u00f6ht das Risiko eines Stromausfalls beim DBC-Flash. Sitzbank mit eingesetztem Fahrakku schlie\u00dfen und warten, bis der CBB geladen ist.",
+  "riskNoBattery": "Ohne den Fahrakku entl\u00e4dt sich die 12V-Hilfsbatterie schneller. Der Roller k\u00f6nnte bei l\u00e4ngeren Vorg\u00e4ngen herunterfahren.",
 
   "batteryRemovalHeading": "Akku entfernen",
   "seatboxOpening": "Sitzbank wird ge\u00f6ffnet...",
@@ -144,6 +149,7 @@
   "reconnectCbb": "Hauptbatterie einsetzen und CBB wieder anschlie\u00dfen",
   "reconnectCbbDesc": "Setze die Hauptbatterie wieder in die Sitzbank ein und stecke das CBB-Kabel wieder ein. Der Roller braucht volle Leistung f\u00fcr den DBC-Flash.",
   "verifyCbbConnection": "CBB-Verbindung pr\u00fcfen",
+  "verifyBatteryPresence": "Akku pr\u00fcfen",
   "checkingCbb": "CBB wird gepr\u00fcft...",
   "cbbConnected": "CBB verbunden!",
   "waitingForCbb": "Warte auf CBB... ({attempts})",
@@ -331,12 +337,12 @@
 
   "openSeatboxButton": "Sitzbank \u00f6ffnen",
   "reconnectCbbStep": "CBB wieder anschlie\u00dfen",
-  "reconnectCbbStepDesc": "Stecke das CBB-Kabel wieder in den Anschluss unter der Sitzbank.",
+  "reconnectCbbStepDesc": "Stecke das CBB-Kabel wieder in den Anschluss unter der Sitzbank. Ohne CBB k\u00f6nnte das MDB w\u00e4hrend des Flashens herunterfahren.",
   "insertMainBatteryStep": "Fahrakku einsetzen",
-  "insertMainBatteryStepDesc": "Setze den Fahrakku wieder in die Sitzbank ein. Der Roller braucht volle Leistung f\u00fcr den DBC-Flash.",
+  "insertMainBatteryStepDesc": "Setze den Fahrakku wieder in die Sitzbank ein. Ohne ihn k\u00f6nnte der CBB oder die 12V-Hilfsbatterie w\u00e4hrend des Flashens leer werden, was MDB oder DBC zum Absturz bringen kann.",
   "cbbDetected": "CBB erkannt",
   "batteryDetected": "Akku erkannt",
-  "proceedWithoutCbb": "Auf eigenes Risiko fortfahren",
+  "proceedWithoutCbb": "Ich verstehe die Risiken, trotzdem fortfahren",
 
   "checkingCbbAndBattery": "CBB und Akku werden gepr\u00fcft...",
 

@@ -20,11 +20,23 @@ class HealthCheckPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _row(l10n.auxBatteryCharge, '${health.auxCharge ?? '?'}%', '\u2265 50%', health.auxChargeOk),
+          if (!health.auxChargeOk) _risk(l10n.riskAuxLow),
           _row(l10n.cbbStateOfHealth, '${health.cbbStateOfHealth ?? '?'}%', '\u2265 99%', health.cbbSohOk),
+          if (!health.cbbSohOk) _risk(l10n.riskCbbSoh),
           _row(l10n.cbbCharge, '${health.cbbCharge ?? '?'}%', '\u2265 80%', health.cbbChargeOk),
+          if (!health.cbbChargeOk) _risk(l10n.riskCbbCharge),
           _row(l10n.mainBattery, health.batteryPresent == true ? l10n.present : l10n.notPresent, '', health.batteryPresent != null),
+          if (health.batteryPresent != true) _risk(l10n.riskNoBattery),
         ],
       ),
+    );
+  }
+
+  Widget _risk(String message) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 24, bottom: 8),
+      child: Text(message,
+          style: TextStyle(fontSize: 12, color: Colors.orange.shade300)),
     );
   }
 

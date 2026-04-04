@@ -337,45 +337,71 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
   wait_dbc_ssh 30 || fail "DBC SSH not reachable"
   log "DBC reachable"
 
-  # Step 4: Configure DBC for UMS
+  # Step 4: Configure DBC for UMS (retry up to 3x if DBC shuts down)
   log "Step 4: Setting DBC bootloader to UMS mode..."
+  STEP4_OK=""
+  for STEP4_ATTEMPT in 1 2 3; do
+    log "  step 4 attempt $STEP4_ATTEMPT/3..."
 
-# Check native fw_setenv (LibreScoot DBC) vs stock
-HAS_NATIVE=$(ssh root@$DBC_IP 'test -x /usr/bin/fw_setenv && test -f /etc/fw_env.config && echo yes' 2>/dev/null || echo no)
-log "  native fw_setenv: $HAS_NATIVE"
+    # Check if DBC is still reachable
+    if ! ping -c 1 -W 2 $DBC_IP >/dev/null 2>&1; then
+      log "  DBC not reachable, turning on..."
+      lsc --redis-addr localhost:6379 dbc on-wait >> "$LOG_FILE" 2>&1 || true
+      wait_dbc_ssh 30 || { log "  DBC SSH failed after on-wait"; continue; }
+    fi
 
-if [ "$HAS_NATIVE" = "yes" ]; then
-  FWCMD="fw_setenv"
-  FWCFG=""
-else
-  log "  copying stock DBC fw tools..."
-  dbc_scp /data/fwtools/stock-dbc/fw_setenv root@$DBC_IP:/tmp/ || fail "Failed to copy fw_setenv"
-  dbc_scp /data/fwtools/stock-dbc/fw_env.config root@$DBC_IP:/tmp/fw_env.config || fail "Failed to copy fw_env.config"
-  dbc_ssh 'chmod +x /tmp/fw_setenv' || true
-  FWCMD="/tmp/fw_setenv"
-  FWCFG="-c /tmp/fw_env.config"
-fi
+    # Check native fw_setenv (LibreScoot DBC) vs stock
+    HAS_NATIVE=$(ssh root@$DBC_IP 'test -x /usr/bin/fw_setenv && test -f /etc/fw_env.config && echo yes' 2>/dev/null || echo no)
+    log "  native fw_setenv: $HAS_NATIVE"
 
-log "  setting bootcmd: $FWCMD $FWCFG bootcmd 'fuse prog ... ums 0 mmc 2;'"
-BOOTCMD_OUT=$(dbc_ssh "$FWCMD $FWCFG bootcmd 'fuse prog -y 0 5 0x00003860; fuse prog -y 0 6 0x00000010; ums 0 mmc 2;'" 2>&1) || \
-BOOTCMD_OUT=$(dbc_ssh "$FWCMD $FWCFG bootcmd 'ums 0 mmc 2'" 2>&1) || \
-fail "Failed to set DBC bootcmd"
-log "  bootcmd output: $BOOTCMD_OUT"
-log "  bootcmd set, waiting 3s for DBC to settle..."
-sleep 3
+    if [ "$HAS_NATIVE" = "yes" ]; then
+      FWCMD="fw_setenv"
+      FWCFG=""
+    else
+      log "  copying stock DBC fw tools..."
+      dbc_scp /data/fwtools/stock-dbc/fw_setenv root@$DBC_IP:/tmp/ || { log "  scp failed"; continue; }
+      dbc_scp /data/fwtools/stock-dbc/fw_env.config root@$DBC_IP:/tmp/fw_env.config || { log "  scp failed"; continue; }
+      dbc_ssh 'chmod +x /tmp/fw_setenv' || true
+      FWCMD="/tmp/fw_setenv"
+      FWCFG="-c /tmp/fw_env.config"
+    fi
 
-log "  setting bootdelay=0..."
-DELAY_OUT=$(dbc_ssh "$FWCMD $FWCFG bootdelay 0" 2>&1) || log "  bootdelay failed: $DELAY_OUT"
-log "  bootdelay output: $DELAY_OUT"
+    log "  setting bootcmd..."
+    BOOTCMD_OUT=$(dbc_ssh "$FWCMD $FWCFG bootcmd 'fuse prog -y 0 5 0x00003860; fuse prog -y 0 6 0x00000010; ums 0 mmc 2;'" 2>&1)
+    if [ $? -ne 0 ]; then
+      log "  bootcmd failed: $BOOTCMD_OUT"
+      BOOTCMD_OUT=$(dbc_ssh "$FWCMD $FWCFG bootcmd 'ums 0 mmc 2'" 2>&1)
+      if [ $? -ne 0 ]; then
+        log "  fallback bootcmd also failed, DBC may have shut down"
+        sleep 5
+        continue
+      fi
+    fi
+    log "  bootcmd set: $BOOTCMD_OUT"
 
-log "  syncing DBC..."
-SYNC_OUT=$(dbc_ssh 'sync' 2>&1) || log "  sync failed: $SYNC_OUT"
+    # Wait a moment then check if DBC is still alive
+    sleep 3
+    if ! ping -c 1 -W 2 $DBC_IP >/dev/null 2>&1; then
+      log "  DBC went down after fw_setenv — retrying..."
+      sleep 5
+      continue
+    fi
 
-log "  rebooting DBC..."
-REBOOT_OUT=$(dbc_ssh 'systemctl reboot' 2>&1) || log "  reboot failed: $REBOOT_OUT"
-log "  reboot output: $REBOOT_OUT"
-log "  waiting 30s..."
-sleep 30
+    log "  setting bootdelay=0..."
+    dbc_ssh "$FWCMD $FWCFG bootdelay 0" >> "$LOG_FILE" 2>&1 || log "  bootdelay failed"
+
+    log "  syncing DBC..."
+    dbc_ssh 'sync' >> "$LOG_FILE" 2>&1 || log "  sync failed"
+
+    log "  rebooting DBC..."
+    dbc_ssh 'systemctl reboot' >> "$LOG_FILE" 2>&1 || log "  reboot failed"
+    log "  waiting 30s..."
+    sleep 30
+
+    STEP4_OK="yes"
+    break
+  done
+  [ "$STEP4_OK" != "yes" ] && fail "Failed to configure DBC after 3 attempts"
 fi  # end of DBC_ALREADY_UMS != yes
 
 # Step 5: Switch MDB to USB host (may already be in host mode if DBC was in UMS)

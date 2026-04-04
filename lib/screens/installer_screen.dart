@@ -507,11 +507,23 @@ class _InstallerScreenState extends State<InstallerScreen> {
             style: TextStyle(color: Colors.grey.shade400)),
         const SizedBox(height: 24),
 
-        // Prerequisites (interactive checkboxes)
+        // Prerequisites (2x2 grid)
         Text(l10n.whatYouNeed, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         const SizedBox(height: 8),
-        for (var i = 0; i < prerequisites.length; i++)
-          _prerequisite(prerequisites[i], i),
+        Row(
+          children: [
+            Expanded(child: _prerequisite(prerequisites[0], 0)),
+            const SizedBox(width: 8),
+            Expanded(child: _prerequisite(prerequisites[1], 1)),
+          ],
+        ),
+        Row(
+          children: [
+            Expanded(child: _prerequisite(prerequisites[2], 2)),
+            const SizedBox(width: 8),
+            Expanded(child: _prerequisite(prerequisites[3], 3)),
+          ],
+        ),
         const SizedBox(height: 24),
 
         // Channel selection
@@ -532,8 +544,26 @@ class _InstallerScreenState extends State<InstallerScreen> {
           _buildChannelSelector(l10n),
         const SizedBox(height: 24),
 
-        // Region selection (always shown)
-        Text(l10n.region, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        // Region selection with skip checkbox inline
+        Row(
+          children: [
+            Text(l10n.region, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const Spacer(),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Checkbox(
+                  value: !_downloadState.wantsOfflineMaps,
+                  onChanged: (v) => setState(() {
+                    _downloadState.wantsOfflineMaps = !(v ?? false);
+                  }),
+                ),
+                Text(l10n.skipOfflineMaps,
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+              ],
+            ),
+          ],
+        ),
         const SizedBox(height: 4),
         Text(l10n.regionHint,
             style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
@@ -550,16 +580,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 .toList(),
             onChanged: (r) => setState(() => _downloadState.selectedRegion = r),
           ),
-        CheckboxListTile(
-          value: !_downloadState.wantsOfflineMaps,
-          contentPadding: EdgeInsets.zero,
-          title: Text(l10n.skipOfflineMaps),
-          subtitle: Text(l10n.skipOfflineMapsHint,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-          onChanged: (v) => setState(() {
-            _downloadState.wantsOfflineMaps = !(v ?? false);
-          }),
-        ),
 
         const SizedBox(height: 24),
 
@@ -586,21 +606,26 @@ class _InstallerScreenState extends State<InstallerScreen> {
       DownloadChannel.nightly: (name: l10n.channelNightly, desc: l10n.channelNightlyDesc),
     };
 
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children: [
-        for (final channel in DownloadChannel.values)
-          _buildChannelCard(
-            l10n,
-            channel: channel,
-            name: channelInfo[channel]!.name,
-            description: channelInfo[channel]!.desc,
-            releaseDate: _availableChannels?[channel]?.date,
-            available: _availableChannels?.containsKey(channel) ?? false,
-            selected: _downloadState.channel == channel,
-          ),
-      ],
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final channel in DownloadChannel.values) ...[
+            if (channel.index > 0) const SizedBox(width: 12),
+            Expanded(
+              child: _buildChannelCard(
+                l10n,
+                channel: channel,
+                name: channelInfo[channel]!.name,
+                description: channelInfo[channel]!.desc,
+                releaseDate: _availableChannels?[channel]?.date,
+                available: _availableChannels?.containsKey(channel) ?? false,
+                selected: _downloadState.channel == channel,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -617,7 +642,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
       onTap: available ? () => setState(() => _downloadState.channel = channel) : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        width: 220,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
@@ -1636,106 +1660,99 @@ class _InstallerScreenState extends State<InstallerScreen> {
       });
     }
 
-    // Stage 1: Reconnect CBB
-    if (!_cbbDetected) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(l10n.reconnectCbbHeading,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 24),
-            InstructionStep(
-              number: 1,
-              title: l10n.reconnectCbbStep,
-              description: l10n.reconnectCbbStepDesc,
-              imageAsset: 'assets/images/lsi-unu_scooter_cbb_connected.jpg',
-            ),
-            const SizedBox(height: 16),
-            if (_isProcessing) ...[
-              const CircularProgressIndicator(),
-              const SizedBox(height: 8),
-              Text(_statusMessage, style: TextStyle(color: Colors.grey.shade400)),
-            ] else ...[
-              FilledButton(
-                onPressed: () async {
-                  setState(() => _isProcessing = true);
-                  _setStatus(l10n.checkingCbb);
-                  for (var i = 0; i < 30; i++) {
-                    if (await _sshService.isCbbPresent()) {
-                      setState(() { _cbbDetected = true; _isProcessing = false; });
-                      _setStatus('');
-                      return;
-                    }
-                    _setStatus('${l10n.waitingForCbb(i + 1)}');
-                    await Future.delayed(const Duration(seconds: 2));
-                    if (!mounted) return;
-                  }
-                  _setStatus(l10n.cbbNotDetected);
-                  setState(() => _isProcessing = false);
-                },
-                child: Text(l10n.verifyCbbConnection),
-              ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () => _setPhase(InstallerPhase.dbcPrep),
-                child: Text(l10n.proceedWithoutCbb,
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-              ),
-            ],
-          ],
-        ),
-      );
-    }
-
-    // Stage 2: CBB connected — open seatbox, insert battery
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(l10n.reconnectCbbHeading,
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.check_circle, size: 16, color: Colors.tealAccent),
-              const SizedBox(width: 8),
-              Text(l10n.cbbDetected, style: const TextStyle(color: Colors.tealAccent, fontSize: 13)),
-            ],
-          ),
           const SizedBox(height: 24),
-          OutlinedButton.icon(
-            onPressed: _sshService.isConnected ? () async {
-              try { await _sshService.runCommand('lsc open'); } catch (_) {}
-            } : null,
-            icon: const Icon(Icons.lock_open, size: 18),
-            label: Text(l10n.openSeatboxButton),
-          ),
-          const SizedBox(height: 16),
+
+          // Step 1: Reconnect CBB
           InstructionStep(
             number: 1,
-            title: l10n.insertMainBatteryStep,
-            description: l10n.insertMainBatteryStepDesc,
+            title: l10n.reconnectCbbStep,
+            description: l10n.reconnectCbbStepDesc,
+            imageAsset: 'assets/images/lsi-unu_scooter_cbb_connected.jpg',
           ),
-          if (_batteryDetected)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.check_circle, size: 16, color: Colors.tealAccent),
-                  const SizedBox(width: 8),
-                  Text(l10n.batteryDetected, style: const TextStyle(color: Colors.tealAccent, fontSize: 13)),
-                ],
-              ),
+          if (_cbbDetected)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.check_circle, size: 16, color: Colors.tealAccent),
+                const SizedBox(width: 8),
+                Text(l10n.cbbDetected, style: const TextStyle(color: Colors.tealAccent, fontSize: 13)),
+              ],
+            )
+          else if (!_isProcessing)
+            FilledButton(
+              onPressed: () async {
+                setState(() => _isProcessing = true);
+                _setStatus(l10n.checkingCbb);
+                for (var i = 0; i < 30; i++) {
+                  if (await _sshService.isCbbPresent()) {
+                    setState(() { _cbbDetected = true; _isProcessing = false; });
+                    _setStatus('');
+                    return;
+                  }
+                  _setStatus('${l10n.waitingForCbb(i + 1)}');
+                  await Future.delayed(const Duration(seconds: 2));
+                  if (!mounted) return;
+                }
+                _setStatus(l10n.cbbNotDetected);
+                setState(() { _isProcessing = false; _cbbDetected = false; });
+              },
+              child: Text(l10n.verifyCbbConnection),
             ),
+
+          const SizedBox(height: 16),
+
+          // Step 2: Insert battery (greyed out until CBB connected)
+          Opacity(
+            opacity: _cbbDetected ? 1.0 : 0.4,
+            child: Column(
+              children: [
+                InstructionStep(
+                  number: 2,
+                  title: l10n.insertMainBatteryStep,
+                  description: l10n.insertMainBatteryStepDesc,
+                ),
+                if (_cbbDetected) ...[
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _sshService.isConnected ? () async {
+                          try { await _sshService.runCommand('lsc open'); } catch (_) {}
+                        } : null,
+                        icon: const Icon(Icons.lock_open, size: 18),
+                        label: Text(l10n.openSeatboxButton),
+                      ),
+                    ],
+                  ),
+                  if (_batteryDetected)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.check_circle, size: 16, color: Colors.tealAccent),
+                          const SizedBox(width: 8),
+                          Text(l10n.batteryDetected, style: const TextStyle(color: Colors.tealAccent, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
+
           const SizedBox(height: 16),
           if (_isProcessing) ...[
             const CircularProgressIndicator(),
             const SizedBox(height: 8),
             Text(_statusMessage, style: TextStyle(color: Colors.grey.shade400)),
-          ] else ...[
+          ] else if (_cbbDetected) ...[
             FilledButton(
               onPressed: () async {
                 setState(() => _isProcessing = true);
@@ -1746,15 +1763,23 @@ class _InstallerScreenState extends State<InstallerScreen> {
                   await Future.delayed(const Duration(seconds: 1));
                   if (mounted) _setPhase(InstallerPhase.dbcPrep);
                 } else {
-                  _setStatus(l10n.batteryDetected); // TODO: add batteryNotDetected key
+                  _setStatus(l10n.cbbNotDetected);
                   setState(() => _isProcessing = false);
                 }
               },
-              child: Text(l10n.verifyCbbConnection),
+              child: Text(l10n.verifyBatteryPresence),
             ),
             const SizedBox(height: 12),
             TextButton(
               onPressed: () => _setPhase(InstallerPhase.dbcPrep),
+              child: Text(l10n.proceedWithoutCbb,
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+            ),
+          ] else ...[
+            TextButton(
+              onPressed: () {
+                setState(() => _cbbDetected = true);
+              },
               child: Text(l10n.proceedWithoutCbb,
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
             ),
@@ -2014,13 +2039,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
     setState(() => _dbcUsbDisconnected = true);
     _setStatus(l10n.mdbDisconnectedFlashingDbc);
 
-    // Poll for MDB reconnect every 10s
-    while (mounted) {
+    // Poll for MDB reconnect every 10s — only while still on dbcFlash phase
+    while (mounted && _currentPhase == InstallerPhase.dbcFlash) {
       await Future.delayed(const Duration(seconds: 10));
+      if (_currentPhase != InstallerPhase.dbcFlash) return;
       if (_device != null && _device!.mode == DeviceMode.ethernet) {
         _setStatus(l10n.mdbReconnectedVerifying);
         await Future.delayed(const Duration(seconds: 2));
-        if (mounted) {
+        if (mounted && _currentPhase == InstallerPhase.dbcFlash) {
           _setPhase(InstallerPhase.reconnect);
         }
         return;

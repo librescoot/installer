@@ -543,6 +543,10 @@ class FlashService {
           : devicePath;
       final diskName = rawDevice.replaceFirst('/dev/rdisk', '/dev/disk');
 
+      // Unmount all partitions (macOS auto-mounts FAT32)
+      debugPrint('Flash: unmounting $diskName');
+      await Process.run('diskutil', ['unmountDisk', diskName]);
+
       final command = '"$diskwriterPath" --two-phase --boot-blocks=$bootAreaBlocks '
           '--image="$imagePath" $rawDevice';
 

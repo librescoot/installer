@@ -42,7 +42,7 @@
   "prerequisiteScrewdriverPH2": "PH2 or H4 screwdriver for footwell screws",
   "prerequisiteScrewdriverFlat": "Flat head or PH1 screwdriver for USB cable",
   "prerequisiteUsbCable": "USB cable (laptop to Mini-B)",
-  "prerequisiteTime": "About 45 minutes",
+  "prerequisiteTime": "About 20 minutes",
   "firmwareChannel": "Firmware Channel",
   "channelStable": "Stable",
   "channelTesting": "Testing",
@@ -102,6 +102,11 @@
   "mainBattery": "Main battery",
   "present": "present",
   "notPresent": "not present",
+
+  "riskAuxLow": "Low 12V battery could cause the MDB or DBC to shut down during flashing. The LED indicators may also fail. Close the seatbox with the main battery inserted and wait for it to charge.",
+  "riskCbbSoh": "Degraded CBB health may cause unreliable power delivery during flashing.",
+  "riskCbbCharge": "Low CBB charge increases the risk of power loss during the DBC flash. Close the seatbox with the main battery inserted and wait for the CBB to charge.",
+  "riskNoBattery": "Without the main battery, the 12V auxiliary battery will drain faster. The scooter may shut down during extended operations.",
 
   "batteryRemovalHeading": "Battery Removal",
   "seatboxOpening": "Seatbox is opening...",
@@ -164,6 +169,7 @@
   "reconnectCbb": "Reinstall the main battery and reconnect the CBB",
   "reconnectCbbDesc": "Put the main battery back in the seatbox and plug the CBB cable back in. The scooter needs full power for the DBC flash.",
   "verifyCbbConnection": "Verify CBB Connection",
+  "verifyBatteryPresence": "Verify battery",
   "checkingCbb": "Checking CBB...",
   "cbbConnected": "CBB connected!",
   "waitingForCbb": "Waiting for CBB... ({attempts})",
@@ -423,12 +429,12 @@
 
   "openSeatboxButton": "Open seatbox",
   "reconnectCbbStep": "Reconnect the CBB",
-  "reconnectCbbStepDesc": "Plug the CBB cable back into the connector under the seat.",
+  "reconnectCbbStepDesc": "Plug the CBB cable back into the connector under the seat. Without the CBB, the MDB could shut down during flashing.",
   "insertMainBatteryStep": "Insert the main battery",
-  "insertMainBatteryStepDesc": "Put the main battery back in the seatbox. The scooter needs full power for the DBC flash.",
+  "insertMainBatteryStepDesc": "Put the main battery back in the seatbox. Without it, the CBB or 12V auxiliary battery could run empty during flashing, which may cause the MDB or DBC to shut down.",
   "cbbDetected": "CBB detected",
   "batteryDetected": "Battery detected",
-  "proceedWithoutCbb": "Proceed at own risk",
+  "proceedWithoutCbb": "I understand the risks, proceed anyway",
 
   "checkingCbbAndBattery": "Checking CBB and battery...",
 
