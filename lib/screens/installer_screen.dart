@@ -356,6 +356,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 PhaseSidebar(
                   currentPhase: _currentPhase,
                   completedPhases: _completedPhases,
+                  downloadItems: _downloadState.items,
                 ),
                 Expanded(
                   child: Column(

@@ -833,13 +833,22 @@ echo "VERIFY:OK"
         ? '/bin/sh ${scriptFile.path}'
         : 'pkexec /bin/sh ${scriptFile.path}';
 
+    // Estimate total image size for progress calculation
+    final imageSize = await _estimateImageSizeBytes(imagePath, isCompressed);
+    final totalBytes = imageSize ?? 0;
+    // Phase A writes everything after boot area, Phase B writes boot area
+    // Progress: Phase A = 0.0-0.9, Phase B = 0.9-0.95, Sync = 0.95, Verify = 0.97
+    final phaseABytes = totalBytes > bootAreaBytes ? totalBytes - bootAreaBytes : totalBytes;
+
     debugPrint('Flash: running two-phase script via ${isRoot ? "sh" : "pkexec"}');
+    debugPrint('Flash: estimated image size: $totalBytes bytes, phase A: $phaseABytes bytes');
     onProgress?.call(0.0, 'Phase A: Writing partitions...');
 
     final process = await Process.start('/bin/sh', ['-c', command]);
 
     var currentPhase = 'A';
     final output = StringBuffer();
+    final stopwatch = Stopwatch()..start();
 
     await for (final chunk in process.stdout.transform(utf8.decoder)) {
       output.write(chunk);
@@ -848,11 +857,11 @@ echo "VERIFY:OK"
           currentPhase = line.substring(6).trim();
           switch (currentPhase) {
             case 'B':
-              onProgress?.call(0.8, 'Phase B: Writing boot sector...');
+              onProgress?.call(0.9, 'Phase B: Writing boot sector...');
             case 'SYNC':
-              onProgress?.call(0.9, 'Syncing...');
+              onProgress?.call(0.95, 'Syncing...');
             case 'VERIFY':
-              onProgress?.call(0.92, 'Verifying boot sector...');
+              onProgress?.call(0.97, 'Verifying boot sector...');
           }
         }
         if (line.startsWith('VERIFY:')) {
@@ -863,10 +872,21 @@ echo "VERIFY:OK"
           final bytes = int.tryParse(bytesMatch.group(1)!);
           if (bytes != null) {
             final mb = bytes / (1024 * 1024);
-            if (currentPhase == 'A') {
-              onProgress?.call(0.5, 'Phase A: ${mb.toStringAsFixed(1)} MB written');
+            String eta = '';
+            if (currentPhase == 'A' && phaseABytes > 0) {
+              final fraction = (bytes / phaseABytes).clamp(0.0, 1.0);
+              final progress = fraction * 0.9; // Phase A is 0-0.9
+              // Calculate ETA
+              if (fraction > 0.01) {
+                final elapsed = stopwatch.elapsedMilliseconds / 1000;
+                final remaining = (elapsed / fraction) * (1.0 - fraction);
+                final mins = (remaining / 60).floor();
+                final secs = (remaining % 60).floor();
+                eta = ' — ${mins}m ${secs}s remaining';
+              }
+              onProgress?.call(progress, '${mb.toStringAsFixed(0)} MB written$eta');
             } else if (currentPhase == 'B') {
-              onProgress?.call(0.85, 'Phase B: ${mb.toStringAsFixed(1)} MB written');
+              onProgress?.call(0.92, 'Boot sector: ${mb.toStringAsFixed(1)} MB written');
             }
           }
         }

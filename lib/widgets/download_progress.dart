@@ -55,7 +55,9 @@ class DownloadProgressWidget extends StatelessWidget {
 
   String _labelFor(DownloadItemType type, AppLocalizations l10n) => switch (type) {
         DownloadItemType.mdbFirmware => l10n.downloadMdbFirmware,
+        DownloadItemType.mdbBmap => 'MDB Bmap',
         DownloadItemType.dbcFirmware => l10n.downloadDbcFirmware,
+        DownloadItemType.dbcBmap => 'DBC Bmap',
         DownloadItemType.osmTiles => l10n.downloadMapTiles,
         DownloadItemType.valhallaTiles => l10n.downloadRoutingTiles,
       };
