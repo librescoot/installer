@@ -1655,7 +1655,7 @@ abstract class AppLocalizations {
   /// No description provided for @skipOfflineMapsHint.
   ///
   /// In en, this message translates to:
-  /// **'You can install maps later via the scooter\'s web interface'**
+  /// **'You can install maps later by re-running the installer'**
   String get skipOfflineMapsHint;
 
   /// No description provided for @bluetoothPairingHeading.

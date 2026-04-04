@@ -35,39 +35,101 @@ bootled() {
   esac
 } 2>/dev/null
 
-# --- Blinkers via redis ---
-blinkers_on()  { redis-cli lpush scooter:blinker both >/dev/null 2>&1 || true; }
-blinkers_off() { redis-cli lpush scooter:blinker off >/dev/null 2>&1 || true; }
+# --- PWM LED control via ioctl ---
+# Channels: 0=headlight 1=front_ring 2=brake 3=FL 4=FR 5=plates 6=RL 7=RR
+IOCTL=/usr/bin/ioctl
+led_activate()   { $IOCTL /dev/pwm_led$1 0x00007549 -v 1 2>/dev/null; }
+led_deactivate() { $IOCTL /dev/pwm_led$1 0x00007549 -v 0 2>/dev/null; }
+led_duty()       { $IOCTL /dev/pwm_led$1 0x0000754A -v $2 2>/dev/null; }
+led_fade()       { $IOCTL /dev/pwm_led$1 0x00007545 -v $2 2>/dev/null; }
+led_off()        { led_duty $1 0; led_deactivate $1; }
+
+# --- Front ring breathing (prep phase indicator) ---
+BREATHE_PID=""
+breathe_start() {
+  local ch=$1
+  led_activate $ch
+  (while true; do
+    led_fade $ch 0  # fade0: parking-smooth-on (3s)
+    sleep 3
+    led_fade $ch 1  # fade1: smooth-off (2.3s)
+    sleep 3
+  done) &
+  BREATHE_PID=$!
+}
+breathe_stop() {
+  [ -n "$BREATHE_PID" ] && kill $BREATHE_PID 2>/dev/null; BREATHE_PID=""
+}
 
 # --- Blinker progress bar (4 blinkers = 4 segments) ---
-# FL(3), FR(4), RR(7), RL(6)
-# Mode: 2=on, 3=off, 10=blink
-PROGRESS_PULSE_PID=""
+# Order: FL(3) -> FR(4) -> RR(7) -> RL(6)
+# Filled segments: dim glow (duty 2000/12000 ~17%)
+# Active segment: breathing (fade0/fade1 loop)
+# Unfilled: off
+BLINKER_LEDS="3 4 7 6"
+DIM_DUTY=2000
+PROGRESS_BREATHE_PID=""
+
 signal_progress() {
   local pct="$1"
-  [ -n "$PROGRESS_PULSE_PID" ] && kill $PROGRESS_PULSE_PID 2>/dev/null; PROGRESS_PULSE_PID=""
+  [ -n "$PROGRESS_BREATHE_PID" ] && kill $PROGRESS_BREATHE_PID 2>/dev/null; PROGRESS_BREATHE_PID=""
+
+  # Determine how many segments are filled (0-4) and which is active
+  local filled=0 active=-1
   if [ "$pct" -ge 100 ]; then
-    for l in 3 4 7 6; do /usr/bin/ledcontrol.sh $l 2 2>/dev/null; done
+    filled=4
   elif [ "$pct" -ge 75 ]; then
-    for l in 3 4 7; do /usr/bin/ledcontrol.sh $l 2 2>/dev/null; done
-    (while true; do /usr/bin/ledcontrol.sh 6 10 2>/dev/null; sleep 0.8; done) &
-    PROGRESS_PULSE_PID=$!
+    filled=3; active=3
   elif [ "$pct" -ge 50 ]; then
-    for l in 3 4; do /usr/bin/ledcontrol.sh $l 2 2>/dev/null; done
-    (while true; do /usr/bin/ledcontrol.sh 7 10 2>/dev/null; sleep 0.8; done) &
-    PROGRESS_PULSE_PID=$!
+    filled=2; active=2
   elif [ "$pct" -ge 25 ]; then
-    /usr/bin/ledcontrol.sh 3 2 2>/dev/null
-    (while true; do /usr/bin/ledcontrol.sh 4 10 2>/dev/null; sleep 0.8; done) &
-    PROGRESS_PULSE_PID=$!
+    filled=1; active=1
   else
-    (while true; do /usr/bin/ledcontrol.sh 3 10 2>/dev/null; sleep 0.8; done) &
-    PROGRESS_PULSE_PID=$!
+    active=0
   fi
+
+  local i=0
+  for l in $BLINKER_LEDS; do
+    if [ $i -lt $filled ]; then
+      # Filled: dim glow
+      led_activate $l
+      led_duty $l $DIM_DUTY
+    elif [ $i -eq "$active" ]; then
+      # Active: breathing
+      led_activate $l
+      (while true; do
+        led_fade $l 0; sleep 3
+        led_fade $l 1; sleep 3
+      done) &
+      PROGRESS_BREATHE_PID=$!
+    else
+      # Unfilled: off
+      led_off $l
+    fi
+    i=$((i + 1))
+  done
 }
+
 signal_progress_off() {
-  [ -n "$PROGRESS_PULSE_PID" ] && kill $PROGRESS_PULSE_PID 2>/dev/null; PROGRESS_PULSE_PID=""
-  for l in 3 4 7 6; do /usr/bin/ledcontrol.sh $l 3 2>/dev/null; done
+  [ -n "$PROGRESS_BREATHE_PID" ] && kill $PROGRESS_BREATHE_PID 2>/dev/null; PROGRESS_BREATHE_PID=""
+  for l in $BLINKER_LEDS; do led_off $l; done
+}
+
+# --- Success/error indicators ---
+signal_success() {
+  breathe_stop
+  signal_progress_off
+  # Front ring solid on for 10s
+  led_activate 1; led_duty 1 $DIM_DUTY
+  (sleep 10; led_off 1) &
+}
+
+signal_error() {
+  breathe_stop
+  signal_progress_off
+  # Rear/brake light solid on for 10s
+  led_activate 2; led_duty 2 $DIM_DUTY
+  (sleep 10; led_off 2) &
 }
 
 # Monitor dd progress output and update blinker progress.
@@ -105,7 +167,7 @@ fail() {
   echo "error: $1" > "$STATUS_FILE"
   cat "$LOG_FILE" >> "$STATUS_FILE"
   bootled red
-  blinkers_off
+  signal_error
   restore_gadget
   exit 1
 }
@@ -193,6 +255,9 @@ systemctl stop librescoot-pm 2>/dev/null || true
 bootled_init
 bootled amber
 
+# Start front ring breathing during prep
+breathe_start 1
+
 # Verify image
 [ -f "$DBC_IMAGE" ] || fail "DBC image not found: $DBC_IMAGE"
 log "Image: $(ls -lh "$DBC_IMAGE" | awk '{print $5}')"
@@ -217,7 +282,7 @@ lsc dbc on-wait >> "$LOG_FILE" 2>&1 || log "  WARNING: dbc on-wait non-zero"
 wait_dbc_ssh 90 || fail "DBC SSH not reachable"
 log "DBC reachable"
 
-# Progress will use individual blinker LEDs via ledcontrol.sh
+# Progress uses blinker LEDs via PWM ioctl (dim glow + breathing)
 
 # Step 4: Configure DBC for UMS
 log "Step 4: Setting DBC bootloader to UMS mode..."
@@ -277,8 +342,10 @@ log "DBC device: $DBC_DEV ($(cat /sys/block/$(basename $DBC_DEV)/size 2>/dev/nul
 # Safety
 echo "$DBC_DEV" | grep -q "mmcblk" && fail "SAFETY: $DBC_DEV is mmcblk — refusing!"
 
-# Step 7: Flash DBC (single-phase, oflag=sync)
+# Step 7: Flash DBC (single-phase, oflag=direct)
 log "Step 7: Flashing DBC..."
+breathe_stop
+led_off 1  # front ring off during flash
 bootled amber
 
 # Calculate checksum of source for verification (exclude last partial block)
@@ -301,7 +368,7 @@ while [ $ATTEMPT -lt 3 ]; do
   else
     [ ! -f "$DBC_BMAP" ] && log "  no bmap file, using dd"
     ! command -v bmap-writer >/dev/null 2>&1 && log "  bmap-writer not found, using dd"
-    gunzip -c "$DBC_IMAGE" | dd bs=4M iflag=fullblock of=$DBC_DEV oflag=sync status=progress 2>&1 \
+    gunzip -c "$DBC_IMAGE" | dd bs=4M iflag=fullblock of=$DBC_DEV oflag=direct status=progress 2>&1 \
       | monitor_progress "$IMAGE_SIZE"
     DD_RC=0  # rely on md5 verification to catch failures
   fi
@@ -313,9 +380,10 @@ while [ $ATTEMPT -lt 3 ]; do
   fi
 
   sync
-  log "  verifying (md5 of $BS_CNT blocks)..."
-  SRC_HASH=$(gunzip -c "$DBC_IMAGE" | dd bs=4M iflag=fullblock count=$BS_CNT 2>/dev/null | md5sum | cut -d' ' -f1)
-  DEV_HASH=$(dd if=$DBC_DEV bs=4M count=$BS_CNT 2>/dev/null | md5sum | cut -d' ' -f1)
+  # Verify boot sector only (24 MB) — full image readback causes USB disconnect
+  log "  verifying boot sector ($BOOT_AREA_BLOCKS blocks = 24 MB)..."
+  SRC_HASH=$(gunzip -c "$DBC_IMAGE" | dd bs=4M iflag=fullblock count=$BOOT_AREA_BLOCKS 2>/dev/null | md5sum | cut -d' ' -f1)
+  DEV_HASH=$(dd if=$DBC_DEV bs=4M count=$BOOT_AREA_BLOCKS 2>/dev/null | md5sum | cut -d' ' -f1)
   log "  src=$SRC_HASH dev=$DEV_HASH"
 
   if [ "$SRC_HASH" = "$DEV_HASH" ]; then
@@ -427,6 +495,7 @@ echo "rebooting" > "$STATUS_FILE"
 cat "$LOG_FILE" >> "$STATUS_FILE"
 
 bootled green
+signal_success
 sync
 log "  rebooting MDB..."
 reboot
