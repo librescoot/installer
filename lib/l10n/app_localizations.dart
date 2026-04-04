@@ -977,25 +977,25 @@ abstract class AppLocalizations {
   /// No description provided for @ledFrontRingPulse.
   ///
   /// In en, this message translates to:
-  /// **'Front ring pulsing'**
+  /// **'Front ring breathing'**
   String get ledFrontRingPulse;
 
   /// No description provided for @ledFrontRingPulseMeaning.
   ///
   /// In en, this message translates to:
-  /// **'Waiting for connection'**
+  /// **'Preparing DBC (configuring bootloader, waiting for connection)'**
   String get ledFrontRingPulseMeaning;
 
   /// No description provided for @ledFrontRingSolid.
   ///
   /// In en, this message translates to:
-  /// **'Front ring solid'**
+  /// **'Front ring glows briefly'**
   String get ledFrontRingSolid;
 
   /// No description provided for @ledFrontRingSolidMeaning.
   ///
   /// In en, this message translates to:
-  /// **'DBC connected, working'**
+  /// **'Flash complete — success!'**
   String get ledFrontRingSolidMeaning;
 
   /// No description provided for @disconnectCbbImage.
@@ -1007,13 +1007,13 @@ abstract class AppLocalizations {
   /// No description provided for @ledBlinkerProgress.
   ///
   /// In en, this message translates to:
-  /// **'Blinkers light up clockwise'**
+  /// **'Blinkers glow progressively'**
   String get ledBlinkerProgress;
 
   /// No description provided for @ledBlinkerProgressMeaning.
   ///
   /// In en, this message translates to:
-  /// **'Flash progress (25% per blinker)'**
+  /// **'Flash progress — dim = done, breathing = active segment'**
   String get ledBlinkerProgressMeaning;
 
   /// No description provided for @ledBootGreen.
@@ -1028,17 +1028,17 @@ abstract class AppLocalizations {
   /// **'Success — reconnect laptop'**
   String get ledBootGreenMeaning;
 
-  /// No description provided for @ledHazardFlashers.
+  /// No description provided for @ledRearLightSolid.
   ///
   /// In en, this message translates to:
-  /// **'Hazard flashers'**
-  String get ledHazardFlashers;
+  /// **'Rear light glows briefly'**
+  String get ledRearLightSolid;
 
-  /// No description provided for @ledHazardFlashersMeaning.
+  /// No description provided for @ledRearLightSolidMeaning.
   ///
   /// In en, this message translates to:
   /// **'Error — reconnect laptop to see log'**
-  String get ledHazardFlashersMeaning;
+  String get ledRearLightSolidMeaning;
 
   /// No description provided for @bootLedGreenReconnect.
   ///
@@ -1046,11 +1046,11 @@ abstract class AppLocalizations {
   /// **'Boot LED is green — Reconnect Laptop'**
   String get bootLedGreenReconnect;
 
-  /// No description provided for @hazardFlashersCheckError.
+  /// No description provided for @rearLightCheckError.
   ///
   /// In en, this message translates to:
-  /// **'Hazard flashers — Check Error'**
-  String get hazardFlashersCheckError;
+  /// **'Rear light on — Check Error'**
+  String get rearLightCheckError;
 
   /// No description provided for @verifyingDbcInstallation.
   ///

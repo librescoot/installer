@@ -1806,7 +1806,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                   _ledSignal(l10n.ledBlinkerProgress, l10n.ledBlinkerProgressMeaning),
                   _ledSignal('Boot LED amber', 'Flashing in progress'),
                   _ledSignal(l10n.ledBootGreen, l10n.ledBootGreenMeaning),
-                  _ledSignal(l10n.ledHazardFlashers, l10n.ledHazardFlashersMeaning),
+                  _ledSignal(l10n.ledRearLightSolid, l10n.ledRearLightSolidMeaning),
                 ],
               ),
             ),
@@ -1826,7 +1826,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 _setPhase(InstallerPhase.reconnect);
               },
               icon: const Icon(Icons.warning, color: Colors.orange),
-              label: Text(l10n.hazardFlashersCheckError),
+              label: Text(l10n.rearLightCheckError),
             ),
           ],
         ),

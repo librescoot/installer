@@ -487,25 +487,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get watchLightsForProgress => 'Watch the scooter lights for progress:';
 
   @override
-  String get ledFrontRingPulse => 'Front ring pulsing';
+  String get ledFrontRingPulse => 'Front ring breathing';
 
   @override
-  String get ledFrontRingPulseMeaning => 'Waiting for connection';
+  String get ledFrontRingPulseMeaning =>
+      'Preparing DBC (configuring bootloader, waiting for connection)';
 
   @override
-  String get ledFrontRingSolid => 'Front ring solid';
+  String get ledFrontRingSolid => 'Front ring glows briefly';
 
   @override
-  String get ledFrontRingSolidMeaning => 'DBC connected, working';
+  String get ledFrontRingSolidMeaning => 'Flash complete — success!';
 
   @override
   String get disconnectCbbImage => '[Photo: CBB connector location under seat]';
 
   @override
-  String get ledBlinkerProgress => 'Blinkers light up clockwise';
+  String get ledBlinkerProgress => 'Blinkers glow progressively';
 
   @override
-  String get ledBlinkerProgressMeaning => 'Flash progress (25% per blinker)';
+  String get ledBlinkerProgressMeaning =>
+      'Flash progress — dim = done, breathing = active segment';
 
   @override
   String get ledBootGreen => 'Boot LED green';
@@ -514,16 +516,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ledBootGreenMeaning => 'Success — reconnect laptop';
 
   @override
-  String get ledHazardFlashers => 'Hazard flashers';
+  String get ledRearLightSolid => 'Rear light glows briefly';
 
   @override
-  String get ledHazardFlashersMeaning => 'Error — reconnect laptop to see log';
+  String get ledRearLightSolidMeaning => 'Error — reconnect laptop to see log';
 
   @override
   String get bootLedGreenReconnect => 'Boot LED is green — Reconnect Laptop';
 
   @override
-  String get hazardFlashersCheckError => 'Hazard flashers — Check Error';
+  String get rearLightCheckError => 'Rear light on — Check Error';
 
   @override
   String get verifyingDbcInstallation => 'Verifying DBC Installation';

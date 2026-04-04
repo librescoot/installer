@@ -493,25 +493,27 @@ class AppLocalizationsDe extends AppLocalizations {
       'Beobachte die Rollerbeleuchtung für den Fortschritt:';
 
   @override
-  String get ledFrontRingPulse => 'Frontring pulsiert';
+  String get ledFrontRingPulse => 'Frontring atmet';
 
   @override
-  String get ledFrontRingPulseMeaning => 'Wartet auf Verbindung';
+  String get ledFrontRingPulseMeaning =>
+      'DBC wird vorbereitet (Bootloader, Verbindung)';
 
   @override
-  String get ledFrontRingSolid => 'Frontring an (dauerhaft)';
+  String get ledFrontRingSolid => 'Frontring leuchtet kurz';
 
   @override
-  String get ledFrontRingSolidMeaning => 'DBC verbunden, arbeitet';
+  String get ledFrontRingSolidMeaning => 'Flash abgeschlossen — Erfolg!';
 
   @override
   String get disconnectCbbImage => '[Foto: CBB-Stecker unter der Sitzbank]';
 
   @override
-  String get ledBlinkerProgress => 'Blinker leuchten im Uhrzeigersinn auf';
+  String get ledBlinkerProgress => 'Blinker leuchten nacheinander';
 
   @override
-  String get ledBlinkerProgressMeaning => 'Flash-Fortschritt (25% pro Blinker)';
+  String get ledBlinkerProgressMeaning =>
+      'Flash-Fortschritt — gedimmt = fertig, atmend = aktiv';
 
   @override
   String get ledBootGreen => 'Boot-LED grün';
@@ -520,16 +522,16 @@ class AppLocalizationsDe extends AppLocalizations {
   String get ledBootGreenMeaning => 'Erfolgreich — Laptop wieder verbinden';
 
   @override
-  String get ledHazardFlashers => 'Warnblinker';
+  String get ledRearLightSolid => 'Rücklicht leuchtet kurz';
 
   @override
-  String get ledHazardFlashersMeaning => 'Fehler — Laptop verbinden für Log';
+  String get ledRearLightSolidMeaning => 'Fehler — Laptop verbinden für Log';
 
   @override
   String get bootLedGreenReconnect => 'Boot-LED ist grün — Laptop verbinden';
 
   @override
-  String get hazardFlashersCheckError => 'Warnblinker — Fehler prüfen';
+  String get rearLightCheckError => 'Rücklicht an — Fehler prüfen';
 
   @override
   String get verifyingDbcInstallation => 'DBC-Installation wird geprüft';
