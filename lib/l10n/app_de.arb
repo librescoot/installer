@@ -174,11 +174,11 @@
   "disconnectCbbImage": "[Foto: CBB-Stecker unter der Sitzbank]",
   "ledBlinkerProgress": "Blinker leuchten nacheinander",
   "ledBlinkerProgressMeaning": "Flash-Fortschritt \u2014 gedimmt = fertig, atmend = aktiv",
-  "ledBootGreen": "Boot-LED gr\u00fcn",
+  "ledBootGreen": "Boot-LED blinkt gr\u00fcn",
   "ledBootGreenMeaning": "Erfolgreich \u2014 Laptop wieder verbinden",
   "ledRearLightSolid": "R\u00fccklicht leuchtet kurz",
   "ledRearLightSolidMeaning": "Fehler \u2014 Laptop verbinden f\u00fcr Log",
-  "bootLedGreenReconnect": "Boot-LED ist gr\u00fcn \u2014 Laptop verbinden",
+  "bootLedGreenReconnect": "Boot-LED blinkt gr\u00fcn \u2014 Laptop verbinden",
   "rearLightCheckError": "R\u00fccklicht an \u2014 Fehler pr\u00fcfen",
 
   "verifyingDbcInstallation": "DBC-Installation wird gepr\u00fcft",

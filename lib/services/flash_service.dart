@@ -531,11 +531,9 @@ class FlashService {
     final isCompressed = imagePath.endsWith('.gz');
 
     if (Platform.isMacOS) {
-      // On macOS, use diskwriter in two-phase mode: single authorization,
-      // single fd, both phases in one process. Avoids disk re-enumeration issues.
-      final diskwriterPath = await _getDiskwriterPath();
-      if (diskwriterPath == null) {
-        throw Exception('diskwriter binary not found in app bundle');
+      final flasherPath = await _getFlasherPath();
+      if (flasherPath == null) {
+        throw Exception('librescoot-flasher binary not found in app bundle');
       }
 
       final rawDevice = !devicePath.contains('rdisk')
@@ -547,61 +545,8 @@ class FlashService {
       debugPrint('Flash: unmounting $diskName');
       await Process.run('diskutil', ['unmountDisk', diskName]);
 
-      final command = '"$diskwriterPath" --two-phase --boot-blocks=$bootAreaBlocks '
-          '--image="$imagePath" $rawDevice';
-
-      debugPrint('Flash: running: $command');
-      onProgress?.call(0.0, 'Phase A: Writing partitions...');
-
-      final process = await Process.start('/bin/sh', ['-c', command]);
-      process.stdout.listen((_) {}); // drain
-
-      var currentPhase = 'A';
-      final stderrBuf = StringBuffer();
-      await for (final chunk in process.stderr.transform(utf8.decoder)) {
-        stderrBuf.write(chunk);
-        for (final line in chunk.split('\n')) {
-          if (line.startsWith('PHASE:')) {
-            currentPhase = line.substring(6).trim();
-            if (currentPhase == 'B') {
-              onProgress?.call(0.85, 'Phase B: Writing boot sector...');
-            } else if (currentPhase == 'VERIFY') {
-              onProgress?.call(0.95, 'Verifying boot sector...');
-            }
-          }
-          if (line.startsWith('VERIFY:')) {
-            debugPrint('Flash: $line');
-          }
-          final progressMatch = RegExp(r'PROGRESS:(\d+)').firstMatch(line);
-          if (progressMatch != null) {
-            final bytes = int.tryParse(progressMatch.group(1)!);
-            if (bytes != null) {
-              final mb = bytes / (1024 * 1024);
-              if (currentPhase == 'A') {
-                onProgress?.call(0.5, 'Phase A: ${mb.toStringAsFixed(1)} MB written');
-              } else if (currentPhase == 'B') {
-                onProgress?.call(0.9, 'Phase B: ${mb.toStringAsFixed(1)} MB written');
-              } else if (currentPhase == 'VERIFY') {
-                onProgress?.call(0.97, 'Verifying: ${mb.toStringAsFixed(1)} MB checked');
-              }
-            }
-          }
-        }
-      }
-
-      final exitCode = await process.exitCode;
-      debugPrint('Flash: diskwriter exit code: $exitCode');
-      if (exitCode != 0) {
-        final output = stderrBuf.toString();
-        debugPrint('Flash: diskwriter output: $output');
-        if (output.contains('VERIFY:FAIL')) {
-          throw Exception('Boot sector verification FAILED — device may be corrupt. Check log.');
-        }
-        throw Exception('diskwriter failed with exit code $exitCode');
-      }
-
-      onProgress?.call(1.0, 'Syncing...');
-      await Process.run('sync', []);
+      // Go flasher handles macOS authorization internally via Security.framework
+      await _writeWithGoFlasher(flasherPath, imagePath, rawDevice, bmapPath, true, onProgress);
     } else {
       // Linux: single pkexec elevation for both dd phases + verify
       await _writeTwoPhaseLinux(imagePath, devicePath, isCompressed, onProgress, bmapPath: bmapPath);

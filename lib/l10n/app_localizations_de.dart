@@ -536,7 +536,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Flash-Fortschritt — gedimmt = fertig, atmend = aktiv';
 
   @override
-  String get ledBootGreen => 'Boot-LED grün';
+  String get ledBootGreen => 'Boot-LED blinkt grün';
 
   @override
   String get ledBootGreenMeaning => 'Erfolgreich — Laptop wieder verbinden';
@@ -548,7 +548,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get ledRearLightSolidMeaning => 'Fehler — Laptop verbinden für Log';
 
   @override
-  String get bootLedGreenReconnect => 'Boot-LED ist grün — Laptop verbinden';
+  String get bootLedGreenReconnect => 'Boot-LED blinkt grün — Laptop verbinden';
 
   @override
   String get rearLightCheckError => 'Rücklicht an — Fehler prüfen';

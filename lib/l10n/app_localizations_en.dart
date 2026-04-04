@@ -529,7 +529,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Flash progress — dim = done, breathing = active segment';
 
   @override
-  String get ledBootGreen => 'Boot LED green';
+  String get ledBootGreen => 'Boot LED blinking green';
 
   @override
   String get ledBootGreenMeaning => 'Success — reconnect laptop';
@@ -541,7 +541,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ledRearLightSolidMeaning => 'Error — reconnect laptop to see log';
 
   @override
-  String get bootLedGreenReconnect => 'Boot LED is green — Reconnect Laptop';
+  String get bootLedGreenReconnect =>
+      'Boot LED is blinking green — Reconnect Laptop';
 
   @override
   String get rearLightCheckError => 'Rear light on — Check Error';

@@ -204,11 +204,11 @@
   "disconnectCbbImage": "[Photo: CBB connector location under seat]",
   "ledBlinkerProgress": "Blinkers glow progressively",
   "ledBlinkerProgressMeaning": "Flash progress \u2014 dim = done, breathing = active segment",
-  "ledBootGreen": "Boot LED green",
+  "ledBootGreen": "Boot LED blinking green",
   "ledBootGreenMeaning": "Success \u2014 reconnect laptop",
   "ledRearLightSolid": "Rear light glows briefly",
   "ledRearLightSolidMeaning": "Error \u2014 reconnect laptop to see log",
-  "bootLedGreenReconnect": "Boot LED is green \u2014 Reconnect Laptop",
+  "bootLedGreenReconnect": "Boot LED is blinking green \u2014 Reconnect Laptop",
   "rearLightCheckError": "Rear light on \u2014 Check Error",
 
   "verifyingDbcInstallation": "Verifying DBC Installation",

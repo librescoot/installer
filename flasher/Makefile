@@ -23,11 +23,11 @@ build-linux-arm64:
 
 build-darwin-amd64:
 	mkdir -p $(BUILD_DIR)
-	CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-darwin-amd64 .
+	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-darwin-amd64 .
 
 build-darwin-arm64:
 	mkdir -p $(BUILD_DIR)
-	CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-darwin-arm64 .
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-darwin-arm64 .
 
 build-windows-amd64:
 	mkdir -p $(BUILD_DIR)
