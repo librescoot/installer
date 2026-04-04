@@ -125,7 +125,7 @@ abstract class AppLocalizations {
   /// No description provided for @phasePhysicalPrepTitle.
   ///
   /// In en, this message translates to:
-  /// **'Physical Prep'**
+  /// **'Prepare Scooter'**
   String get phasePhysicalPrepTitle;
 
   /// No description provided for @phasePhysicalPrepDescription.
@@ -161,7 +161,7 @@ abstract class AppLocalizations {
   /// No description provided for @phaseBatteryRemovalTitle.
   ///
   /// In en, this message translates to:
-  /// **'Battery Removal'**
+  /// **'Remove Battery'**
   String get phaseBatteryRemovalTitle;
 
   /// No description provided for @phaseBatteryRemovalDescription.
@@ -173,7 +173,7 @@ abstract class AppLocalizations {
   /// No description provided for @phaseMdbToUmsTitle.
   ///
   /// In en, this message translates to:
-  /// **'MDB → UMS'**
+  /// **'Prepare for Flashing'**
   String get phaseMdbToUmsTitle;
 
   /// No description provided for @phaseMdbToUmsDescription.
@@ -185,7 +185,7 @@ abstract class AppLocalizations {
   /// No description provided for @phaseMdbFlashTitle.
   ///
   /// In en, this message translates to:
-  /// **'MDB Flash'**
+  /// **'Flash Image'**
   String get phaseMdbFlashTitle;
 
   /// No description provided for @phaseMdbFlashDescription.
@@ -197,7 +197,7 @@ abstract class AppLocalizations {
   /// No description provided for @phaseScooterPrepTitle.
   ///
   /// In en, this message translates to:
-  /// **'Scooter Prep'**
+  /// **'Disconnect Power'**
   String get phaseScooterPrepTitle;
 
   /// No description provided for @phaseScooterPrepDescription.
@@ -209,7 +209,7 @@ abstract class AppLocalizations {
   /// No description provided for @phaseMdbBootTitle.
   ///
   /// In en, this message translates to:
-  /// **'MDB Boot'**
+  /// **'Reboot'**
   String get phaseMdbBootTitle;
 
   /// No description provided for @phaseMdbBootDescription.
@@ -221,7 +221,7 @@ abstract class AppLocalizations {
   /// No description provided for @phaseCbbReconnectTitle.
   ///
   /// In en, this message translates to:
-  /// **'CBB Reconnect'**
+  /// **'Reconnect CBB & Battery'**
   String get phaseCbbReconnectTitle;
 
   /// No description provided for @phaseCbbReconnectDescription.
@@ -233,7 +233,7 @@ abstract class AppLocalizations {
   /// No description provided for @phaseDbcPrepTitle.
   ///
   /// In en, this message translates to:
-  /// **'DBC Prep'**
+  /// **'Upload Files'**
   String get phaseDbcPrepTitle;
 
   /// No description provided for @phaseDbcPrepDescription.
@@ -245,7 +245,7 @@ abstract class AppLocalizations {
   /// No description provided for @phaseDbcFlashTitle.
   ///
   /// In en, this message translates to:
-  /// **'DBC Flash'**
+  /// **'Flash Image'**
   String get phaseDbcFlashTitle;
 
   /// No description provided for @phaseDbcFlashDescription.
@@ -257,7 +257,7 @@ abstract class AppLocalizations {
   /// No description provided for @phaseReconnectTitle.
   ///
   /// In en, this message translates to:
-  /// **'Reconnect'**
+  /// **'Verify'**
   String get phaseReconnectTitle;
 
   /// No description provided for @phaseReconnectDescription.

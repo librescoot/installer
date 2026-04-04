@@ -95,8 +95,8 @@ enum InstallerPhase {
 enum MajorStep {
   prepare('Prepare', [InstallerPhase.welcome, InstallerPhase.physicalPrep]),
   connect('Connect', [InstallerPhase.mdbConnect, InstallerPhase.healthCheck]),
-  mdbFlash('MDB Flash', [InstallerPhase.batteryRemoval, InstallerPhase.mdbToUms, InstallerPhase.mdbFlash, InstallerPhase.scooterPrep, InstallerPhase.mdbBoot, InstallerPhase.cbbReconnect]),
-  dbcFlash('DBC Flash', [InstallerPhase.dbcPrep, InstallerPhase.dbcFlash, InstallerPhase.reconnect]),
+  mdbFlash('Flash MDB', [InstallerPhase.batteryRemoval, InstallerPhase.mdbToUms, InstallerPhase.mdbFlash, InstallerPhase.scooterPrep, InstallerPhase.mdbBoot, InstallerPhase.cbbReconnect]),
+  dbcFlash('Flash DBC', [InstallerPhase.dbcPrep, InstallerPhase.dbcFlash, InstallerPhase.reconnect]),
   finish('Finish', [InstallerPhase.bluetoothPairing, InstallerPhase.keycardSetup, InstallerPhase.finish]);
 
   const MajorStep(this.title, this.phases);

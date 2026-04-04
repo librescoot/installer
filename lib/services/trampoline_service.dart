@@ -59,6 +59,128 @@ class TrampolineService {
     }
   }
 
+  static const _uploadServerScript = '''
+import http.server, os, sys
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"ok")
+    def do_PUT(self):
+        path = '/data' + self.path
+        length = int(self.headers['Content-Length'])
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'wb') as f:
+            remaining = length
+            while remaining > 0:
+                chunk = self.rfile.read(min(65536, remaining))
+                if not chunk: break
+                f.write(chunk)
+                remaining -= len(chunk)
+        self.send_response(200)
+        self.end_headers()
+    def log_message(self, *a): pass
+http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
+''';
+
+  static const _mdbUploadUrl = 'http://192.168.7.1:8080';
+
+  /// Start HTTP upload server on MDB (much faster than SCP/SFTP)
+  Future<void> _startUploadServer() async {
+    debugPrint('Trampoline: writing upload server script...');
+    await _ssh.runCommand("cat > /tmp/upload_srv.py << 'PYEOF'\n$_uploadServerScript\nPYEOF");
+    debugPrint('Trampoline: starting upload server...');
+    await _ssh.runCommand('nohup python3 /tmp/upload_srv.py > /tmp/upload_srv.log 2>&1 &');
+
+    // Wait for server to be ready — retry connection
+    debugPrint('Trampoline: waiting for upload server...');
+    final client = HttpClient();
+    try {
+      for (var i = 0; i < 10; i++) {
+        try {
+          final req = await client.getUrl(Uri.parse('$_mdbUploadUrl/'));
+          final resp = await req.close().timeout(const Duration(seconds: 2));
+          await resp.drain<void>();
+          debugPrint('Trampoline: HTTP upload server ready (attempt ${i + 1})');
+          return;
+        } catch (_) {
+          await Future.delayed(const Duration(milliseconds: 500));
+        }
+      }
+      throw Exception('Upload server not responsive after 5s');
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<void> _stopUploadServer() async {
+    try {
+      await _ssh.runCommand('kill \$(pgrep -f upload_srv.py) 2>/dev/null; rm -f /tmp/upload_srv.py');
+    } catch (_) {}
+    debugPrint('Trampoline: HTTP upload server stopped');
+  }
+
+  /// Upload a file via HTTP PUT using raw socket for real transfer progress
+  Future<void> _uploadViaHttp(
+    String localPath,
+    String remotePath, {
+    void Function(int bytesSent, int totalBytes)? onProgress,
+  }) async {
+    final file = File(localPath);
+    final fileSize = await file.length();
+    final remoteFilename = remotePath.startsWith('/data/')
+        ? remotePath.substring(5)
+        : '/$remotePath';
+
+    // Raw socket — write HTTP headers then stream file data with real progress
+    final socket = await Socket.connect('192.168.7.1', 8080);
+    try {
+      // Send HTTP PUT header
+      final header = 'PUT $remoteFilename HTTP/1.1\r\n'
+          'Host: 192.168.7.1:8080\r\n'
+          'Content-Length: $fileSize\r\n'
+          'Connection: close\r\n'
+          '\r\n';
+      socket.add(header.codeUnits);
+
+      // Stream file in 64KB chunks — socket.add + flush gives real backpressure
+      var sent = 0;
+      var lastProgress = DateTime.now();
+      const chunkSize = 64 * 1024;
+      final raf = await file.open();
+      try {
+        while (sent < fileSize) {
+          final remaining = fileSize - sent;
+          final readSize = remaining < chunkSize ? remaining : chunkSize;
+          final chunk = await raf.read(readSize);
+          socket.add(chunk);
+          await socket.flush();
+          sent += chunk.length;
+
+          final now = DateTime.now();
+          if (now.difference(lastProgress).inMilliseconds >= 500 || sent >= fileSize) {
+            onProgress?.call(sent, fileSize);
+            lastProgress = now;
+          }
+        }
+      } finally {
+        await raf.close();
+      }
+
+      // Read response
+      final response = await socket.fold<List<int>>(
+        <int>[],
+        (prev, chunk) => prev..addAll(chunk),
+      );
+      final responseStr = String.fromCharCodes(response);
+      if (!responseStr.contains('200')) {
+        throw Exception('HTTP upload failed: $responseStr');
+      }
+    } finally {
+      await socket.close();
+    }
+  }
+
   /// Upload DBC image, tiles, and trampoline script to MDB.
   Future<void> uploadAll({
     required String dbcImageLocalPath,
@@ -108,48 +230,69 @@ class TrampolineService {
         debugPrint('Trampoline: skipping $skipped files that already match');
       }
 
+      // Start HTTP upload server on MDB (8+ MB/s vs ~2 MB/s via SFTP)
+      onProgress?.call('Starting upload server...', 0.0);
+      await _startUploadServer();
+
       var bytesSoFar = 0;
       final stopwatch = Stopwatch()..start();
-      for (var i = 0; i < filesToUpload.length; i++) {
-        if (!needsUpload[i]) continue;
+      try {
+        for (var i = 0; i < filesToUpload.length; i++) {
+          if (!needsUpload[i]) continue;
 
-        final entry = filesToUpload[i];
-        final filename = File(entry.key).uri.pathSegments.last;
-        onProgress?.call('Uploading $filename...', bytesSoFar / totalBytes);
-        final bytes = await File(entry.key).readAsBytes();
-        final baseBytes = bytesSoFar;
-        await _ssh.uploadFile(
-          Uint8List.fromList(bytes),
-          entry.value,
-          onProgress: (sent, total) {
-            final overall = (baseBytes + sent) / totalBytes;
-            final mb = sent / (1024 * 1024);
-            final totalMb = total / (1024 * 1024);
-            String eta = '';
-            if (overall > 0.01) {
-              final elapsed = stopwatch.elapsedMilliseconds / 1000;
-              final remaining = (elapsed / overall) * (1.0 - overall);
-              final mins = remaining ~/ 60;
-              final secs = (remaining % 60).floor();
-              eta = ' — ${mins}m ${secs}s remaining';
-            }
-            onProgress?.call(
-              'Uploading $filename... ${mb.toStringAsFixed(0)}/${totalMb.toStringAsFixed(0)} MB$eta',
-              overall,
-            );
-          },
-        );
-        bytesSoFar += fileSizes[i];
+          final entry = filesToUpload[i];
+          final filename = File(entry.key).uri.pathSegments.last;
+          onProgress?.call('Uploading $filename...', bytesSoFar / totalBytes);
+          final baseBytes = bytesSoFar;
+          await _uploadViaHttp(
+            entry.key,
+            entry.value,
+            onProgress: (sent, total) {
+              final overall = (baseBytes + sent) / totalBytes;
+              final mb = sent / (1024 * 1024);
+              final totalMb = total / (1024 * 1024);
+              String eta = '';
+              if (overall > 0.01) {
+                final elapsed = stopwatch.elapsedMilliseconds / 1000;
+                final remaining = (elapsed / overall) * (1.0 - overall);
+                final mins = remaining ~/ 60;
+                final secs = (remaining % 60).floor();
+                eta = ' — ${mins}m ${secs}s remaining';
+              }
+              onProgress?.call(
+                'Uploading $filename... ${mb.toStringAsFixed(0)}/${totalMb.toStringAsFixed(0)} MB$eta',
+                overall,
+              );
+            },
+          );
+          bytesSoFar += fileSizes[i];
+        }
+      } finally {
+        await _stopUploadServer();
       }
     }
 
+    // Upload ARM flasher binary for DBC flash (has bmap + progress support)
+    onProgress?.call('Uploading flasher...', 0.94);
+    try {
+      final flasherAsset = await rootBundle.load('assets/tools/librescoot-flasher-arm');
+      debugPrint('Trampoline: loaded flasher-arm (${flasherAsset.lengthInBytes} bytes)');
+      await _ssh.uploadFile(
+        flasherAsset.buffer.asUint8List(),
+        '/data/librescoot-flasher',
+      );
+      await _ssh.runCommand('chmod +x /data/librescoot-flasher');
+    } catch (e) {
+      debugPrint('Trampoline: failed to upload ARM flasher: $e');
+    }
+
     // Upload stock DBC fw_setenv binary + DBC-specific fw_env config
-    // These are the DBC-specific versions (different binary than MDB)
     onProgress?.call('Uploading DBC tools...', 0.96);
     try {
       await _ssh.runCommand('mkdir -p /data/fwtools/stock-dbc');
 
       final stockFwSetenv = await rootBundle.load('assets/tools/fw_setenv-dbc');
+      debugPrint('Trampoline: loaded fw_setenv-dbc (${stockFwSetenv.lengthInBytes} bytes)');
       await _ssh.uploadFile(
         stockFwSetenv.buffer.asUint8List(),
         '/data/fwtools/stock-dbc/fw_setenv',
@@ -167,19 +310,24 @@ class TrampolineService {
     }
 
     // Always regenerate the trampoline script (small, config may have changed)
+    debugPrint('Trampoline: generating and uploading trampoline script...');
     onProgress?.call('Uploading trampoline script...', 0.98);
     final dbcRemotePath = '/data/$dbcFilename';
+
     final script = await generateScript(
       dbcImagePath: dbcRemotePath,
       region: region,
       installTiles: osmTilesLocalPath != null || valhallaTilesLocalPath != null,
     );
+    debugPrint('Trampoline: script generated (${script.length} chars)');
     await _ssh.uploadFile(
       Uint8List.fromList(script.codeUnits),
       '/data/trampoline.sh',
     );
+    debugPrint('Trampoline: script uploaded');
 
     onProgress?.call('Upload complete', 1.0);
+    debugPrint('Trampoline: uploadAll complete');
   }
 
   /// Start the trampoline script on MDB in background.

@@ -105,6 +105,11 @@ const blockSize = 4 * 1024 * 1024 // 4MB
 func flashSequential(imagePath, devicePath string) error {
 	fmt.Fprintf(os.Stderr, "Sequential flash: %s -> %s\n", imagePath, devicePath)
 
+	// Report total size
+	if fi, err := os.Stat(imagePath); err == nil {
+		fmt.Fprintf(os.Stderr, "TOTAL:%d\n", fi.Size())
+	}
+
 	src, err := openImage(imagePath)
 	if err != nil {
 		return fmt.Errorf("opening image: %w", err)
@@ -280,6 +285,8 @@ func flashWithBmap(imagePath, bmapPath, devicePath string) error {
 		return fmt.Errorf("parsing bmap: %w", err)
 	}
 
+	mappedBytes := bmap.MappedBlocksCount * bmap.BlockSize
+	fmt.Fprintf(os.Stderr, "TOTAL:%d\n", mappedBytes)
 	fmt.Fprintf(os.Stderr, "Bmap: %d/%d blocks mapped (%d%% of %d bytes), block size %d\n",
 		bmap.MappedBlocksCount, bmap.BlocksCount,
 		bmap.MappedBlocksCount*100/bmap.BlocksCount,

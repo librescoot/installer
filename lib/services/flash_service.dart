@@ -841,25 +841,29 @@ class FlashService {
     final command = isRoot ? args.join(' ') : 'pkexec ${args.join(' ')}';
     debugPrint('Flash: running: $command');
 
-    // For bmap, parse mapped block count for accurate progress
-    int totalBytes;
-    if (bmapPath != null) {
-      totalBytes = await _estimateBmapBytes(bmapPath) ?? 0;
-      debugPrint('Flash: bmap mapped bytes: $totalBytes');
-    } else {
-      totalBytes = await _estimateImageSizeBytes(imagePath, imagePath.endsWith('.gz')) ?? 0;
-    }
-    final totalMb = totalBytes / (1024 * 1024);
-    final stopwatch = Stopwatch()..start();
+    // Total bytes will be updated by TOTAL: output from flasher
+    var totalBytes = await _estimateImageSizeBytes(imagePath, imagePath.endsWith('.gz')) ?? 0;
+    var totalMb = totalBytes / (1024 * 1024);
+    // Stopwatch starts on first output (after auth/elevation)
+    final stopwatch = Stopwatch();
 
-    onProgress?.call(0.0, bmapPath != null ? 'Bmap flash...' : 'Phase A: Writing partitions...');
+    onProgress?.call(0.0, bmapPath != null ? 'Bmap flash...' : 'Waiting for authorization...');
 
     final process = await Process.start('/bin/sh', ['-c', command]);
     final output = StringBuffer();
 
     await for (final chunk in process.stderr.transform(utf8.decoder)) {
+      if (!stopwatch.isRunning) stopwatch.start();
       output.write(chunk);
       for (final line in chunk.split('\n')) {
+        if (line.startsWith('TOTAL:')) {
+          final t = int.tryParse(line.substring(6).trim());
+          if (t != null && t > 0) {
+            totalBytes = t;
+            totalMb = totalBytes / (1024 * 1024);
+            debugPrint('Flash: TOTAL=$totalBytes');
+          }
+        }
         if (line.startsWith('PHASE:')) {
           final phase = line.substring(6).trim();
           if (phase == 'A') onProgress?.call(0.0, 'Phase A: Writing partitions...');

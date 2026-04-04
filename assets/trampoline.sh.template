@@ -66,35 +66,40 @@ breathe_stop() {
 # Filled segments: dim glow (duty 2000/12000 ~17%)
 # Active segment: breathing (fade0/fade1 loop)
 # Unfilled: off
-BLINKER_LEDS="3 4 7 6"
+BLINKER_LEDS="3 7 4 6"
 DIM_DUTY=2000
 PROGRESS_BREATHE_PID=""
+PROGRESS_LAST_SEGMENT=-1
 
 signal_progress() {
   local pct="$1"
-  [ -n "$PROGRESS_BREATHE_PID" ] && kill $PROGRESS_BREATHE_PID 2>/dev/null; PROGRESS_BREATHE_PID=""
 
-  # Determine how many segments are filled (0-4) and which is active
-  local filled=0 active=-1
+  # Determine which segment is active (0-3, or 4=all done)
+  local segment=0
   if [ "$pct" -ge 100 ]; then
-    filled=4
+    segment=4
   elif [ "$pct" -ge 75 ]; then
-    filled=3; active=3
+    segment=3
   elif [ "$pct" -ge 50 ]; then
-    filled=2; active=2
+    segment=2
   elif [ "$pct" -ge 25 ]; then
-    filled=1; active=1
-  else
-    active=0
+    segment=1
   fi
+
+  # Only update LEDs if segment changed
+  [ "$segment" -eq "$PROGRESS_LAST_SEGMENT" ] && return
+  PROGRESS_LAST_SEGMENT=$segment
+
+  # Kill old breathing
+  [ -n "$PROGRESS_BREATHE_PID" ] && kill $PROGRESS_BREATHE_PID 2>/dev/null; PROGRESS_BREATHE_PID=""
 
   local i=0
   for l in $BLINKER_LEDS; do
-    if [ $i -lt $filled ]; then
+    if [ $i -lt $segment ]; then
       # Filled: dim glow
       led_activate $l
       led_duty $l $DIM_DUTY
-    elif [ $i -eq "$active" ]; then
+    elif [ $i -eq $segment ] && [ $segment -lt 4 ]; then
       # Active: breathing
       led_activate $l
       (while true; do
@@ -255,6 +260,10 @@ systemctl stop librescoot-pm 2>/dev/null || true
 bootled_init
 bootled amber
 
+# Capture system journal in background for debugging
+journalctl -f --no-pager >> /data/trampoline-journal.log 2>&1 &
+JOURNAL_PID=$!
+
 # Start front ring breathing during prep
 breathe_start 1
 
@@ -276,23 +285,56 @@ sleep 2
 ifconfig usb0 192.168.7.1 netmask 255.255.255.0 up 2>/dev/null || true
 log "  usb0 ready"
 
-# Step 3: Check if DBC is already in UMS mode (e.g. retry after failed flash)
-# Only check if we're already in host mode — don't switch roles, it breaks gadget
-log "Step 3: Checking if DBC is already in UMS mode..."
+# Step 3: Power on DBC
+log "Step 3: Powering on DBC..."
 DBC_ALREADY_UMS=""
-CURRENT_ROLE=$(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)
-if [ "$CURRENT_ROLE" = "host" ] && lsusb 2>/dev/null | grep -q "0525:a4a5"; then
-  DBC_ALREADY_UMS="yes"
-  log "  DBC is already in UMS mode — skipping steps 3-4"
-else
-  log "  DBC not in UMS mode (role=$CURRENT_ROLE) — proceeding with normal flow"
+
+lsc --redis-addr localhost:6379 dbc on-wait >> "$LOG_FILE" 2>&1
+if [ $? -ne 0 ]; then
+  # DBC didn't come up — maybe it's already in UMS mode
+  log "  DBC on-wait failed, checking for UMS mode..."
+  rmmod g_ether 2>/dev/null || true
+  sleep 1
+  echo host > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null || true
+  sleep 3
+  if lsusb 2>/dev/null | grep -q "0525:a4a5"; then
+    DBC_ALREADY_UMS="yes"
+    log "  DBC is in UMS mode — skipping to flash"
+  else
+    log "  DBC not reachable and not in UMS — rebooting MDB"
+    echo "error: DBC not reachable and not in UMS mode" > "$STATUS_FILE"
+    cat "$LOG_FILE" >> "$STATUS_FILE"
+    bootled red
+    sync
+    reboot
+  fi
 fi
 
 if [ "$DBC_ALREADY_UMS" != "yes" ]; then
-  # Power on DBC, wait for SSH
-  log "Step 3: Powering on DBC..."
-  lsc dbc on-wait >> "$LOG_FILE" 2>&1 || log "  WARNING: dbc on-wait non-zero"
-  wait_dbc_ssh 90 || fail "DBC SSH not reachable"
+  # Quick ping check — if DBC isn't even pingable, don't waste time on SSH
+  if ! ping -c 1 -W 3 $DBC_IP >/dev/null 2>&1; then
+    log "  DBC not pingable after on-wait, checking UMS..."
+    rmmod g_ether 2>/dev/null || true
+    sleep 1
+    echo host > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null || true
+    sleep 3
+    if lsusb 2>/dev/null | grep -q "0525:a4a5"; then
+      DBC_ALREADY_UMS="yes"
+      log "  DBC is in UMS mode — skipping to flash"
+    else
+      log "  DBC not reachable and not in UMS — rebooting MDB"
+      echo "error: DBC not reachable" > "$STATUS_FILE"
+      cat "$LOG_FILE" >> "$STATUS_FILE"
+      bootled red
+      sync
+      reboot
+    fi
+  fi
+fi
+
+if [ "$DBC_ALREADY_UMS" != "yes" ]; then
+  log "  waiting for DBC SSH..."
+  wait_dbc_ssh 30 || fail "DBC SSH not reachable"
   log "DBC reachable"
 
   # Step 4: Configure DBC for UMS
@@ -314,16 +356,24 @@ else
   FWCFG="-c /tmp/fw_env.config"
 fi
 
-log "  setting bootcmd..."
-dbc_ssh "$FWCMD $FWCFG bootcmd 'fuse prog -y 0 5 0x00003860; fuse prog -y 0 6 0x00000010; ums 0 mmc 2;'" >> "$LOG_FILE" 2>&1 \
-  || dbc_ssh "$FWCMD $FWCFG bootcmd 'ums 0 mmc 2'" >> "$LOG_FILE" 2>&1 \
-  || fail "Failed to set DBC bootcmd"
-log "  bootcmd set"
+log "  setting bootcmd: $FWCMD $FWCFG bootcmd 'fuse prog ... ums 0 mmc 2;'"
+BOOTCMD_OUT=$(dbc_ssh "$FWCMD $FWCFG bootcmd 'fuse prog -y 0 5 0x00003860; fuse prog -y 0 6 0x00000010; ums 0 mmc 2;'" 2>&1) || \
+BOOTCMD_OUT=$(dbc_ssh "$FWCMD $FWCFG bootcmd 'ums 0 mmc 2'" 2>&1) || \
+fail "Failed to set DBC bootcmd"
+log "  bootcmd output: $BOOTCMD_OUT"
+log "  bootcmd set, waiting 3s for DBC to settle..."
+sleep 3
 
-dbc_ssh "$FWCMD $FWCFG bootdelay 0" >> "$LOG_FILE" 2>&1 || true
-dbc_ssh 'sync' >> "$LOG_FILE" 2>&1 || true
+log "  setting bootdelay=0..."
+DELAY_OUT=$(dbc_ssh "$FWCMD $FWCFG bootdelay 0" 2>&1) || log "  bootdelay failed: $DELAY_OUT"
+log "  bootdelay output: $DELAY_OUT"
+
+log "  syncing DBC..."
+SYNC_OUT=$(dbc_ssh 'sync' 2>&1) || log "  sync failed: $SYNC_OUT"
+
 log "  rebooting DBC..."
-dbc_ssh 'systemctl reboot' >> "$LOG_FILE" 2>&1 || true
+REBOOT_OUT=$(dbc_ssh 'systemctl reboot' 2>&1) || log "  reboot failed: $REBOOT_OUT"
+log "  reboot output: $REBOOT_OUT"
 log "  waiting 30s..."
 sleep 30
 fi  # end of DBC_ALREADY_UMS != yes
@@ -344,7 +394,7 @@ log "  lsusb: $(lsusb 2>/dev/null | grep 0525 || echo 'no 0525')"
 
 # Step 6: Find DBC block device
 log "Step 6: Waiting for DBC UMS device..."
-TIMEOUT=120
+TIMEOUT=60
 ELAPSED=0
 DBC_DEV=""
 while [ $ELAPSED -lt $TIMEOUT ]; do
@@ -365,10 +415,10 @@ breathe_stop
 led_off 1  # front ring off during flash
 bootled amber
 
-# Calculate checksum of source for verification (exclude last partial block)
-IMAGE_SIZE=$(gunzip -l "$DBC_IMAGE" 2>/dev/null | tail -1 | awk '{print $2}')
-[ -z "$IMAGE_SIZE" ] || [ "$IMAGE_SIZE" -eq 0 ] && IMAGE_SIZE=500000000
-BS_CNT=$(($IMAGE_SIZE / 4194304))  # number of complete 4M blocks
+BS_CNT=6  # boot sector blocks for verification
+# Read uncompressed size from gzip footer (last 4 bytes, little-endian uint32)
+FLASH_TOTAL=$(python3 -c "import struct; f=open('$DBC_IMAGE','rb'); f.seek(-4,2); print(struct.unpack('<I',f.read(4))[0])" 2>/dev/null || echo 2500000000)
+log "  image uncompressed size: $FLASH_TOTAL"
 log "  image size: $IMAGE_SIZE bytes, $BS_CNT complete 4M blocks"
 
 FLASH_OK=""
@@ -378,22 +428,52 @@ while [ $ATTEMPT -lt 3 ]; do
   log "  flash attempt $ATTEMPT/3..."
 
   signal_progress 0
-  WROTE_OK=""
-  if [ -f "$DBC_BMAP" ] && command -v bmap-writer >/dev/null 2>&1; then
-    log "  using bmap-writer (bmap: $DBC_BMAP)"
-    BMAP_OUT=$(bmap-writer "$DBC_IMAGE" "$DBC_BMAP" "$DBC_DEV" 2>&1)
-    BMAP_RC=$?
-    echo "$BMAP_OUT" >> "$LOG_FILE"
-    if [ $BMAP_RC -eq 0 ] && ! echo "$BMAP_OUT" | grep -q "invalid option\|Unknown option\|Usage:"; then
-      WROTE_OK="yes"
-    else
-      log "  bmap-writer failed (rc=$BMAP_RC), falling back to dd"
-    fi
-  fi
-  if [ "$WROTE_OK" != "yes" ]; then
-    log "  using dd (oflag=direct)..."
+  FLASHER=/data/librescoot-flasher
+  if [ -x "$FLASHER" ] && [ -f "$DBC_BMAP" ]; then
+    # Go flasher with bmap support + per-second progress
+    log "  using librescoot-flasher (bmap: $DBC_BMAP)"
+    $FLASHER --image "$DBC_IMAGE" --bmap "$DBC_BMAP" --device "$DBC_DEV" 2>&1 \
+      | while IFS= read -r line; do
+          echo "$line" >> "$LOG_FILE"
+          # Parse PROGRESS:<bytes> for blinker progress bar
+          case "$line" in
+            TOTAL:*)
+              FLASH_TOTAL=${line#TOTAL:}
+              log "  flash total bytes: $FLASH_TOTAL"
+              ;;
+            PROGRESS:*)
+              bytes=${line#PROGRESS:}
+              if [ "$FLASH_TOTAL" -gt 0 ]; then
+                pct=$((bytes * 100 / FLASH_TOTAL))
+                [ "$pct" -gt 100 ] && pct=100
+                signal_progress "$pct"
+              fi
+              ;;
+          esac
+        done
+    FLASH_RC=${PIPESTATUS[0]:-0}
+  elif [ -x "$FLASHER" ]; then
+    # Go flasher sequential (no bmap)
+    log "  using librescoot-flasher (sequential)"
+    $FLASHER --image "$DBC_IMAGE" --device "$DBC_DEV" 2>&1 \
+      | while IFS= read -r line; do
+          echo "$line" >> "$LOG_FILE"
+          case "$line" in
+            TOTAL:*) FLASH_TOTAL=${line#TOTAL:};;
+            PROGRESS:*) bytes=${line#PROGRESS:}; [ "$FLASH_TOTAL" -gt 0 ] && signal_progress $((bytes * 100 / FLASH_TOTAL));;
+          esac
+        done
+    FLASH_RC=${PIPESTATUS[0]:-0}
+  else
+    log "  using dd (oflag=direct), image size: $FLASH_TOTAL"
     gunzip -c "$DBC_IMAGE" | dd bs=4M iflag=fullblock of=$DBC_DEV oflag=direct status=progress 2>&1 \
-      | monitor_progress "$IMAGE_SIZE"
+      | monitor_progress "$FLASH_TOTAL"
+    FLASH_RC=0
+  fi
+
+  if [ "${FLASH_RC:-0}" -ne 0 ]; then
+    log "  flash failed (rc=$FLASH_RC), retrying..."
+    continue
   fi
 
   sync
@@ -421,9 +501,9 @@ signal_progress_off
 
 # Power cycle DBC so it boots the new firmware
 log "  power cycling DBC..."
-lsc dbc off 2>/dev/null || true
+lsc --redis-addr localhost:6379 dbc off 2>/dev/null || true
 sleep 3
-lsc dbc on 2>/dev/null || true
+lsc --redis-addr localhost:6379 dbc on-wait >> "$LOG_FILE" 2>&1 || log "  WARNING: dbc on-wait failed (DBC may reboot for resize)"
 log "  DBC power cycled"
 
 # Write /data/onboot.sh on MDB — runs automatically on next boot via
@@ -469,15 +549,29 @@ else
   rm -f /data/onboot.sh
 fi
 
-# Power on DBC
+# Power on DBC (may reboot once for partition resize)
 log "  powering on DBC..."
-lsc dbc on 2>/dev/null || true
-sleep 5
+lsc --redis-addr localhost:6379 dbc on-wait 2>/dev/null || log "  WARNING: dbc on-wait timed out"
 
-# Wait for DBC to be reachable
+# Wait for DBC to be stable (it may reboot for partition resize)
+log "  waiting for DBC to be stable (10s consecutive ping)..."
+STABLE=0
+ELAPSED=0
+while [ $STABLE -lt 10 ] && [ $ELAPSED -lt 180 ]; do
+  if ping -c 1 -W 2 $DBC_IP >/dev/null 2>&1; then
+    STABLE=$((STABLE + 1))
+  else
+    STABLE=0
+  fi
+  ELAPSED=$((ELAPSED + 2))
+  sleep 1
+done
+log "  DBC stable after ${ELAPSED}s (stable_count=$STABLE)"
+
+# Wait for SSH
 log "  waiting for DBC SSH..."
 ELAPSED=0
-while [ $ELAPSED -lt 120 ]; do
+while [ $ELAPSED -lt 60 ]; do
   ssh root@$DBC_IP 'echo ok' >/dev/null 2>&1 && break
   ELAPSED=$((ELAPSED + 5))
   sleep 5
@@ -496,17 +590,54 @@ ONBOOT
 if [ "$INSTALL_TILES" = "true" ]; then
   cat >> /data/onboot.sh << TILES
 dbc_ssh "mkdir -p /data/maps /data/valhalla" || log "WARNING: mkdir failed"
+
+# Start HTTP upload server on DBC for fast file transfer
+log "  starting HTTP upload server on DBC..."
+dbc_ssh 'cat > /tmp/upload_srv.py << "PYEOF"
+import http.server
+import os
+
+class H(http.server.BaseHTTPRequestHandler):
+    def do_PUT(self):
+        p = self.path
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        l = int(self.headers["Content-Length"])
+        with open(p, "wb") as f:
+            r = l
+            while r > 0:
+                c = self.rfile.read(min(65536, r))
+                if not c:
+                    break
+                f.write(c)
+                r -= len(c)
+        self.send_response(200)
+        self.end_headers()
+
+    def log_message(self, *a):
+        pass
+
+with open("/tmp/upload_srv.pid", "w") as pf:
+    pf.write(str(os.getpid()))
+
+http.server.HTTPServer(("0.0.0.0", 8080), H).serve_forever()
+PYEOF
+nohup python3 /tmp/upload_srv.py > /dev/null 2>&1 &' || log "WARNING: failed to start DBC upload server"
+sleep 2
+
 if [ -f "$OSM_TILES_FILE" ]; then
-  log "  installing display tiles..."
-  dbc_scp "$OSM_TILES_FILE" root@\$DBC_IP:/data/maps/map.mbtiles || log "WARNING: display tiles failed"
+  log "  installing display tiles via HTTP..."
+  curl -T "$OSM_TILES_FILE" "http://\$DBC_IP:8080/data/maps/map.mbtiles" 2>>\$LOG || log "WARNING: display tiles failed"
   log "  display tiles done"
 fi
 if [ -f "$VALHALLA_TILES_FILE" ]; then
-  log "  installing routing tiles..."
-  dbc_scp "$VALHALLA_TILES_FILE" root@\$DBC_IP:/data/valhalla/tiles.tar || log "WARNING: routing tiles failed"
+  log "  installing routing tiles via HTTP..."
+  curl -T "$VALHALLA_TILES_FILE" "http://\$DBC_IP:8080/data/valhalla/tiles.tar" 2>>\$LOG || log "WARNING: routing tiles failed"
   dbc_ssh "systemctl restart valhalla" 2>/dev/null || true
   log "  routing tiles done"
 fi
+
+# Stop DBC upload server
+dbc_ssh 'kill $(cat /tmp/upload_srv.pid 2>/dev/null) 2>/dev/null; rm -f /tmp/upload_srv.pid' || true
 TILES
 fi
 
@@ -516,6 +647,9 @@ log "Installation complete - SUCCESS"
 log "=========================================="
 echo "success" > "$STATUS_FILE"
 cat "$LOG" >> "$STATUS_FILE"
+
+# Turn off DBC
+lsc --redis-addr localhost:6379 dbc off 2>/dev/null || true
 
 # Set boot LED to green (done)
 i2cset -f -y 2 0x30 0x02 0x00; i2cset -f -y 2 0x30 0x03 0xFF; i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
@@ -529,6 +663,7 @@ cat "$LOG_FILE" >> "$STATUS_FILE"
 
 bootled green
 signal_success
+[ -n "$JOURNAL_PID" ] && kill $JOURNAL_PID 2>/dev/null
 sync
 log "  rebooting MDB..."
 reboot

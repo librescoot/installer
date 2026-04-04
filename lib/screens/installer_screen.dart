@@ -27,6 +27,7 @@ class InstallerScreen extends StatefulWidget {
 class _InstallerScreenState extends State<InstallerScreen> {
   InstallerPhase _currentPhase = InstallerPhase.welcome;
   final Set<InstallerPhase> _completedPhases = {};
+  final Set<InstallerPhase> _skippedPhases = {};
   String _statusMessage = '';
   bool _isProcessing = false;
   double _progress = 0.0;
@@ -357,15 +358,21 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 PhaseSidebar(
                   currentPhase: _currentPhase,
                   completedPhases: _completedPhases,
+                  skippedPhases: _skippedPhases,
                   downloadItems: _downloadState.items,
                 ),
                 Expanded(
                   child: Column(
                     children: [
                       Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: _buildPhaseContent(l10n),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) => SingleChildScrollView(
+                            padding: const EdgeInsets.all(32),
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(minHeight: constraints.maxHeight - 64),
+                              child: Center(child: _buildPhaseContent(l10n)),
+                            ),
+                          ),
                         ),
                       ),
                       _buildStatusBar(),
@@ -490,87 +497,85 @@ class _InstallerScreenState extends State<InstallerScreen> {
       l10n.prerequisiteTime,
     ];
 
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(l10n.welcomeHeading,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text(l10n.welcomeSubheading,
-              style: TextStyle(color: Colors.grey.shade400)),
-          const SizedBox(height: 24),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(l10n.welcomeHeading,
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Text(l10n.welcomeSubheading,
+            style: TextStyle(color: Colors.grey.shade400)),
+        const SizedBox(height: 24),
 
-          // Prerequisites (interactive checkboxes)
-          Text(l10n.whatYouNeed, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(height: 8),
-          for (var i = 0; i < prerequisites.length; i++)
-            _prerequisite(prerequisites[i], i),
-          const SizedBox(height: 24),
+        // Prerequisites (interactive checkboxes)
+        Text(l10n.whatYouNeed, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        const SizedBox(height: 8),
+        for (var i = 0; i < prerequisites.length; i++)
+          _prerequisite(prerequisites[i], i),
+        const SizedBox(height: 24),
 
-          // Channel selection
-          Text(l10n.firmwareChannel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(height: 8),
-          if (_channelsLoading)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Row(
-                children: [
-                  const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                  const SizedBox(width: 12),
-                  Text(l10n.loadingChannels, style: TextStyle(color: Colors.grey.shade400)),
-                ],
-              ),
-            )
-          else
-            _buildChannelSelector(l10n),
-          const SizedBox(height: 24),
-
-          // Region selection (always shown)
-          Text(l10n.region, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(height: 4),
-          Text(l10n.regionHint,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
-          const SizedBox(height: 8),
-          if (_downloadState.wantsOfflineMaps)
-            DropdownButtonFormField<Region>(
-              initialValue: _downloadState.selectedRegion,
-              decoration: InputDecoration(
-                border: const OutlineInputBorder(),
-                hintText: l10n.selectRegion,
-              ),
-              items: Region.all
-                  .map((r) => DropdownMenuItem(value: r, child: Text(r.name)))
-                  .toList(),
-              onChanged: (r) => setState(() => _downloadState.selectedRegion = r),
+        // Channel selection
+        Text(l10n.firmwareChannel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        const SizedBox(height: 8),
+        if (_channelsLoading)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              children: [
+                const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                const SizedBox(width: 12),
+                Text(l10n.loadingChannels, style: TextStyle(color: Colors.grey.shade400)),
+              ],
             ),
-          CheckboxListTile(
-            value: !_downloadState.wantsOfflineMaps,
-            contentPadding: EdgeInsets.zero,
-            title: Text(l10n.skipOfflineMaps),
-            subtitle: Text(l10n.skipOfflineMapsHint,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-            onChanged: (v) => setState(() {
-              _downloadState.wantsOfflineMaps = !(v ?? false);
-            }),
-          ),
+          )
+        else
+          _buildChannelSelector(l10n),
+        const SizedBox(height: 24),
 
-          const SizedBox(height: 24),
-
-          // Start button (with elevation hint on macOS/Linux if not elevated)
-          Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton.icon(
-              onPressed: _isProcessing ||
-                      (_downloadState.wantsOfflineMaps && _downloadState.selectedRegion == null)
-                  ? null
-                  : _startDownloadsAndContinue,
-              icon: const Icon(Icons.arrow_forward),
-              label: Text(l10n.startInstallation),
+        // Region selection (always shown)
+        Text(l10n.region, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        const SizedBox(height: 4),
+        Text(l10n.regionHint,
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+        const SizedBox(height: 8),
+        if (_downloadState.wantsOfflineMaps)
+          DropdownButtonFormField<Region>(
+            initialValue: _downloadState.selectedRegion,
+            decoration: InputDecoration(
+              border: const OutlineInputBorder(),
+              hintText: l10n.selectRegion,
             ),
+            items: Region.all
+                .map((r) => DropdownMenuItem(value: r, child: Text(r.name)))
+                .toList(),
+            onChanged: (r) => setState(() => _downloadState.selectedRegion = r),
           ),
-        ],
-      ),
+        CheckboxListTile(
+          value: !_downloadState.wantsOfflineMaps,
+          contentPadding: EdgeInsets.zero,
+          title: Text(l10n.skipOfflineMaps),
+          subtitle: Text(l10n.skipOfflineMapsHint,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+          onChanged: (v) => setState(() {
+            _downloadState.wantsOfflineMaps = !(v ?? false);
+          }),
+        ),
+
+        const SizedBox(height: 24),
+
+        // Start button (with elevation hint on macOS/Linux if not elevated)
+        Align(
+          alignment: Alignment.centerRight,
+          child: FilledButton.icon(
+            onPressed: _isProcessing ||
+                    (_downloadState.wantsOfflineMaps && _downloadState.selectedRegion == null)
+                ? null
+                : _startDownloadsAndContinue,
+            icon: const Icon(Icons.arrow_forward),
+            label: Text(l10n.startInstallation),
+          ),
+        ),
+      ],
     );
   }
 
@@ -753,46 +758,44 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
   }
   Widget _buildPhysicalPrep(AppLocalizations l10n) {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(l10n.physicalPrepHeading,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text(l10n.physicalPrepSubheading,
-              style: TextStyle(color: Colors.grey.shade400)),
-          const SizedBox(height: 24),
-          InstructionStep(
-            number: 1,
-            title: l10n.removeFootwellCover,
-            description: l10n.removeFootwellCoverDesc,
-            beforeImageAsset: 'assets/images/lsi-unu_scooter_footwell_closed.jpg',
-            imageAsset: 'assets/images/lsi-unu_scooter_footwell_open.jpg',
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(l10n.physicalPrepHeading,
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Text(l10n.physicalPrepSubheading,
+            style: TextStyle(color: Colors.grey.shade400)),
+        const SizedBox(height: 24),
+        InstructionStep(
+          number: 1,
+          title: l10n.removeFootwellCover,
+          description: l10n.removeFootwellCoverDesc,
+          beforeImageAsset: 'assets/images/lsi-unu_scooter_footwell_closed.jpg',
+          imageAsset: 'assets/images/lsi-unu_scooter_footwell_open.jpg',
+        ),
+        InstructionStep(
+          number: 2,
+          title: l10n.unscrewUsbCable,
+          description: l10n.unscrewUsbCableDesc,
+          beforeImageAsset: 'assets/images/lsi-mdb_usb_connected.jpg',
+          imageAsset: 'assets/images/lsi-mdb_usb_disconnected.jpg',
+        ),
+        InstructionStep(
+          number: 3,
+          title: l10n.connectLaptopUsb,
+          description: l10n.connectLaptopUsbDesc,
+        ),
+        const SizedBox(height: 24),
+        Align(
+          alignment: Alignment.centerRight,
+          child: FilledButton.icon(
+            onPressed: () => _setPhase(InstallerPhase.mdbConnect),
+            icon: const Icon(Icons.arrow_forward),
+            label: Text(l10n.doneDetectDevice),
           ),
-          InstructionStep(
-            number: 2,
-            title: l10n.unscrewUsbCable,
-            description: l10n.unscrewUsbCableDesc,
-            beforeImageAsset: 'assets/images/lsi-mdb_usb_connected.jpg',
-            imageAsset: 'assets/images/lsi-mdb_usb_disconnected.jpg',
-          ),
-          InstructionStep(
-            number: 3,
-            title: l10n.connectLaptopUsb,
-            description: l10n.connectLaptopUsbDesc,
-          ),
-          const SizedBox(height: 24),
-          Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton.icon(
-              onPressed: () => _setPhase(InstallerPhase.mdbConnect),
-              icon: const Icon(Icons.arrow_forward),
-              label: Text(l10n.doneDetectDevice),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -815,7 +818,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
           ],
           Text(_statusMessage.isEmpty ? l10n.waitingForUsbDevice : _statusMessage,
               style: TextStyle(color: Colors.grey.shade400)),
-          if (!_isProcessing && !_mdbConnectStarted) ...[
+          if (!_isProcessing) ...[
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: () {
@@ -890,10 +893,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _setPhase(InstallerPhase.healthCheck);
     } catch (e) {
       _setStatus(l10n.sshConnectionFailed(e.toString()));
-      setState(() => _isProcessing = false);
-      if (await _shouldRetry('mdbConnect')) {
-        setState(() => _mdbConnectStarted = false);
-      }
+      setState(() { _isProcessing = false; _mdbConnectStarted = false; });
     }
   }
 
@@ -958,8 +958,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     void proceed() {
       if (_skipMdbFlash) {
-        // Skip MDB flash entirely — jump to after MDB boot
+        // Mark all MDB flash phases as skipped
+        for (final phase in MajorStep.mdbFlash.phases) {
+          _skippedPhases.add(phase);
+        }
         if (_skipDbcFlash) {
+          for (final phase in MajorStep.dbcFlash.phases) {
+            _skippedPhases.add(phase);
+          }
           _setPhase(InstallerPhase.bluetoothPairing);
         } else {
           _setPhase(InstallerPhase.cbbReconnect);
@@ -969,106 +975,104 @@ class _InstallerScreenState extends State<InstallerScreen> {
       }
     }
 
-    return SingleChildScrollView(
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(l10n.healthCheckHeading,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            if (_mdbInfo != null)
-              Text('Firmware: ${_mdbInfo!.firmwareVersion}',
-                  style: TextStyle(color: Colors.grey.shade400)),
-            const SizedBox(height: 8),
-            Text(l10n.verifyingReadiness,
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(l10n.healthCheckHeading,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          if (_mdbInfo != null)
+            Text('Firmware: ${_mdbInfo!.firmwareVersion}',
                 style: TextStyle(color: Colors.grey.shade400)),
-            const SizedBox(height: 24),
-            if (_scooterHealth != null)
-              SizedBox(width: 400, child: HealthCheckPanel(health: _scooterHealth!)),
+          const SizedBox(height: 8),
+          Text(l10n.verifyingReadiness,
+              style: TextStyle(color: Colors.grey.shade400)),
+          const SizedBox(height: 24),
+          if (_scooterHealth != null)
+            SizedBox(width: 400, child: HealthCheckPanel(health: _scooterHealth!)),
 
-            // Config backup status
-            if (_scooterHealth != null && _radioGagaBackupPath != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: SizedBox(
-                  width: 400,
-                  child: Row(
-                    children: [
-                      const Icon(Icons.check_circle, color: Colors.green, size: 16),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(l10n.configBackedUp,
-                          style: TextStyle(fontSize: 13, color: Colors.grey.shade400))),
-                    ],
-                  ),
-                ),
-              ),
-
-            // LibreScoot detected — offer to skip MDB reflash
-            if (_scooterHealth != null && _isLibreScootFirmware) ...[
-              const SizedBox(height: 24),
-              Container(
+          // Config backup status
+          if (_scooterHealth != null && _radioGagaBackupPath != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: SizedBox(
                 width: 400,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.teal.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.teal.withValues(alpha: 0.3)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    const Text('LibreScoot firmware detected',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.tealAccent)),
-                    const SizedBox(height: 12),
-                    CheckboxListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Skip MDB reflash'),
-                      subtitle: const Text('Keep current MDB firmware'),
-                      value: _skipMdbFlash,
-                      onChanged: (v) => setState(() => _skipMdbFlash = v ?? false),
-                    ),
-                    CheckboxListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Skip DBC flash'),
-                      subtitle: const Text('Only flash MDB, skip DBC entirely'),
-                      value: _skipDbcFlash,
-                      onChanged: (v) => setState(() => _skipDbcFlash = v ?? false),
-                    ),
+                    const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(l10n.configBackedUp,
+                        style: TextStyle(fontSize: 13, color: Colors.grey.shade400))),
                   ],
                 ),
               ),
-            ],
+            ),
 
+          // LibreScoot detected — offer to skip MDB reflash
+          if (_scooterHealth != null && _isLibreScootFirmware) ...[
             const SizedBox(height: 24),
-            if (_scooterHealth != null && _scooterHealth!.allOk)
-              FilledButton.icon(
-                onPressed: proceed,
-                icon: const Icon(Icons.arrow_forward),
-                label: Text(l10n.continueButton),
+            Container(
+              width: 400,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.teal.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.teal.withValues(alpha: 0.3)),
               ),
-            if (_scooterHealth != null && !_scooterHealth!.allOk) ...[
-              OutlinedButton.icon(
-                onPressed: () {
-                  setState(() {
-                    _scooterHealth = null;
-                    _healthCheckStarted = false;
-                  });
-                },
-                icon: const Icon(Icons.refresh),
-                label: Text(l10n.retryButton),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('LibreScoot firmware detected',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+                  const SizedBox(height: 12),
+                  CheckboxListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Skip MDB reflash'),
+                    subtitle: const Text('Keep current MDB firmware'),
+                    value: _skipMdbFlash,
+                    onChanged: (v) => setState(() => _skipMdbFlash = v ?? false),
+                  ),
+                  CheckboxListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Skip DBC flash'),
+                    subtitle: const Text('Only flash MDB, skip DBC entirely'),
+                    value: _skipDbcFlash,
+                    onChanged: (v) => setState(() => _skipDbcFlash = v ?? false),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: proceed,
-                child: Text(l10n.proceedAtOwnRisk,
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-              ),
-            ],
+            ),
           ],
-        ),
+
+          const SizedBox(height: 24),
+          if (_scooterHealth != null && _scooterHealth!.allOk)
+            FilledButton.icon(
+              onPressed: proceed,
+              icon: const Icon(Icons.arrow_forward),
+              label: Text(l10n.continueButton),
+            ),
+          if (_scooterHealth != null && !_scooterHealth!.allOk) ...[
+            OutlinedButton.icon(
+              onPressed: () {
+                setState(() {
+                  _scooterHealth = null;
+                  _healthCheckStarted = false;
+                });
+              },
+              icon: const Icon(Icons.refresh),
+              label: Text(l10n.retryButton),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: proceed,
+              child: Text(l10n.proceedAtOwnRisk,
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -1422,64 +1426,62 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Widget _buildScooterPrep(AppLocalizations l10n) {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(l10n.scooterPrepHeading,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text(l10n.scooterPrepSubheading,
-              style: TextStyle(color: Colors.grey.shade400)),
-          const SizedBox(height: 24),
-          InstructionStep(
-            number: 1,
-            title: l10n.disconnectCbb,
-            description: l10n.disconnectCbbDesc,
-            isWarning: true,
-            beforeImageAsset: 'assets/images/lsi-unu_scooter_cbb_connected.jpg',
-            imageAsset: 'assets/images/lsi-unu_scooter_cbb_disconnected.jpg',
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(l10n.scooterPrepHeading,
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Text(l10n.scooterPrepSubheading,
+            style: TextStyle(color: Colors.grey.shade400)),
+        const SizedBox(height: 24),
+        InstructionStep(
+          number: 1,
+          title: l10n.disconnectCbb,
+          description: l10n.disconnectCbbDesc,
+          isWarning: true,
+          beforeImageAsset: 'assets/images/lsi-unu_scooter_cbb_connected.jpg',
+          imageAsset: 'assets/images/lsi-unu_scooter_cbb_disconnected.jpg',
+        ),
+        InstructionStep(
+          number: 2,
+          title: l10n.disconnectAuxPole,
+          description: l10n.disconnectAuxPoleDesc,
+          isWarning: true,
+          beforeImageAsset: 'assets/images/lsi-unu_scooter_aux_connected.jpg',
+          imageAsset: 'assets/images/lsi-unu_scooter_aux_pos_disconnected.jpg',
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.orange.shade900.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.orange.shade700),
           ),
-          InstructionStep(
-            number: 2,
-            title: l10n.disconnectAuxPole,
-            description: l10n.disconnectAuxPoleDesc,
-            isWarning: true,
-            beforeImageAsset: 'assets/images/lsi-unu_scooter_aux_connected.jpg',
-            imageAsset: 'assets/images/lsi-unu_scooter_aux_pos_disconnected.jpg',
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.orange.shade900.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.orange.shade700),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.warning, color: Colors.orange),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    l10n.auxDisconnectWarning,
-                    style: const TextStyle(color: Colors.orange, fontSize: 13),
-                  ),
+          child: Row(
+            children: [
+              const Icon(Icons.warning, color: Colors.orange),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  l10n.auxDisconnectWarning,
+                  style: const TextStyle(color: Colors.orange, fontSize: 13),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(height: 24),
-          Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton.icon(
-              onPressed: () => _setPhase(InstallerPhase.mdbBoot),
-              icon: const Icon(Icons.arrow_forward),
-              label: Text(l10n.doneCbbAuxDisconnected),
-            ),
+        ),
+        const SizedBox(height: 24),
+        Align(
+          alignment: Alignment.centerRight,
+          child: FilledButton.icon(
+            onPressed: () => _setPhase(InstallerPhase.mdbBoot),
+            icon: const Icon(Icons.arrow_forward),
+            label: Text(l10n.doneCbbAuxDisconnected),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1610,15 +1612,25 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
   bool _cbbAutoCheckStarted = false;
   bool _cbbDetected = false;
+  bool _batteryDetected = false;
 
   Widget _buildCbbReconnect(AppLocalizations l10n) {
-    // Auto-check CBB on enter (but always show the screen for battery instruction)
+    // Auto-check CBB and battery on enter
     if (!_cbbAutoCheckStarted && !_isProcessing) {
       _cbbAutoCheckStarted = true;
       Future.microtask(() async {
         if (_isDryRun) return;
-        if (await _sshService.isCbbPresent()) {
-          setState(() => _cbbDetected = true);
+        final cbb = await _sshService.isCbbPresent();
+        final bat = await _sshService.isBatteryPresent();
+        if (mounted) {
+          setState(() {
+            _cbbDetected = cbb;
+            _batteryDetected = bat;
+          });
+          // Auto-proceed if both are already connected
+          if (cbb && bat) {
+            _setPhase(InstallerPhase.dbcPrep);
+          }
         }
       });
     }
@@ -1627,44 +1639,70 @@ class _InstallerScreenState extends State<InstallerScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(l10n.reconnectCbbHeading,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 24),
-          InstructionStep(
-            number: 1,
-            title: l10n.reconnectCbb,
-            description: l10n.reconnectCbbDesc,
-            imageAsset: 'assets/images/lsi-unu_scooter_cbb_connected.jpg',
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 24),
+        OutlinedButton.icon(
+          onPressed: _sshService.isConnected ? () async {
+            try { await _sshService.runCommand('lsc open'); } catch (_) {}
+          } : null,
+          icon: const Icon(Icons.lock_open, size: 18),
+          label: const Text('Open seatbox'),
+        ),
+        const SizedBox(height: 16),
+        InstructionStep(
+          number: 1,
+          title: 'Reconnect the CBB',
+          description: 'Plug the CBB cable back into the connector under the seat.',
+          imageAsset: 'assets/images/lsi-unu_scooter_cbb_connected.jpg',
+        ),
+        InstructionStep(
+          number: 2,
+          title: 'Insert the main battery',
+          description: 'Put the main battery back in the seatbox. The scooter needs full power for the DBC flash.',
+        ),
+        if (_cbbDetected || _batteryDetected)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Column(
+              children: [
+                if (_cbbDetected)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.check_circle, size: 16, color: Colors.tealAccent),
+                      const SizedBox(width: 8),
+                      Text('CBB detected', style: TextStyle(color: Colors.tealAccent, fontSize: 13)),
+                    ],
+                  ),
+                if (_batteryDetected)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.check_circle, size: 16, color: Colors.tealAccent),
+                      const SizedBox(width: 8),
+                      Text('Battery detected', style: TextStyle(color: Colors.tealAccent, fontSize: 13)),
+                    ],
+                  ),
+              ],
+            ),
           ),
-          if (_cbbDetected)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.check_circle, size: 16, color: Colors.tealAccent),
-                  const SizedBox(width: 8),
-                  Text('CBB detected', style: TextStyle(color: Colors.tealAccent, fontSize: 13)),
-                ],
-              ),
-            ),
-          const SizedBox(height: 16),
-          if (_isProcessing) ...[
-            const CircularProgressIndicator(),
-            const SizedBox(height: 8),
-            Text(_statusMessage, style: TextStyle(color: Colors.grey.shade400)),
-          ] else ...[
-            FilledButton(
-              onPressed: _waitForCbb,
-              child: Text(l10n.verifyCbbConnection),
-            ),
-            if (_cbbCheckFailed) ...[
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () => _setPhase(InstallerPhase.dbcPrep),
-                child: const Text('Proceed without CBB'),
-              ),
-            ],
-          ],
+        const SizedBox(height: 16),
+        if (_isProcessing) ...[
+          const CircularProgressIndicator(),
+          const SizedBox(height: 8),
+          Text(_statusMessage, style: TextStyle(color: Colors.grey.shade400)),
+        ] else ...[
+          FilledButton(
+            onPressed: _waitForCbb,
+            child: Text(l10n.verifyCbbConnection),
+          ),
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: () => _setPhase(InstallerPhase.dbcPrep),
+            child: Text('Proceed at own risk',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+          ),
+        ],
         ],
       ),
     );
@@ -1724,12 +1762,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
               ],
             ),
           ),
-          if (!_isProcessing && !_dbcPrepStarted) ...[
+          if (!_isProcessing) ...[
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: () {
-                setState(() => _dbcPrepStarted = true);
-                Future.microtask(_uploadDbcFiles);
+                setState(() { _dbcPrepStarted = false; });
+                Future.microtask(() {
+                  setState(() => _dbcPrepStarted = true);
+                  _uploadDbcFiles();
+                });
               },
               icon: const Icon(Icons.refresh),
               label: const Text('Retry'),
@@ -1788,77 +1829,74 @@ class _InstallerScreenState extends State<InstallerScreen> {
     } catch (e) {
       _setCritical(false);
       _setStatus(l10n.uploadError(e.toString()));
-      setState(() {
-        _isProcessing = false;
-        _dbcPrepStarted = false;
-      });
+      debugPrint('DBC prep error: $e');
+      setState(() => _isProcessing = false);
+      // Don't reset _dbcPrepStarted — retry button handles that
     }
   }
 
   Widget _buildDbcFlash(AppLocalizations l10n) {
-    return SingleChildScrollView(
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(l10n.dbcFlashInProgress,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 24),
-            InstructionStep(
-              number: 1,
-              title: l10n.disconnectUsbFromLaptop,
-              description: l10n.disconnectUsbFromLaptopDesc,
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(l10n.dbcFlashInProgress,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 24),
+          InstructionStep(
+            number: 1,
+            title: l10n.disconnectUsbFromLaptop,
+            description: l10n.disconnectUsbFromLaptopDesc,
+          ),
+          InstructionStep(
+            number: 2,
+            title: l10n.reconnectDbcUsbToMdb,
+            description: l10n.reconnectDbcUsbToMdbDesc,
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF222222),
+              borderRadius: BorderRadius.circular(8),
             ),
-            InstructionStep(
-              number: 2,
-              title: l10n.reconnectDbcUsbToMdb,
-              description: l10n.reconnectDbcUsbToMdbDesc,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l10n.mdbFlashingDbcAutonomously,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text(l10n.watchLightsForProgress,
+                    style: TextStyle(color: Colors.grey.shade400)),
+                const SizedBox(height: 8),
+                _ledSignal(l10n.ledFrontRingPulse, l10n.ledFrontRingPulseMeaning),
+                _ledSignal(l10n.ledFrontRingSolid, l10n.ledFrontRingSolidMeaning),
+                _ledSignal(l10n.ledBlinkerProgress, l10n.ledBlinkerProgressMeaning),
+                _ledSignal('Boot LED amber', 'Flashing in progress'),
+                _ledSignal(l10n.ledBootGreen, l10n.ledBootGreenMeaning),
+                _ledSignal(l10n.ledRearLightSolid, l10n.ledRearLightSolidMeaning),
+              ],
             ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF222222),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(l10n.mdbFlashingDbcAutonomously,
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  Text(l10n.watchLightsForProgress,
-                      style: TextStyle(color: Colors.grey.shade400)),
-                  const SizedBox(height: 8),
-                  _ledSignal(l10n.ledFrontRingPulse, l10n.ledFrontRingPulseMeaning),
-                  _ledSignal(l10n.ledFrontRingSolid, l10n.ledFrontRingSolidMeaning),
-                  _ledSignal(l10n.ledBlinkerProgress, l10n.ledBlinkerProgressMeaning),
-                  _ledSignal('Boot LED amber', 'Flashing in progress'),
-                  _ledSignal(l10n.ledBootGreen, l10n.ledBootGreenMeaning),
-                  _ledSignal(l10n.ledRearLightSolid, l10n.ledRearLightSolidMeaning),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: () {
-                _dbcFlashSimulateError = false;
-                _setPhase(InstallerPhase.reconnect);
-              },
-              icon: const Icon(Icons.arrow_forward),
-              label: Text(l10n.bootLedGreenReconnect),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () {
-                _dbcFlashSimulateError = true;
-                _setPhase(InstallerPhase.reconnect);
-              },
-              icon: const Icon(Icons.warning, color: Colors.orange),
-              label: Text(l10n.rearLightCheckError),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: () {
+              _dbcFlashSimulateError = false;
+              _setPhase(InstallerPhase.reconnect);
+            },
+            icon: const Icon(Icons.arrow_forward),
+            label: Text(l10n.bootLedGreenReconnect),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () {
+              _dbcFlashSimulateError = true;
+              _setPhase(InstallerPhase.reconnect);
+            },
+            icon: const Icon(Icons.warning, color: Colors.orange),
+            label: Text(l10n.rearLightCheckError),
+          ),
+        ],
       ),
     );
   }
@@ -1895,7 +1933,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
           const SizedBox(height: 8),
           Text(_statusMessage.isEmpty ? l10n.reconnectUsbToLaptop : _statusMessage,
               style: TextStyle(color: Colors.grey.shade400)),
-          if (!_isProcessing && !_reconnectStarted) ...[
+          if (!_isProcessing) ...[
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: () {
@@ -1991,8 +2029,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
     _setStatus(l10n.readingTrampolineStatus);
     final status = await _sshService.readTrampolineStatus();
 
-    // Always clean up MDB trampoline files after reading status
-    await _cleanupMdb();
+    // TODO: re-enable after dev
+    // await _cleanupMdb();
 
     // Restart keycard service
     try {
@@ -2028,109 +2066,107 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Widget _buildBluetoothPairing(AppLocalizations l10n) {
-    return SingleChildScrollView(
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.bluetooth, size: 48, color: Colors.blueAccent),
-            const SizedBox(height: 16),
-            Text(l10n.bluetoothPairingHeading,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(l10n.bluetoothPairingHint,
-                style: TextStyle(color: Colors.grey.shade400)),
-            const SizedBox(height: 24),
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.bluetooth, size: 48, color: Colors.blueAccent),
+          const SizedBox(height: 16),
+          Text(l10n.bluetoothPairingHeading,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Text(l10n.bluetoothPairingHint,
+              style: TextStyle(color: Colors.grey.shade400)),
+          const SizedBox(height: 24),
 
-            if (!_btPairingActive) ...[
-              FilledButton.icon(
-                onPressed: _startBluetoothPairing,
-                icon: const Icon(Icons.bluetooth_searching),
-                label: Text(l10n.startPairing),
-              ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () => _setPhase(InstallerPhase.keycardSetup),
-                child: Text(l10n.skipPairing),
-              ),
-            ],
-
-            if (_btPairingActive) ...[
-              const SizedBox(height: 16),
-              if (_bleConnected)
-                Container(
-                  width: 400,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-                  ),
-                  child: Column(
-                    children: [
-                      const Icon(Icons.bluetooth_connected, size: 32, color: Colors.green),
-                      const SizedBox(height: 12),
-                      Text(l10n.bleAlreadyConnected,
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
-                      const SizedBox(height: 8),
-                      Text(l10n.bleAlreadyConnectedHint,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
-                    ],
-                  ),
-                )
-              else
-                Container(
-                  width: 400,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.blueAccent.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
-                  ),
-                  child: Column(
-                    children: [
-                      const Icon(Icons.bluetooth_searching, size: 32, color: Colors.blueAccent),
-                      const SizedBox(height: 12),
-                      Text(l10n.pairingActive,
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      Text(l10n.pairingActiveHint,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
-                    ],
-                  ),
-                ),
-              if (_blePinCode != null) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.blueAccent.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.4)),
-                  ),
-                  child: Text(_blePinCode!,
-                      style: const TextStyle(
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 8,
-                        fontFamily: 'monospace',
-                      )),
-                ),
-                const SizedBox(height: 8),
-                Text(l10n.blePinHint,
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
-              ],
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: _stopBluetoothPairing,
-                icon: const Icon(Icons.check),
-                label: Text(l10n.pairingDone),
-              ),
-            ],
+          if (!_btPairingActive) ...[
+            FilledButton.icon(
+              onPressed: _startBluetoothPairing,
+              icon: const Icon(Icons.bluetooth_searching),
+              label: Text(l10n.startPairing),
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () => _setPhase(InstallerPhase.keycardSetup),
+              child: Text(l10n.skipPairing),
+            ),
           ],
-        ),
+
+          if (_btPairingActive) ...[
+            const SizedBox(height: 16),
+            if (_bleConnected)
+              Container(
+                width: 400,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  children: [
+                    const Icon(Icons.bluetooth_connected, size: 32, color: Colors.green),
+                    const SizedBox(height: 12),
+                    Text(l10n.bleAlreadyConnected,
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                    const SizedBox(height: 8),
+                    Text(l10n.bleAlreadyConnectedHint,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+                  ],
+                ),
+              )
+            else
+              Container(
+                width: 400,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  children: [
+                    const Icon(Icons.bluetooth_searching, size: 32, color: Colors.blueAccent),
+                    const SizedBox(height: 12),
+                    Text(l10n.pairingActive,
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Text(l10n.pairingActiveHint,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+                  ],
+                ),
+              ),
+            if (_blePinCode != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.4)),
+                ),
+                child: Text(_blePinCode!,
+                    style: const TextStyle(
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 8,
+                      fontFamily: 'monospace',
+                    )),
+              ),
+              const SizedBox(height: 8),
+              Text(l10n.blePinHint,
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+            ],
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: _stopBluetoothPairing,
+              icon: const Icon(Icons.check),
+              label: Text(l10n.pairingDone),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -2314,66 +2350,64 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Widget _buildFinish(AppLocalizations l10n) {
-    return SingleChildScrollView(
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.celebration, size: 64, color: Colors.tealAccent),
-            const SizedBox(height: 16),
-            Text(l10n.welcomeToLibreScoot,
-                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
-            const SizedBox(height: 24),
-            Text(l10n.finalSteps, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 16),
-            InstructionStep(
-              number: 1,
-              title: l10n.disconnectUsbFromLaptopFinal,
-              description: l10n.disconnectUsbFromLaptopFinalDesc,
-            ),
-            InstructionStep(
-              number: 2,
-              title: l10n.reconnectDbcUsbCable,
-              description: l10n.reconnectDbcUsbCableDesc,
-            ),
-            InstructionStep(
-              number: 3,
-              title: l10n.insertMainBattery,
-              description: l10n.insertMainBatteryDesc,
-            ),
-            InstructionStep(
-              number: 4,
-              title: l10n.closeSeatboxAndFootwell,
-              description: l10n.closeSeatboxAndFootwellDesc,
-            ),
-            InstructionStep(
-              number: 5,
-              title: l10n.unlockScooter,
-              description: l10n.unlockScooterDesc,
-            ),
-            const SizedBox(height: 24),
-            CheckboxListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Keep cached downloads'),
-              subtitle: Text('${_totalCacheSizeMb()} MB on disk',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-              value: _keepCache,
-              onChanged: (v) => setState(() => _keepCache = v ?? false),
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () async {
-                if (!_keepCache) {
-                  await _offerCleanup();
-                }
-                if (mounted) exit(0);
-              },
-              icon: const Icon(Icons.check_circle),
-              label: const Text('Finished'),
-            ),
-          ],
-        ),
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.celebration, size: 64, color: Colors.tealAccent),
+          const SizedBox(height: 16),
+          Text(l10n.welcomeToLibreScoot,
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+          const SizedBox(height: 24),
+          Text(l10n.finalSteps, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 16),
+          InstructionStep(
+            number: 1,
+            title: l10n.disconnectUsbFromLaptopFinal,
+            description: l10n.disconnectUsbFromLaptopFinalDesc,
+          ),
+          InstructionStep(
+            number: 2,
+            title: l10n.reconnectDbcUsbCable,
+            description: l10n.reconnectDbcUsbCableDesc,
+          ),
+          InstructionStep(
+            number: 3,
+            title: l10n.insertMainBattery,
+            description: l10n.insertMainBatteryDesc,
+          ),
+          InstructionStep(
+            number: 4,
+            title: l10n.closeSeatboxAndFootwell,
+            description: l10n.closeSeatboxAndFootwellDesc,
+          ),
+          InstructionStep(
+            number: 5,
+            title: l10n.unlockScooter,
+            description: l10n.unlockScooterDesc,
+          ),
+          const SizedBox(height: 24),
+          CheckboxListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Keep cached downloads'),
+            subtitle: Text('${_totalCacheSizeMb()} MB on disk',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+            value: _keepCache,
+            onChanged: (v) => setState(() => _keepCache = v ?? false),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: () async {
+              if (!_keepCache) {
+                await _offerCleanup();
+              }
+              if (mounted) exit(0);
+            },
+            icon: const Icon(Icons.check_circle),
+            label: const Text('Finished'),
+          ),
+        ],
       ),
     );
   }
@@ -2402,7 +2436,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _offerCleanup() async {
     final l10n = AppLocalizations.of(context)!;
     final freed = await _downloadService.deleteCache(_downloadState.items);
-    await _cleanupMdb();
+    // TODO: re-enable after dev
+    // await _cleanupMdb();
     if (mounted) {
       _setStatus(l10n.deletedCache((freed / 1024 / 1024).toStringAsFixed(0)));
     }

@@ -23,6 +23,7 @@ static void first_frame_cb(MyApplication* self, FlView *view)
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
+  g_set_application_name("LibreScoot Installer");
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
 
@@ -46,11 +47,11 @@ static void my_application_activate(GApplication* application) {
   if (use_header_bar) {
     GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
     gtk_widget_show(GTK_WIDGET(header_bar));
-    gtk_header_bar_set_title(header_bar, "librescoot_installer");
+    gtk_header_bar_set_title(header_bar, "LibreScoot Installer");
     gtk_header_bar_set_show_close_button(header_bar, TRUE);
     gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
   } else {
-    gtk_window_set_title(window, "librescoot_installer");
+    gtk_window_set_title(window, "LibreScoot Installer");
   }
 
   gtk_window_set_default_size(window, 1280, 720);

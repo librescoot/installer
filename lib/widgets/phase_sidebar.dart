@@ -10,11 +10,13 @@ class PhaseSidebar extends StatelessWidget {
     super.key,
     required this.currentPhase,
     required this.completedPhases,
+    this.skippedPhases = const {},
     this.downloadItems = const [],
   });
 
   final InstallerPhase currentPhase;
   final Set<InstallerPhase> completedPhases;
+  final Set<InstallerPhase> skippedPhases;
   final List<DownloadItem> downloadItems;
 
   @override
@@ -59,6 +61,7 @@ class PhaseSidebar extends StatelessWidget {
                     step: major,
                     isActive: major.isActive(currentPhase),
                     isCompleted: major.isCompleted(currentPhase),
+                    isSkipped: major.phases.every((p) => skippedPhases.contains(p)),
                   ),
                   // Show substeps only for the active major step
                   if (major.isActive(currentPhase) && major.phases.length > 1)
@@ -86,11 +89,13 @@ class _MajorStepItem extends StatelessWidget {
     required this.step,
     required this.isActive,
     required this.isCompleted,
+    this.isSkipped = false,
   });
 
   final MajorStep step;
   final bool isActive;
   final bool isCompleted;
+  final bool isSkipped;
 
   @override
   Widget build(BuildContext context) {
@@ -98,7 +103,10 @@ class _MajorStepItem extends StatelessWidget {
     final Widget leading;
     final int stepNum = step.index + 1;
 
-    if (isCompleted) {
+    if (isSkipped) {
+      textColor = Colors.grey.shade700;
+      leading = Icon(Icons.circle_outlined, size: 18, color: Colors.grey.shade700);
+    } else if (isCompleted) {
       textColor = Colors.grey;
       leading = const Icon(Icons.check_circle, size: 18, color: Colors.tealAccent);
     } else if (isActive) {
@@ -143,7 +151,7 @@ class _MajorStepItem extends StatelessWidget {
           leading,
           const SizedBox(width: 10),
           Text(
-            step.title,
+            isSkipped ? '${step.title} (skipped)' : step.title,
             style: TextStyle(
               color: textColor,
               fontSize: 14,

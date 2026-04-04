@@ -22,7 +22,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get phaseWelcomeDescription => 'Prerequisites and firmware selection';
 
   @override
-  String get phasePhysicalPrepTitle => 'Physical Prep';
+  String get phasePhysicalPrepTitle => 'Prepare Scooter';
 
   @override
   String get phasePhysicalPrepDescription => 'Open footwell, connect USB';
@@ -40,56 +40,56 @@ class AppLocalizationsEn extends AppLocalizations {
   String get phaseHealthCheckDescription => 'Verify scooter readiness';
 
   @override
-  String get phaseBatteryRemovalTitle => 'Battery Removal';
+  String get phaseBatteryRemovalTitle => 'Remove Battery';
 
   @override
   String get phaseBatteryRemovalDescription =>
       'Open seatbox, remove main battery';
 
   @override
-  String get phaseMdbToUmsTitle => 'MDB → UMS';
+  String get phaseMdbToUmsTitle => 'Prepare for Flashing';
 
   @override
   String get phaseMdbToUmsDescription => 'Configure bootloader for flashing';
 
   @override
-  String get phaseMdbFlashTitle => 'MDB Flash';
+  String get phaseMdbFlashTitle => 'Flash Image';
 
   @override
   String get phaseMdbFlashDescription => 'Write firmware to MDB';
 
   @override
-  String get phaseScooterPrepTitle => 'Scooter Prep';
+  String get phaseScooterPrepTitle => 'Disconnect Power';
 
   @override
   String get phaseScooterPrepDescription => 'Disconnect CBB and AUX';
 
   @override
-  String get phaseMdbBootTitle => 'MDB Boot';
+  String get phaseMdbBootTitle => 'Reboot';
 
   @override
   String get phaseMdbBootDescription => 'Reconnect AUX, wait for boot';
 
   @override
-  String get phaseCbbReconnectTitle => 'CBB Reconnect';
+  String get phaseCbbReconnectTitle => 'Reconnect CBB & Battery';
 
   @override
   String get phaseCbbReconnectDescription => 'Reconnect CBB for DBC flash';
 
   @override
-  String get phaseDbcPrepTitle => 'DBC Prep';
+  String get phaseDbcPrepTitle => 'Upload Files';
 
   @override
   String get phaseDbcPrepDescription => 'Upload DBC image and tiles';
 
   @override
-  String get phaseDbcFlashTitle => 'DBC Flash';
+  String get phaseDbcFlashTitle => 'Flash Image';
 
   @override
   String get phaseDbcFlashDescription => 'Autonomous DBC installation';
 
   @override
-  String get phaseReconnectTitle => 'Reconnect';
+  String get phaseReconnectTitle => 'Verify';
 
   @override
   String get phaseReconnectDescription => 'Verify DBC installation';
