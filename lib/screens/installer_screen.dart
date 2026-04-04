@@ -1616,94 +1616,149 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _batteryDetected = false;
 
   Widget _buildCbbReconnect(AppLocalizations l10n) {
-    // Auto-check CBB and battery on enter
+    // Auto-check CBB on enter
     if (!_cbbAutoCheckStarted && !_isProcessing) {
       _cbbAutoCheckStarted = true;
       Future.microtask(() async {
         if (_isDryRun) return;
         final cbb = await _sshService.isCbbPresent();
-        final bat = await _sshService.isBatteryPresent();
         if (mounted) {
-          setState(() {
-            _cbbDetected = cbb;
-            _batteryDetected = bat;
-          });
-          // Auto-proceed if both are already connected
-          if (cbb && bat) {
-            _setPhase(InstallerPhase.dbcPrep);
+          setState(() => _cbbDetected = cbb);
+          if (cbb) {
+            // CBB already connected — check battery too
+            final bat = await _sshService.isBatteryPresent();
+            if (mounted) {
+              setState(() => _batteryDetected = bat);
+              if (bat) _setPhase(InstallerPhase.dbcPrep);
+            }
           }
         }
       });
     }
+
+    // Stage 1: Reconnect CBB
+    if (!_cbbDetected) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(l10n.reconnectCbbHeading,
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 24),
+            InstructionStep(
+              number: 1,
+              title: l10n.reconnectCbbStep,
+              description: l10n.reconnectCbbStepDesc,
+              imageAsset: 'assets/images/lsi-unu_scooter_cbb_connected.jpg',
+            ),
+            const SizedBox(height: 16),
+            if (_isProcessing) ...[
+              const CircularProgressIndicator(),
+              const SizedBox(height: 8),
+              Text(_statusMessage, style: TextStyle(color: Colors.grey.shade400)),
+            ] else ...[
+              FilledButton(
+                onPressed: () async {
+                  setState(() => _isProcessing = true);
+                  _setStatus(l10n.checkingCbb);
+                  for (var i = 0; i < 30; i++) {
+                    if (await _sshService.isCbbPresent()) {
+                      setState(() { _cbbDetected = true; _isProcessing = false; });
+                      _setStatus('');
+                      return;
+                    }
+                    _setStatus('${l10n.waitingForCbb(i + 1)}');
+                    await Future.delayed(const Duration(seconds: 2));
+                    if (!mounted) return;
+                  }
+                  _setStatus(l10n.cbbNotDetected);
+                  setState(() => _isProcessing = false);
+                },
+                child: Text(l10n.verifyCbbConnection),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => _setPhase(InstallerPhase.dbcPrep),
+                child: Text(l10n.proceedWithoutCbb,
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    // Stage 2: CBB connected — open seatbox, insert battery
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(l10n.reconnectCbbHeading,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 24),
-        OutlinedButton.icon(
-          onPressed: _sshService.isConnected ? () async {
-            try { await _sshService.runCommand('lsc open'); } catch (_) {}
-          } : null,
-          icon: const Icon(Icons.lock_open, size: 18),
-          label: Text(l10n.openSeatboxButton),
-        ),
-        const SizedBox(height: 16),
-        InstructionStep(
-          number: 1,
-          title: l10n.reconnectCbbStep,
-          description: l10n.reconnectCbbStepDesc,
-          imageAsset: 'assets/images/lsi-unu_scooter_cbb_connected.jpg',
-        ),
-        InstructionStep(
-          number: 2,
-          title: l10n.insertMainBatteryStep,
-          description: l10n.insertMainBatteryStepDesc,
-        ),
-        if (_cbbDetected || _batteryDetected)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Column(
-              children: [
-                if (_cbbDetected)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.check_circle, size: 16, color: Colors.tealAccent),
-                      const SizedBox(width: 8),
-                      Text(l10n.cbbDetected, style: TextStyle(color: Colors.tealAccent, fontSize: 13)),
-                    ],
-                  ),
-                if (_batteryDetected)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.check_circle, size: 16, color: Colors.tealAccent),
-                      const SizedBox(width: 8),
-                      Text(l10n.batteryDetected, style: TextStyle(color: Colors.tealAccent, fontSize: 13)),
-                    ],
-                  ),
-              ],
-            ),
-          ),
-        const SizedBox(height: 16),
-        if (_isProcessing) ...[
-          const CircularProgressIndicator(),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          Text(_statusMessage, style: TextStyle(color: Colors.grey.shade400)),
-        ] else ...[
-          FilledButton(
-            onPressed: _waitForCbb,
-            child: Text(l10n.verifyCbbConnection),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.check_circle, size: 16, color: Colors.tealAccent),
+              const SizedBox(width: 8),
+              Text(l10n.cbbDetected, style: const TextStyle(color: Colors.tealAccent, fontSize: 13)),
+            ],
           ),
-          const SizedBox(height: 12),
-          TextButton(
-            onPressed: () => _setPhase(InstallerPhase.dbcPrep),
-            child: Text(l10n.proceedWithoutCbb,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+          const SizedBox(height: 24),
+          OutlinedButton.icon(
+            onPressed: _sshService.isConnected ? () async {
+              try { await _sshService.runCommand('lsc open'); } catch (_) {}
+            } : null,
+            icon: const Icon(Icons.lock_open, size: 18),
+            label: Text(l10n.openSeatboxButton),
           ),
-        ],
+          const SizedBox(height: 16),
+          InstructionStep(
+            number: 1,
+            title: l10n.insertMainBatteryStep,
+            description: l10n.insertMainBatteryStepDesc,
+          ),
+          if (_batteryDetected)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.check_circle, size: 16, color: Colors.tealAccent),
+                  const SizedBox(width: 8),
+                  Text(l10n.batteryDetected, style: const TextStyle(color: Colors.tealAccent, fontSize: 13)),
+                ],
+              ),
+            ),
+          const SizedBox(height: 16),
+          if (_isProcessing) ...[
+            const CircularProgressIndicator(),
+            const SizedBox(height: 8),
+            Text(_statusMessage, style: TextStyle(color: Colors.grey.shade400)),
+          ] else ...[
+            FilledButton(
+              onPressed: () async {
+                setState(() => _isProcessing = true);
+                _setStatus(l10n.checkingCbbAndBattery);
+                final bat = await _sshService.isBatteryPresent();
+                if (bat) {
+                  setState(() { _batteryDetected = true; _isProcessing = false; });
+                  await Future.delayed(const Duration(seconds: 1));
+                  if (mounted) _setPhase(InstallerPhase.dbcPrep);
+                } else {
+                  _setStatus(l10n.batteryDetected); // TODO: add batteryNotDetected key
+                  setState(() => _isProcessing = false);
+                }
+              },
+              child: Text(l10n.verifyCbbConnection),
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () => _setPhase(InstallerPhase.dbcPrep),
+              child: Text(l10n.proceedWithoutCbb,
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+            ),
+          ],
         ],
       ),
     );

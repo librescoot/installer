@@ -105,7 +105,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     debugPrint('Trampoline: waiting for upload server...');
     final client = HttpClient();
     try {
-      for (var i = 0; i < 20; i++) {
+      for (var i = 0; i < 30; i++) {
         try {
           final req = await client.getUrl(Uri.parse('$_mdbUploadUrl/'));
           final resp = await req.close().timeout(const Duration(seconds: 2));
@@ -116,7 +116,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
           await Future.delayed(const Duration(seconds: 1));
         }
       }
-      throw Exception('Upload server not responsive after 20s');
+      throw Exception('Upload server not responsive after 30s');
     } finally {
       client.close();
     }
@@ -220,7 +220,11 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       filesToUpload.add(MapEntry(valhallaTilesLocalPath, '/data/${region.valhallaTilesFilename}'));
     }
 
-    // Check which files need uploading
+    // Start HTTP upload server early — MDB may be busy creating UMS disk image on first boot
+    onProgress?.call('Starting upload server...', 0.0);
+    await _startUploadServer();
+
+    // Check which files need uploading (server starts in background while we check)
     onProgress?.call('Checking existing files...', 0.0);
     final needsUpload = <bool>[];
     final fileSizes = <int>[];
@@ -237,15 +241,12 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
 
     if (totalBytes == 0) {
       onProgress?.call('All files already on device', 0.95);
+      await _stopUploadServer();
     } else {
       final skipped = needsUpload.where((n) => !n).length;
       if (skipped > 0) {
         debugPrint('Trampoline: skipping $skipped files that already match');
       }
-
-      // Start HTTP upload server on MDB (8+ MB/s vs ~2 MB/s via SFTP)
-      onProgress?.call('Starting upload server...', 0.0);
-      await _startUploadServer();
 
       var bytesSoFar = 0;
       final stopwatch = Stopwatch()..start();
