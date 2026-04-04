@@ -96,7 +96,7 @@ func (g *gzipReadCloser) Close() error {
 
 // openDevice opens a block device for writing.
 func openDevice(path string) (*os.File, error) {
-	return os.OpenFile(path, os.O_RDWR|os.O_SYNC, 0)
+	return openDevicePlatform(path)
 }
 
 const blockSize = 4 * 1024 * 1024 // 4MB
@@ -308,7 +308,9 @@ func flashWithBmap(imagePath, bmapPath, devicePath string) error {
 	if bs == 0 {
 		bs = 4096
 	}
-	buf := make([]byte, bs)
+	// Use 4MB buffer for bulk writes (bmap block size is typically 4KB)
+	const writeBufSize = 4 * 1024 * 1024
+	buf := make([]byte, writeBufSize)
 
 	var srcPos int64
 	var totalWritten int64
@@ -337,24 +339,30 @@ func flashWithBmap(imagePath, bmapPath, devicePath string) error {
 			return fmt.Errorf("seeking device to %d: %w", rangeStart, err)
 		}
 
-		// Write blocks in this range, computing checksum
+		// Write this range in large chunks, computing checksum
 		h := sha256.New()
-		for offset := rangeStart; offset < rangeEnd; offset += bs {
-			n, readErr := io.ReadFull(src, buf)
+		rangeRemaining := rangeEnd - rangeStart
+		for rangeRemaining > 0 {
+			readSize := int64(len(buf))
+			if readSize > rangeRemaining {
+				readSize = rangeRemaining
+			}
+			n, readErr := io.ReadFull(src, buf[:readSize])
 			if n > 0 {
 				h.Write(buf[:n])
 				if _, err := dev.Write(buf[:n]); err != nil {
-					return fmt.Errorf("write at offset %d: %w", offset, err)
+					return fmt.Errorf("write at offset %d: %w", rangeEnd-rangeRemaining, err)
 				}
 				totalWritten += int64(n)
 				srcPos += int64(n)
+				rangeRemaining -= int64(n)
 				progress(totalWritten)
 			}
 			if readErr == io.EOF || readErr == io.ErrUnexpectedEOF {
 				break
 			}
 			if readErr != nil {
-				return fmt.Errorf("read at offset %d: %w", offset, readErr)
+				return fmt.Errorf("read at offset %d: %w", rangeEnd-rangeRemaining, readErr)
 			}
 		}
 

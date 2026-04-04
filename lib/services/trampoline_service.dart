@@ -80,6 +80,8 @@ class H(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.end_headers()
     def log_message(self, *a): pass
+import socketserver
+socketserver.TCPServer.allow_reuse_address = True
 http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
 ''';
 
@@ -87,6 +89,13 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
 
   /// Start HTTP upload server on MDB (much faster than SCP/SFTP)
   Future<void> _startUploadServer() async {
+    // Kill any leftover server from previous runs
+    debugPrint('Trampoline: cleaning up old upload server...');
+    try {
+      await _ssh.runCommand('kill \$(pgrep -f upload_srv) 2>/dev/null; fuser -k 8080/tcp 2>/dev/null');
+    } catch (_) {}
+    await Future.delayed(const Duration(seconds: 1));
+
     debugPrint('Trampoline: writing upload server script...');
     await _ssh.runCommand("cat > /tmp/upload_srv.py << 'PYEOF'\n$_uploadServerScript\nPYEOF");
     debugPrint('Trampoline: starting upload server...');
@@ -96,7 +105,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     debugPrint('Trampoline: waiting for upload server...');
     final client = HttpClient();
     try {
-      for (var i = 0; i < 10; i++) {
+      for (var i = 0; i < 20; i++) {
         try {
           final req = await client.getUrl(Uri.parse('$_mdbUploadUrl/'));
           final resp = await req.close().timeout(const Duration(seconds: 2));
@@ -104,10 +113,10 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
           debugPrint('Trampoline: HTTP upload server ready (attempt ${i + 1})');
           return;
         } catch (_) {
-          await Future.delayed(const Duration(milliseconds: 500));
+          await Future.delayed(const Duration(seconds: 1));
         }
       }
-      throw Exception('Upload server not responsive after 5s');
+      throw Exception('Upload server not responsive after 20s');
     } finally {
       client.close();
     }
@@ -115,7 +124,11 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
 
   Future<void> _stopUploadServer() async {
     try {
-      await _ssh.runCommand('kill \$(pgrep -f upload_srv.py) 2>/dev/null; rm -f /tmp/upload_srv.py');
+      await _ssh.runCommand(
+        'kill \$(pgrep -f upload_srv) 2>/dev/null; '
+        'fuser -k 8080/tcp 2>/dev/null; '
+        'rm -f /tmp/upload_srv.py',
+      );
     } catch (_) {}
     debugPrint('Trampoline: HTTP upload server stopped');
   }

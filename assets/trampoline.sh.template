@@ -499,12 +499,18 @@ log "DBC flash complete and verified"
 log "Step 8: Post-flash cleanup..."
 signal_progress_off
 
-# Power cycle DBC so it boots the new firmware
-log "  power cycling DBC..."
-lsc --redis-addr localhost:6379 dbc off 2>/dev/null || true
-sleep 3
-lsc --redis-addr localhost:6379 dbc on-wait >> "$LOG_FILE" 2>&1 || log "  WARNING: dbc on-wait failed (DBC may reboot for resize)"
-log "  DBC power cycled"
+# Power cycle DBC to let it do first boot / partition resize
+log "  syncing..."
+sync
+log "  turning off DBC..."
+lsc --redis-addr localhost:6379 dbc off-wait 2>/dev/null || true
+sleep 1
+log "  turning on DBC (first boot)..."
+lsc --redis-addr localhost:6379 dbc on-wait >> "$LOG_FILE" 2>&1 || true
+sleep 1
+log "  syncing and turning off DBC..."
+sync
+lsc --redis-addr localhost:6379 dbc off-wait 2>/dev/null || true
 
 # Write /data/onboot.sh on MDB — runs automatically on next boot via
 # librescoot-onboot.service (ConditionPathExists=/data/onboot.sh)
@@ -549,18 +555,32 @@ else
   rm -f /data/onboot.sh
 fi
 
-# Power on DBC (may reboot once for partition resize)
-log "  powering on DBC..."
-lsc --redis-addr localhost:6379 dbc on-wait 2>/dev/null || log "  WARNING: dbc on-wait timed out"
+# Wait before powering on DBC — let MDB services settle
+log "  waiting 20s before powering on DBC..."
+sleep 20
 
-# Wait for DBC to be stable (it may reboot for partition resize)
-log "  waiting for DBC to be stable (10s consecutive ping)..."
+# Keep trying dbc on-wait until it succeeds — DBC may restart several times
+log "  powering on DBC (may take multiple attempts)..."
+ATTEMPTS=0
+while [ $ATTEMPTS -lt 5 ]; do
+  ATTEMPTS=$((ATTEMPTS + 1))
+  log "  dbc on-wait attempt $ATTEMPTS..."
+  lsc --redis-addr localhost:6379 dbc on-wait 2>/dev/null && break
+  log "  attempt $ATTEMPTS failed, retrying..."
+  sleep 5
+done
+
+# Wait for DBC to be stable (20s consecutive ping — DBC may reboot for resize)
+log "  waiting for DBC to be stable (20s consecutive ping)..."
 STABLE=0
 ELAPSED=0
-while [ $STABLE -lt 10 ] && [ $ELAPSED -lt 180 ]; do
+while [ $STABLE -lt 20 ] && [ $ELAPSED -lt 300 ]; do
   if ping -c 1 -W 2 $DBC_IP >/dev/null 2>&1; then
     STABLE=$((STABLE + 1))
   else
+    if [ $STABLE -gt 0 ]; then
+      log "  ping dropped after ${STABLE}s stable — DBC probably rebooting, resetting counter"
+    fi
     STABLE=0
   fi
   ELAPSED=$((ELAPSED + 2))
@@ -664,6 +684,5 @@ cat "$LOG_FILE" >> "$STATUS_FILE"
 bootled green
 signal_success
 [ -n "$JOURNAL_PID" ] && kill $JOURNAL_PID 2>/dev/null
-sync
 log "  rebooting MDB..."
 reboot

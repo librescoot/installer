@@ -1835,24 +1835,52 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
   }
 
+  bool _dbcFlashWatchStarted = false;
+  bool _dbcUsbDisconnected = false;
+
   Widget _buildDbcFlash(AppLocalizations l10n) {
+    // Start watching for USB disconnect and MDB reconnect
+    if (!_dbcFlashWatchStarted) {
+      _dbcFlashWatchStarted = true;
+      _watchDbcFlash();
+    }
+
+    if (!_dbcUsbDisconnected) {
+      // Step 1: waiting for user to swap cables
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(l10n.dbcFlashInProgress,
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 24),
+            InstructionStep(
+              number: 1,
+              title: l10n.disconnectUsbFromLaptop,
+              description: l10n.disconnectUsbFromLaptopDesc,
+            ),
+            InstructionStep(
+              number: 2,
+              title: l10n.reconnectDbcUsbToMdb,
+              description: l10n.reconnectDbcUsbToMdbDesc,
+            ),
+            const SizedBox(height: 16),
+            Text('Waiting for USB disconnect...',
+                style: TextStyle(color: Colors.grey.shade400)),
+            const SizedBox(height: 8),
+            const CircularProgressIndicator(),
+          ],
+        ),
+      );
+    }
+
+    // Step 2: USB disconnected — MDB is flashing autonomously
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(l10n.dbcFlashInProgress,
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 24),
-          InstructionStep(
-            number: 1,
-            title: l10n.disconnectUsbFromLaptop,
-            description: l10n.disconnectUsbFromLaptopDesc,
-          ),
-          InstructionStep(
-            number: 2,
-            title: l10n.reconnectDbcUsbToMdb,
-            description: l10n.reconnectDbcUsbToMdbDesc,
-          ),
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(16),
@@ -1866,39 +1894,82 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 Text(l10n.mdbFlashingDbcAutonomously,
                     style: const TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
+                Text('The DBC will turn on and off multiple times during this process. '
+                    'Do not disconnect the USB cable between MDB and DBC.',
+                    style: TextStyle(color: Colors.orange.shade300, fontSize: 13)),
+                const SizedBox(height: 12),
                 Text(l10n.watchLightsForProgress,
                     style: TextStyle(color: Colors.grey.shade400)),
                 const SizedBox(height: 8),
                 _ledSignal(l10n.ledFrontRingPulse, l10n.ledFrontRingPulseMeaning),
-                _ledSignal(l10n.ledFrontRingSolid, l10n.ledFrontRingSolidMeaning),
                 _ledSignal(l10n.ledBlinkerProgress, l10n.ledBlinkerProgressMeaning),
                 _ledSignal('Boot LED amber', 'Flashing in progress'),
                 _ledSignal(l10n.ledBootGreen, l10n.ledBootGreenMeaning),
+                _ledSignal('Boot LED red', 'Error — reconnect laptop to check log'),
                 _ledSignal(l10n.ledRearLightSolid, l10n.ledRearLightSolidMeaning),
               ],
             ),
           ),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: () {
-              _dbcFlashSimulateError = false;
-              _setPhase(InstallerPhase.reconnect);
-            },
-            icon: const Icon(Icons.arrow_forward),
-            label: Text(l10n.bootLedGreenReconnect),
-          ),
+          const SizedBox(height: 16),
           const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () {
-              _dbcFlashSimulateError = true;
-              _setPhase(InstallerPhase.reconnect);
-            },
-            icon: const Icon(Icons.warning, color: Colors.orange),
-            label: Text(l10n.rearLightCheckError),
+          Text('Flashing takes about 10 minutes. Reconnect the laptop USB cable when done.',
+              style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+          const SizedBox(height: 16),
+          Text(_statusMessage.isEmpty
+              ? 'Waiting for MDB to reconnect...'
+              : _statusMessage,
+              style: TextStyle(color: Colors.grey.shade400)),
+          const SizedBox(height: 8),
+          const CircularProgressIndicator(),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FilledButton.icon(
+                onPressed: () {
+                  _dbcFlashSimulateError = false;
+                  _setPhase(InstallerPhase.reconnect);
+                },
+                icon: const Icon(Icons.check_circle, color: Colors.green),
+                label: const Text('LED is green'),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                onPressed: () {
+                  _dbcFlashSimulateError = true;
+                  _setPhase(InstallerPhase.reconnect);
+                },
+                icon: const Icon(Icons.error, color: Colors.red),
+                label: const Text('LED is red'),
+              ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _watchDbcFlash() async {
+    // Wait for USB disconnect
+    while (mounted && _device != null) {
+      await Future.delayed(const Duration(seconds: 1));
+    }
+    if (!mounted) return;
+    setState(() => _dbcUsbDisconnected = true);
+    _setStatus('MDB disconnected — flashing DBC autonomously...');
+
+    // Poll for MDB reconnect every 10s
+    while (mounted) {
+      await Future.delayed(const Duration(seconds: 10));
+      if (_device != null && _device!.mode == DeviceMode.ethernet) {
+        _setStatus('MDB reconnected! Verifying...');
+        await Future.delayed(const Duration(seconds: 2));
+        if (mounted) {
+          _setPhase(InstallerPhase.reconnect);
+        }
+        return;
+      }
+    }
   }
 
   Widget _ledSignal(String signal, String meaning) {
