@@ -70,10 +70,13 @@ signal_progress_off() {
   for l in 3 4 7 6; do /usr/bin/ledcontrol.sh $l 3 2>/dev/null; done
 }
 
-# Monitor dd progress output and update blinker progress
+# Monitor dd progress output and update blinker progress.
+# dd writes progress updates with \r (not \n), so we convert \r to \n
+# with tr before reading lines.
 monitor_progress() {
   local total="$1" last_pct=-1
-  while IFS= read -r line; do
+  tr '\r' '\n' | while IFS= read -r line; do
+    [ -z "$line" ] && continue
     echo "$line" >> "$LOG_FILE"
     bytes=$(echo "$line" | grep -o '[0-9]* bytes' | grep -o '[0-9]*')
     if [ -n "$bytes" ] && [ "$total" -gt 0 ]; then
