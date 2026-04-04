@@ -69,6 +69,11 @@ enum InstallerPhase {
     description: 'Pair phone or other devices',
     isManual: true,
   ),
+  keycardSetup(
+    title: 'Keycard Setup',
+    description: 'Register master and user keycards',
+    isManual: true,
+  ),
   finish(
     title: 'Finish',
     description: 'Reassemble and welcome',
@@ -92,7 +97,7 @@ enum MajorStep {
   connect('Connect', [InstallerPhase.mdbConnect, InstallerPhase.healthCheck]),
   mdbFlash('MDB Flash', [InstallerPhase.batteryRemoval, InstallerPhase.mdbToUms, InstallerPhase.mdbFlash, InstallerPhase.scooterPrep, InstallerPhase.mdbBoot, InstallerPhase.cbbReconnect]),
   dbcFlash('DBC Flash', [InstallerPhase.dbcPrep, InstallerPhase.dbcFlash, InstallerPhase.reconnect]),
-  finish('Finish', [InstallerPhase.bluetoothPairing, InstallerPhase.finish]);
+  finish('Finish', [InstallerPhase.bluetoothPairing, InstallerPhase.keycardSetup, InstallerPhase.finish]);
 
   const MajorStep(this.title, this.phases);
 

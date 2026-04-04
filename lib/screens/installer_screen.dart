@@ -69,6 +69,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _bleConnected = false;
   Timer? _blePinPollTimer;
   bool _keycardLearning = false;
+  bool _keepCache = false;
   bool _isCriticalOperation = false; // prevent quit during flash/upload
   Process? _caffeinateProcess; // macOS sleep prevention
 
@@ -476,6 +477,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       InstallerPhase.dbcFlash => _buildDbcFlash(l10n),
       InstallerPhase.reconnect => _buildReconnect(l10n),
       InstallerPhase.bluetoothPairing => _buildBluetoothPairing(l10n),
+      InstallerPhase.keycardSetup => _buildKeycardSetup(l10n),
       InstallerPhase.finish => _buildFinish(l10n),
     };
   }
@@ -1607,21 +1609,17 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
   }
   bool _cbbAutoCheckStarted = false;
+  bool _cbbDetected = false;
 
   Widget _buildCbbReconnect(AppLocalizations l10n) {
-    // Auto-check CBB on enter
+    // Auto-check CBB on enter (but always show the screen for battery instruction)
     if (!_cbbAutoCheckStarted && !_isProcessing) {
       _cbbAutoCheckStarted = true;
       Future.microtask(() async {
         if (_isDryRun) return;
-        setState(() => _isProcessing = true);
-        _setStatus('Checking CBB...');
         if (await _sshService.isCbbPresent()) {
-          _setPhase(InstallerPhase.dbcPrep);
-          return;
+          setState(() => _cbbDetected = true);
         }
-        setState(() => _isProcessing = false);
-        _setStatus('');
       });
     }
     return Center(
@@ -1637,6 +1635,18 @@ class _InstallerScreenState extends State<InstallerScreen> {
             description: l10n.reconnectCbbDesc,
             imageAsset: 'assets/images/lsi-unu_scooter_cbb_connected.jpg',
           ),
+          if (_cbbDetected)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.check_circle, size: 16, color: Colors.tealAccent),
+                  const SizedBox(width: 8),
+                  Text('CBB detected', style: TextStyle(color: Colors.tealAccent, fontSize: 13)),
+                ],
+              ),
+            ),
           const SizedBox(height: 16),
           if (_isProcessing) ...[
             const CircularProgressIndicator(),
@@ -1669,7 +1679,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _setPhase(InstallerPhase.dbcPrep);
       return;
     }
-    _setStatus(l10n.checkingCbb);
+    _setStatus('Checking CBB and battery...');
     var attempts = 0;
     while (attempts < 30) {
       if (await _sshService.isCbbPresent()) {
@@ -1981,6 +1991,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
     _setStatus(l10n.readingTrampolineStatus);
     final status = await _sshService.readTrampolineStatus();
 
+    // Always clean up MDB trampoline files after reading status
+    await _cleanupMdb();
+
+    // Restart keycard service
+    try {
+      await _sshService.runCommand('systemctl start librescoot-keycard 2>/dev/null || systemctl start keycard-service 2>/dev/null || true');
+    } catch (_) {}
+
     if (status.result == TrampolineResult.success) {
       _setStatus(l10n.dbcFlashSuccessful);
       await Future.delayed(const Duration(seconds: 2));
@@ -2032,7 +2050,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
               ),
               const SizedBox(height: 12),
               TextButton(
-                onPressed: () => _setPhase(InstallerPhase.finish),
+                onPressed: () => _setPhase(InstallerPhase.keycardSetup),
                 child: Text(l10n.skipPairing),
               ),
             ],
@@ -2173,7 +2191,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _blePinCode = null;
       _bleConnected = false;
     });
-    _setPhase(InstallerPhase.finish);
+    _setPhase(InstallerPhase.keycardSetup);
   }
 
   Future<void> _startKeycardLearning() async {
@@ -2196,6 +2214,103 @@ class _InstallerScreenState extends State<InstallerScreen> {
       debugPrint('UI: failed to stop keycard learning: $e');
     }
     setState(() => _keycardLearning = false);
+  }
+
+  Widget _buildKeycardSetup(AppLocalizations l10n) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.nfc, size: 48, color: Colors.tealAccent),
+          const SizedBox(height: 16),
+          Text(l10n.keycardLearningHeading,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: 400,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l10n.keycardMasterHeading,
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade200)),
+                const SizedBox(height: 8),
+                Text(l10n.keycardLearningStep1,
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
+                const SizedBox(height: 4),
+                Text(l10n.keycardLearningStep2,
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
+                const SizedBox(height: 4),
+                Text(l10n.keycardLearningStep3,
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
+                const SizedBox(height: 4),
+                Text(l10n.keycardLearningStep4,
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 12),
+                Text(l10n.keycardNoMasterHeading,
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade200)),
+                const SizedBox(height: 8),
+                Text(l10n.keycardNoMasterHint,
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
+                const SizedBox(height: 16),
+                if (!_keycardLearning)
+                  OutlinedButton.icon(
+                    onPressed: _sshService.isConnected ? _startKeycardLearning : null,
+                    icon: const Icon(Icons.nfc, size: 18),
+                    label: Text(l10n.keycardStartLearning),
+                  )
+                else ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.tealAccent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.tealAccent.withValues(alpha: 0.3)),
+                    ),
+                    child: Column(
+                      children: [
+                        const Icon(Icons.contactless, size: 28, color: Colors.tealAccent),
+                        const SizedBox(height: 8),
+                        Text(l10n.keycardLearningActive,
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+                        const SizedBox(height: 4),
+                        Text(l10n.keycardLearningActiveHint,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: _stopKeycardLearning,
+                    icon: const Icon(Icons.check, size: 18),
+                    label: Text(l10n.keycardStopLearning),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextButton(
+                onPressed: () => _setPhase(InstallerPhase.finish),
+                child: const Text('Skip'),
+              ),
+              const SizedBox(width: 16),
+              FilledButton.icon(
+                onPressed: () => _setPhase(InstallerPhase.finish),
+                icon: const Icon(Icons.arrow_forward),
+                label: Text(l10n.continueButton),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildFinish(AppLocalizations l10n) {
@@ -2237,95 +2352,26 @@ class _InstallerScreenState extends State<InstallerScreen> {
               description: l10n.unlockScooterDesc,
             ),
             const SizedBox(height: 24),
-            // Keycard learning instructions
-            Container(
-              width: 400,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.teal.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.teal.withValues(alpha: 0.3)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.nfc, color: Colors.tealAccent, size: 20),
-                      const SizedBox(width: 8),
-                      Text(l10n.keycardLearningHeading,
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.tealAccent)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(l10n.keycardMasterHeading,
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade200)),
-                  const SizedBox(height: 8),
-                  Text(l10n.keycardLearningStep1,
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
-                  const SizedBox(height: 4),
-                  Text(l10n.keycardLearningStep2,
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
-                  const SizedBox(height: 4),
-                  Text(l10n.keycardLearningStep3,
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
-                  const SizedBox(height: 4),
-                  Text(l10n.keycardLearningStep4,
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
-                  const SizedBox(height: 16),
-                  const Divider(),
-                  const SizedBox(height: 12),
-                  Text(l10n.keycardNoMasterHeading,
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade200)),
-                  const SizedBox(height: 8),
-                  Text(l10n.keycardNoMasterHint,
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
-                  const SizedBox(height: 12),
-                  if (!_keycardLearning)
-                    OutlinedButton.icon(
-                      onPressed: _sshService.isConnected ? _startKeycardLearning : null,
-                      icon: const Icon(Icons.nfc, size: 18),
-                      label: Text(l10n.keycardStartLearning),
-                    )
-                  else ...[
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.tealAccent.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.tealAccent.withValues(alpha: 0.3)),
-                      ),
-                      child: Column(
-                        children: [
-                          const Icon(Icons.contactless, size: 28, color: Colors.tealAccent),
-                          const SizedBox(height: 8),
-                          Text(l10n.keycardLearningActive,
-                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.tealAccent)),
-                          const SizedBox(height: 4),
-                          Text(l10n.keycardLearningActiveHint,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    FilledButton.icon(
-                      onPressed: _stopKeycardLearning,
-                      icon: const Icon(Icons.check, size: 18),
-                      label: Text(l10n.keycardStopLearning),
-                    ),
-                  ],
-                ],
-              ),
+            CheckboxListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Keep cached downloads'),
+              subtitle: Text('${_totalCacheSizeMb()} MB on disk',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+              value: _keepCache,
+              onChanged: (v) => setState(() => _keepCache = v ?? false),
             ),
-            const SizedBox(height: 24),
-            if (_downloadState.items.isNotEmpty)
-              OutlinedButton.icon(
-                onPressed: _offerCleanup,
-                icon: const Icon(Icons.delete_outline),
-                label: Text(l10n.deleteCachedDownloads(_totalCacheSizeMb())),
-              ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () async {
+                if (!_keepCache) {
+                  await _offerCleanup();
+                }
+                if (mounted) exit(0);
+              },
+              icon: const Icon(Icons.check_circle),
+              label: const Text('Finished'),
+            ),
           ],
         ),
       ),
@@ -2337,25 +2383,26 @@ class _InstallerScreenState extends State<InstallerScreen> {
     return (total / 1024 / 1024).toStringAsFixed(0);
   }
 
+  Future<void> _cleanupMdb() async {
+    if (!_sshService.isConnected) return;
+    try {
+      await _sshService.runCommand(
+        'rm -f /data/librescoot-unu-*.sdimg.gz /data/librescoot-unu-*.sdimg.bmap '
+        '/data/tiles_*.mbtiles /data/valhalla_tiles_*.tar '
+        '/data/trampoline.sh /data/trampoline.log /data/trampoline-status '
+        '/data/trampoline-stdout.log /data/test-trampoline-*.sh /data/test-step*.log; '
+        'rm -rf /data/fwtools',
+      );
+      debugPrint('Cleanup: removed trampoline and image files from MDB');
+    } catch (e) {
+      debugPrint('Cleanup: MDB cleanup failed: $e');
+    }
+  }
+
   Future<void> _offerCleanup() async {
     final l10n = AppLocalizations.of(context)!;
     final freed = await _downloadService.deleteCache(_downloadState.items);
-
-    // Also clean up trampoline files on MDB
-    if (_sshService.isConnected) {
-      try {
-        await _sshService.runCommand(
-          'rm -f /data/*.sdimg.gz /data/*.sdimg.bmap /data/trampoline.sh '
-          '/data/trampoline.log /data/trampoline-status '
-          '/data/test-trampoline-*.sh /data/test-step*.log; '
-          'rm -rf /data/fwtools',
-        );
-        debugPrint('Cleanup: removed trampoline files from MDB');
-      } catch (e) {
-        debugPrint('Cleanup: MDB cleanup failed: $e');
-      }
-    }
-
+    await _cleanupMdb();
     if (mounted) {
       _setStatus(l10n.deletedCache((freed / 1024 / 1024).toStringAsFixed(0)));
     }

@@ -469,6 +469,11 @@ else
   rm -f /data/onboot.sh
 fi
 
+# Power on DBC
+log "  powering on DBC..."
+lsc dbc on 2>/dev/null || true
+sleep 5
+
 # Wait for DBC to be reachable
 log "  waiting for DBC SSH..."
 ELAPSED=0

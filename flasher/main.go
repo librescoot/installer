@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var version = "dev"
@@ -50,8 +51,18 @@ func main() {
 	fmt.Fprintf(os.Stderr, "DONE\n")
 }
 
-// progress reports bytes written to stderr for the parent process to parse.
+// progress reports bytes written to stderr, throttled to at most once per second.
+var lastProgressTime time.Time
+
 func progress(written int64) {
+	now := time.Now()
+	if now.Sub(lastProgressTime) >= time.Second {
+		fmt.Fprintf(os.Stderr, "PROGRESS:%d\n", written)
+		lastProgressTime = now
+	}
+}
+
+func progressFinal(written int64) {
 	fmt.Fprintf(os.Stderr, "PROGRESS:%d\n", written)
 }
 
@@ -126,6 +137,7 @@ func flashSequential(imagePath, devicePath string) error {
 	}
 
 	dev.Sync()
+	progressFinal(totalWritten)
 	fmt.Fprintf(os.Stderr, "Written %d bytes\n", totalWritten)
 	return nil
 }
@@ -180,6 +192,7 @@ func flashTwoPhase(imagePath, devicePath string, bootBlocks int) error {
 	}
 	src.Close()
 	dev.Sync()
+	progressFinal(written)
 	fmt.Fprintf(os.Stderr, "Phase A: %d bytes written\n", written)
 
 	// Phase B: write boot area
@@ -214,6 +227,7 @@ func flashTwoPhase(imagePath, devicePath string, bootBlocks int) error {
 	}
 	src.Close()
 	dev.Sync()
+	progressFinal(written)
 	fmt.Fprintf(os.Stderr, "Phase B: %d bytes written (boot area)\n", written)
 
 	return nil
@@ -327,6 +341,7 @@ func flashWithBmap(imagePath, bmapPath, devicePath string) error {
 				}
 				totalWritten += int64(n)
 				srcPos += int64(n)
+				progress(totalWritten)
 			}
 			if readErr == io.EOF || readErr == io.ErrUnexpectedEOF {
 				break
@@ -346,10 +361,10 @@ func flashWithBmap(imagePath, bmapPath, devicePath string) error {
 			}
 		}
 
-		progress(totalWritten)
 	}
 
 	dev.Sync()
+	progressFinal(totalWritten)
 	fmt.Fprintf(os.Stderr, "Written %d bytes (%d mapped blocks)\n", totalWritten, bmap.MappedBlocksCount)
 
 	if checksumErrors > 0 {

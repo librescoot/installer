@@ -785,6 +785,24 @@ class FlashService {
     return null;
   }
 
+  /// Parse bmap XML to get total mapped bytes
+  Future<int?> _estimateBmapBytes(String bmapPath) async {
+    try {
+      final content = await File(bmapPath).readAsString();
+      // Parse MappedBlocksCount and BlockSize from XML
+      final mappedMatch = RegExp(r'<MappedBlocksCount>\s*(\d+)\s*</MappedBlocksCount>').firstMatch(content);
+      final blockSizeMatch = RegExp(r'<BlockSize>\s*(\d+)\s*</BlockSize>').firstMatch(content);
+      if (mappedMatch != null) {
+        final mapped = int.parse(mappedMatch.group(1)!);
+        final bs = blockSizeMatch != null ? int.parse(blockSizeMatch.group(1)!) : 4096;
+        return mapped * bs;
+      }
+    } catch (e) {
+      debugPrint('Flash: failed to parse bmap: $e');
+    }
+    return null;
+  }
+
   /// Locate the Go flasher binary (librescoot-flasher)
   Future<String?> _getFlasherPath() async {
     final execDir = path.dirname(Platform.resolvedExecutable);
@@ -794,6 +812,8 @@ class FlashService {
     ];
     for (final candidate in candidates) {
       if (await File(candidate).exists()) {
+        // Flutter strips execute permission from bundled assets
+        await Process.run('chmod', ['+x', candidate]);
         debugPrint('Flash: found Go flasher at $candidate');
         return candidate;
       }
@@ -821,8 +841,15 @@ class FlashService {
     final command = isRoot ? args.join(' ') : 'pkexec ${args.join(' ')}';
     debugPrint('Flash: running: $command');
 
-    final imageSize = await _estimateImageSizeBytes(imagePath, imagePath.endsWith('.gz'));
-    final totalBytes = imageSize ?? 0;
+    // For bmap, parse mapped block count for accurate progress
+    int totalBytes;
+    if (bmapPath != null) {
+      totalBytes = await _estimateBmapBytes(bmapPath) ?? 0;
+      debugPrint('Flash: bmap mapped bytes: $totalBytes');
+    } else {
+      totalBytes = await _estimateImageSizeBytes(imagePath, imagePath.endsWith('.gz')) ?? 0;
+    }
+    final totalMb = totalBytes / (1024 * 1024);
     final stopwatch = Stopwatch()..start();
 
     onProgress?.call(0.0, bmapPath != null ? 'Bmap flash...' : 'Phase A: Writing partitions...');
@@ -849,7 +876,7 @@ class FlashService {
               final remaining = (elapsed / fraction) * (1.0 - fraction);
               eta = ' — ${remaining ~/ 60}m ${(remaining % 60).floor()}s remaining';
             }
-            onProgress?.call(fraction, '${mb.toStringAsFixed(0)} MB written$eta');
+            onProgress?.call(fraction, '${mb.toStringAsFixed(0)} / ${totalMb.toStringAsFixed(0)} MB written$eta');
           }
         }
         if (line.startsWith('CHECKSUM MISMATCH')) {

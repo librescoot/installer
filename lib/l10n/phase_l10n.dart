@@ -17,6 +17,7 @@ extension InstallerPhaseL10n on InstallerPhase {
         InstallerPhase.dbcFlash => l10n.phaseDbcFlashTitle,
         InstallerPhase.reconnect => l10n.phaseReconnectTitle,
         InstallerPhase.bluetoothPairing => l10n.phaseBluetoothPairingTitle,
+        InstallerPhase.keycardSetup => 'Keycard Setup',
         InstallerPhase.finish => l10n.phaseFinishTitle,
       };
 
@@ -35,6 +36,7 @@ extension InstallerPhaseL10n on InstallerPhase {
         InstallerPhase.dbcFlash => l10n.phaseDbcFlashDescription,
         InstallerPhase.reconnect => l10n.phaseReconnectDescription,
         InstallerPhase.bluetoothPairing => l10n.phaseBluetoothPairingDescription,
+        InstallerPhase.keycardSetup => 'Register master and user keycards',
         InstallerPhase.finish => l10n.phaseFinishDescription,
       };
 }
