@@ -781,9 +781,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
             description: l10n.connectLaptopUsbDesc,
           ),
           const SizedBox(height: 24),
-          if (_downloadState.items.isNotEmpty)
-            DownloadProgressWidget(items: _downloadState.items),
-          const SizedBox(height: 16),
           Align(
             alignment: Alignment.centerRight,
             child: FilledButton.icon(
@@ -1380,9 +1377,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
       debugPrint('Flash: device path resolved: $devicePath');
 
       final flashService = FlashService();
+      final bmapPath = _downloadState.bmapPathFor(DownloadItemType.mdbFirmware);
       await flashService.writeTwoPhase(
         mdbItem.localPath!,
         devicePath,
+        bmapPath: bmapPath,
         onProgress: (progress, message) {
           _setStatus(message, progress: progress);
         },
@@ -1607,7 +1606,24 @@ class _InstallerScreenState extends State<InstallerScreen> {
       return false;
     }
   }
+  bool _cbbAutoCheckStarted = false;
+
   Widget _buildCbbReconnect(AppLocalizations l10n) {
+    // Auto-check CBB on enter
+    if (!_cbbAutoCheckStarted && !_isProcessing) {
+      _cbbAutoCheckStarted = true;
+      Future.microtask(() async {
+        if (_isDryRun) return;
+        setState(() => _isProcessing = true);
+        _setStatus('Checking CBB...');
+        if (await _sshService.isCbbPresent()) {
+          _setPhase(InstallerPhase.dbcPrep);
+          return;
+        }
+        setState(() => _isProcessing = false);
+        _setStatus('');
+      });
+    }
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1687,12 +1703,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
           SizedBox(
-            width: 400,
+            width: 500,
             child: Column(
               children: [
                 LinearProgressIndicator(value: _progress, minHeight: 8),
                 const SizedBox(height: 8),
-                Text(_statusMessage, style: TextStyle(color: Colors.grey.shade400)),
+                Text(_statusMessage,
+                    style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                    textAlign: TextAlign.center),
               ],
             ),
           ),
@@ -1875,7 +1893,19 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 Future.microtask(_verifyDbcFlash);
               },
               icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
+              label: const Text('Retry verification'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () {
+                setState(() {
+                  _dbcPrepStarted = false;
+                  _reconnectStarted = false;
+                });
+                _setPhase(InstallerPhase.dbcPrep);
+              },
+              icon: const Icon(Icons.replay),
+              label: const Text('Retry DBC flash'),
             ),
             const SizedBox(height: 8),
             TextButton(
@@ -1972,10 +2002,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
           ),
         );
       }
-      setState(() { _isProcessing = false; _reconnectStarted = false; });
+      setState(() => _isProcessing = false);
     } else {
       _setStatus(l10n.trampolineStatusUnknown);
-      setState(() { _isProcessing = false; _reconnectStarted = false; });
+      setState(() => _isProcessing = false);
     }
   }
 
@@ -2310,6 +2340,22 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _offerCleanup() async {
     final l10n = AppLocalizations.of(context)!;
     final freed = await _downloadService.deleteCache(_downloadState.items);
+
+    // Also clean up trampoline files on MDB
+    if (_sshService.isConnected) {
+      try {
+        await _sshService.runCommand(
+          'rm -f /data/*.sdimg.gz /data/*.sdimg.bmap /data/trampoline.sh '
+          '/data/trampoline.log /data/trampoline-status '
+          '/data/test-trampoline-*.sh /data/test-step*.log; '
+          'rm -rf /data/fwtools',
+        );
+        debugPrint('Cleanup: removed trampoline files from MDB');
+      } catch (e) {
+        debugPrint('Cleanup: MDB cleanup failed: $e');
+      }
+    }
+
     if (mounted) {
       _setStatus(l10n.deletedCache((freed / 1024 / 1024).toStringAsFixed(0)));
     }

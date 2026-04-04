@@ -330,7 +330,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get readyToFlashHint =>
-      'The device is in flashing mode. You can create manual backups via SSH before proceeding.';
+      'The device is in flashing mode. You can mount the device to create manual backups before proceeding.';
 
   @override
   String get beginFlashing => 'Begin flashing';
@@ -422,14 +422,14 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get reconnectCbbHeading => 'Reconnect CBB';
+  String get reconnectCbbHeading => 'Reconnect CBB & Battery';
 
   @override
-  String get reconnectCbb => 'Reconnect the CBB';
+  String get reconnectCbb => 'Reinstall the main battery and reconnect the CBB';
 
   @override
   String get reconnectCbbDesc =>
-      'Plug the CBB cable back in. This provides more power for the DBC flash.';
+      'Put the main battery back in the seatbox and plug the CBB cable back in. The scooter needs full power for the DBC flash.';
 
   @override
   String get verifyCbbConnection => 'Verify CBB Connection';

@@ -276,16 +276,27 @@ sleep 2
 ifconfig usb0 192.168.7.1 netmask 255.255.255.0 up 2>/dev/null || true
 log "  usb0 ready"
 
-# Step 3: Power on DBC, wait for SSH
-log "Step 3: Powering on DBC..."
-lsc dbc on-wait >> "$LOG_FILE" 2>&1 || log "  WARNING: dbc on-wait non-zero"
-wait_dbc_ssh 90 || fail "DBC SSH not reachable"
-log "DBC reachable"
+# Step 3: Check if DBC is already in UMS mode (e.g. retry after failed flash)
+# Only check if we're already in host mode — don't switch roles, it breaks gadget
+log "Step 3: Checking if DBC is already in UMS mode..."
+DBC_ALREADY_UMS=""
+CURRENT_ROLE=$(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)
+if [ "$CURRENT_ROLE" = "host" ] && lsusb 2>/dev/null | grep -q "0525:a4a5"; then
+  DBC_ALREADY_UMS="yes"
+  log "  DBC is already in UMS mode — skipping steps 3-4"
+else
+  log "  DBC not in UMS mode (role=$CURRENT_ROLE) — proceeding with normal flow"
+fi
 
-# Progress uses blinker LEDs via PWM ioctl (dim glow + breathing)
+if [ "$DBC_ALREADY_UMS" != "yes" ]; then
+  # Power on DBC, wait for SSH
+  log "Step 3: Powering on DBC..."
+  lsc dbc on-wait >> "$LOG_FILE" 2>&1 || log "  WARNING: dbc on-wait non-zero"
+  wait_dbc_ssh 90 || fail "DBC SSH not reachable"
+  log "DBC reachable"
 
-# Step 4: Configure DBC for UMS
-log "Step 4: Setting DBC bootloader to UMS mode..."
+  # Step 4: Configure DBC for UMS
+  log "Step 4: Setting DBC bootloader to UMS mode..."
 
 # Check native fw_setenv (LibreScoot DBC) vs stock
 HAS_NATIVE=$(ssh root@$DBC_IP 'test -x /usr/bin/fw_setenv && test -f /etc/fw_env.config && echo yes' 2>/dev/null || echo no)
@@ -315,13 +326,19 @@ log "  rebooting DBC..."
 dbc_ssh 'systemctl reboot' >> "$LOG_FILE" 2>&1 || true
 log "  waiting 30s..."
 sleep 30
+fi  # end of DBC_ALREADY_UMS != yes
 
-# Step 5: Switch MDB to USB host
+# Step 5: Switch MDB to USB host (may already be in host mode if DBC was in UMS)
 log "Step 5: Switching to USB host mode..."
-rmmod g_ether 2>/dev/null || true
-sleep 1
-echo host > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null || fail "Failed to switch to host mode"
-sleep 3
+CURRENT_ROLE=$(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)
+if [ "$CURRENT_ROLE" != "host" ]; then
+  rmmod g_ether 2>/dev/null || true
+  sleep 1
+  echo host > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null || fail "Failed to switch to host mode"
+  sleep 3
+else
+  log "  already in host mode"
+fi
 log "  role: $(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)"
 log "  lsusb: $(lsusb 2>/dev/null | grep 0525 || echo 'no 0525')"
 
@@ -361,22 +378,22 @@ while [ $ATTEMPT -lt 3 ]; do
   log "  flash attempt $ATTEMPT/3..."
 
   signal_progress 0
+  WROTE_OK=""
   if [ -f "$DBC_BMAP" ] && command -v bmap-writer >/dev/null 2>&1; then
     log "  using bmap-writer (bmap: $DBC_BMAP)"
-    bmap-writer --bmap "$DBC_BMAP" "$DBC_IMAGE" "$DBC_DEV" 2>&1 | tee -a "$LOG_FILE"
-    DD_RC=$?
-  else
-    [ ! -f "$DBC_BMAP" ] && log "  no bmap file, using dd"
-    ! command -v bmap-writer >/dev/null 2>&1 && log "  bmap-writer not found, using dd"
+    BMAP_OUT=$(bmap-writer "$DBC_IMAGE" "$DBC_BMAP" "$DBC_DEV" 2>&1)
+    BMAP_RC=$?
+    echo "$BMAP_OUT" >> "$LOG_FILE"
+    if [ $BMAP_RC -eq 0 ] && ! echo "$BMAP_OUT" | grep -q "invalid option\|Unknown option\|Usage:"; then
+      WROTE_OK="yes"
+    else
+      log "  bmap-writer failed (rc=$BMAP_RC), falling back to dd"
+    fi
+  fi
+  if [ "$WROTE_OK" != "yes" ]; then
+    log "  using dd (oflag=direct)..."
     gunzip -c "$DBC_IMAGE" | dd bs=4M iflag=fullblock of=$DBC_DEV oflag=direct status=progress 2>&1 \
       | monitor_progress "$IMAGE_SIZE"
-    DD_RC=0  # rely on md5 verification to catch failures
-  fi
-  log "  flash exit: $DD_RC"
-
-  if [ $DD_RC -ne 0 ]; then
-    log "  dd failed, retrying..."
-    continue
   fi
 
   sync
@@ -398,97 +415,108 @@ done
 [ "$FLASH_OK" != "yes" ] && fail "DBC flash failed after 3 attempts"
 log "DBC flash complete and verified"
 
-# Step 8: Reboot MDB to restore gadget mode
-# Gadget restore after host mode is unreliable — reboot is the only safe way.
-# Steps 9-10 (tiles, firstrun) will run after MDB reboots via phase2 script.
-log "Step 8: Flash complete. Rebooting MDB to restore USB gadget..."
+# Step 8: Power cycle DBC, write onboot script, reboot MDB
+log "Step 8: Post-flash cleanup..."
 signal_progress_off
 
-# Write phase2 script for post-reboot tasks
-cat > /data/trampoline-phase2.sh << PHASE2
-#!/bin/sh
-LOG="$LOG_FILE"
-DBC_IP="$DBC_IP"
-INSTALL_TILES="$INSTALL_TILES"
-OSM_TILES_FILE="$OSM_TILES_FILE"
-VALHALLA_TILES_FILE="$VALHALLA_TILES_FILE"
-STATUS_FILE="$STATUS_FILE"
-
-log() { echo "\$(date '+%H:%M:%S') \$1" >> "\$LOG"; }
-dbc_ssh() { local t=0; while [ \$t -lt 3 ]; do ssh root@\$DBC_IP "\$@" && return 0; t=\$((t+1)); sleep 3; done; return 1; }
-dbc_scp() { local t=0; while [ \$t -lt 3 ]; do scp "\$@" && return 0; t=\$((t+1)); sleep 3; done; return 1; }
-
-log "Phase 2: Post-reboot DBC setup"
-
-# Remove ourselves
-rm -f /etc/systemd/system/trampoline-phase2.service
-systemctl daemon-reload 2>/dev/null
-
-# Power cycle DBC and wait
+# Power cycle DBC so it boots the new firmware
 log "  power cycling DBC..."
 lsc dbc off 2>/dev/null || true
 sleep 3
 lsc dbc on 2>/dev/null || true
-log "  waiting 20s for DBC filesystem expand..."
-sleep 20
+log "  DBC power cycled"
 
-# Wait for SSH
-log "  waiting for DBC SSH..."
-ELAPSED=0
-while [ \$ELAPSED -lt 90 ]; do
-  ssh root@\$DBC_IP 'echo ok' >/dev/null 2>&1 && break
-  ELAPSED=\$((ELAPSED + 3))
-  sleep 3
-done
+# Write /data/onboot.sh on MDB — runs automatically on next boot via
+# librescoot-onboot.service (ConditionPathExists=/data/onboot.sh)
+# This handles tile installation to DBC after MDB reboots.
+# Back up existing onboot.sh if present
+if [ -f /data/onboot.sh ]; then
+  log "  backing up existing /data/onboot.sh to /data/onboot.sh.bak"
+  cp /data/onboot.sh /data/onboot.sh.bak
+fi
+log "  writing /data/onboot.sh for post-reboot tile installation..."
+cat > /data/onboot.sh << 'ONBOOT'
+#!/bin/sh
+# Auto-generated by installer trampoline — runs once on MDB boot
+LOG="/data/trampoline.log"
+DBC_IP="192.168.7.2"
+STATUS_FILE="/data/trampoline-status"
 
-if [ \$ELAPSED -ge 90 ]; then
-  log "WARNING: DBC SSH not reachable"
+log() { echo "$(date '+%H:%M:%S') $1" >> "$LOG"; }
+dbc_ssh() { local t=0; while [ $t -lt 3 ]; do ssh root@$DBC_IP "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
+dbc_scp() { local t=0; while [ $t -lt 3 ]; do scp "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
+
+log "Onboot: post-reboot DBC tile installation"
+
+# Stop keycard service for LED control
+systemctl stop librescoot-keycard keycard-service 2>/dev/null || true
+
+# Set boot LED to amber (working)
+i2cset -f -y 2 0x30 0x0D 0xFF 2>/dev/null
+i2cset -f -y 2 0x30 0x01 0x3F 2>/dev/null
+i2cset -f -y 2 0x30 0x70 0x00 2>/dev/null
+i2cset -f -y 2 0x30 0x08 0x61 2>/dev/null
+i2cset -f -y 2 0x30 0x00 0xC0 2>/dev/null
+i2cset -f -y 2 0x30 0x05 0xAF 2>/dev/null
+i2cset -f -y 2 0x30 0x06 0xAF 2>/dev/null
+i2cset -f -y 2 0x30 0x07 0xAF 2>/dev/null
+i2cset -f -y 2 0x30 0x02 0xFF; i2cset -f -y 2 0x30 0x03 0x00; i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
+
+# Restore original onboot.sh if backed up, otherwise delete ourselves
+if [ -f /data/onboot.sh.bak ]; then
+  mv /data/onboot.sh.bak /data/onboot.sh
 else
-  log "  DBC SSH reachable"
-
-  if [ "\$INSTALL_TILES" = "true" ]; then
-    log "  installing tiles..."
-    dbc_ssh "mkdir -p /data/maps /data/valhalla" || log "WARNING: mkdir failed"
-    if [ -n "\$OSM_TILES_FILE" ] && [ -f "\$OSM_TILES_FILE" ]; then
-      log "  display tiles..."
-      dbc_scp "\$OSM_TILES_FILE" root@\$DBC_IP:/data/maps/map.mbtiles || log "WARNING: display tiles failed"
-    fi
-    if [ -n "\$VALHALLA_TILES_FILE" ] && [ -f "\$VALHALLA_TILES_FILE" ]; then
-      log "  routing tiles..."
-      dbc_scp "\$VALHALLA_TILES_FILE" root@\$DBC_IP:/data/valhalla/tiles.tar || log "WARNING: routing tiles failed"
-      dbc_ssh "systemctl restart valhalla" 2>/dev/null || true
-    fi
-    log "  tiles done"
-  fi
-
+  rm -f /data/onboot.sh
 fi
 
+# Wait for DBC to be reachable
+log "  waiting for DBC SSH..."
+ELAPSED=0
+while [ $ELAPSED -lt 120 ]; do
+  ssh root@$DBC_IP 'echo ok' >/dev/null 2>&1 && break
+  ELAPSED=$((ELAPSED + 5))
+  sleep 5
+done
+
+if [ $ELAPSED -ge 120 ]; then
+  log "WARNING: DBC not reachable after 120s — skipping tiles"
+  echo "success" > "$STATUS_FILE"
+  cat "$LOG" >> "$STATUS_FILE"
+  exit 0
+fi
+log "  DBC reachable"
+ONBOOT
+
+# Append tile installation commands with actual paths
+if [ "$INSTALL_TILES" = "true" ]; then
+  cat >> /data/onboot.sh << TILES
+dbc_ssh "mkdir -p /data/maps /data/valhalla" || log "WARNING: mkdir failed"
+if [ -f "$OSM_TILES_FILE" ]; then
+  log "  installing display tiles..."
+  dbc_scp "$OSM_TILES_FILE" root@\$DBC_IP:/data/maps/map.mbtiles || log "WARNING: display tiles failed"
+  log "  display tiles done"
+fi
+if [ -f "$VALHALLA_TILES_FILE" ]; then
+  log "  installing routing tiles..."
+  dbc_scp "$VALHALLA_TILES_FILE" root@\$DBC_IP:/data/valhalla/tiles.tar || log "WARNING: routing tiles failed"
+  dbc_ssh "systemctl restart valhalla" 2>/dev/null || true
+  log "  routing tiles done"
+fi
+TILES
+fi
+
+cat >> /data/onboot.sh << 'ONBOOT_END'
 log "=========================================="
-log "Trampoline complete - SUCCESS"
+log "Installation complete - SUCCESS"
 log "=========================================="
-echo "success" > "\$STATUS_FILE"
-cat "\$LOG" >> "\$STATUS_FILE"
-PHASE2
-chmod +x /data/trampoline-phase2.sh
+echo "success" > "$STATUS_FILE"
+cat "$LOG" >> "$STATUS_FILE"
 
-# Create oneshot systemd service for phase2
-cat > /etc/systemd/system/trampoline-phase2.service << SVC
-[Unit]
-Description=LibreScoot Trampoline Phase 2
-After=network.target librescoot-vehicle.service
-Wants=network.target
-
-[Service]
-Type=oneshot
-ExecStart=/data/trampoline-phase2.sh
-RemainAfterExit=no
-
-[Install]
-WantedBy=multi-user.target
-SVC
-systemctl daemon-reload
-systemctl enable trampoline-phase2.service
-log "  phase2 service installed"
+# Set boot LED to green (done)
+i2cset -f -y 2 0x30 0x02 0x00; i2cset -f -y 2 0x30 0x03 0xFF; i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
+ONBOOT_END
+chmod +x /data/onboot.sh
+log "  onboot.sh written"
 
 # Mark as rebooting (installer checks for "success" or "rebooting")
 echo "rebooting" > "$STATUS_FILE"

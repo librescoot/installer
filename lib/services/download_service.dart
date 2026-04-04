@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 
@@ -286,6 +287,41 @@ class DownloadService {
 
     await partFile.rename(targetFile.path);
     item.localPath = targetFile.path;
+
+    // Clean up old versions of the same type in the cache
+    await _cleanupOldVersions(cacheDir, item);
+  }
+
+  /// Delete older cached files of the same type and channel
+  Future<void> _cleanupOldVersions(Directory cacheDir, DownloadItem item) async {
+    // Extract channel-aware prefix from filename
+    // e.g. "librescoot-unu-mdb-nightly-20260404T112344.sdimg.gz" -> "librescoot-unu-mdb-nightly-"
+    // e.g. "tiles_berlin_brandenburg.mbtiles" -> "tiles_" (no channel)
+    final name = item.filename;
+    final String prefix;
+    final channelMatch = RegExp(r'^(.*?-(?:nightly|testing|stable)-)').firstMatch(name);
+    if (channelMatch != null) {
+      prefix = channelMatch.group(1)!;
+    } else {
+      // Tiles etc — use everything before the first digit/date
+      final tileMatch = RegExp(r'^([a-z_]+)').firstMatch(name);
+      prefix = tileMatch?.group(1) ?? name.substring(0, 5);
+    }
+
+    final suffix = name.endsWith('.bmap') ? '.bmap' : p.extension(name);
+
+    try {
+      await for (final entity in cacheDir.list()) {
+        if (entity is! File) continue;
+        final name = p.basename(entity.path);
+        if (name.startsWith(prefix) && name.endsWith(suffix) && name != item.filename) {
+          debugPrint('Cache cleanup: deleting old $name');
+          await entity.delete();
+        }
+      }
+    } catch (e) {
+      debugPrint('Cache cleanup error: $e');
+    }
   }
 
   /// Download all items in order, calling onProgress for each.

@@ -85,3 +85,30 @@ enum InstallerPhase {
   final String description;
   final bool isManual;
 }
+
+/// Major step grouping for sidebar display
+enum MajorStep {
+  prepare('Prepare', [InstallerPhase.welcome, InstallerPhase.physicalPrep]),
+  connect('Connect', [InstallerPhase.mdbConnect, InstallerPhase.healthCheck]),
+  mdbFlash('MDB Flash', [InstallerPhase.batteryRemoval, InstallerPhase.mdbToUms, InstallerPhase.mdbFlash, InstallerPhase.scooterPrep, InstallerPhase.mdbBoot, InstallerPhase.cbbReconnect]),
+  dbcFlash('DBC Flash', [InstallerPhase.dbcPrep, InstallerPhase.dbcFlash, InstallerPhase.reconnect]),
+  finish('Finish', [InstallerPhase.bluetoothPairing, InstallerPhase.finish]);
+
+  const MajorStep(this.title, this.phases);
+
+  final String title;
+  final List<InstallerPhase> phases;
+
+  bool containsPhase(InstallerPhase phase) => phases.contains(phase);
+
+  bool isActive(InstallerPhase currentPhase) => containsPhase(currentPhase);
+
+  bool isCompleted(InstallerPhase currentPhase) {
+    if (phases.isEmpty) return false;
+    return currentPhase.index > phases.last.index;
+  }
+
+  static MajorStep forPhase(InstallerPhase phase) {
+    return MajorStep.values.firstWhere((s) => s.containsPhase(phase));
+  }
+}

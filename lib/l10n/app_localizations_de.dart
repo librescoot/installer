@@ -335,7 +335,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get readyToFlashHint =>
-      'Das Gerät ist im Flash-Modus. Du kannst vor dem Fortfahren manuelle Backups per SSH erstellen.';
+      'Das Gerät ist im Flash-Modus. Du kannst das Gerät mounten, um vor dem Fortfahren manuelle Backups zu erstellen.';
 
   @override
   String get beginFlashing => 'Flashen starten';
@@ -427,14 +427,15 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get reconnectCbbHeading => 'CBB wieder anschließen';
+  String get reconnectCbbHeading => 'CBB & Batterie wieder anschließen';
 
   @override
-  String get reconnectCbb => 'CBB wieder anschließen';
+  String get reconnectCbb =>
+      'Hauptbatterie einsetzen und CBB wieder anschließen';
 
   @override
   String get reconnectCbbDesc =>
-      'Stecke das CBB-Kabel wieder ein. Das sorgt für mehr Leistung beim DBC-Flash.';
+      'Setze die Hauptbatterie wieder in die Sitzbank ein und stecke das CBB-Kabel wieder ein. Der Roller braucht volle Leistung für den DBC-Flash.';
 
   @override
   String get verifyCbbConnection => 'CBB-Verbindung prüfen';

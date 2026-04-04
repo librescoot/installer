@@ -140,9 +140,9 @@
   "reconnectingSsh": "SSH wird neu verbunden...",
   "sshReconnectionFailed": "SSH-Neuverbindung fehlgeschlagen: {error}",
 
-  "reconnectCbbHeading": "CBB wieder anschlie\u00dfen",
-  "reconnectCbb": "CBB wieder anschlie\u00dfen",
-  "reconnectCbbDesc": "Stecke das CBB-Kabel wieder ein. Das sorgt f\u00fcr mehr Leistung beim DBC-Flash.",
+  "reconnectCbbHeading": "CBB & Batterie wieder anschlie\u00dfen",
+  "reconnectCbb": "Hauptbatterie einsetzen und CBB wieder anschlie\u00dfen",
+  "reconnectCbbDesc": "Setze die Hauptbatterie wieder in die Sitzbank ein und stecke das CBB-Kabel wieder ein. Der Roller braucht volle Leistung f\u00fcr den DBC-Flash.",
   "verifyCbbConnection": "CBB-Verbindung pr\u00fcfen",
   "checkingCbb": "CBB wird gepr\u00fcft...",
   "cbbConnected": "CBB verbunden!",

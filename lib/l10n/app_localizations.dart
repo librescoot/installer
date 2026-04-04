@@ -707,7 +707,7 @@ abstract class AppLocalizations {
   /// No description provided for @readyToFlashHint.
   ///
   /// In en, this message translates to:
-  /// **'The device is in flashing mode. You can create manual backups via SSH before proceeding.'**
+  /// **'The device is in flashing mode. You can mount the device to create manual backups before proceeding.'**
   String get readyToFlashHint;
 
   /// No description provided for @beginFlashing.
@@ -863,19 +863,19 @@ abstract class AppLocalizations {
   /// No description provided for @reconnectCbbHeading.
   ///
   /// In en, this message translates to:
-  /// **'Reconnect CBB'**
+  /// **'Reconnect CBB & Battery'**
   String get reconnectCbbHeading;
 
   /// No description provided for @reconnectCbb.
   ///
   /// In en, this message translates to:
-  /// **'Reconnect the CBB'**
+  /// **'Reinstall the main battery and reconnect the CBB'**
   String get reconnectCbb;
 
   /// No description provided for @reconnectCbbDesc.
   ///
   /// In en, this message translates to:
-  /// **'Plug the CBB cable back in. This provides more power for the DBC flash.'**
+  /// **'Put the main battery back in the seatbox and plug the CBB cable back in. The scooter needs full power for the DBC flash.'**
   String get reconnectCbbDesc;
 
   /// No description provided for @verifyCbbConnection.

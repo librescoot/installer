@@ -160,9 +160,9 @@
     }
   },
 
-  "reconnectCbbHeading": "Reconnect CBB",
-  "reconnectCbb": "Reconnect the CBB",
-  "reconnectCbbDesc": "Plug the CBB cable back in. This provides more power for the DBC flash.",
+  "reconnectCbbHeading": "Reconnect CBB & Battery",
+  "reconnectCbb": "Reinstall the main battery and reconnect the CBB",
+  "reconnectCbbDesc": "Put the main battery back in the seatbox and plug the CBB cable back in. The scooter needs full power for the DBC flash.",
   "verifyCbbConnection": "Verify CBB Connection",
   "checkingCbb": "Checking CBB...",
   "cbbConnected": "CBB connected!",

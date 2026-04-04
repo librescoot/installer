@@ -54,68 +54,150 @@ class PhaseSidebar extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                for (final phase in InstallerPhase.values)
-                  _PhaseItem(
-                    phase: phase,
-                    isCurrent: phase == currentPhase,
-                    isCompleted: completedPhases.contains(phase),
-                    isPast: phase.index < currentPhase.index,
+                for (final major in MajorStep.values) ...[
+                  _MajorStepItem(
+                    step: major,
+                    isActive: major.isActive(currentPhase),
+                    isCompleted: major.isCompleted(currentPhase),
                   ),
+                  // Show substeps only for the active major step
+                  if (major.isActive(currentPhase) && major.phases.length > 1)
+                    for (final phase in major.phases)
+                      _SubStepItem(
+                        phase: phase,
+                        isCurrent: phase == currentPhase,
+                        isCompleted: completedPhases.contains(phase) || phase.index < currentPhase.index,
+                        l10n: l10n,
+                      ),
+                ],
               ],
             ),
           ),
           if (downloadItems.isNotEmpty && !downloadItems.every((i) => i.isComplete))
-            _DownloadStatus(items: downloadItems, l10n: l10n),
+            _DownloadStatus(items: downloadItems),
         ],
       ),
     );
   }
 }
 
-class _PhaseItem extends StatelessWidget {
-  const _PhaseItem({
+class _MajorStepItem extends StatelessWidget {
+  const _MajorStepItem({
+    required this.step,
+    required this.isActive,
+    required this.isCompleted,
+  });
+
+  final MajorStep step;
+  final bool isActive;
+  final bool isCompleted;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color textColor;
+    final Widget leading;
+    final int stepNum = step.index + 1;
+
+    if (isCompleted) {
+      textColor = Colors.grey;
+      leading = const Icon(Icons.check_circle, size: 18, color: Colors.tealAccent);
+    } else if (isActive) {
+      textColor = Colors.tealAccent;
+      leading = Container(
+        width: 18,
+        height: 18,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.tealAccent,
+        ),
+        child: Center(
+          child: Text(
+            '$stepNum',
+            style: const TextStyle(color: Color(0xFF1A1A2E), fontSize: 11, fontWeight: FontWeight.bold),
+          ),
+        ),
+      );
+    } else {
+      textColor = Colors.grey.shade600;
+      leading = Container(
+        width: 18,
+        height: 18,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.grey.shade700),
+        ),
+        child: Center(
+          child: Text(
+            '$stepNum',
+            style: TextStyle(color: Colors.grey.shade700, fontSize: 11),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      color: isActive ? Colors.tealAccent.withValues(alpha: 0.06) : null,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          leading,
+          const SizedBox(width: 10),
+          Text(
+            step.title,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 14,
+              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SubStepItem extends StatelessWidget {
+  const _SubStepItem({
     required this.phase,
     required this.isCurrent,
     required this.isCompleted,
-    required this.isPast,
+    required this.l10n,
   });
 
   final InstallerPhase phase;
   final bool isCurrent;
   final bool isCompleted;
-  final bool isPast;
+  final AppLocalizations l10n;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
     final Color textColor;
     final Widget leading;
 
-    if (isCompleted || isPast) {
-      textColor = Colors.grey;
-      leading = const Icon(Icons.check, size: 16, color: Colors.grey);
+    if (isCompleted) {
+      textColor = Colors.grey.shade500;
+      leading = Icon(Icons.check, size: 12, color: Colors.grey.shade500);
     } else if (isCurrent) {
       textColor = Colors.tealAccent;
-      leading = const Icon(Icons.circle, size: 12, color: Colors.tealAccent);
+      leading = const Icon(Icons.arrow_right, size: 14, color: Colors.tealAccent);
     } else {
       textColor = Colors.grey.shade700;
-      leading = Icon(Icons.circle_outlined, size: 12, color: Colors.grey.shade700);
+      leading = Icon(Icons.circle_outlined, size: 8, color: Colors.grey.shade700);
     }
 
-    return Container(
-      color: isCurrent ? Colors.tealAccent.withValues(alpha: 0.08) : null,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    return Padding(
+      padding: const EdgeInsets.only(left: 44, right: 16, top: 2, bottom: 2),
       child: Row(
         children: [
-          SizedBox(width: 24, child: Center(child: leading)),
-          const SizedBox(width: 8),
+          SizedBox(width: 16, child: Center(child: leading)),
+          const SizedBox(width: 6),
           Expanded(
             child: Text(
               phase.localizedTitle(l10n),
               style: TextStyle(
                 color: textColor,
-                fontSize: 13,
-                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                fontSize: 11,
+                fontWeight: isCurrent ? FontWeight.w600 : FontWeight.normal,
               ),
             ),
           ),
@@ -126,10 +208,9 @@ class _PhaseItem extends StatelessWidget {
 }
 
 class _DownloadStatus extends StatelessWidget {
-  const _DownloadStatus({required this.items, required this.l10n});
+  const _DownloadStatus({required this.items});
 
   final List<DownloadItem> items;
-  final AppLocalizations l10n;
 
   static const _labels = {
     DownloadItemType.mdbFirmware: 'MDB',
@@ -179,21 +260,23 @@ class _DownloadStatus extends StatelessWidget {
             spacing: 8,
             children: [
               for (final item in items)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      item.isComplete ? Icons.check_circle : Icons.circle_outlined,
-                      size: 10,
-                      color: item.isComplete ? Colors.tealAccent : Colors.grey.shade600,
-                    ),
-                    const SizedBox(width: 3),
-                    Text(
-                      _labels[item.type] ?? '',
-                      style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
-                    ),
-                  ],
-                ),
+                // Skip bmap files — they're tiny and tracked with their firmware
+                if (item.type != DownloadItemType.mdbBmap && item.type != DownloadItemType.dbcBmap)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        item.isComplete ? Icons.check_circle : Icons.circle_outlined,
+                        size: 10,
+                        color: item.isComplete ? Colors.tealAccent : Colors.grey.shade600,
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        _labels[item.type] ?? '',
+                        style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                      ),
+                    ],
+                  ),
             ],
           ),
         ],

@@ -520,9 +520,12 @@ class FlashService {
   static const bootAreaBlocks = bootAreaBytes ~/ ddBlockSize; // 6 blocks
 
   /// Two-phase flash: write partitions first (safe), then boot sector (commits).
+  /// If [bmapPath] is provided and the Go flasher binary is available, uses
+  /// bmap-based sparse writes (much faster for images with empty space).
   Future<void> writeTwoPhase(
     String imagePath,
     String devicePath, {
+    String? bmapPath,
     void Function(double progress, String message)? onProgress,
   }) async {
     final isCompressed = imagePath.endsWith('.gz');
@@ -597,7 +600,7 @@ class FlashService {
       await Process.run('sync', []);
     } else {
       // Linux: single pkexec elevation for both dd phases + verify
-      await _writeTwoPhaseLinux(imagePath, devicePath, isCompressed, onProgress);
+      await _writeTwoPhaseLinux(imagePath, devicePath, isCompressed, onProgress, bmapPath: bmapPath);
     }
   }
 
@@ -782,13 +785,102 @@ class FlashService {
     return null;
   }
 
+  /// Locate the Go flasher binary (librescoot-flasher)
+  Future<String?> _getFlasherPath() async {
+    final execDir = path.dirname(Platform.resolvedExecutable);
+    final candidates = [
+      path.join(execDir, 'data', 'flutter_assets', 'assets', 'tools', 'librescoot-flasher'),
+      path.join(Directory.current.path, 'assets', 'tools', 'librescoot-flasher'),
+    ];
+    for (final candidate in candidates) {
+      if (await File(candidate).exists()) {
+        debugPrint('Flash: found Go flasher at $candidate');
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  /// Write using the Go flasher binary (supports bmap, two-phase, sequential)
+  Future<void> _writeWithGoFlasher(
+    String flasherPath,
+    String imagePath,
+    String devicePath,
+    String? bmapPath,
+    bool isRoot,
+    void Function(double progress, String message)? onProgress,
+  ) async {
+    final args = <String>[
+      flasherPath,
+      '--image', imagePath,
+      '--device', devicePath,
+      if (bmapPath != null) ...['--bmap', bmapPath]
+      else ...['--two-phase', '--boot-blocks', '$bootAreaBlocks'],
+    ];
+
+    final command = isRoot ? args.join(' ') : 'pkexec ${args.join(' ')}';
+    debugPrint('Flash: running: $command');
+
+    final imageSize = await _estimateImageSizeBytes(imagePath, imagePath.endsWith('.gz'));
+    final totalBytes = imageSize ?? 0;
+    final stopwatch = Stopwatch()..start();
+
+    onProgress?.call(0.0, bmapPath != null ? 'Bmap flash...' : 'Phase A: Writing partitions...');
+
+    final process = await Process.start('/bin/sh', ['-c', command]);
+    final output = StringBuffer();
+
+    await for (final chunk in process.stderr.transform(utf8.decoder)) {
+      output.write(chunk);
+      for (final line in chunk.split('\n')) {
+        if (line.startsWith('PHASE:')) {
+          final phase = line.substring(6).trim();
+          if (phase == 'A') onProgress?.call(0.0, 'Phase A: Writing partitions...');
+          if (phase == 'B') onProgress?.call(0.9, 'Phase B: Writing boot sector...');
+        }
+        if (line.startsWith('PROGRESS:')) {
+          final bytes = int.tryParse(line.substring(9).trim());
+          if (bytes != null && totalBytes > 0) {
+            final fraction = (bytes / totalBytes).clamp(0.0, 0.95);
+            final mb = bytes / (1024 * 1024);
+            String eta = '';
+            if (fraction > 0.01) {
+              final elapsed = stopwatch.elapsedMilliseconds / 1000;
+              final remaining = (elapsed / fraction) * (1.0 - fraction);
+              eta = ' — ${remaining ~/ 60}m ${(remaining % 60).floor()}s remaining';
+            }
+            onProgress?.call(fraction, '${mb.toStringAsFixed(0)} MB written$eta');
+          }
+        }
+        if (line.startsWith('CHECKSUM MISMATCH')) {
+          debugPrint('Flash: $line');
+        }
+      }
+    }
+
+    final exitCode = await process.exitCode;
+    debugPrint('Flash: Go flasher exit code: $exitCode');
+
+    if (exitCode != 0) {
+      final out = output.toString();
+      debugPrint('Flash: Go flasher output: $out');
+      if (exitCode == 126) {
+        throw Exception('Authorization was dismissed — flash incomplete');
+      }
+      throw Exception('Flash failed: $out');
+    }
+
+    onProgress?.call(1.0, 'Flash complete');
+  }
+
   /// Linux two-phase flash: single pkexec auth, both phases + verify in one script.
   Future<void> _writeTwoPhaseLinux(
     String imagePath,
     String devicePath,
     bool isCompressed,
-    void Function(double progress, String message)? onProgress,
-  ) async {
+    void Function(double progress, String message)? onProgress, {
+    String? bmapPath,
+  }) async {
     // Unmount any auto-mounted partitions before writing
     final partitions = await _findLinuxPartitions(devicePath);
     for (final partition in partitions) {
@@ -797,6 +889,14 @@ class FlashService {
 
     final isRoot = (await Process.run('id', ['-u'])).stdout.toString().trim() == '0';
 
+    // Try Go flasher first (supports bmap for sparse writes)
+    final flasherPath = await _getFlasherPath();
+    if (flasherPath != null) {
+      await _writeWithGoFlasher(flasherPath, imagePath, devicePath, bmapPath, isRoot, onProgress);
+      return;
+    }
+
+    debugPrint('Flash: Go flasher not found, falling back to dd');
     final decompressPrefix = isCompressed
         ? 'gunzip -c "$imagePath" |'
         : '';
@@ -808,9 +908,9 @@ class FlashService {
     final script = '''
 set -e
 echo "PHASE:A"
-$decompressPrefix dd $inputArg of=$devicePath bs=4M skip=$bootAreaBlocks seek=$bootAreaBlocks oflag=direct status=progress 2>&1
+$decompressPrefix dd $inputArg of=$devicePath bs=4M skip=$bootAreaBlocks seek=$bootAreaBlocks oflag=direct status=progress 2>&1 | tr '\\r' '\\n'
 echo "PHASE:B"
-$decompressPrefix dd $inputArg of=$devicePath bs=4M count=$bootAreaBlocks oflag=direct status=progress 2>&1
+$decompressPrefix dd $inputArg of=$devicePath bs=4M count=$bootAreaBlocks oflag=direct status=progress 2>&1 | tr '\\r' '\\n'
 echo "PHASE:SYNC"
 sync
 echo "PHASE:VERIFY"

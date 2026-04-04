@@ -109,6 +109,7 @@ class TrampolineService {
       }
 
       var bytesSoFar = 0;
+      final stopwatch = Stopwatch()..start();
       for (var i = 0; i < filesToUpload.length; i++) {
         if (!needsUpload[i]) continue;
 
@@ -124,8 +125,16 @@ class TrampolineService {
             final overall = (baseBytes + sent) / totalBytes;
             final mb = sent / (1024 * 1024);
             final totalMb = total / (1024 * 1024);
+            String eta = '';
+            if (overall > 0.01) {
+              final elapsed = stopwatch.elapsedMilliseconds / 1000;
+              final remaining = (elapsed / overall) * (1.0 - overall);
+              final mins = remaining ~/ 60;
+              final secs = (remaining % 60).floor();
+              eta = ' — ${mins}m ${secs}s remaining';
+            }
             onProgress?.call(
-              'Uploading $filename... ${mb.toStringAsFixed(0)}/${totalMb.toStringAsFixed(0)} MB',
+              'Uploading $filename... ${mb.toStringAsFixed(0)}/${totalMb.toStringAsFixed(0)} MB$eta',
               overall,
             );
           },
