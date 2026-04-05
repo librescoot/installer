@@ -79,14 +79,14 @@ jobs:
         if: matrix.target == 'macos'
         run: |
           cd build/macos/Build/Products/Release
-          tar czf librescoot-installer-macos-universal-${{ steps.version.outputs.describe }}.tar.gz librescoot_installer.app
+          zip -r librescoot-installer-macos-universal-${{ steps.version.outputs.describe }}.zip librescoot_installer.app
 
       - name: Package Linux
         if: runner.os == 'Linux'
         run: |
           cd build/linux/x64/release
           mv bundle librescoot-installer
-          tar czf librescoot-installer-linux-x64-${{ steps.version.outputs.describe }}.tar.gz librescoot-installer/
+          zip -r librescoot-installer-linux-x64-${{ steps.version.outputs.describe }}.zip librescoot-installer/
 
       - name: Package Windows
         if: matrix.target == 'windows'
@@ -101,8 +101,8 @@ jobs:
         with:
           name: librescoot-installer-${{ matrix.platform }}-${{ matrix.arch }}-${{ steps.version.outputs.describe }}
           path: |
-            build/macos/Build/Products/Release/librescoot-installer-*.tar.gz
-            build/linux/x64/release/librescoot-installer-*.tar.gz
+            build/macos/Build/Products/Release/librescoot-installer-*.zip
+            build/linux/x64/release/librescoot-installer-*.zip
             build/windows/x64/runner/librescoot-installer-*.zip
           if-no-files-found: error
 
@@ -123,7 +123,7 @@ jobs:
       - name: Collect release files
         run: |
           mkdir -p dist/
-          find artifacts/ -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} dist/ \;
+          find artifacts/ -type f -name '*.zip' -exec cp {} dist/ \;
           ls -la dist/
 
       - name: Create GitHub Release
