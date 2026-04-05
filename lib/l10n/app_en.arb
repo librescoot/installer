@@ -83,6 +83,9 @@
   "installingRndisDriver": "Installing RNDIS driver...",
   "configuringNetwork": "Configuring network...",
   "connectingSsh": "Connecting via SSH...",
+  "waitingForUnlock": "Unlock the scooter with a keycard to continue...",
+  "unlockTimeout": "Timed out waiting for scooter to be unlocked. Tap a keycard and retry.",
+  "lockingScooter": "Locking scooter for flashing...",
   "connected": "Connected!",
   "sshConnectionFailed": "SSH connection failed: {error}. Check cable and retry.",
   "@sshConnectionFailed": {

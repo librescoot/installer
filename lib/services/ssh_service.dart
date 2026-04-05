@@ -632,6 +632,27 @@ class SshService {
     await runCommand('redis-cli LPUSH $key $value');
   }
 
+  /// Get the current vehicle state from Redis.
+  Future<String?> getVehicleState() async {
+    return redisHget('vehicle', 'state');
+  }
+
+  /// Wait for a specific vehicle state, polling every [interval].
+  /// Returns true if the state was reached, false on timeout.
+  Future<bool> waitForVehicleState(
+    String targetState, {
+    Duration timeout = const Duration(seconds: 120),
+    Duration interval = const Duration(seconds: 2),
+  }) async {
+    final deadline = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(deadline)) {
+      final state = await getVehicleState();
+      if (state == targetState) return true;
+      await Future.delayed(interval);
+    }
+    return false;
+  }
+
   /// Query scooter health from Redis.
   Future<ScooterHealth> queryHealth() async {
     final health = ScooterHealth();

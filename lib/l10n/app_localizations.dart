@@ -530,6 +530,24 @@ abstract class AppLocalizations {
   /// **'Connecting via SSH...'**
   String get connectingSsh;
 
+  /// No description provided for @waitingForUnlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock the scooter with a keycard to continue...'**
+  String get waitingForUnlock;
+
+  /// No description provided for @unlockTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Timed out waiting for scooter to be unlocked. Tap a keycard and retry.'**
+  String get unlockTimeout;
+
+  /// No description provided for @lockingScooter.
+  ///
+  /// In en, this message translates to:
+  /// **'Locking scooter for flashing...'**
+  String get lockingScooter;
+
   /// No description provided for @connected.
   ///
   /// In en, this message translates to:

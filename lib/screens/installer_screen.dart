@@ -916,6 +916,30 @@ class _InstallerScreenState extends State<InstallerScreen> {
       final info = await _sshService.connectToMdb();
       setState(() => _mdbInfo = info);
       debugPrint('SSH: firmware=${info.firmwareVersion}, serial=${info.serialNumber ?? "unknown"}');
+
+      // Wait for scooter to be unlocked (parked state) before proceeding
+      _setStatus(l10n.waitingForUnlock);
+      final state = await _sshService.getVehicleState();
+      debugPrint('SSH: vehicle state = $state');
+      if (state != 'parked') {
+        final reached = await _sshService.waitForVehicleState('parked');
+        if (!reached) {
+          _setStatus(l10n.unlockTimeout);
+          setState(() { _isProcessing = false; _mdbConnectStarted = false; });
+          return;
+        }
+      }
+      debugPrint('SSH: scooter is unlocked (parked), locking...');
+
+      // Lock the scooter for safe flashing
+      _setStatus(l10n.lockingScooter);
+      await _sshService.redisLpush('scooter:state', 'lock');
+      final locked = await _sshService.waitForVehicleState('stand-by', timeout: const Duration(seconds: 30));
+      if (!locked) {
+        debugPrint('SSH: lock did not reach stand-by, continuing anyway');
+      }
+      debugPrint('SSH: scooter locked');
+
       _setStatus(l10n.connected);
       setState(() => _isProcessing = false);
       _setPhase(InstallerPhase.healthCheck);

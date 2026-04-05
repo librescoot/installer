@@ -239,6 +239,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get connectingSsh => 'Connecting via SSH...';
 
   @override
+  String get waitingForUnlock =>
+      'Unlock the scooter with a keycard to continue...';
+
+  @override
+  String get unlockTimeout =>
+      'Timed out waiting for scooter to be unlocked. Tap a keycard and retry.';
+
+  @override
+  String get lockingScooter => 'Locking scooter for flashing...';
+
+  @override
   String get connected => 'Connected!';
 
   @override
