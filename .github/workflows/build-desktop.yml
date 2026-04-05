@@ -86,18 +86,21 @@ jobs:
         if: matrix.target == 'windows'
         run: flutter build windows --release --dart-define=AUTH_KEY=${{ secrets.AUTH_KEY }}
 
-      - name: Package macOS
+      - name: Package macOS (DMG)
         if: matrix.target == 'macos'
         run: |
-          cd build/macos/Build/Products/Release
-          zip -9 -r librescoot-installer-macos-universal-${{ steps.version.outputs.describe }}.zip librescoot_installer.app
+          VERSION="${{ steps.version.outputs.describe }}"
+          hdiutil create -volname "LibreScoot Installer" \
+            -srcfolder build/macos/Build/Products/Release/librescoot_installer.app \
+            -ov -format UDZO \
+            "build/macos/Build/Products/Release/librescoot-installer-macos-universal-${VERSION}.dmg"
 
       - name: Package Linux
         if: runner.os == 'Linux'
         run: |
           cd build/linux/x64/release
           mv bundle librescoot-installer
-          zip -9 -r librescoot-installer-linux-x64-${{ steps.version.outputs.describe }}.zip librescoot-installer/
+          tar czf librescoot-installer-linux-x64-${{ steps.version.outputs.describe }}.tar.gz librescoot-installer/
 
       - name: Package Windows
         if: matrix.target == 'windows'
@@ -112,8 +115,8 @@ jobs:
         with:
           name: librescoot-installer-${{ matrix.platform }}-${{ matrix.arch }}-${{ steps.version.outputs.describe }}
           path: |
-            build/macos/Build/Products/Release/librescoot-installer-*.zip
-            build/linux/x64/release/librescoot-installer-*.zip
+            build/macos/Build/Products/Release/librescoot-installer-*.dmg
+            build/linux/x64/release/librescoot-installer-*.tar.gz
             build/windows/x64/runner/librescoot-installer-*.zip
           if-no-files-found: error
 
@@ -134,7 +137,7 @@ jobs:
       - name: Collect release files
         run: |
           mkdir -p dist/
-          find artifacts/ -type f -name '*.zip' -exec cp {} dist/ \;
+          find artifacts/ -type f \( -name '*.dmg' -o -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} dist/ \;
           ls -la dist/
 
       - name: Create GitHub Release
