@@ -243,12 +243,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get connectingSsh => 'SSH-Verbindung wird aufgebaut...';
 
   @override
-  String get waitingForUnlock =>
-      'Roller mit Schlüsselkarte entsperren, um fortzufahren...';
+  String get waitingForUnlock => 'Roller entsperren, um fortzufahren...';
 
   @override
   String get unlockTimeout =>
-      'Zeitlimit beim Warten auf Entsperrung. Schlüsselkarte antippen und erneut versuchen.';
+      'Zeitlimit beim Warten auf Entsperrung. Roller entsperren und erneut versuchen.';
 
   @override
   String get lockingScooter => 'Roller wird für das Flashen gesperrt...';

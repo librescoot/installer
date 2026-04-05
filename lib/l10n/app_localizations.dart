@@ -533,13 +533,13 @@ abstract class AppLocalizations {
   /// No description provided for @waitingForUnlock.
   ///
   /// In en, this message translates to:
-  /// **'Unlock the scooter with a keycard to continue...'**
+  /// **'Unlock the scooter to continue...'**
   String get waitingForUnlock;
 
   /// No description provided for @unlockTimeout.
   ///
   /// In en, this message translates to:
-  /// **'Timed out waiting for scooter to be unlocked. Tap a keycard and retry.'**
+  /// **'Timed out waiting for scooter to be unlocked. Unlock and retry.'**
   String get unlockTimeout;
 
   /// No description provided for @lockingScooter.
