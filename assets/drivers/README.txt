@@ -1,8 +1,11 @@
 RNDIS Driver for Windows
 ========================
 
-This signed driver enables Windows to recognize USB RNDIS ethernet
-gadgets including the LibreScoot MDB.
+Microsoft WHQL-signed Acer USB Ethernet/RNDIS Gadget driver.
+Enables Windows to recognize USB RNDIS ethernet gadgets.
+
+Source: Microsoft Update Catalog
+  (Acer Incorporated. - Other hardware - USB Ethernet/RNDIS Gadget)
 
 AUTOMATIC INSTALLATION (requires admin):
   1. Open Command Prompt as Administrator
@@ -16,7 +19,3 @@ MANUAL INSTALLATION:
   5. Browse my computer for drivers
   6. Select this folder
   7. Click Next
-
-Device IDs:
-  VID: 0525 (Linux Foundation)
-  PID: A4A2 (RNDIS Ethernet Gadget)

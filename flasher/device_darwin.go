@@ -59,6 +59,8 @@ func openDevicePlatform(path string) (*os.File, error) {
 	return os.NewFile(uintptr(deviceFd), path), nil
 }
 
+func cleanupPlatform() {}
+
 func receiveFd(sock int) (int, error) {
 	f := os.NewFile(uintptr(sock), "sock")
 	defer f.Close()

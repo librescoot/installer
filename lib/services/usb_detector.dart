@@ -173,92 +173,81 @@ class UsbDetector {
   }
 
   Future<UsbDevice?> _detectWindowsEthernet() async {
-    // Query WMI for network adapters with our VID:PID
+    // Query WMI for network adapters with our VID:PID.
+    // Use PowerShell instead of wmic to avoid cmd.exe '&' escaping issues
+    // and wmic's UTF-16/HTML-encoded CSV output.
     try {
       final result = await Process.run(
-        'wmic',
+        'powershell',
         [
-          'path',
-          'Win32_NetworkAdapter',
-          'where',
-          'PNPDeviceID like "%VID_0525&PID_A4A2%"',
-          'get',
-          'Name,PNPDeviceID,NetConnectionID',
-          '/format:csv',
+          '-NoProfile',
+          '-Command',
+          r'''
+$dev = Get-CimInstance Win32_NetworkAdapter | Where-Object { $_.PNPDeviceID -like "*VID_0525&PID_A4A2*" } | Select-Object -First 1 Name,NetConnectionID,PNPDeviceID
+if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.PNPDeviceID)" }
+''',
         ],
-        runInShell: true,
       );
 
       if (result.exitCode != 0) return null;
 
-      final output = _sanitizeWmicOutput(result.stdout.toString());
-      final lines = output.split('\n').where((l) => l.trim().isNotEmpty).toList();
+      final line = result.stdout.toString().trim();
+      if (line.isEmpty) return null;
 
-      if (lines.length < 2) return null; // No data rows
+      final parts = line.split('\t');
+      final name = parts.isNotEmpty ? parts[0].trim() : 'Unknown';
+      final netConn = parts.length > 1 ? parts[1].trim() : '';
+      final pnpId = parts.length > 2 ? parts[2].trim() : '';
 
-      // Parse CSV (skip header)
-      for (var i = 1; i < lines.length; i++) {
-        final parts = lines[i].split(',');
-        if (parts.length >= 3) {
-          final pnpId = parts.length > 2 ? parts[2] : '';
-          if (pnpId.toUpperCase().contains('VID_0525')) {
-            return UsbDevice(
-              id: pnpId,
-              name: parts.length > 1 ? parts[1] : 'Unknown',
-              path: parts.length > 3 ? parts[3] : '',
-              vendorId: targetVendorId,
-              productId: ethernetPid,
-              mode: DeviceMode.ethernet,
-            );
-          }
-        }
+      if (pnpId.toUpperCase().contains('VID_0525')) {
+        return UsbDevice(
+          id: pnpId,
+          name: name,
+          path: netConn,
+          vendorId: targetVendorId,
+          productId: ethernetPid,
+          mode: DeviceMode.ethernet,
+        );
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('USB detector: ethernet detection error: $e');
+    }
     return null;
   }
 
   Future<UsbDevice?> _detectWindowsStorage() async {
-    // Query WMI for disk drives with our VID:PID
+    // Query WMI for disk drives matching the LibreScoot UMS device.
+    // In UMS mode the PNPDeviceID is USBSTOR\DISK&VEN_LINUX&PROD_UMS_DISK_0,
+    // not USB\VID_0525, so we match on both patterns.
     try {
       final result = await Process.run(
-        'wmic',
+        'powershell',
         [
-          'path',
-          'Win32_DiskDrive',
-          'where',
-          'PNPDeviceID like "%VID_0525%"',
-          'get',
-          'Model,PNPDeviceID,DeviceID,Size,MediaType',
-          '/format:csv',
+          '-NoProfile',
+          '-Command',
+          r'''
+$dev = Get-CimInstance Win32_DiskDrive | Where-Object {
+  $_.PNPDeviceID -like "*VID_0525*" -or
+  $_.PNPDeviceID -like "*VEN_LINUX*PROD_UMS*"
+} | Select-Object -First 1 Model,PNPDeviceID,DeviceID,Size,MediaType
+if ($dev) { "$($dev.Model)`t$($dev.PNPDeviceID)`t$($dev.DeviceID)`t$($dev.Size)`t$($dev.MediaType)" }
+''',
         ],
-        runInShell: true,
       );
 
       if (result.exitCode != 0) return null;
 
-      final output = _sanitizeWmicOutput(result.stdout.toString());
-      final lines = output.split('\n').where((l) => l.trim().isNotEmpty).toList();
+      final line = result.stdout.toString().trim();
+      if (line.isEmpty) return null;
 
-      if (lines.length < 2) return null;
+      final parts = line.split('\t');
+      final model = parts.isNotEmpty ? parts[0].trim() : 'LibreScoot Device';
+      final pnpId = parts.length > 1 ? parts[1].trim() : '';
+      final deviceId = parts.length > 2 ? parts[2].trim() : '';
+      final sizeStr = parts.length > 3 ? parts[3].trim() : '';
+      final mediaType = parts.length > 4 ? parts[4].trim() : '';
 
-      // Parse header to find column indices
-      final header = lines[0].split(',');
-      final deviceIdIdx = header.indexOf('DeviceID');
-      final modelIdx = header.indexOf('Model');
-      final pnpIdIdx = header.indexOf('PNPDeviceID');
-      final sizeIdx = header.indexOf('Size');
-      final mediaTypeIdx = header.indexOf('MediaType');
-
-      for (var i = 1; i < lines.length; i++) {
-        final parts = lines[i].split(',');
-        final pnpId = pnpIdIdx >= 0 && pnpIdIdx < parts.length ? parts[pnpIdIdx] : '';
-
-        if (pnpId.toUpperCase().contains('VID_0525')) {
-          final deviceId = deviceIdIdx >= 0 && deviceIdIdx < parts.length ? parts[deviceIdIdx] : '';
-          final model = modelIdx >= 0 && modelIdx < parts.length ? parts[modelIdx] : 'LibreScoot Device';
-          final sizeStr = sizeIdx >= 0 && sizeIdx < parts.length ? parts[sizeIdx] : '';
-          final mediaType = mediaTypeIdx >= 0 && mediaTypeIdx < parts.length ? parts[mediaTypeIdx] : '';
-
+      if (pnpId.isNotEmpty) {
           final sizeBytes = int.tryParse(sizeStr);
 
           // Check if this is removable media
@@ -278,7 +267,6 @@ class UsbDetector {
             isRemovable: isRemovable,
             isSystemDisk: isSystemDisk,
           );
-        }
       }
     } catch (_) {}
     return null;
@@ -297,7 +285,7 @@ class UsbDetector {
           'Name,PNPDeviceID',
           '/format:csv',
         ],
-        runInShell: true,
+        // runInShell omitted: avoid cmd.exe mangling '&' in VID/PID strings
       );
 
       if (result.exitCode != 0) return null;
@@ -346,7 +334,7 @@ $dev = Get-CimInstance Win32_PnPEntity | Where-Object { $_.PNPDeviceID -like "*V
 if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
 ''',
         ],
-        runInShell: true,
+        // runInShell omitted: avoid cmd.exe mangling '&' in VID/PID strings
       );
 
       if (result.exitCode != 0) return null;
@@ -390,7 +378,7 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
           'Antecedent,Dependent',
           '/format:csv',
         ],
-        runInShell: true,
+        // runInShell omitted: avoid cmd.exe mangling '&' in VID/PID strings
       );
 
       if (result.exitCode != 0) return true; // Err on the side of caution

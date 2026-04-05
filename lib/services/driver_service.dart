@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
 
@@ -39,9 +40,10 @@ class DriverService {
   static const String _driverInfName = 'RNDIS.inf';
   static const String _driverCatName = 'rndis.cat';
 
-  /// Check if the LibreScoot RNDIS driver is already installed.
+  /// Check if an RNDIS driver is already installed.
   ///
-  /// Uses `pnputil /enum-drivers` and searches for "librescoot" in the output.
+  /// Uses `pnputil /enum-drivers` and searches for the Acer RNDIS driver
+  /// Uses `pnputil /enum-drivers` and checks for the RNDIS INF or provider.
   static Future<bool> isDriverInstalled() async {
     if (!Platform.isWindows) return true;
 
@@ -53,15 +55,14 @@ class DriverService {
       );
 
       if (result.exitCode != 0) {
-        // pnputil failed, assume driver not installed
         return false;
       }
 
       final output = result.stdout.toString().toLowerCase();
-      // Check for our driver by looking for "librescoot" in the output
-      return output.contains('librescoot');
+      // Check for our RNDIS driver (RNDIS.inf / g_rndis.inf) or Acer RNDIS
+      return output.contains('rndis.inf') ||
+          output.contains('g_rndis.inf');
     } catch (e) {
-      // If we can't check, assume not installed
       return false;
     }
   }
@@ -111,6 +112,29 @@ class DriverService {
       }
     } catch (e) {
       return DriverInstallResult.failed('Failed to install driver: $e');
+    }
+  }
+
+  /// Stop the ShellHWDetection service to prevent "format this disk" popups
+  /// when the device enters USB Mass Storage mode.
+  static Future<void> suppressAutoPlay() async {
+    if (!Platform.isWindows) return;
+    try {
+      debugPrint('Driver: stopping ShellHWDetection service');
+      await Process.run('net', ['stop', 'ShellHWDetection']);
+    } catch (e) {
+      debugPrint('Driver: failed to stop ShellHWDetection: $e');
+    }
+  }
+
+  /// Restart the ShellHWDetection service after flashing is complete.
+  static Future<void> restoreAutoPlay() async {
+    if (!Platform.isWindows) return;
+    try {
+      debugPrint('Driver: starting ShellHWDetection service');
+      await Process.run('net', ['start', 'ShellHWDetection']);
+    } catch (e) {
+      debugPrint('Driver: failed to start ShellHWDetection: $e');
     }
   }
 

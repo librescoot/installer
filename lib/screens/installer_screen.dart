@@ -309,8 +309,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
     if (_isCriticalOperation == critical) return;
     setState(() => _isCriticalOperation = critical);
     if (critical) {
+      _usbDetector.stopMonitoring();
+      debugPrint('USB detector: paused during critical operation');
       _preventSleep();
     } else {
+      _usbDetector.startMonitoring();
+      debugPrint('USB detector: resumed after critical operation');
       _allowSleep();
     }
   }
@@ -1282,6 +1286,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
         debugPrint('SSH: bootcmd verification failed ($e), proceeding');
       }
 
+      // Suppress Windows "format this disk" popup before UMS mode
+      await DriverService.suppressAutoPlay();
+
       _setStatus(l10n.rebootingMdbUms);
       await _sshService.reboot();
       _setStatus(l10n.waitingForUmsDevice);
@@ -1419,11 +1426,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
       );
 
       _setCritical(false);
+      // Restore Windows AutoPlay after flashing
+      await DriverService.restoreAutoPlay();
       _setStatus(l10n.mdbFlashComplete);
       await Future.delayed(const Duration(seconds: 1));
       _setPhase(InstallerPhase.scooterPrep);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('Flash ERROR: $e');
+      debugPrint('Flash STACKTRACE: $stackTrace');
       _setCritical(false);
+      await DriverService.restoreAutoPlay();
       // Diagnose: is the device still present and what state is it in?
       String diagnosis = e.toString();
       if (_device == null) {
@@ -2179,8 +2191,19 @@ class _InstallerScreenState extends State<InstallerScreen> {
       return;
     }
 
+    // Poll for trampoline status — the script may still be running when MDB
+    // reconnects to RNDIS. Wait up to 5 minutes for a definitive result.
     _setStatus(l10n.readingTrampolineStatus);
-    final status = await _sshService.readTrampolineStatus();
+    TrampolineStatus status;
+    final deadline = DateTime.now().add(const Duration(minutes: 5));
+    while (true) {
+      status = await _sshService.readTrampolineStatus();
+      if (status.result != TrampolineResult.unknown) break;
+      if (DateTime.now().isAfter(deadline)) break;
+      debugPrint('Trampoline: status still unknown, waiting...');
+      await Future.delayed(const Duration(seconds: 5));
+      if (!mounted) return;
+    }
 
     // TODO: re-enable after dev
     // await _cleanupMdb();

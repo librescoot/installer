@@ -1049,7 +1049,7 @@ abstract class AppLocalizations {
   /// No description provided for @ledBootGreen.
   ///
   /// In en, this message translates to:
-  /// **'Boot LED green'**
+  /// **'Boot LED blinking green'**
   String get ledBootGreen;
 
   /// No description provided for @ledBootGreenMeaning.
@@ -1073,7 +1073,7 @@ abstract class AppLocalizations {
   /// No description provided for @bootLedGreenReconnect.
   ///
   /// In en, this message translates to:
-  /// **'Boot LED is green — Reconnect Laptop'**
+  /// **'Boot LED is blinking green — Reconnect Laptop'**
   String get bootLedGreenReconnect;
 
   /// No description provided for @rearLightCheckError.

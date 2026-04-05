@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 /// Network interface information
 class NetworkInterface {
@@ -26,32 +27,38 @@ class NetworkService {
 
   /// Find the network interface for the LibreScoot USB ethernet device
   Future<NetworkInterface?> findLibreScootInterface() async {
+    NetworkInterface? iface;
     if (Platform.isWindows) {
-      return _findWindowsInterface();
+      iface = await _findWindowsInterface();
     } else if (Platform.isMacOS) {
-      return _findMacOSInterface();
+      iface = await _findMacOSInterface();
     } else if (Platform.isLinux) {
-      return _findLinuxInterface();
+      iface = await _findLinuxInterface();
     }
-    return null;
+    debugPrint('Network: findLibreScootInterface => $iface');
+    return iface;
   }
 
   /// Configure the interface with a static IP for MDB communication
   Future<bool> configureInterface(NetworkInterface iface) async {
+    debugPrint('Network: configureInterface(${iface.name}, ${iface.displayName})');
     // If MDB is already reachable, network is effectively configured.
     // Avoid reconfiguring and requiring admin privileges unnecessarily.
     if (await isMdbReachable()) {
+      debugPrint('Network: MDB already reachable, skipping config');
       return true;
     }
 
+    bool result = false;
     if (Platform.isWindows) {
-      return _configureWindows(iface);
+      result = await _configureWindows(iface);
     } else if (Platform.isMacOS) {
-      return _configureMacOS(iface);
+      result = await _configureMacOS(iface);
     } else if (Platform.isLinux) {
-      return _configureLinux(iface);
+      result = await _configureLinux(iface);
     }
-    return false;
+    debugPrint('Network: configureInterface result=$result');
+    return result;
   }
 
   /// Check if MDB is reachable
@@ -69,43 +76,42 @@ class NetworkService {
 
   Future<NetworkInterface?> _findWindowsInterface() async {
     try {
-      // Find interface with RNDIS/USB Ethernet gadget
+      // Use PowerShell to find RNDIS network adapter — avoids cmd.exe '&'
+      // escaping issues with wmic.
       final result = await Process.run(
-        'wmic',
+        'powershell',
         [
-          'nic',
-          'where',
-          'PNPDeviceID like "%VID_0525&PID_A4A2%"',
-          'get',
-          'Name,NetConnectionID,NetEnabled',
-          '/format:csv',
+          '-NoProfile',
+          '-Command',
+          r'''
+$dev = Get-CimInstance Win32_NetworkAdapter | Where-Object { $_.PNPDeviceID -like "*VID_0525&PID_A4A2*" } | Select-Object -First 1 Name,NetConnectionID,NetEnabled
+if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
+''',
         ],
-        runInShell: true,
       );
 
       if (result.exitCode != 0) return null;
 
-      final output = _sanitizeOutput(result.stdout.toString());
-      final lines = output.split('\n').where((l) => l.trim().isNotEmpty).toList();
+      final line = result.stdout.toString().trim();
+      if (line.isEmpty) return null;
 
-      if (lines.length < 2) return null;
+      final parts = line.split('\t');
+      final name = parts.isNotEmpty ? parts[0].trim() : 'USB Ethernet';
+      final netConn = parts.length > 1 ? parts[1].trim() : '';
+      final isUp = parts.length > 2 && parts[2].trim().toLowerCase() == 'true';
 
-      for (var i = 1; i < lines.length; i++) {
-        final parts = lines[i].split(',');
-        if (parts.length >= 3) {
-          return NetworkInterface(
-            name: parts.length > 2 ? parts[2] : '', // NetConnectionID
-            displayName: parts.length > 1 ? parts[1] : 'USB Ethernet',
-            isUp: parts.length > 3 && parts[3].toLowerCase() == 'true',
-          );
-        }
-      }
+      return NetworkInterface(
+        name: netConn,
+        displayName: name,
+        isUp: isUp,
+      );
     } catch (_) {}
     return null;
   }
 
   Future<bool> _configureWindows(NetworkInterface iface) async {
     try {
+      debugPrint('Network: netsh set address name="${iface.name}" static $targetIp $subnetMask');
       // Use netsh to set static IP
       final result = await Process.run(
         'netsh',
@@ -119,20 +125,23 @@ class NetworkService {
           targetIp,
           subnetMask,
         ],
-        runInShell: true,
       );
 
+      debugPrint('Network: netsh exit=${result.exitCode} stdout=${result.stdout} stderr=${result.stderr}');
+
       if (result.exitCode != 0) {
-        print('netsh failed: ${result.stderr}');
+        debugPrint('Network: netsh failed: ${result.stderr}');
         return false;
       }
 
       // Wait for interface to come up
-      await Future.delayed(const Duration(seconds: 2));
+      await Future.delayed(const Duration(seconds: 5));
 
-      return await isMdbReachable();
+      final reachable = await isMdbReachable();
+      debugPrint('Network: MDB reachable after config: $reachable');
+      return reachable;
     } catch (e) {
-      print('Failed to configure Windows interface: $e');
+      debugPrint('Network: Failed to configure Windows interface: $e');
       return false;
     }
   }

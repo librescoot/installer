@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -38,23 +39,36 @@ class TrampolineService {
   /// Check if a remote file exists and matches the local file's md5.
   Future<bool> _remoteFileMatches(String localPath, String remotePath) async {
     try {
-      // Get local md5
-      final localResult = await Process.run('md5sum', [localPath]);
-      if (localResult.exitCode != 0) return false;
-      final localMd5 = localResult.stdout.toString().split(' ').first.trim();
+      // Get local md5 — use PowerShell on Windows, md5sum on Unix
+      String localMd5;
+      if (Platform.isWindows) {
+        final localResult = await Process.run('powershell', [
+          '-NoProfile', '-Command',
+          '(Get-FileHash "$localPath" -Algorithm MD5).Hash',
+        ]);
+        if (localResult.exitCode != 0) return false;
+        localMd5 = localResult.stdout.toString().trim().toLowerCase();
+      } else {
+        final localResult = await Process.run('md5sum', [localPath]);
+        if (localResult.exitCode != 0) return false;
+        localMd5 = localResult.stdout.toString().split(' ').first.trim();
+      }
 
       // Get remote md5 (large files can take a while)
       final remoteMd5 = (await _ssh.runCommand(
         'md5sum "$remotePath" 2>/dev/null',
         timeout: const Duration(minutes: 5),
-      )).trim().split(' ').first;
+      )).trim().split(' ').first.toLowerCase();
 
       final match = localMd5.isNotEmpty && localMd5 == remoteMd5;
       if (match) {
         debugPrint('Trampoline: $remotePath already exists and matches (md5=$localMd5)');
+      } else {
+        debugPrint('Trampoline: $remotePath md5 mismatch: local=$localMd5 remote=$remoteMd5');
       }
       return match;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Trampoline: md5 check failed for $remotePath: $e');
       return false;
     }
   }
@@ -333,9 +347,12 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       region: region,
       installTiles: osmTilesLocalPath != null || valhallaTilesLocalPath != null,
     );
-    debugPrint('Trampoline: script generated (${script.length} chars)');
+    // Ensure Unix line endings (LF only) — Windows may introduce CRLF which
+    // breaks the shebang line and prevents execution on Linux.
+    final cleanScript = script.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    debugPrint('Trampoline: script generated (${cleanScript.length} chars)');
     await _ssh.uploadFile(
-      Uint8List.fromList(script.codeUnits),
+      Uint8List.fromList(utf8.encode(cleanScript)),
       '/data/trampoline.sh',
     );
     debugPrint('Trampoline: script uploaded');

@@ -321,6 +321,24 @@ class FlashService {
     return FlashResult(success: true);
   }
 
+  /// Two-phase flash for Windows using the Go flasher binary.
+  Future<void> _writeTwoPhaseWindows(
+    String imagePath,
+    String devicePath,
+    bool isCompressed,
+    void Function(double progress, String message)? onProgress, {
+    String? bmapPath,
+  }) async {
+    final flasherPath = await _getFlasherPath();
+    if (flasherPath == null) {
+      throw Exception('librescoot-flasher.exe not found in app bundle');
+    }
+
+    // The Go flasher takes the disk offline before writing, which prevents
+    // Windows from interfering. Bmap and two-phase both work with this approach.
+    await _writeWithGoFlasher(flasherPath, imagePath, devicePath, bmapPath, true, onProgress);
+  }
+
   Future<bool> _runDiskpart(List<String> commands) async {
     // Create temp script file
     final tempDir = Directory.systemTemp;
@@ -328,14 +346,16 @@ class FlashService {
     await scriptFile.writeAsString(commands.join('\n'));
 
     try {
+      debugPrint('Flash: diskpart script: ${commands.join("; ")}');
+      debugPrint('Flash: diskpart script file: ${scriptFile.path}');
       final result = await Process.run(
-        'diskpart',
+        r'C:\Windows\System32\diskpart.exe',
         ['/s', scriptFile.path],
-        runInShell: true,
       );
+      debugPrint('Flash: diskpart exit=${result.exitCode} stdout=${result.stdout} stderr=${result.stderr}');
       return result.exitCode == 0;
     } finally {
-      await scriptFile.delete();
+      try { await scriptFile.delete(); } catch (_) {}
     }
   }
 
@@ -530,7 +550,9 @@ class FlashService {
   }) async {
     final isCompressed = imagePath.endsWith('.gz');
 
-    if (Platform.isMacOS) {
+    if (Platform.isWindows) {
+      await _writeTwoPhaseWindows(imagePath, devicePath, isCompressed, onProgress, bmapPath: bmapPath);
+    } else if (Platform.isMacOS) {
       final flasherPath = await _getFlasherPath();
       if (flasherPath == null) {
         throw Exception('librescoot-flasher binary not found in app bundle');
@@ -755,18 +777,22 @@ class FlashService {
   /// Locate the Go flasher binary (librescoot-flasher)
   Future<String?> _getFlasherPath() async {
     final execDir = path.dirname(Platform.resolvedExecutable);
+    final ext = Platform.isWindows ? '.exe' : '';
     final candidates = [
-      path.join(execDir, 'data', 'flutter_assets', 'assets', 'tools', 'librescoot-flasher'),
-      path.join(Directory.current.path, 'assets', 'tools', 'librescoot-flasher'),
+      path.join(execDir, 'data', 'flutter_assets', 'assets', 'tools', 'librescoot-flasher$ext'),
+      path.join(Directory.current.path, 'assets', 'tools', 'librescoot-flasher$ext'),
     ];
     for (final candidate in candidates) {
       if (await File(candidate).exists()) {
-        // Flutter strips execute permission from bundled assets
-        await Process.run('chmod', ['+x', candidate]);
+        if (!Platform.isWindows) {
+          // Flutter strips execute permission from bundled assets
+          await Process.run('chmod', ['+x', candidate]);
+        }
         debugPrint('Flash: found Go flasher at $candidate');
         return candidate;
       }
     }
+    debugPrint('Flash: Go flasher not found in: $candidates');
     return null;
   }
 
@@ -779,16 +805,14 @@ class FlashService {
     bool isRoot,
     void Function(double progress, String message)? onProgress,
   ) async {
-    final args = <String>[
-      flasherPath,
+    final flasherArgs = <String>[
       '--image', imagePath,
       '--device', devicePath,
       if (bmapPath != null) ...['--bmap', bmapPath]
       else ...['--two-phase', '--boot-blocks', '$bootAreaBlocks'],
     ];
 
-    final command = isRoot ? args.join(' ') : 'pkexec ${args.join(' ')}';
-    debugPrint('Flash: running: $command');
+    debugPrint('Flash: running: $flasherPath ${flasherArgs.join(' ')}');
 
     // Total bytes will be updated by TOTAL: output from flasher
     var totalBytes = await _estimateImageSizeBytes(imagePath, imagePath.endsWith('.gz')) ?? 0;
@@ -798,7 +822,18 @@ class FlashService {
 
     onProgress?.call(0.0, bmapPath != null ? 'Bmap flash...' : 'Waiting for authorization...');
 
-    final process = await Process.start('/bin/sh', ['-c', command]);
+    final Process process;
+    if (Platform.isWindows) {
+      // Windows: run flasher directly (already elevated)
+      process = await Process.start(flasherPath, flasherArgs);
+    } else if (isRoot) {
+      // Unix: already root, run directly
+      process = await Process.start(flasherPath, flasherArgs);
+    } else {
+      // Unix: need elevation via pkexec
+      final command = 'pkexec $flasherPath ${flasherArgs.join(' ')}';
+      process = await Process.start('/bin/sh', ['-c', command]);
+    }
     final output = StringBuffer();
 
     await for (final chunk in process.stderr.transform(utf8.decoder)) {
