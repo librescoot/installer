@@ -79,14 +79,14 @@ jobs:
         if: matrix.target == 'macos'
         run: |
           cd build/macos/Build/Products/Release
-          zip -r librescoot-installer-macos-universal-${{ steps.version.outputs.describe }}.zip librescoot_installer.app
+          zip -9 -r librescoot-installer-macos-universal-${{ steps.version.outputs.describe }}.zip librescoot_installer.app
 
       - name: Package Linux
         if: runner.os == 'Linux'
         run: |
           cd build/linux/x64/release
           mv bundle librescoot-installer
-          zip -r librescoot-installer-linux-x64-${{ steps.version.outputs.describe }}.zip librescoot-installer/
+          zip -9 -r librescoot-installer-linux-x64-${{ steps.version.outputs.describe }}.zip librescoot-installer/
 
       - name: Package Windows
         if: matrix.target == 'windows'
