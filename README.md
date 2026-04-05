@@ -1,92 +1,94 @@
 # LibreScoot Installer
 
-Cross-platform desktop installer for flashing LibreScoot firmware to MDB/DBC hardware.
+Cross-platform desktop app for installing [LibreScoot](https://librescoot.org) on unu scooters (MDB + DBC).
 
-## What It Does
+## What it does
 
-The app provides a guided workflow to:
+Step-by-step wizard for converting stock scooterOS to LibreScoot:
 
-1. Select a `.wic` or `.wic.gz` firmware image.
-2. Detect a connected LibreScoot board over USB.
-3. Configure a USB network interface for device communication.
-4. Connect over SSH to prepare the device for mass-storage flashing mode.
-5. Detect the mass-storage device and flash firmware safely.
+1. Download firmware and map tiles from GitHub releases (stable/testing/nightly)
+2. Connect to the MDB over USB RNDIS, detect hardware, read serial and firmware version
+3. Flash MDB: set U-Boot to mass storage mode, write image with `librescoot-flasher` (bmap support for sparse writes)
+4. Flash DBC: autonomous "trampoline" process where the MDB switches to USB host, flashes the DBC, and reboots
+5. Post-install: offline map tiles, Bluetooth pairing, keycard setup
 
-Target device identifiers:
+Also handles LibreScoot-to-LibreScoot re-flashing (detects installed firmware, offers skip options).
 
-- Ethernet mode: `VID 0525`, `PID A4A2`
-- Mass-storage mode: `VID 0525`, `PID A4A5`
-- Recovery mode (detected only): `VID 15A2`, `PID 0061`
+## Download
 
-## Safety Model
+Grab the latest build for your platform at [downloads.librescoot.org](https://downloads.librescoot.org).
 
-Flashing is gated by validation checks before any write occurs:
+## Platforms
 
-- Blocks known system disks (platform-specific checks).
-- Requires LibreScoot vendor/product IDs for flashing.
-- Validates expected device size range (`1 GB` to `16 GB`).
-- Shows a final destructive-action confirmation dialog.
+| Platform | MDB Flash | DBC Flash | Notes |
+|----------|-----------|-----------|-------|
+| Linux    | Yes       | Yes       | Primary, tested end-to-end |
+| macOS    | Yes       | Yes       | Uses `authopen` for raw disk access |
+| Windows  | Yes       | Yes       | Bundled RNDIS driver, `diskpart` for disk management |
 
-## Prerequisites
+## What you need
 
-- Flutter SDK compatible with Dart `^3.9.0`.
-- Desktop host: Windows, macOS, or Linux.
-- Administrative/root privileges (the app attempts to self-elevate on launch).
-- Firmware image file (`.wic` or `.wic.gz`).
-- `assets/passwords.yml` present at runtime (versioned SSH passwords, base64-encoded).
+- USB cable (laptop Mini-B to scooter MDB)
+- PH2 or H4 screwdriver for the footwell screws
+- About 20 minutes
 
-### Windows Notes
+The installer handles elevation, driver installation, and network config on its own.
 
-- The RNDIS driver may be required for USB ethernet mode.
-- Driver files are in `assets/drivers/` (`librescoot_rndis.inf`, `README.txt`).
-- `assets/tools/dd.exe` is used for flashing on Windows.
+## USB device IDs
 
-## Network Configuration
+| Mode | VID | PID | What |
+|------|-----|-----|------|
+| Ethernet (RNDIS) | `0525` | `A4A2` | SSH access for bootloader config |
+| Mass Storage (UMS) | `0525` | `A4A5` | Direct eMMC access for flashing |
+| Recovery (NXP) | `15A2` | `0061` | DBC SDP mode (detected, not used) |
 
-The installer configures the host USB interface as:
+## Project layout
 
-- Host IP: `192.168.7.50`
-- Subnet: `255.255.255.0`
-- Device IP (MDB): `192.168.7.1`
-
-## Project Structure
-
-```text
-lib/
-  main.dart                    # App entry point + elevation bootstrap
-  screens/home_screen.dart     # Installer wizard UI and flow control
+```
+lib/                              # Flutter/Dart GUI
+  screens/installer_screen.dart   #   Wizard flow
   services/
-    elevation_service.dart     # Cross-platform privilege elevation
-    usb_detector.dart          # USB VID/PID detection and metadata
-    network_service.dart       # USB network interface discovery/config
-    ssh_service.dart           # SSH connection + boot mode prep
-    flash_service.dart         # Safe firmware write per platform
+    ssh_service.dart              #   SSH, bootloader config
+    flash_service.dart            #   Platform-specific writes
+    download_service.dart         #   GitHub releases, caching
+    trampoline_service.dart       #   Autonomous DBC flash
+    usb_detector.dart             #   USB device detection
+    network_service.dart          #   RNDIS interface config
+
+flasher/                          # Go flash tool (cross-platform)
+  main.go                         #   bmap, gzip, sequential, two-phase
+
+cli/                              # Go CLI installer (feat/cli-installer)
+  main.go                         #   Headless, for scripted/remote use
 
 assets/
-  drivers/                     # Windows RNDIS driver assets
-  tools/                       # Flashing helper tools (e.g., dd.exe)
+  tools/                          # Platform binaries (flasher, fw_setenv)
+  drivers/                        # Windows RNDIS driver
+  trampoline.sh.template          # DBC flash script, runs on MDB
+  images/                         # Instructional photos
 ```
 
 ## Development
 
-Install dependencies:
-
 ```bash
 flutter pub get
+flutter run -d linux    # or macos, windows
 ```
 
-Run locally:
+Release builds:
 
 ```bash
-flutter run -d macos
-flutter run -d windows
-flutter run -d linux
+flutter build linux --release
+flutter build macos --release
+flutter build windows --release
 ```
 
-Build:
+Cross-compile the flasher:
 
 ```bash
-flutter build macos
-flutter build windows
-flutter build linux
+cd flasher && make build-all
 ```
+
+## License
+
+[CC BY-NC 4.0](LICENSE)

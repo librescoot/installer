@@ -1,8 +1,8 @@
-# LibreScoot Simple GUI Installer — Design Spec
+# LibreScoot Simple GUI Installer - Design Spec
 
 ## Overview
 
-A Flutter desktop application (Windows, macOS, Linux) that guides users through a complete LibreScoot firmware installation on both MDB and DBC boards. Replaces the existing 6-step MDB-only installer with a comprehensive 14-phase wizard that handles firmware download, two-phase safe flashing, and autonomous DBC flashing via a trampoline script.
+A Flutter desktop application (Windows, macOS, Linux) that guides users through a complete LibreScoot firmware installation on both MDB and DBC boards. Replaces the existing 6-step MDB-only installer with a 14-phase wizard that handles firmware download, two-phase safe flashing, and autonomous DBC flashing via a trampoline script.
 
 ## Installation Flow
 
@@ -89,7 +89,7 @@ If any check fails, display current values and instruct user to charge/fix befor
 
 Two-phase write strategy for safety. While U-Boot has `bootcmd "ums 0 mmc 1"`, any interruption during Phase A leaves the device safely looping back to UMS mode.
 
-**Disk layout (MDB — `/dev/mmcblk1`):**
+**Disk layout (MDB - `/dev/mmcblk1`):**
 
 | Offset | Content |
 |--------|---------|
@@ -102,13 +102,13 @@ Two-phase write strategy for safety. While U-Boot has `bootcmd "ums 0 mmc 1"`, a
 | 568MB | rootfs-B (512MB ext4) |
 | 1080MB | /data (remaining space, ext4) |
 
-**Phase A — Write partitions (safe):**
+**Phase A - Write partitions (safe):**
 ```
 gunzip -c image.sdimg.gz | dd bs=4M skip=6 seek=6 of=/dev/TARGET
 ```
 Writes everything from 24MB onwards. If interrupted, U-Boot still boots to UMS.
 
-**Phase B — Write boot sector (commits the flash):**
+**Phase B - Write boot sector (commits the flash):**
 ```
 gunzip -c image.sdimg.gz | dd bs=4M count=6 of=/dev/TARGET
 sync
@@ -119,10 +119,10 @@ Progress tracking via dd stderr output parsing.
 
 ### Phase 7: Scooter Prep
 
-MDB is in UMS mode (no OS running) — instructions only, no Redis verification. **Strong warnings required.**
+MDB is in UMS mode (no OS running) - instructions only, no Redis verification. **Strong warnings required.**
 
-1. **Disconnect CBB** — Emphasize: "The main battery must already be removed before disconnecting CBB. Failure to follow this order risks electrical damage."
-2. **Disconnect one AUX pole** — This removes power from MDB. USB connection will disappear. Emphasize that ONLY one pole, ideally the positive pole (the outermost one, color-coded red) should be removed, so avoid risk of inverting polarity.
+1. **Disconnect CBB** - Emphasize: "The main battery must already be removed before disconnecting CBB. Failure to follow this order risks electrical damage."
+2. **Disconnect one AUX pole** - This removes power from MDB. USB connection will disappear. Emphasize that ONLY one pole, ideally the positive pole (the outermost one, color-coded red) should be removed, so avoid risk of inverting polarity.
 
 ### Phase 8: MDB Boot
 
@@ -145,8 +145,8 @@ MDB is in UMS mode (no OS running) — instructions only, no Redis verification.
 Parallel uploads to MDB `/data` via SCP (block if any background downloads still running):
 
 1. Upload DBC firmware image (`librescoot-unu-dbc-*.sdimg.gz`)
-2. Upload display map tiles (`tiles_{region}.mbtiles`) — if offline maps selected
-3. Upload routing tiles (`valhalla_tiles_{region}.tar`) — if offline routing selected
+2. Upload display map tiles (`tiles_{region}.mbtiles`) - if offline maps selected
+3. Upload routing tiles (`valhalla_tiles_{region}.tar`) - if offline routing selected
 4. Upload SHA256 checksums for tile verification
 5. Generate and upload trampoline shell script (includes tile installation steps)
 6. Start trampoline script on MDB in background (`nohup`)
@@ -162,7 +162,7 @@ Trampoline script runs autonomously on MDB. Installer cannot communicate with MD
 1. Detect laptop USB disconnect (poll `/sys/class/udc/ci_hdrc.0/state`)
 2. Boot LED → amber; front ring position light on (constant = working)
 3. Wait for USB network to form with DBC (MDB gadget, DBC host → `192.168.7.x`)
-4. `lsc dbc on-wait` — power on DBC, wait for it to be reachable
+4. `lsc dbc on-wait` - power on DBC, wait for it to be reachable
 5. Boot LED → green; additional position lights on
 6. SSH to DBC (`root@192.168.7.2`):
    - Stop dashboard UI: `systemctl stop dbc-dashboard-ui` (or equivalent)
@@ -255,8 +255,8 @@ Trampoline script runs autonomously on MDB. Installer cannot communicate with MD
 
 - Starts in background during Phase 0 after channel selection
 - Progress: MB downloaded / total MB with progress bar
-- Firmware must complete before Phase 6 (MDB Flash) — firmware downloads can overlap with Phases 1-5
-- Tile downloads must complete before Phase 10 (DBC Prep) — tiles can download during Phases 1-9
+- Firmware must complete before Phase 6 (MDB Flash) - firmware downloads can overlap with Phases 1-5
+- Tile downloads must complete before Phase 10 (DBC Prep) - tiles can download during Phases 1-9
 - On failure: retry with exponential backoff, offer local file selection as fallback
 - No GitHub authentication required (public releases)
 
@@ -264,24 +264,24 @@ Trampoline script runs autonomously on MDB. Installer cannot communicate with MD
 
 ### Services (existing, modified)
 
-- **FlashService** — Add two-phase write capability: `skip`/`seek` and `count` parameters for dd. Support two-pass gunzip streaming.
-- **SshService** — Add Redis query commands (`HGET`, `LPUSH`), seatbox control, fw_setenv for DBC (`ums 0 mmc 2`), DBC SSH via MDB proxy.
-- **UsbDetector** — No changes. Already detects RNDIS (`A4A2`) and UMS (`A4A5`).
-- **NetworkService** — No changes.
-- **ElevationService** — No changes.
-- **DriverService** — No changes.
+- **FlashService** - Add two-phase write capability: `skip`/`seek` and `count` parameters for dd. Support two-pass gunzip streaming.
+- **SshService** - Add Redis query commands (`HGET`, `LPUSH`), seatbox control, fw_setenv for DBC (`ums 0 mmc 2`), DBC SSH via MDB proxy.
+- **UsbDetector** - No changes. Already detects RNDIS (`A4A2`) and UMS (`A4A5`).
+- **NetworkService** - No changes.
+- **ElevationService** - No changes.
+- **DriverService** - No changes.
 
 ### Services (new)
 
-- **DownloadService** — GitHub API client, release resolution by channel, download with progress callbacks, cache management. Handles firmware images (librescoot/librescoot), display tiles (librescoot/osm-tiles), and routing tiles (librescoot/valhalla-tiles).
-- **TrampolineService** — Generate trampoline shell script (templated with DBC image path, tile paths, timeouts), upload to MDB via SCP, upload DBC image + tiles, parse status file after reconnect.
+- **DownloadService** - GitHub API client, release resolution by channel, download with progress callbacks, cache management. Handles firmware images (librescoot/librescoot), display tiles (librescoot/osm-tiles), and routing tiles (librescoot/valhalla-tiles).
+- **TrampolineService** - Generate trampoline shell script (templated with DBC image path, tile paths, timeouts), upload to MDB via SCP, upload DBC image + tiles, parse status file after reconnect.
 
 ### Models
 
-- **InstallerPhase** — Enum replacing current `InstallerStep` (14 phases)
-- **ScooterHealth** — Holds Redis health check values (AUX charge, CBB SoH, CBB charge, battery present)
-- **DownloadState** — Channel, selected release tag, download progress, cached status
-- **TrampolineStatus** — Parsed from `/data/trampoline-status` (success/error, details, checksums)
+- **InstallerPhase** - Enum replacing current `InstallerStep` (14 phases)
+- **ScooterHealth** - Holds Redis health check values (AUX charge, CBB SoH, CBB charge, battery present)
+- **DownloadState** - Channel, selected release tag, download progress, cached status
+- **TrampolineStatus** - Parsed from `/data/trampoline-status` (success/error, details, checksums)
 
 ### State Management
 
@@ -293,7 +293,7 @@ StatefulWidget + setState (current pattern). The flow is linear; a full state ma
 
 Vertical stepper wizard:
 - **Left sidebar** (~200px): numbered phase list, current phase highlighted (green), completed phases checked (gray), future phases dimmed
-- **Main area**: current phase content — instructions, status messages, progress bars, verification checklists
+- **Main area**: current phase content - instructions, status messages, progress bars, verification checklists
 - **Bottom**: Back/Next navigation (disabled during automatic phases)
 
 ### Theme
@@ -313,8 +313,8 @@ Dark theme with teal accent (matching current app). Material 3.
 | 4 | Seatbox won't open | Retry command |
 | 5 | fw_setenv fails | Retry, show SSH error |
 | 5 | UMS never appears | Timeout → suggest power cycle |
-| 6 | dd fails (Phase A) | Safe — U-Boot loops to UMS, retry |
-| 6 | dd fails (Phase B) | Dangerous but rare — retry |
+| 6 | dd fails (Phase A) | Safe - U-Boot loops to UMS, retry |
+| 6 | dd fails (Phase B) | Dangerous but rare - retry |
 | 8 | UMS appears instead of RNDIS | Flash didn't take → retry from Phase 6 |
 | 8 | Nothing appears | Check AUX, check cable |
 | 11 | Trampoline error | Read status file, display log, offer retry |
@@ -358,14 +358,14 @@ MDB has one physical USB connector (ci_hdrc.0, OTG). An internal cable normally 
 **USB role switching on MDB:**
 - Gadget mode: `g_ether` kernel module (RNDIS network)
 - To host mode: `modprobe -r g_ether && echo host > /sys/kernel/debug/ci_hdrc.0/role` → `/dev/sda` appears
-- Back to gadget: `echo gadget > /sys/kernel/debug/ci_hdrc.0/role && modprobe g_ether` (no reboot needed on LibreScoot — `CONFIG_USB_ROLE_SWITCH=y` + `dr_mode = "otg"`)
+- Back to gadget: `echo gadget > /sys/kernel/debug/ci_hdrc.0/role && modprobe g_ether` (no reboot needed on LibreScoot - `CONFIG_USB_ROLE_SWITCH=y` + `dr_mode = "otg"`)
 - OTG capability check: `cat /sys/kernel/debug/ci_hdrc.0/device | grep 'is_otg'`
 - Alternative sysfs: `/sys/class/usb_role/` (proper role switch framework)
 - Detach detection: poll `/sys/class/udc/ci_hdrc.0/state`
 
 ## Scoped Out / Deferred
 
-- **MDB backup** (dd of running system before flash) — deferred to future version
-- **Keycard enrollment / Bluetooth pairing** — handled by LibreScoot first-run experience, not the installer
-- **Advanced mode** — use CLI installer or manual steps
-- **Redis-verified physical steps during UMS mode** (Phase 7) — impossible, instruction-only
+- **MDB backup** (dd of running system before flash) - deferred to future version
+- **Keycard enrollment / Bluetooth pairing** - handled by LibreScoot first-run experience, not the installer
+- **Advanced mode** - use CLI installer or manual steps
+- **Redis-verified physical steps during UMS mode** (Phase 7) - impossible, instruction-only
