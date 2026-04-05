@@ -1,5 +1,7 @@
 # LibreScoot Installer
 
+> **Beta software.** Tested on all three platforms against real hardware, but things can still go wrong. Flashing firmware carries inherent risk. Use at your own risk, no warranty expressed or implied.
+
 Cross-platform desktop app for installing [LibreScoot](https://librescoot.org) on unu scooters (MDB + DBC).
 
 ## What it does
