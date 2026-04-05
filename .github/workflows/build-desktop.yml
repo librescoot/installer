@@ -63,6 +63,17 @@ jobs:
             libgtk-3-dev \
             liblzma-dev
 
+      - name: Remove other platforms' flasher binaries
+        shell: bash
+        run: |
+          if [ "${{ matrix.target }}" = "macos" ]; then
+            rm -f assets/tools/librescoot-flasher-arm assets/tools/librescoot-flasher.exe assets/tools/dd.exe
+          elif [ "${{ matrix.target }}" = "linux-x64" ]; then
+            rm -f assets/tools/librescoot-flasher.exe assets/tools/dd.exe
+          elif [ "${{ matrix.target }}" = "windows" ]; then
+            rm -f assets/tools/librescoot-flasher assets/tools/librescoot-flasher-arm
+          fi
+
       - name: Build macOS
         if: matrix.target == 'macos'
         run: flutter build macos --release --dart-define=AUTH_KEY=${{ secrets.AUTH_KEY }}
