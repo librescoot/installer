@@ -90,10 +90,14 @@ jobs:
         if: matrix.target == 'macos'
         run: |
           VERSION="${{ steps.version.outputs.describe }}"
+          DMG_DIR=$(mktemp -d)
+          cp -R "build/macos/Build/Products/Release/LibreScoot Installer.app" "$DMG_DIR/"
+          ln -s /Applications "$DMG_DIR/Applications"
           hdiutil create -volname "LibreScoot Installer" \
-            -srcfolder build/macos/Build/Products/Release/librescoot_installer.app \
+            -srcfolder "$DMG_DIR" \
             -ov -format UDZO \
             "build/macos/Build/Products/Release/librescoot-installer-macos-universal-${VERSION}.dmg"
+          rm -rf "$DMG_DIR"
 
       - name: Package Linux
         if: runner.os == 'Linux'

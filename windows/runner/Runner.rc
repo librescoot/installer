@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "io.librescoot" "\0"
-            VALUE "FileDescription", "librescoot_installer" "\0"
+            VALUE "FileDescription", "LibreScoot Installer" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "librescoot_installer" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 io.librescoot. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 librescoot.org. All rights reserved." "\0"
             VALUE "OriginalFilename", "librescoot_installer.exe" "\0"
-            VALUE "ProductName", "librescoot_installer" "\0"
+            VALUE "ProductName", "LibreScoot Installer" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
