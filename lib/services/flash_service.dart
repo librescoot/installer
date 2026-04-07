@@ -774,26 +774,63 @@ class FlashService {
     return null;
   }
 
-  /// Locate the Go flasher binary (librescoot-flasher)
+  /// Locate the Go flasher binary (librescoot-flasher).
+  ///
+  /// Flutter's per-platform bundle layouts differ:
+  /// - Linux/Windows:   <exec_dir>/data/flutter_assets/assets/tools/...
+  /// - macOS:           <exec_dir>/../Frameworks/App.framework/Resources/flutter_assets/assets/tools/...
+  ///
+  /// On macOS, the app may also be running from an AppTranslocation read-only
+  /// mount (when launched from a downloaded .dmg without copying to
+  /// /Applications), so we stage the binary into a writable temp directory
+  /// before chmod'ing it.
   Future<String?> _getFlasherPath() async {
     final execDir = path.dirname(Platform.resolvedExecutable);
     final ext = Platform.isWindows ? '.exe' : '';
-    final candidates = [
-      path.join(execDir, 'data', 'flutter_assets', 'assets', 'tools', 'librescoot-flasher$ext'),
-      path.join(Directory.current.path, 'assets', 'tools', 'librescoot-flasher$ext'),
+    final binaryName = 'librescoot-flasher$ext';
+    final candidates = <String>[
+      if (Platform.isMacOS)
+        path.join(execDir, '..', 'Frameworks', 'App.framework', 'Resources',
+            'flutter_assets', 'assets', 'tools', binaryName),
+      path.join(execDir, 'data', 'flutter_assets', 'assets', 'tools', binaryName),
+      path.join(Directory.current.path, 'assets', 'tools', binaryName),
     ];
     for (final candidate in candidates) {
       if (await File(candidate).exists()) {
+        debugPrint('Flash: found Go flasher at $candidate');
+        if (Platform.isMacOS) {
+          // The bundle may live on a read-only AppTranslocation mount when
+          // launched from a downloaded .dmg, so chmod in place fails. Stage
+          // it into a writable temp dir before marking it executable.
+          return _stageMacOSExecutable(candidate, binaryName);
+        }
         if (!Platform.isWindows) {
-          // Flutter strips execute permission from bundled assets
+          // Flutter strips execute permission from bundled assets.
           await Process.run('chmod', ['+x', candidate]);
         }
-        debugPrint('Flash: found Go flasher at $candidate');
         return candidate;
       }
     }
     debugPrint('Flash: Go flasher not found in: $candidates');
     return null;
+  }
+
+  /// Copy [source] to a writable temp directory and mark it executable.
+  /// Re-copies if the staged file is missing or differs in size from source.
+  Future<String> _stageMacOSExecutable(String source, String name) async {
+    final stageDir = Directory(path.join(Directory.systemTemp.path, 'librescoot-installer'));
+    if (!await stageDir.exists()) {
+      await stageDir.create(recursive: true);
+    }
+    final staged = File(path.join(stageDir.path, name));
+    final src = File(source);
+    final srcLen = await src.length();
+    if (!await staged.exists() || await staged.length() != srcLen) {
+      await src.copy(staged.path);
+      debugPrint('Flash: staged $name to ${staged.path}');
+    }
+    await Process.run('chmod', ['+x', staged.path]);
+    return staged.path;
   }
 
   /// Write using the Go flasher binary (supports bmap, two-phase, sequential)
