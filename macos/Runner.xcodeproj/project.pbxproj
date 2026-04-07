@@ -241,6 +241,7 @@
 			buildPhases = (
 				EEFC63E4CCD78F337610927F /* [CP] Check Pods Manifest.lock */,
 				A1B2C3D400000004DEADBEEF /* Compile diskwriter */,
+				A1B2C3D400000005DEADBEEF /* Bundle flasher */,
 				33CC10E92044A3C60003C045 /* Sources */,
 				33CC10EA2044A3C60003C045 /* Frameworks */,
 				33CC10EB2044A3C60003C045 /* Resources */,
@@ -330,6 +331,26 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		A1B2C3D400000005DEADBEEF /* Bundle flasher */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../assets/tools/librescoot-flasher",
+			);
+			name = "Bundle flasher";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/librescoot-flasher",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\ncp \"${SRCROOT}/../assets/tools/librescoot-flasher\" \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/librescoot-flasher\"\nchmod +x \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/librescoot-flasher\"\nxattr -cr \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/librescoot-flasher\"\n";
+		};
 		A1B2C3D400000004DEADBEEF /* Compile diskwriter */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
