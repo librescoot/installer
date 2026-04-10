@@ -640,7 +640,49 @@ if [ "$INSTALL_TILES" = "true" ]; then
   cat >> /data/onboot.sh << TILES
 dbc_ssh "mkdir -p /data/maps /data/valhalla" || log "WARNING: mkdir failed"
 
-# data-server runs permanently on DBC (port 8080, rooted at /data)
+# Detect whether DBC has data-server running (new firmware) or needs the
+# Python fallback (older firmware). data-server identifies itself via the
+# Server response header. TILE_PREFIX compensates for the URL layout:
+# data-server is rooted at /data, Python fallback expects a literal path.
+DBC_PYTHON_STARTED="no"
+TILE_PREFIX=""
+if curl -sSI "http://\$DBC_IP:8080/" 2>/dev/null | grep -qi "^Server: librescoot-data-server"; then
+  log "  DBC has data-server running"
+else
+  log "  DBC lacks data-server, starting Python fallback..."
+  TILE_PREFIX="/data"
+  dbc_ssh 'cat > /tmp/upload_srv.py << "PYEOF"
+import http.server
+import os
+
+class H(http.server.BaseHTTPRequestHandler):
+    def do_PUT(self):
+        p = self.path
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        l = int(self.headers["Content-Length"])
+        with open(p, "wb") as f:
+            r = l
+            while r > 0:
+                c = self.rfile.read(min(65536, r))
+                if not c:
+                    break
+                f.write(c)
+                r -= len(c)
+        self.send_response(200)
+        self.end_headers()
+
+    def log_message(self, *a):
+        pass
+
+with open("/tmp/upload_srv.pid", "w") as pf:
+    pf.write(str(os.getpid()))
+
+http.server.HTTPServer(("0.0.0.0", 8080), H).serve_forever()
+PYEOF
+nohup python3 /tmp/upload_srv.py > /dev/null 2>&1 &' && DBC_PYTHON_STARTED="yes" || log "WARNING: failed to start DBC upload server"
+  sleep 2
+fi
+
 TILE_ERRORS=0
 
 upload_tile() {
@@ -649,7 +691,7 @@ upload_tile() {
   while [ \$attempt -lt 3 ]; do
     attempt=\$((attempt + 1))
     log "  uploading \$name (attempt \$attempt/3)..."
-    if curl -T "\$src" "http://\$DBC_IP:8080\$dst" 2>>"\$LOG"; then
+    if curl -T "\$src" "http://\$DBC_IP:8080\${TILE_PREFIX}\$dst" 2>>"\$LOG"; then
       log "  \$name done"
       return 0
     fi
@@ -670,6 +712,11 @@ if [ -f "$VALHALLA_TILES_FILE" ]; then
   else
     TILE_ERRORS=\$((TILE_ERRORS + 1))
   fi
+fi
+
+# Stop DBC Python upload server if we started one
+if [ "\$DBC_PYTHON_STARTED" = "yes" ]; then
+  dbc_ssh 'kill \$(cat /tmp/upload_srv.pid 2>/dev/null) 2>/dev/null; rm -f /tmp/upload_srv.pid /tmp/upload_srv.py' || true
 fi
 TILES
 fi
