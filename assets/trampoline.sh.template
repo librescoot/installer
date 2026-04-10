@@ -640,39 +640,7 @@ if [ "$INSTALL_TILES" = "true" ]; then
   cat >> /data/onboot.sh << TILES
 dbc_ssh "mkdir -p /data/maps /data/valhalla" || log "WARNING: mkdir failed"
 
-# Start HTTP upload server on DBC for fast file transfer
-log "  starting HTTP upload server on DBC..."
-dbc_ssh 'cat > /tmp/upload_srv.py << "PYEOF"
-import http.server
-import os
-
-class H(http.server.BaseHTTPRequestHandler):
-    def do_PUT(self):
-        p = self.path
-        os.makedirs(os.path.dirname(p), exist_ok=True)
-        l = int(self.headers["Content-Length"])
-        with open(p, "wb") as f:
-            r = l
-            while r > 0:
-                c = self.rfile.read(min(65536, r))
-                if not c:
-                    break
-                f.write(c)
-                r -= len(c)
-        self.send_response(200)
-        self.end_headers()
-
-    def log_message(self, *a):
-        pass
-
-with open("/tmp/upload_srv.pid", "w") as pf:
-    pf.write(str(os.getpid()))
-
-http.server.HTTPServer(("0.0.0.0", 8080), H).serve_forever()
-PYEOF
-nohup python3 /tmp/upload_srv.py > /dev/null 2>&1 &' || log "WARNING: failed to start DBC upload server"
-sleep 2
-
+# data-server runs permanently on DBC (port 8080, rooted at /data)
 TILE_ERRORS=0
 
 upload_tile() {
@@ -694,18 +662,15 @@ upload_tile() {
 }
 
 if [ -f "$OSM_TILES_FILE" ]; then
-  upload_tile "$OSM_TILES_FILE" "/data/maps/map.mbtiles" "display tiles" || TILE_ERRORS=\$((TILE_ERRORS + 1))
+  upload_tile "$OSM_TILES_FILE" "/maps/map.mbtiles" "display tiles" || TILE_ERRORS=\$((TILE_ERRORS + 1))
 fi
 if [ -f "$VALHALLA_TILES_FILE" ]; then
-  if upload_tile "$VALHALLA_TILES_FILE" "/data/valhalla/tiles.tar" "routing tiles"; then
+  if upload_tile "$VALHALLA_TILES_FILE" "/valhalla/tiles.tar" "routing tiles"; then
     dbc_ssh "systemctl restart valhalla" 2>/dev/null || true
   else
     TILE_ERRORS=\$((TILE_ERRORS + 1))
   fi
 fi
-
-# Stop DBC upload server
-dbc_ssh 'kill \$(cat /tmp/upload_srv.pid 2>/dev/null) 2>/dev/null; rm -f /tmp/upload_srv.pid' || true
 TILES
 fi
 

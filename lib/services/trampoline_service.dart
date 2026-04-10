@@ -10,6 +10,7 @@ import 'ssh_service.dart';
 
 class TrampolineService {
   final SshService _ssh;
+  bool _pythonServerStarted = false;
 
   TrampolineService(this._ssh);
 
@@ -101,8 +102,27 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
 
   static const _mdbUploadUrl = 'http://192.168.7.1:8080';
 
-  /// Start HTTP upload server on MDB (much faster than SCP/SFTP)
+  /// Start HTTP upload server on MDB (much faster than SCP/SFTP).
+  /// If data-server is already running (new firmware), skip Python startup.
   Future<void> _startUploadServer() async {
+    final probeClient = HttpClient();
+    try {
+      final req = await probeClient
+          .getUrl(Uri.parse('$_mdbUploadUrl/'))
+          .timeout(const Duration(seconds: 3));
+      final resp = await req.close().timeout(const Duration(seconds: 3));
+      await resp.drain<void>();
+      if (resp.statusCode == 200) {
+        debugPrint('Trampoline: permanent data-server detected, skipping Python server');
+        _pythonServerStarted = false;
+        return;
+      }
+    } catch (_) {
+      // Not running — fall through to start the Python server.
+    } finally {
+      probeClient.close();
+    }
+
     // Kill any leftover server from previous runs
     debugPrint('Trampoline: cleaning up old upload server...');
     try {
@@ -125,6 +145,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
           final resp = await req.close().timeout(const Duration(seconds: 2));
           await resp.drain<void>();
           debugPrint('Trampoline: HTTP upload server ready (attempt ${i + 1})');
+          _pythonServerStarted = true;
           return;
         } catch (_) {
           await Future.delayed(const Duration(seconds: 1));
@@ -137,6 +158,10 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
   }
 
   Future<void> _stopUploadServer() async {
+    if (!_pythonServerStarted) {
+      debugPrint('Trampoline: no Python server to stop');
+      return;
+    }
     try {
       await _ssh.runCommand(
         'kill \$(pgrep -f upload_srv) 2>/dev/null; '
@@ -144,6 +169,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
         'rm -f /tmp/upload_srv.py',
       );
     } catch (_) {}
+    _pythonServerStarted = false;
     debugPrint('Trampoline: HTTP upload server stopped');
   }
 
