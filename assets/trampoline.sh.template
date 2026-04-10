@@ -642,22 +642,20 @@ dbc_ssh "mkdir -p /data/maps /data/valhalla" || log "WARNING: mkdir failed"
 
 # Detect whether DBC has data-server running (new firmware) or needs the
 # Python fallback (older firmware). data-server identifies itself via the
-# Server response header. TILE_PREFIX compensates for the URL layout:
-# data-server is rooted at /data, Python fallback expects a literal path.
+# Server response header. Both servers are rooted at /data, so the URL
+# layout is identical either way.
 DBC_PYTHON_STARTED="no"
-TILE_PREFIX=""
 if curl -sSI "http://\$DBC_IP:8080/" 2>/dev/null | grep -qi "^Server: librescoot-data-server"; then
   log "  DBC has data-server running"
 else
   log "  DBC lacks data-server, starting Python fallback..."
-  TILE_PREFIX="/data"
   dbc_ssh 'cat > /tmp/upload_srv.py << "PYEOF"
 import http.server
 import os
 
 class H(http.server.BaseHTTPRequestHandler):
     def do_PUT(self):
-        p = self.path
+        p = "/data" + self.path
         os.makedirs(os.path.dirname(p), exist_ok=True)
         l = int(self.headers["Content-Length"])
         with open(p, "wb") as f:
@@ -691,7 +689,7 @@ upload_tile() {
   while [ \$attempt -lt 3 ]; do
     attempt=\$((attempt + 1))
     log "  uploading \$name (attempt \$attempt/3)..."
-    if curl -T "\$src" "http://\$DBC_IP:8080\${TILE_PREFIX}\$dst" 2>>"\$LOG"; then
+    if curl -T "\$src" "http://\$DBC_IP:8080\$dst" 2>>"\$LOG"; then
       log "  \$name done"
       return 0
     fi
