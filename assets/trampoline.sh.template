@@ -494,11 +494,14 @@ while [ $ATTEMPT -lt 3 ]; do
     log "  using dd (oflag=direct), image size: $FLASH_TOTAL"
     gunzip -c "$DBC_IMAGE" | dd bs=4M iflag=fullblock of=$DBC_DEV oflag=direct status=progress 2>&1 \
       | monitor_progress "$FLASH_TOTAL"
-    FLASH_RC=0
+    FLASH_RC=${PIPESTATUS[1]:-0}
   fi
 
   if [ "${FLASH_RC:-0}" -ne 0 ]; then
     log "  flash failed (rc=$FLASH_RC), retrying..."
+    sleep 3
+    DBC_DEV="$(find_dbc_block_device 2>/dev/null)" || { log "  device gone, waiting..."; sleep 5; DBC_DEV="$(find_dbc_block_device 2>/dev/null)" || continue; }
+    log "  re-probed device: $DBC_DEV"
     continue
   fi
 
@@ -515,6 +518,9 @@ while [ $ATTEMPT -lt 3 ]; do
     break
   else
     log "  checksum mismatch, retrying..."
+    sleep 3
+    DBC_DEV="$(find_dbc_block_device 2>/dev/null)" || { log "  device gone, waiting..."; sleep 5; DBC_DEV="$(find_dbc_block_device 2>/dev/null)" || continue; }
+    log "  re-probed device: $DBC_DEV"
   fi
 done
 
