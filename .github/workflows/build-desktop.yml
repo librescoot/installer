@@ -149,3 +149,26 @@ jobs:
         with:
           files: dist/*
           generate_release_notes: true
+
+      - name: Generate app token for site rebuilds
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: librescoot
+          repositories: downloads.librescoot.org,librescoot.github.io
+
+      - name: Trigger downloads site rebuild
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          repository: librescoot/downloads.librescoot.org
+          event-type: releases-changed
+
+      - name: Trigger main site rebuild
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          repository: librescoot/librescoot.github.io
+          event-type: releases-changed
