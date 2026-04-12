@@ -40,21 +40,36 @@ class SshService {
 
   /// Load device configuration from encrypted or plaintext asset.
   Future<void> loadDeviceConfig(String assetsPath) async {
-    final encFile = File(path.join(assetsPath, 'device_configs.bin'));
-    final plainFile = File(path.join(assetsPath, 'device_configs.yml'));
-
     String yamlContent;
 
-    if (await encFile.exists() && _authKey.isNotEmpty) {
-      debugPrint('SSH: loading device config (encrypted)');
-      yamlContent = _decryptAsset(await encFile.readAsBytes());
-    } else if (await plainFile.exists()) {
-      debugPrint('SSH: loading device config (dev fallback)');
-      yamlContent = await plainFile.readAsString();
+    if (_authKey.isNotEmpty) {
+      try {
+        final data = await rootBundle.load('$assetsPath/device_configs.bin');
+        debugPrint('SSH: loading device config (encrypted, bundle)');
+        yamlContent = _decryptAsset(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+      } catch (_) {
+        final encFile = File(path.join(assetsPath, 'device_configs.bin'));
+        if (await encFile.exists()) {
+          debugPrint('SSH: loading device config (encrypted, filesystem)');
+          yamlContent = _decryptAsset(await encFile.readAsBytes());
+        } else {
+          yamlContent = '';
+        }
+      }
     } else {
-      debugPrint('SSH: no device config found at $assetsPath (empty password may still work)');
-      _deviceConfig = {};
-      return;
+      yamlContent = '';
+    }
+
+    if (yamlContent.isEmpty) {
+      final plainFile = File(path.join(assetsPath, 'device_configs.yml'));
+      if (await plainFile.exists()) {
+        debugPrint('SSH: loading device config (dev fallback)');
+        yamlContent = await plainFile.readAsString();
+      } else {
+        debugPrint('SSH: no device config found (empty password may still work)');
+        _deviceConfig = {};
+        return;
+      }
     }
 
     final yaml = loadYaml(yamlContent) as YamlMap;
