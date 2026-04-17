@@ -331,7 +331,7 @@ class FlashService {
   }) async {
     final flasherPath = await _getFlasherPath();
     if (flasherPath == null) {
-      throw Exception('librescoot-flasher.exe not found in app bundle');
+      throw Exception('librescoot-flasher-windows-amd64.exe not found in app bundle');
     }
 
     // The Go flasher takes the disk offline before writing, which prevents
@@ -774,15 +774,23 @@ class FlashService {
     return null;
   }
 
-  /// Locate the Go flasher binary (librescoot-flasher).
+  /// Locate the Go flasher binary for the current host platform.
   ///
   /// On macOS and Linux the binary is installed with +x by the build system
   /// (Xcode build phase / CMake install), so no chmod is needed at runtime.
   /// Windows bundles it via Flutter assets (no execute bit needed).
   Future<String?> _getFlasherPath() async {
     final execDir = path.dirname(Platform.resolvedExecutable);
-    final ext = Platform.isWindows ? '.exe' : '';
-    final binaryName = 'librescoot-flasher$ext';
+    final String binaryName;
+    if (Platform.isWindows) {
+      binaryName = 'librescoot-flasher-windows-amd64.exe';
+    } else if (Platform.isMacOS) {
+      binaryName = 'librescoot-flasher-darwin-arm64';
+    } else if (Platform.isLinux) {
+      binaryName = 'librescoot-flasher-linux-amd64';
+    } else {
+      return null;
+    }
     final candidates = <String>[
       if (Platform.isMacOS)
         // Xcode build phase copies it here with +x

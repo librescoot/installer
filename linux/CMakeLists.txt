@@ -100,7 +100,7 @@ install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/app_icon.png" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   COMPONENT Runtime)
 
-install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/../assets/tools/librescoot-flasher"
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/../assets/tools/librescoot-flasher-linux-amd64"
   DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 

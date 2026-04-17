@@ -329,8 +329,8 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     // Upload ARM flasher binary for DBC flash (has bmap + progress support)
     onProgress?.call('Uploading flasher...', 0.94);
     try {
-      final flasherAsset = await rootBundle.load('assets/tools/librescoot-flasher-arm');
-      debugPrint('Trampoline: loaded flasher-arm (${flasherAsset.lengthInBytes} bytes)');
+      final flasherAsset = await rootBundle.load('assets/tools/librescoot-flasher-linux-arm');
+      debugPrint('Trampoline: loaded flasher-linux-arm (${flasherAsset.lengthInBytes} bytes)');
       await _ssh.uploadFile(
         flasherAsset.buffer.asUint8List(),
         '/data/librescoot-flasher',

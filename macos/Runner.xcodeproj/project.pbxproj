@@ -339,17 +339,17 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
-				"$(SRCROOT)/../assets/tools/librescoot-flasher",
+				"$(SRCROOT)/../assets/tools/librescoot-flasher-darwin-arm64",
 			);
 			name = "Bundle flasher";
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/librescoot-flasher",
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/librescoot-flasher-darwin-arm64",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\ncp \"${SRCROOT}/../assets/tools/librescoot-flasher\" \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/librescoot-flasher\"\nchmod +x \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/librescoot-flasher\"\nxattr -cr \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/librescoot-flasher\"\n";
+			shellScript = "set -e\ncp \"${SRCROOT}/../assets/tools/librescoot-flasher-darwin-arm64\" \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/librescoot-flasher-darwin-arm64\"\nchmod +x \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/librescoot-flasher-darwin-arm64\"\nxattr -cr \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/librescoot-flasher-darwin-arm64\"\n";
 		};
 		A1B2C3D400000004DEADBEEF /* Compile diskwriter */ = {
 			isa = PBXShellScriptBuildPhase;

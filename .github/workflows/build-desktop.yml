@@ -66,14 +66,19 @@ jobs:
       - name: Remove other platforms' flasher binaries
         shell: bash
         run: |
-          # librescoot-flasher-arm is always kept — it's uploaded to the MDB, not run on the host
-          if [ "${{ matrix.target }}" = "macos" ]; then
-            rm -f assets/tools/librescoot-flasher.exe assets/tools/dd.exe
-          elif [ "${{ matrix.target }}" = "linux-x64" ]; then
-            rm -f assets/tools/librescoot-flasher.exe assets/tools/dd.exe
-          elif [ "${{ matrix.target }}" = "windows" ]; then
-            rm -f assets/tools/librescoot-flasher
-          fi
+          # librescoot-flasher-linux-arm is always kept — it's uploaded to the MDB, not run on the host
+          cd assets/tools
+          case "${{ matrix.target }}" in
+            macos)
+              rm -f librescoot-flasher-linux-amd64 librescoot-flasher-windows-amd64.exe dd.exe
+              ;;
+            linux-x64)
+              rm -f librescoot-flasher-darwin-arm64 librescoot-flasher-windows-amd64.exe dd.exe
+              ;;
+            windows)
+              rm -f librescoot-flasher-darwin-arm64 librescoot-flasher-linux-amd64
+              ;;
+          esac
 
       - name: Build macOS
         if: matrix.target == 'macos'
