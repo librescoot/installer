@@ -1,19 +1,27 @@
 #!/usr/bin/env bash
-# Pull librescoot-flasher release artifacts and drop them into assets/tools/.
+# Pull librescoot-flasher release artifacts into assets/tools/.
 #
 # Usage:
-#   scripts/update-flasher.sh <tag>     # e.g. v0.1.0
-#   scripts/update-flasher.sh latest    # resolve and fetch most recent release
+#   scripts/update-flasher.sh              # use the tag pinned in FLASHER_VERSION
+#   scripts/update-flasher.sh <tag>        # fetch a specific tag (e.g. v0.2.0)
+#   scripts/update-flasher.sh latest       # resolve and fetch the newest release
 #
+# If a tag is passed, FLASHER_VERSION is rewritten to match.
 # Requires: gh (GitHub CLI) authenticated for the librescoot org.
 set -euo pipefail
 
 REPO="librescoot/librescoot-flasher"
-TAG="${1:-latest}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 TOOLS_DIR="$REPO_ROOT/assets/tools"
+
+if [ $# -ge 1 ]; then
+  TAG="$1"
+else
+  TAG="$(tr -d '[:space:]' < "$TOOLS_DIR/FLASHER_VERSION")"
+  echo "Using tag from FLASHER_VERSION: $TAG"
+fi
 
 # Platform-arch binaries we ship with the installer. Linux-arm is uploaded to
 # the MDB during trampoline provisioning; the others are host flashers.
@@ -47,7 +55,9 @@ for asset in "${ASSETS[@]}"; do
   install -m 0755 "$TMP/$asset" "$TOOLS_DIR/$asset"
 done
 
-echo "$TAG" > "$TOOLS_DIR/FLASHER_VERSION"
+if [ $# -ge 1 ]; then
+  echo "$TAG" > "$TOOLS_DIR/FLASHER_VERSION"
+fi
 
 echo
 echo "Flasher binaries updated to $TAG. Review with:"

@@ -63,22 +63,28 @@ jobs:
             libgtk-3-dev \
             liblzma-dev
 
-      - name: Remove other platforms' flasher binaries
+      - name: Fetch flasher binaries
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          # librescoot-flasher-linux-arm is always kept — it's uploaded to the MDB, not run on the host
+          TAG="$(tr -d '[:space:]' < assets/tools/FLASHER_VERSION)"
+          echo "Fetching librescoot-flasher $TAG into assets/tools/"
           cd assets/tools
+          # Host flasher for this target + linux-arm (always, for on-device MDB flash)
           case "${{ matrix.target }}" in
-            macos)
-              rm -f librescoot-flasher-linux-amd64 librescoot-flasher-windows-amd64.exe dd.exe
-              ;;
-            linux-x64)
-              rm -f librescoot-flasher-darwin-arm64 librescoot-flasher-windows-amd64.exe dd.exe
-              ;;
-            windows)
-              rm -f librescoot-flasher-darwin-arm64 librescoot-flasher-linux-amd64
-              ;;
+            macos)      HOST_ASSET=librescoot-flasher-darwin-arm64 ;;
+            linux-x64)  HOST_ASSET=librescoot-flasher-linux-amd64 ;;
+            windows)    HOST_ASSET=librescoot-flasher-windows-amd64.exe ;;
           esac
+          gh release download "$TAG" --repo librescoot/librescoot-flasher \
+            --pattern "$HOST_ASSET" \
+            --pattern librescoot-flasher-linux-arm
+          chmod +x librescoot-flasher-*
+          # Drop tooling that isn't used by this target
+          if [ "${{ matrix.target }}" != "windows" ]; then
+            rm -f dd.exe
+          fi
 
       - name: Build macOS
         if: matrix.target == 'macos'

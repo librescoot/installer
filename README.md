@@ -57,24 +57,32 @@ lib/                              # Flutter/Dart GUI
     usb_detector.dart             #   USB device detection
     network_service.dart          #   RNDIS interface config
 
-flasher/                          # Go flash tool (cross-platform)
-  main.go                         #   bmap, gzip, sequential, two-phase
-
 cli/                              # Go CLI installer (feat/cli-installer)
   main.go                         #   Headless, for scripted/remote use
 
 assets/
   tools/                          # Platform binaries (flasher, fw_setenv)
+    FLASHER_VERSION               #   Pinned librescoot-flasher tag
   drivers/                        # Windows RNDIS driver
   trampoline.sh.template          # DBC flash script, runs on MDB
   images/                         # Instructional photos
+
+scripts/
+  update-flasher.sh               # Pull flasher binaries from upstream
 ```
+
+The flash tool is maintained in [librescoot/librescoot-flasher][flasher-repo].
+CI fetches the release artifacts pinned in `assets/tools/FLASHER_VERSION`
+before each build; for local development run `scripts/update-flasher.sh`.
+
+[flasher-repo]: https://github.com/librescoot/librescoot-flasher
 
 ## Development
 
 ```bash
 flutter pub get
-flutter run -d linux    # or macos, windows
+scripts/update-flasher.sh          # populate assets/tools/ with flasher binaries
+flutter run -d linux               # or macos, windows
 ```
 
 Release builds:

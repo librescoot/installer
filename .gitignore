@@ -53,3 +53,10 @@ app.*.map.json
 build/
 *.exe
 !assets/tools/*.exe
+
+# Flasher binaries — fetched at build time by scripts/update-flasher.sh
+# (see assets/tools/FLASHER_VERSION for the pinned tag)
+/assets/tools/librescoot-flasher-linux-amd64
+/assets/tools/librescoot-flasher-linux-arm
+/assets/tools/librescoot-flasher-darwin-arm64
+/assets/tools/librescoot-flasher-windows-amd64.exe
