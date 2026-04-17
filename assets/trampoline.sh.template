@@ -441,11 +441,10 @@ breathe_stop
 led_off 1  # front ring off during flash
 bootled amber
 
-BS_CNT=6  # boot sector blocks for verification
 # Read uncompressed size from gzip footer (last 4 bytes, little-endian uint32)
 FLASH_TOTAL=$(python3 -c "import struct; f=open('$DBC_IMAGE','rb'); f.seek(-4,2); print(struct.unpack('<I',f.read(4))[0])" 2>/dev/null || echo 2500000000)
 log "  image uncompressed size: $FLASH_TOTAL"
-log "  image size: $IMAGE_SIZE bytes, $BS_CNT complete 4M blocks"
+log "  image size: $IMAGE_SIZE bytes"
 
 FLASH_OK=""
 ATTEMPT=0
@@ -455,6 +454,7 @@ while [ $ATTEMPT -lt 3 ]; do
 
   signal_progress 0
   FLASHER=/data/librescoot-flasher
+  USING_DD=""
   if [ -x "$FLASHER" ] && [ -f "$DBC_BMAP" ]; then
     # Go flasher with bmap support + per-second progress
     log "  using librescoot-flasher (bmap: $DBC_BMAP)"
@@ -491,6 +491,7 @@ while [ $ATTEMPT -lt 3 ]; do
         done
     FLASH_RC=${PIPESTATUS[0]:-0}
   else
+    USING_DD="yes"
     log "  using dd (oflag=direct), image size: $FLASH_TOTAL"
     gunzip -c "$DBC_IMAGE" | dd bs=4M iflag=fullblock of=$DBC_DEV oflag=direct status=progress 2>&1 \
       | monitor_progress "$FLASH_TOTAL"
@@ -506,10 +507,20 @@ while [ $ATTEMPT -lt 3 ]; do
   fi
 
   sync
-  # Verify boot sector only (24 MB) — full image readback causes USB disconnect
+
+  # Go flasher paths (bmap + sequential) already verify source/bmap integrity
+  # per range and surface write errors as non-zero exit; trust the exit code.
+  if [ -z "$USING_DD" ]; then
+    log "  flasher reports success"
+    FLASH_OK="yes"
+    break
+  fi
+
+  # dd fallback: sanity-check boot sector (24 MB). iflag=direct bypasses page
+  # cache, which otherwise serves stale data populated by udev at enumeration.
   log "  verifying boot sector ($BOOT_AREA_BLOCKS blocks = 24 MB)..."
   SRC_HASH=$(gunzip -c "$DBC_IMAGE" | dd bs=4M iflag=fullblock count=$BOOT_AREA_BLOCKS 2>/dev/null | md5sum | cut -d' ' -f1)
-  DEV_HASH=$(dd if=$DBC_DEV bs=4M count=$BOOT_AREA_BLOCKS 2>/dev/null | md5sum | cut -d' ' -f1)
+  DEV_HASH=$(dd if=$DBC_DEV bs=4M iflag=direct count=$BOOT_AREA_BLOCKS 2>/dev/null | md5sum | cut -d' ' -f1)
   log "  src=$SRC_HASH dev=$DEV_HASH"
 
   if [ "$SRC_HASH" = "$DEV_HASH" ]; then
@@ -525,7 +536,7 @@ while [ $ATTEMPT -lt 3 ]; do
 done
 
 [ "$FLASH_OK" != "yes" ] && fail "DBC flash failed after 3 attempts"
-log "DBC flash complete and verified"
+log "DBC flash complete"
 
 # Step 8: Power cycle DBC, write onboot script, reboot MDB
 log "Step 8: Post-flash cleanup..."
