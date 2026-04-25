@@ -478,6 +478,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cbbNotDetected => 'CBB not detected. Please check the connection.';
 
   @override
+  String get cbbDetectionMayTakeMinutes =>
+      'This can take several minutes, please be patient.';
+
+  @override
   String get preparingDbcFlash => 'Preparing DBC Flash';
 
   @override

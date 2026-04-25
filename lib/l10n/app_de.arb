@@ -98,7 +98,7 @@
 
   "riskAuxLow": "Niedrige 12V-Batterie k\u00f6nnte MDB oder DBC w\u00e4hrend des Flashens abschalten. LED-Anzeigen k\u00f6nnten ebenfalls ausfallen. Sitzbank mit eingesetztem Fahrakku schlie\u00dfen und warten, bis sie geladen ist.",
   "riskCbbSoh": "Schlechter CBB-Zustand kann zu unzuverl\u00e4ssiger Stromversorgung w\u00e4hrend des Flashens f\u00fchren.",
-  "riskCbbCharge": "Niedriger CBB-Ladezustand erh\u00f6ht das Risiko eines Stromausfalls beim DBC-Flash. Sitzbank mit eingesetztem Fahrakku schlie\u00dfen und warten, bis der CBB geladen ist.",
+  "riskCbbCharge": "Niedriger CBB-Ladezustand erh\u00f6ht das Risiko eines Stromausfalls beim DBC-Flash. Sitzbank mit eingesetztem Fahrakku schlie\u00dfen und warten, bis die CBB geladen ist.",
   "riskNoBattery": "Ohne den Fahrakku entl\u00e4dt sich die 12V-Hilfsbatterie schneller. Der Roller k\u00f6nnte bei l\u00e4ngeren Vorg\u00e4ngen herunterfahren.",
 
   "batteryRemovalHeading": "Akku entfernen",
@@ -157,6 +157,7 @@
   "cbbConnected": "CBB verbunden!",
   "waitingForCbb": "Warte auf CBB... ({attempts})",
   "cbbNotDetected": "CBB nicht erkannt. Bitte Verbindung pr\u00fcfen.",
+  "cbbDetectionMayTakeMinutes": "Das kann mehrere Minuten dauern, bitte etwas Geduld.",
 
   "preparingDbcFlash": "DBC-Flash wird vorbereitet",
   "waitingForDownloads": "Warte auf Abschluss der Downloads...",
@@ -342,7 +343,7 @@
   "reconnectCbbStep": "CBB wieder anschlie\u00dfen",
   "reconnectCbbStepDesc": "Stecke das CBB-Kabel wieder in den Anschluss unter der Sitzbank. Ohne CBB k\u00f6nnte das MDB w\u00e4hrend des Flashens herunterfahren.",
   "insertMainBatteryStep": "Fahrakku einsetzen",
-  "insertMainBatteryStepDesc": "Setze den Fahrakku wieder in die Sitzbank ein. Ohne ihn k\u00f6nnte der CBB oder die 12V-Hilfsbatterie w\u00e4hrend des Flashens leer werden, was MDB oder DBC zum Absturz bringen kann.",
+  "insertMainBatteryStepDesc": "Setze den Fahrakku wieder in die Sitzbank ein. Ohne ihn k\u00f6nnte die CBB oder die 12V-Hilfsbatterie w\u00e4hrend des Flashens leer werden, was MDB oder DBC zum Absturz bringen kann.",
   "cbbDetected": "CBB erkannt",
   "batteryDetected": "Akku erkannt",
   "proceedWithoutCbb": "Ich verstehe die Risiken, trotzdem fortfahren",

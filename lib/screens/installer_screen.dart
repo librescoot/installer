@@ -1674,23 +1674,47 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _cbbAutoCheckStarted = false;
   bool _cbbDetected = false;
   bool _batteryDetected = false;
+  bool _cbbWaitNoticeShown = false;
+
+  // Poll for CBB presence. Up to 3 minutes (90 × 2s); flips _cbbWaitNoticeShown
+  // after 30s so the "be patient" notice appears.
+  static const int _cbbPollIterations = 90;
+  static const int _cbbNoticeAfterIterations = 15;
+
+  Future<bool> _pollForCbb(AppLocalizations l10n) async {
+    for (var i = 0; i < _cbbPollIterations; i++) {
+      if (!mounted) return false;
+      if (await _sshService.isCbbPresent()) return true;
+      if (!mounted) return false;
+      if (i + 1 == _cbbNoticeAfterIterations && !_cbbWaitNoticeShown) {
+        setState(() => _cbbWaitNoticeShown = true);
+      }
+      _setStatus(l10n.waitingForCbb(i + 1));
+      await Future.delayed(const Duration(seconds: 2));
+    }
+    return false;
+  }
 
   Widget _buildCbbReconnect(AppLocalizations l10n) {
-    // Auto-check CBB on enter
+    // Auto-check CBB on enter — poll for up to 3 minutes
     if (!_cbbAutoCheckStarted && !_isProcessing) {
       _cbbAutoCheckStarted = true;
       Future.microtask(() async {
         if (_isDryRun) return;
-        final cbb = await _sshService.isCbbPresent();
-        if (mounted) {
-          setState(() => _cbbDetected = cbb);
-          if (cbb) {
-            // CBB already connected — check battery too
-            final bat = await _sshService.isBatteryPresent();
-            if (mounted) {
-              setState(() => _batteryDetected = bat);
-              if (bat) _setPhase(InstallerPhase.dbcPrep);
-            }
+        if (mounted) setState(() => _isProcessing = true);
+        _setStatus(l10n.checkingCbb);
+        final detected = await _pollForCbb(l10n);
+        if (!mounted) return;
+        setState(() {
+          _cbbDetected = detected;
+          _isProcessing = false;
+        });
+        _setStatus('');
+        if (detected) {
+          final bat = await _sshService.isBatteryPresent();
+          if (mounted) {
+            setState(() => _batteryDetected = bat);
+            if (bat) _setPhase(InstallerPhase.dbcPrep);
           }
         }
       });
@@ -1720,26 +1744,34 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 Text(l10n.cbbDetected, style: const TextStyle(color: Colors.tealAccent, fontSize: 13)),
               ],
             )
-          else if (!_isProcessing)
-            FilledButton(
-              onPressed: () async {
-                setState(() => _isProcessing = true);
-                _setStatus(l10n.checkingCbb);
-                for (var i = 0; i < 30; i++) {
-                  if (await _sshService.isCbbPresent()) {
+          else ...[
+            if (_cbbWaitNoticeShown)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 4),
+                child: Text(
+                  l10n.cbbDetectionMayTakeMinutes,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey.shade400, fontSize: 12, fontStyle: FontStyle.italic),
+                ),
+              ),
+            if (!_isProcessing)
+              FilledButton(
+                onPressed: () async {
+                  setState(() => _isProcessing = true);
+                  _setStatus(l10n.checkingCbb);
+                  final detected = await _pollForCbb(l10n);
+                  if (!mounted) return;
+                  if (detected) {
                     setState(() { _cbbDetected = true; _isProcessing = false; });
                     _setStatus('');
-                    return;
+                  } else {
+                    _setStatus(l10n.cbbNotDetected);
+                    setState(() { _isProcessing = false; _cbbDetected = false; });
                   }
-                  _setStatus('${l10n.waitingForCbb(i + 1)}');
-                  await Future.delayed(const Duration(seconds: 2));
-                  if (!mounted) return;
-                }
-                _setStatus(l10n.cbbNotDetected);
-                setState(() { _isProcessing = false; _cbbDetected = false; });
-              },
-              child: Text(l10n.verifyCbbConnection),
-            ),
+                },
+                child: Text(l10n.verifyCbbConnection),
+              ),
+          ],
 
           const SizedBox(height: 16),
 

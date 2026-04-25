@@ -956,6 +956,12 @@ abstract class AppLocalizations {
   /// **'CBB not detected. Please check the connection.'**
   String get cbbNotDetected;
 
+  /// No description provided for @cbbDetectionMayTakeMinutes.
+  ///
+  /// In en, this message translates to:
+  /// **'This can take several minutes, please be patient.'**
+  String get cbbDetectionMayTakeMinutes;
+
   /// No description provided for @preparingDbcFlash.
   ///
   /// In en, this message translates to:

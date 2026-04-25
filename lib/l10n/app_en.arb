@@ -182,6 +182,7 @@
     }
   },
   "cbbNotDetected": "CBB not detected. Please check the connection.",
+  "cbbDetectionMayTakeMinutes": "This can take several minutes, please be patient.",
 
   "preparingDbcFlash": "Preparing DBC Flash",
   "waitingForDownloads": "Waiting for downloads to complete...",

@@ -303,7 +303,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get riskCbbCharge =>
-      'Niedriger CBB-Ladezustand erhöht das Risiko eines Stromausfalls beim DBC-Flash. Sitzbank mit eingesetztem Fahrakku schließen und warten, bis der CBB geladen ist.';
+      'Niedriger CBB-Ladezustand erhöht das Risiko eines Stromausfalls beim DBC-Flash. Sitzbank mit eingesetztem Fahrakku schließen und warten, bis die CBB geladen ist.';
 
   @override
   String get riskNoBattery =>
@@ -482,6 +482,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get cbbNotDetected => 'CBB nicht erkannt. Bitte Verbindung prüfen.';
+
+  @override
+  String get cbbDetectionMayTakeMinutes =>
+      'Das kann mehrere Minuten dauern, bitte etwas Geduld.';
 
   @override
   String get preparingDbcFlash => 'DBC-Flash wird vorbereitet';
@@ -1072,7 +1076,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get insertMainBatteryStepDesc =>
-      'Setze den Fahrakku wieder in die Sitzbank ein. Ohne ihn könnte der CBB oder die 12V-Hilfsbatterie während des Flashens leer werden, was MDB oder DBC zum Absturz bringen kann.';
+      'Setze den Fahrakku wieder in die Sitzbank ein. Ohne ihn könnte die CBB oder die 12V-Hilfsbatterie während des Flashens leer werden, was MDB oder DBC zum Absturz bringen kann.';
 
   @override
   String get cbbDetected => 'CBB erkannt';
