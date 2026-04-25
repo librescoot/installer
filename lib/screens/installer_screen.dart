@@ -907,7 +907,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
     final networkService = NetworkService();
     final iface = await networkService.findLibreScootInterface();
     if (iface != null) {
-      await networkService.configureInterface(iface);
+      try {
+        await networkService.configureInterface(iface);
+      } on NetworkPrivilegeException catch (e) {
+        _setStatus(l10n.errorPrefix(e.toString()));
+        setState(() { _isProcessing = false; _mdbConnectStarted = false; });
+        return;
+      }
     }
 
     _setStatus(l10n.connectingSsh);
@@ -964,7 +970,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
       await Future.delayed(const Duration(seconds: 10));
 
       final iface = await NetworkService().findLibreScootInterface();
-      if (iface != null) await NetworkService().configureInterface(iface);
+      if (iface != null) {
+        try {
+          await NetworkService().configureInterface(iface);
+        } on NetworkPrivilegeException catch (e) {
+          _setStatus(l10n.errorPrefix(e.toString()));
+          return false;
+        }
+      }
 
       // Retry SSH connection a few times (MDB may still be starting sshd)
       for (var i = 0; i < 5; i++) {
@@ -1635,7 +1648,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
     _setStatus(l10n.reconnectingSsh);
     final iface = await NetworkService().findLibreScootInterface();
     if (iface != null) {
-      await NetworkService().configureInterface(iface);
+      try {
+        await NetworkService().configureInterface(iface);
+      } on NetworkPrivilegeException catch (e) {
+        _setStatus(l10n.errorPrefix(e.toString()));
+        setState(() { _isProcessing = false; _mdbBootStarted = false; });
+        return;
+      }
     }
     try {
       await _sshService.connectToMdb();
@@ -2235,7 +2254,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
     _setStatus(l10n.configuringNetwork);
     final iface = await NetworkService().findLibreScootInterface();
     if (iface != null) {
-      await NetworkService().configureInterface(iface);
+      try {
+        await NetworkService().configureInterface(iface);
+      } on NetworkPrivilegeException catch (e) {
+        _setStatus(l10n.errorPrefix(e.toString()));
+        setState(() { _isProcessing = false; _reconnectStarted = false; });
+        return;
+      }
     }
 
     _setStatus(l10n.connectingSsh);

@@ -19,6 +19,15 @@ class NetworkInterface {
   String toString() => 'NetworkInterface($displayName, ip=$ipAddress, up=$isUp)';
 }
 
+/// Thrown when configureInterface needs privileges we don't have.
+/// The message is shown verbatim to the user, so it must be actionable.
+class NetworkPrivilegeException implements Exception {
+  final String message;
+  const NetworkPrivilegeException(this.message);
+  @override
+  String toString() => message;
+}
+
 /// Service for configuring network interfaces to communicate with MDB
 class NetworkService {
   static const String targetIp = '192.168.7.50';
@@ -304,59 +313,168 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
     }
   }
 
-  Future<NetworkInterface?> _findLinuxInterface() async {
+  Future<NetworkInterface?> _findLinuxInterface({
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    // The cdc_ether driver binds asynchronously after USB enumeration —
+    // the interface can take up to ~1s to appear on slow hubs. Poll until
+    // it's there or we hit the timeout.
+    final deadline = DateTime.now().add(timeout);
+    NetworkInterface? iface;
+    while (true) {
+      iface = await _findLinuxInterfaceOnce();
+      if (iface != null) return iface;
+      if (!DateTime.now().isBefore(deadline)) return null;
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+  }
+
+  Future<NetworkInterface?> _findLinuxInterfaceOnce() async {
     try {
-      // Look for USB ethernet interface
-      final result = await Process.run('ip', ['link', 'show']);
-      if (result.exitCode != 0) return null;
-
-      final output = result.stdout.toString();
-
-      // Find interfaces that might be USB ethernet (typically usb0 or enp0s*)
-      for (final pattern in ['usb0', 'enp', 'enx']) {
-        final match = RegExp('\\d+: ($pattern\\w+):').firstMatch(output);
-        if (match != null) {
-          final name = match.group(1)!;
-          // Verify it's a USB device
-          final check = await Process.run('ls', ['/sys/class/net/$name/device/driver']);
-          if (check.exitCode == 0 && check.stdout.toString().contains('cdc_ether')) {
-            return NetworkInterface(
-              name: name,
-              displayName: 'USB Ethernet ($name)',
-            );
-          }
+      final dir = Directory('/sys/class/net');
+      if (!await dir.exists()) return null;
+      // Walk every interface; don't rely on name patterns. systemd predictable
+      // naming gives us enx<MAC>, but legacy/biosdevname/init=no setups use
+      // usb0, eth1, etc. Match on USB VID:PID via uevent first, fall back to
+      // driver name.
+      final entries = await dir.list(followLinks: false).toList();
+      for (final entry in entries) {
+        final name = entry.path.split('/').last;
+        if (name == 'lo') continue;
+        if (await _isLibreScootInterface(name)) {
+          return NetworkInterface(
+            name: name,
+            displayName: 'USB Ethernet ($name)',
+          );
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Network: _findLinuxInterfaceOnce error: $e');
+    }
     return null;
   }
 
-  Future<bool> _configureLinux(NetworkInterface iface) async {
+  /// Decide whether the given iface is the LibreScoot USB gadget.
+  /// Primary check: USB MODALIAS in uevent contains v0525pA4A2.
+  /// Fallback: driver symlink basename is cdc_ether or rndis_host.
+  Future<bool> _isLibreScootInterface(String name) async {
     try {
-      // Bring interface up
+      final uevent = File('/sys/class/net/$name/device/uevent');
+      if (await uevent.exists()) {
+        final content = await uevent.readAsString();
+        // MODALIAS line for our gadget: usb:v0525pA4A2d... (case-insensitive hex)
+        if (RegExp(r'MODALIAS=usb:v0525p[Aa]4[Aa]2', caseSensitive: false)
+            .hasMatch(content)) {
+          return true;
+        }
+      }
+    } catch (_) {}
+
+    // Fallback: read the driver symlink target. /sys/class/net/<iface>/device/driver
+    // is a symlink to /sys/bus/usb/drivers/<driver>; the previous code used
+    // `ls` here, which lists the *contents* of the driver dir, not its name —
+    // so the cdc_ether check always failed.
+    try {
+      final result = await Process.run(
+        'readlink',
+        ['/sys/class/net/$name/device/driver'],
+      );
+      if (result.exitCode == 0) {
+        final driver = result.stdout.toString().trim().split('/').last;
+        if (driver == 'cdc_ether' ||
+            driver == 'rndis_host' ||
+            driver == 'cdc_ncm' ||
+            driver == 'cdc_subset') {
+          return true;
+        }
+      }
+    } catch (_) {}
+
+    return false;
+  }
+
+  Future<bool> _configureLinux(NetworkInterface iface) async {
+    if (!await _isLinuxRoot()) {
+      throw const NetworkPrivilegeException(
+        'Network configuration on Linux requires root. '
+        'Quit and relaunch the installer with: sudo <path-to-installer>',
+      );
+    }
+
+    try {
+      // NetworkManager will clobber a static IP on its next dhcp-fails-fall-back
+      // cycle (you'd see APIPA 169.254.x.x reappear). Tell it to leave the iface
+      // alone before we touch it. No-op if NM isn't running.
+      if (await _isNetworkManagerActive()) {
+        await _setNetworkManagerUnmanaged(iface.name);
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+
       var result = await Process.run('ip', ['link', 'set', iface.name, 'up']);
       if (result.exitCode != 0) {
-        print('ip link set up failed: ${result.stderr}');
+        debugPrint('Network: ip link set up failed: ${result.stderr}');
         return false;
       }
 
-      // Set IP address
       result = await Process.run(
         'ip',
         ['addr', 'add', '$targetIp/24', 'dev', iface.name],
       );
-
-      // Ignore error if address already exists
-      if (result.exitCode != 0 && !result.stderr.toString().contains('RTNETLINK answers: File exists')) {
-        print('ip addr add failed: ${result.stderr}');
+      if (result.exitCode != 0 &&
+          !result.stderr.toString().contains('File exists')) {
+        debugPrint('Network: ip addr add failed: ${result.stderr}');
         return false;
       }
 
       await Future.delayed(const Duration(seconds: 2));
       return await isMdbReachable();
+    } on NetworkPrivilegeException {
+      rethrow;
     } catch (e) {
-      print('Failed to configure Linux interface: $e');
+      debugPrint('Network: failed to configure Linux interface: $e');
       return false;
+    }
+  }
+
+  Future<bool> _isLinuxRoot() async {
+    try {
+      final result = await Process.run('id', ['-u']);
+      return result.stdout.toString().trim() == '0';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> _isNetworkManagerActive() async {
+    try {
+      final hasNmcli = await Process.run('which', ['nmcli']);
+      if (hasNmcli.exitCode != 0) return false;
+      final active = await Process.run(
+        'systemctl',
+        ['is-active', 'NetworkManager'],
+      );
+      return active.stdout.toString().trim() == 'active';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _setNetworkManagerUnmanaged(String iface) async {
+    try {
+      final result = await Process.run(
+        'nmcli',
+        ['device', 'set', iface, 'managed', 'no'],
+      );
+      if (result.exitCode == 0) {
+        debugPrint('Network: nmcli set $iface managed=no');
+      } else {
+        debugPrint(
+          'Network: nmcli managed=no exit=${result.exitCode} '
+          'stderr=${result.stderr}',
+        );
+      }
+    } catch (e) {
+      debugPrint('Network: nmcli call failed: $e');
     }
   }
 
