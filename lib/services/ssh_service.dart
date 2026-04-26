@@ -23,6 +23,16 @@ class DeviceInfo {
   });
 }
 
+/// Callback used to obtain a manually-entered root password when neither the
+/// empty password nor the bundled device-config credential authenticates.
+/// [version] is the firmware version we believe the device is running (or
+/// null if undetectable). [previousAttempts] is how many manual passwords
+/// have already been tried this session. Return null/empty string to give up.
+typedef ManualPasswordPrompt = Future<String?> Function({
+  required String? version,
+  required int previousAttempts,
+});
+
 /// Service for SSH communication with MDB/DBC devices
 class SshService {
   static const String mdbHost = '192.168.7.1';
@@ -30,10 +40,12 @@ class SshService {
   static const int sshPort = 22;
   static const String sshUser = 'root';
   static const Duration connectionTimeout = Duration(seconds: 10);
+  static const int maxManualPasswordAttempts = 3;
 
   SSHClient? _client;
   Map<String, String>? _deviceConfig;
   bool _sftpAvailable = false;
+  ManualPasswordPrompt? _manualPasswordPrompt;
 
   /// Auth key injected at build time via --dart-define=AUTH_KEY=...
   static const _authKey = String.fromEnvironment('AUTH_KEY');
@@ -108,6 +120,14 @@ class SshService {
     return utf8.decode(unpadded);
   }
 
+  /// Set a callback to be invoked when the bundled credentials don't work
+  /// and we need to ask the user for the root password. Only the initial
+  /// MDB connect on stock firmware needs this — once LibreScoot is flashed
+  /// the password is empty.
+  void setManualPasswordPrompt(ManualPasswordPrompt? prompt) {
+    _manualPasswordPrompt = prompt;
+  }
+
   /// Connect to MDB and detect firmware version
   Future<DeviceInfo> connectToMdb() async {
     return _connect(mdbHost);
@@ -125,10 +145,14 @@ class SshService {
   }
 
   Future<DeviceInfo> _connect(String host) async {
-    // Try auth with a fallback version, and retry once if banner reveals a
-    // different specific version after the first credential attempt.
+    // Auth strategy:
+    //   1. empty password (LibreScoot)
+    //   2. bundled credential matched against banner version (stock OS)
+    //   3. user-supplied password via manual prompt callback (unknown stock)
     var authVersion = 'v1.20';
-    var attemptedRetry = false;
+    var stage = 0; // 0 = empty, 1 = bundled, 2 = manual
+    var manualAttempts = 0;
+    String? manualPassword;
 
     while (true) {
       final socket = await SSHSocket.connect(
@@ -143,15 +167,19 @@ class SshService {
         socket,
         username: sshUser,
         onPasswordRequest: () {
-          if (!attemptedRetry) {
-            // First connection: try empty password (LibreScoot boards have no root password)
+          if (stage == 0) {
             debugPrint('SSH: trying empty password');
             return '';
           }
-          // Retry connection: use version-specific credential
-          final credential = _resolveDeviceCredential(authVersion);
-          debugPrint('SSH: trying credential for version $authVersion');
-          return credential;
+          if (stage == 1) {
+            // Stage 0 already verified this version has a non-empty bundled
+            // credential before transitioning here.
+            final credential = _resolveDeviceCredential(authVersion);
+            debugPrint('SSH: trying bundled credential for version $authVersion');
+            return credential;
+          }
+          debugPrint('SSH: trying user-supplied password (attempt $manualAttempts)');
+          return manualPassword ?? '';
         },
         onUserauthBanner: (banner) {
           final bannerVersion = _extractVersionFromText(banner);
@@ -171,13 +199,45 @@ class SshService {
         debugPrint('SSH: authentication failed: $e');
         _client?.close();
         _client = null;
-        final shouldRetry = !attemptedRetry && bannerVersionSeen != 'v1.20';
-        if (shouldRetry) {
-          attemptedRetry = true;
-          authVersion = bannerVersionSeen;
-          debugPrint('SSH: retrying authentication with banner version $authVersion');
+
+        if (stage == 0) {
+          if (bannerVersionSeen != 'v1.20') {
+            authVersion = bannerVersionSeen;
+            // Skip stage 1 if the bundled lookup would just return empty
+            // (which we already tried) or has no entry at all.
+            String? bundled;
+            try {
+              bundled = _resolveDeviceCredential(authVersion);
+            } catch (_) {
+              bundled = null;
+            }
+            if (bundled != null && bundled.isNotEmpty) {
+              stage = 1;
+              debugPrint('SSH: empty password failed, trying bundled credential for $authVersion');
+              continue;
+            }
+            debugPrint('SSH: no bundled credential for $authVersion, jumping to manual prompt');
+          }
+          stage = 2;
+        } else if (stage == 1) {
+          stage = 2;
+        }
+
+        if (stage == 2 && _manualPasswordPrompt != null && manualAttempts < maxManualPasswordAttempts) {
+          final entered = await _manualPasswordPrompt!(
+            version: bannerVersionSeen != 'v1.20' ? bannerVersionSeen : null,
+            previousAttempts: manualAttempts,
+          );
+          if (entered == null || entered.isEmpty) {
+            debugPrint('SSH: user cancelled manual password prompt');
+            rethrow;
+          }
+          manualPassword = entered;
+          manualAttempts++;
+          debugPrint('SSH: retrying authentication with user-supplied password (attempt $manualAttempts)');
           continue;
         }
+
         rethrow;
       }
     }

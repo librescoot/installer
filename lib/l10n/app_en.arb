@@ -94,6 +94,23 @@
     }
   },
 
+  "manualPasswordTitle": "Root password required",
+  "manualPasswordPrompt": "Could not determine the root password automatically. Enter the root password for this device.",
+  "manualPasswordPromptVersion": "Could not determine the root password automatically for firmware {version}. Enter the root password for this device.",
+  "@manualPasswordPromptVersion": {
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
+  "manualPasswordPromptRetry": "That password didn't work. Try again ({remaining} attempts left).",
+  "@manualPasswordPromptRetry": {
+    "placeholders": {
+      "remaining": { "type": "int" }
+    }
+  },
+  "manualPasswordFieldLabel": "Password",
+  "manualPasswordSubmit": "Connect",
+
   "healthCheckHeading": "Health Check",
   "verifyingReadiness": "Verifying scooter readiness...",
   "continueButton": "Continue",

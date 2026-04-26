@@ -261,6 +261,29 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get manualPasswordTitle => 'Root-Passwort erforderlich';
+
+  @override
+  String get manualPasswordPrompt =>
+      'Das Root-Passwort konnte nicht automatisch ermittelt werden. Bitte gib das Root-Passwort für dieses Gerät ein.';
+
+  @override
+  String manualPasswordPromptVersion(String version) {
+    return 'Das Root-Passwort für Firmware $version konnte nicht automatisch ermittelt werden. Bitte gib das Root-Passwort für dieses Gerät ein.';
+  }
+
+  @override
+  String manualPasswordPromptRetry(int remaining) {
+    return 'Das Passwort war falsch. Bitte erneut versuchen (noch $remaining Versuche).';
+  }
+
+  @override
+  String get manualPasswordFieldLabel => 'Passwort';
+
+  @override
+  String get manualPasswordSubmit => 'Verbinden';
+
+  @override
   String get healthCheckHeading => 'Statusprüfung';
 
   @override

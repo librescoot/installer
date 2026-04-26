@@ -257,6 +257,29 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get manualPasswordTitle => 'Root password required';
+
+  @override
+  String get manualPasswordPrompt =>
+      'Could not determine the root password automatically. Enter the root password for this device.';
+
+  @override
+  String manualPasswordPromptVersion(String version) {
+    return 'Could not determine the root password automatically for firmware $version. Enter the root password for this device.';
+  }
+
+  @override
+  String manualPasswordPromptRetry(int remaining) {
+    return 'That password didn\'t work. Try again ($remaining attempts left).';
+  }
+
+  @override
+  String get manualPasswordFieldLabel => 'Password';
+
+  @override
+  String get manualPasswordSubmit => 'Connect';
+
+  @override
   String get healthCheckHeading => 'Health Check';
 
   @override

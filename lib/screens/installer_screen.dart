@@ -86,11 +86,28 @@ class _InstallerScreenState extends State<InstallerScreen> {
       setState(() => _device = device);
     });
     _usbDetector.startMonitoring();
+    _sshService.setManualPasswordPrompt(_promptManualRootPassword);
     _checkElevation();
     _applyLaunchArgs();
     Future.microtask(_detectResumeState);
     _resolveAvailableChannels();
     _detectRegionFromIp();
+  }
+
+  Future<String?> _promptManualRootPassword({
+    required String? version,
+    required int previousAttempts,
+  }) async {
+    if (!mounted) return null;
+    return showDialog<String?>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => _ManualPasswordDialog(
+        version: version,
+        previousAttempts: previousAttempts,
+        maxAttempts: SshService.maxManualPasswordAttempts,
+      ),
+    );
   }
 
   Future<void> _detectRegionFromIp() async {
@@ -2709,5 +2726,91 @@ class _InstallerScreenState extends State<InstallerScreen> {
     if (mounted) {
       _setStatus(l10n.deletedCache((freed / 1024 / 1024).toStringAsFixed(0)));
     }
+  }
+}
+
+class _ManualPasswordDialog extends StatefulWidget {
+  final String? version;
+  final int previousAttempts;
+  final int maxAttempts;
+
+  const _ManualPasswordDialog({
+    required this.version,
+    required this.previousAttempts,
+    required this.maxAttempts,
+  });
+
+  @override
+  State<_ManualPasswordDialog> createState() => _ManualPasswordDialogState();
+}
+
+class _ManualPasswordDialogState extends State<_ManualPasswordDialog> {
+  final _controller = TextEditingController();
+  final _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _focus.requestFocus());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final value = _controller.text;
+    if (value.isEmpty) return;
+    Navigator.of(context).pop(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final remaining = widget.maxAttempts - widget.previousAttempts;
+    final String description;
+    if (widget.previousAttempts > 0) {
+      description = l10n.manualPasswordPromptRetry(remaining);
+    } else if (widget.version != null) {
+      description = l10n.manualPasswordPromptVersion(widget.version!);
+    } else {
+      description = l10n.manualPasswordPrompt;
+    }
+
+    return AlertDialog(
+      title: Text(l10n.manualPasswordTitle),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(description),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _controller,
+            focusNode: _focus,
+            obscureText: true,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: l10n.manualPasswordFieldLabel,
+              border: const OutlineInputBorder(),
+            ),
+            onSubmitted: (_) => _submit(),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(null),
+          child: Text(l10n.cancelButton),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: Text(l10n.manualPasswordSubmit),
+        ),
+      ],
+    );
   }
 }

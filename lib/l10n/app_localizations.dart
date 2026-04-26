@@ -560,6 +560,42 @@ abstract class AppLocalizations {
   /// **'SSH connection failed: {error}. Check cable and retry.'**
   String sshConnectionFailed(String error);
 
+  /// No description provided for @manualPasswordTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Root password required'**
+  String get manualPasswordTitle;
+
+  /// No description provided for @manualPasswordPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not determine the root password automatically. Enter the root password for this device.'**
+  String get manualPasswordPrompt;
+
+  /// No description provided for @manualPasswordPromptVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not determine the root password automatically for firmware {version}. Enter the root password for this device.'**
+  String manualPasswordPromptVersion(String version);
+
+  /// No description provided for @manualPasswordPromptRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'That password didn\'t work. Try again ({remaining} attempts left).'**
+  String manualPasswordPromptRetry(int remaining);
+
+  /// No description provided for @manualPasswordFieldLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Password'**
+  String get manualPasswordFieldLabel;
+
+  /// No description provided for @manualPasswordSubmit.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect'**
+  String get manualPasswordSubmit;
+
   /// No description provided for @healthCheckHeading.
   ///
   /// In en, this message translates to:
