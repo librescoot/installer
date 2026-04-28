@@ -177,6 +177,7 @@
     }
   },
   "waitingStableConnection": "Waiting for stable connection...",
+  "stableConnectionStallHint": "Connection still unstable — USB ethernet may have lost its IP. On Linux, your NetworkManager may be fighting for the interface (try disabling IPv6). See log for details.",
   "reconnectingSsh": "Reconnecting SSH...",
   "sshReconnectionFailed": "SSH reconnection failed: {error}",
   "@sshReconnectionFailed": {

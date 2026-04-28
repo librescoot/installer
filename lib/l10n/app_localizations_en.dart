@@ -463,6 +463,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get waitingStableConnection => 'Waiting for stable connection...';
 
   @override
+  String get stableConnectionStallHint =>
+      'Connection still unstable — USB ethernet may have lost its IP. On Linux, your NetworkManager may be fighting for the interface (try disabling IPv6). See log for details.';
+
+  @override
   String get reconnectingSsh => 'Reconnecting SSH...';
 
   @override

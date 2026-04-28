@@ -926,6 +926,12 @@ abstract class AppLocalizations {
   /// **'Waiting for stable connection...'**
   String get waitingStableConnection;
 
+  /// No description provided for @stableConnectionStallHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection still unstable — USB ethernet may have lost its IP. On Linux, your NetworkManager may be fighting for the interface (try disabling IPv6). See log for details.'**
+  String get stableConnectionStallHint;
+
   /// No description provided for @reconnectingSsh.
   ///
   /// In en, this message translates to:

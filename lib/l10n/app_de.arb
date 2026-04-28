@@ -138,6 +138,7 @@
   "mdbDetectedNetwork": "MDB im Netzwerkmodus erkannt. Warte auf stabile Verbindung...",
   "pingStable": "Ping stabil: {count}/10",
   "waitingStableConnection": "Warte auf stabile Verbindung...",
+  "stableConnectionStallHint": "Verbindung noch instabil — die USB-Netzwerkschnittstelle hat eventuell ihre IP verloren. Auf Linux: NetworkManager stört möglicherweise (IPv6 deaktivieren kann helfen). Details im Log.",
   "reconnectingSsh": "SSH wird neu verbunden...",
   "sshReconnectionFailed": "SSH-Neuverbindung fehlgeschlagen: {error}",
   "reconnectCbbHeading": "CBB & Batterie wieder anschließen",

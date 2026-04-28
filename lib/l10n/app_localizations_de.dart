@@ -468,6 +468,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get waitingStableConnection => 'Warte auf stabile Verbindung...';
 
   @override
+  String get stableConnectionStallHint =>
+      'Verbindung noch instabil — die USB-Netzwerkschnittstelle hat eventuell ihre IP verloren. Auf Linux: NetworkManager stört möglicherweise (IPv6 deaktivieren kann helfen). Details im Log.';
+
+  @override
   String get reconnectingSsh => 'SSH wird neu verbunden...';
 
   @override

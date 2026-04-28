@@ -1659,31 +1659,49 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     _setStatus(l10n.mdbDetectedNetwork);
 
-    var stableCount = 0;
-    while (stableCount < 10) {
-      final reachable = await _pingMdb();
-      if (reachable) {
-        stableCount++;
-        _setStatus(l10n.pingStable(stableCount));
-      } else {
-        stableCount = 0;
-        _setStatus(l10n.waitingStableConnection);
-      }
-      await Future.delayed(const Duration(seconds: 1));
-      if (!mounted) return;
-    }
-
-    _setStatus(l10n.reconnectingSsh);
-    final iface = await NetworkService().findLibreScootInterface();
+    // Reconfigure the host iface BEFORE pinging. The MDB reboot tears down the
+    // cdc_ether USB iface; on Linux+NetworkManager the new iface (often a fresh
+    // enxXXXX) doesn't carry our prior unmanaged flag or 192.168.7.50, so pings
+    // would never succeed without redoing the static config. configureInterface
+    // no-ops if the MDB is already reachable.
+    final networkService = NetworkService();
+    final iface = await networkService.findLibreScootInterface();
     if (iface != null) {
       try {
-        await NetworkService().configureInterface(iface);
+        await networkService.configureInterface(iface);
       } on NetworkPrivilegeException catch (e) {
         _setStatus(l10n.errorPrefix(e.toString()));
         setState(() { _isProcessing = false; _mdbBootStarted = false; });
         return;
       }
     }
+
+    var stableCount = 0;
+    var failedSeconds = 0;
+    var diagnosticsLogged = false;
+    while (stableCount < 10) {
+      final reachable = await _pingMdb();
+      if (reachable) {
+        stableCount++;
+        failedSeconds = 0;
+        _setStatus(l10n.pingStable(stableCount));
+      } else {
+        stableCount = 0;
+        failedSeconds++;
+        if (failedSeconds >= 15 && !diagnosticsLogged && Platform.isLinux && iface != null) {
+          diagnosticsLogged = true;
+          final diag = await networkService.gatherLinuxDiagnostics(iface.name);
+          debugPrint('Network: stable-ping stalled ${failedSeconds}s on ${iface.name}.\n$diag');
+          _setStatus(l10n.stableConnectionStallHint);
+        } else if (!diagnosticsLogged) {
+          _setStatus(l10n.waitingStableConnection);
+        }
+      }
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return;
+    }
+
+    _setStatus(l10n.reconnectingSsh);
     try {
       await _sshService.connectToMdb();
 

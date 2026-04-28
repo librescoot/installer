@@ -83,6 +83,32 @@ class NetworkService {
     }
   }
 
+  /// Linux-only diagnostic dump for the "ping never goes stable" path.
+  /// Returns ip-addr/route info as a single string suitable for debugPrint.
+  Future<String> gatherLinuxDiagnostics(String iface) async {
+    if (!Platform.isLinux) return '';
+    final buf = StringBuffer();
+    try {
+      final addr = await Process.run('ip', ['-4', 'addr', 'show', iface]);
+      buf.writeln('--- ip -4 addr show $iface ---');
+      buf.writeln(addr.stdout.toString().trim());
+      final stderr = addr.stderr.toString().trim();
+      if (stderr.isNotEmpty) buf.writeln('stderr: $stderr');
+    } catch (e) {
+      buf.writeln('ip addr failed: $e');
+    }
+    try {
+      final route = await Process.run('ip', ['route', 'get', mdbIp]);
+      buf.writeln('--- ip route get $mdbIp ---');
+      buf.writeln(route.stdout.toString().trim());
+      final stderr = route.stderr.toString().trim();
+      if (stderr.isNotEmpty) buf.writeln('stderr: $stderr');
+    } catch (e) {
+      buf.writeln('ip route failed: $e');
+    }
+    return buf.toString();
+  }
+
   Future<NetworkInterface?> _findWindowsInterface() async {
     try {
       // Use PowerShell to find RNDIS network adapter — avoids cmd.exe '&'
