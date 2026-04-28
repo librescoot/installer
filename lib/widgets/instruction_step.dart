@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
+
 class InstructionStep extends StatelessWidget {
   const InstructionStep({
     super.key,
@@ -22,6 +24,7 @@ class InstructionStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -61,7 +64,7 @@ class InstructionStep extends StatelessWidget {
                               child: Image.asset(beforeImageAsset!, height: 240, fit: BoxFit.cover),
                             ),
                             const SizedBox(height: 4),
-                            Text('Before', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                            Text(l10n.beforeImageLabel, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                           ],
                         ),
                       ),
@@ -77,7 +80,7 @@ class InstructionStep extends StatelessWidget {
                               child: Image.asset(imageAsset!, height: 240, fit: BoxFit.cover),
                             ),
                             const SizedBox(height: 4),
-                            Text('After', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                            Text(l10n.afterImageLabel, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                           ],
                         ),
                       ),

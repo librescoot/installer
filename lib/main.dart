@@ -50,9 +50,16 @@ class LaunchArgs {
 
 late final LaunchArgs launchArgs;
 
+/// Active app locale. Defaults to German; user can switch to English at runtime.
+/// `--lang=xx` overrides the default at startup.
+final ValueNotifier<Locale> appLocale = ValueNotifier(const Locale('de'));
+
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   launchArgs = LaunchArgs.fromArgs(args);
+  if (launchArgs.lang != null) {
+    appLocale.value = Locale(launchArgs.lang!);
+  }
 
   // Capture all debugPrint output into the global log
   final originalDebugPrint = debugPrint;
@@ -96,21 +103,23 @@ class LibreScootInstaller extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final localeOverride = launchArgs.lang != null ? Locale(launchArgs.lang!) : null;
-    return MaterialApp(
-      title: 'LibreScoot Installer',
-      debugShowCheckedModeBanner: false,
-      locale: localeOverride,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.teal,
-          brightness: Brightness.dark,
+    return ValueListenableBuilder<Locale>(
+      valueListenable: appLocale,
+      builder: (context, locale, _) => MaterialApp(
+        title: 'LibreScoot Installer',
+        debugShowCheckedModeBanner: false,
+        locale: locale,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: Colors.teal,
+            brightness: Brightness.dark,
+          ),
+          useMaterial3: true,
         ),
-        useMaterial3: true,
+        home: const InstallerScreen(),
       ),
-      home: const InstallerScreen(),
     );
   }
 }

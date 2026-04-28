@@ -15,6 +15,7 @@ import '../services/services.dart';
 import '../widgets/download_progress.dart';
 import '../widgets/health_check_panel.dart';
 import '../widgets/instruction_step.dart';
+import '../widgets/language_switcher.dart';
 import '../widgets/phase_sidebar.dart';
 
 class InstallerScreen extends StatefulWidget {
@@ -203,11 +204,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
   final _debugController = TextEditingController();
 
   void _showLogDialog() {
+    final l10n = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Log & Debug Shell'),
+          title: Text(l10n.logDebugShell),
           content: SizedBox(
             width: 700,
             height: 500,
@@ -229,10 +231,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
                       child: TextField(
                         controller: _debugController,
                         style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-                        decoration: const InputDecoration(
-                          hintText: 'Run a command in the installer context...',
+                        decoration: InputDecoration(
+                          hintText: l10n.debugCommandHint,
                           isDense: true,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                         ),
                         onSubmitted: (cmd) async {
                           if (cmd.trim().isEmpty) return;
@@ -293,11 +295,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 }
                 if (ctx.mounted) Navigator.pop(ctx);
               },
-              child: const Text('Copy to clipboard'),
+              child: Text(l10n.copyToClipboard),
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Close'),
+              child: Text(l10n.closeButton),
             ),
           ],
         ),
@@ -353,38 +355,47 @@ class _InstallerScreenState extends State<InstallerScreen> {
         }
       },
       child: Scaffold(
-      body: Column(
+      body: Stack(
         children: [
-          // Elevation is handled at flash time via pkexec/sudo, no warning needed
-          Expanded(
-            child: Row(
-              children: [
-                PhaseSidebar(
-                  currentPhase: _currentPhase,
-                  completedPhases: _completedPhases,
-                  skippedPhases: _skippedPhases,
-                  downloadItems: _downloadState.items,
-                ),
-                Expanded(
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: LayoutBuilder(
-                          builder: (context, constraints) => SingleChildScrollView(
-                            padding: const EdgeInsets.all(32),
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(minHeight: constraints.maxHeight - 64),
-                              child: Center(child: _buildPhaseContent(l10n)),
+          Column(
+            children: [
+              // Elevation is handled at flash time via pkexec/sudo, no warning needed
+              Expanded(
+                child: Row(
+                  children: [
+                    PhaseSidebar(
+                      currentPhase: _currentPhase,
+                      completedPhases: _completedPhases,
+                      skippedPhases: _skippedPhases,
+                      downloadItems: _downloadState.items,
+                    ),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: LayoutBuilder(
+                              builder: (context, constraints) => SingleChildScrollView(
+                                padding: const EdgeInsets.all(32),
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(minHeight: constraints.maxHeight - 64),
+                                  child: Center(child: _buildPhaseContent(l10n)),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
+                          _buildStatusBar(l10n),
+                        ],
                       ),
-                      _buildStatusBar(l10n),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
+          const Positioned(
+            top: 8,
+            right: 8,
+            child: LanguageSwitcher(),
           ),
         ],
       ),
@@ -2648,7 +2659,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             dense: true,
             contentPadding: EdgeInsets.zero,
             title: Text(l10n.keepCachedDownloads),
-            subtitle: Text('${_totalCacheSizeMb()} MB on disk',
+            subtitle: Text(l10n.mbOnDisk(_totalCacheSizeMb()),
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
             value: _keepCache,
             onChanged: (v) => setState(() => _keepCache = v ?? false),

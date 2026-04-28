@@ -466,5 +466,20 @@
   "waitingForDevicePath": "Waiting for device path...",
   "noDevicePathFound": "No device path found. Check USB connection and retry.",
   "mdbDisconnectedFlashingDbc": "MDB disconnected — flashing DBC autonomously...",
-  "mdbReconnectedVerifying": "MDB reconnected! Verifying..."
+  "mdbReconnectedVerifying": "MDB reconnected! Verifying...",
+
+  "logDebugShell": "Log & Debug Shell",
+  "copyToClipboard": "Copy to clipboard",
+  "debugCommandHint": "Run a command in the installer context...",
+  "mbOnDisk": "{size} MB on disk",
+  "@mbOnDisk": {
+    "placeholders": {
+      "size": { "type": "String" }
+    }
+  },
+  "beforeImageLabel": "Before",
+  "afterImageLabel": "After",
+  "language": "Language",
+  "languageGerman": "Deutsch",
+  "languageEnglish": "English"
 }

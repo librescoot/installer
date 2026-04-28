@@ -1169,4 +1169,33 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get mdbReconnectedVerifying =>
       'MDB wieder verbunden! Überprüfung läuft...';
+
+  @override
+  String get logDebugShell => 'Log & Debug-Shell';
+
+  @override
+  String get copyToClipboard => 'In Zwischenablage kopieren';
+
+  @override
+  String get debugCommandHint => 'Befehl im Installer-Kontext ausführen...';
+
+  @override
+  String mbOnDisk(String size) {
+    return '$size MB belegt';
+  }
+
+  @override
+  String get beforeImageLabel => 'Vorher';
+
+  @override
+  String get afterImageLabel => 'Nachher';
+
+  @override
+  String get language => 'Sprache';
+
+  @override
+  String get languageGerman => 'Deutsch';
+
+  @override
+  String get languageEnglish => 'English';
 }

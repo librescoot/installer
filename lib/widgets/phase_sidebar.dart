@@ -231,6 +231,7 @@ class _DownloadStatus extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final totalBytes = items.fold<int>(0, (s, i) => s + i.expectedSize);
     final downloadedBytes = items.fold<int>(0, (s, i) => s + i.bytesDownloaded);
     final overallProgress = totalBytes > 0 ? downloadedBytes / totalBytes : 0.0;
@@ -248,7 +249,7 @@ class _DownloadStatus extends StatelessWidget {
             children: [
               Icon(Icons.download, size: 14, color: Colors.grey.shade400),
               const SizedBox(width: 6),
-              Text('Downloads',
+              Text(l10n.downloads,
                   style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
               const Spacer(),
               Text(

@@ -2173,6 +2173,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'MDB reconnected! Verifying...'**
   String get mdbReconnectedVerifying;
+
+  /// No description provided for @logDebugShell.
+  ///
+  /// In en, this message translates to:
+  /// **'Log & Debug Shell'**
+  String get logDebugShell;
+
+  /// No description provided for @copyToClipboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy to clipboard'**
+  String get copyToClipboard;
+
+  /// No description provided for @debugCommandHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Run a command in the installer context...'**
+  String get debugCommandHint;
+
+  /// No description provided for @mbOnDisk.
+  ///
+  /// In en, this message translates to:
+  /// **'{size} MB on disk'**
+  String mbOnDisk(String size);
+
+  /// No description provided for @beforeImageLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Before'**
+  String get beforeImageLabel;
+
+  /// No description provided for @afterImageLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'After'**
+  String get afterImageLabel;
+
+  /// No description provided for @language.
+  ///
+  /// In en, this message translates to:
+  /// **'Language'**
+  String get language;
+
+  /// No description provided for @languageGerman.
+  ///
+  /// In en, this message translates to:
+  /// **'Deutsch'**
+  String get languageGerman;
+
+  /// No description provided for @languageEnglish.
+  ///
+  /// In en, this message translates to:
+  /// **'English'**
+  String get languageEnglish;
 }
 
 class _AppLocalizationsDelegate
