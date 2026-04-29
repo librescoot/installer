@@ -968,30 +968,35 @@ class AppLocalizationsEn extends AppLocalizations {
   String get keycardLearningHeading => 'Keycard Setup';
 
   @override
-  String get keycardMasterHeading => 'With a master card:';
+  String get keycardMasterStageHeading => 'Master keycard (optional)';
 
   @override
-  String get keycardLearningStep1 =>
-      '1. The DBC LED blinks green — no keycards are registered yet.';
+  String get keycardMasterStageWarning =>
+      'A master keycard is used only to teach in additional user keycards later. It cannot unlock or lock the scooter for daily use. If you have a master card, tap it on the reader now. Otherwise, skip this step and register only user cards.';
 
   @override
-  String get keycardLearningStep2 =>
-      '2. Hold your first NFC card to the reader. This becomes the master key, and the LED stops blinking.';
+  String get keycardMasterStageWaiting => 'Waiting for master card';
 
   @override
-  String get keycardLearningStep3 =>
-      '3. Tap the master key again to enter learning mode, then tap each card you want to register as a key.';
+  String get keycardMasterStageWaitingHint =>
+      'The reader\'s LED is blinking — tap your master card now.';
 
   @override
-  String get keycardLearningStep4 =>
-      '4. Tap the master key once more to exit learning mode.';
+  String get keycardMasterStageSkip => 'Skip — no master card';
 
   @override
-  String get keycardNoMasterHeading => 'Without a master card:';
+  String get keycardMasterRegistered => 'Master card registered';
 
   @override
-  String get keycardNoMasterHint =>
-      'If you don\'t have a dedicated master card, you can register keycards directly via the installer while the USB cable is still connected.';
+  String get keycardMasterRegisteredHint =>
+      'This card teaches in additional cards only — it cannot unlock or lock the scooter. Use one of the user cards you\'ll register next for daily use.';
+
+  @override
+  String get keycardCardsStageHeading => 'Register user keycards';
+
+  @override
+  String get keycardCardsStageHint =>
+      'Click Start, then tap each NFC card you want to use to unlock and lock the scooter. Click Done when finished.';
 
   @override
   String get keycardStartLearning => 'Start keycard learning';
