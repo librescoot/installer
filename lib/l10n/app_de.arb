@@ -300,6 +300,14 @@
   "keycardLearningActive": "Anlernmodus aktiv",
   "keycardLearningActiveHint": "Tippe jede NFC-Karte an, die als Schlüssel registriert werden soll. Drücke Fertig wenn du fertig bist.",
   "keycardStopLearning": "Fertig",
+  "keycardStartLearningFailed": "Kartenanlernung konnte nicht gestartet werden: {error}",
+  "@keycardStartLearningFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "keycardSkipMasterFailed": "Anlernschlüssel konnte nicht übersprungen werden: {error}",
+  "@keycardSkipMasterFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
   "willAskForElevation": "Installation starten (fragt nach Berechtigung)",
   "installationContinuesInNewWindow": "Die Installation wird im neuen Fenster fortgesetzt",
   "youCanCloseThisWindow": "Du kannst dieses Fenster schließen.",

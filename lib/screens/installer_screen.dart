@@ -2615,7 +2615,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
       debugPrint('UI: master card skipped (set-master:NONE)');
     } catch (e) {
       debugPrint('UI: failed to set master:NONE: $e');
-      _setStatus('Failed to skip master card: $e');
+      if (mounted) {
+        _setStatus(AppLocalizations.of(context)!.keycardSkipMasterFailed(e.toString()));
+      }
     }
     if (mounted) setState(() => _keycardStage = _KeycardStage.cards);
   }
@@ -2627,7 +2629,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
       setState(() => _keycardLearning = true);
     } catch (e) {
       debugPrint('UI: failed to start keycard learning: $e');
-      _setStatus('Failed to start keycard learning: $e');
+      if (mounted) {
+        _setStatus(AppLocalizations.of(context)!.keycardStartLearningFailed(e.toString()));
+      }
     }
   }
 

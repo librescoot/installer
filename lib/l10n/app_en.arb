@@ -419,6 +419,14 @@
   "keycardLearningActive": "Learning mode active",
   "keycardLearningActiveHint": "Tap each NFC card you want to register as a key. Press Done when finished.",
   "keycardStopLearning": "Done",
+  "keycardStartLearningFailed": "Failed to start keycard learning: {error}",
+  "@keycardStartLearningFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "keycardSkipMasterFailed": "Failed to skip master card: {error}",
+  "@keycardSkipMasterFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
   "willAskForElevation": "Start Installation (will ask for elevation)",
   "installationContinuesInNewWindow": "Installation continues in the new window",
   "youCanCloseThisWindow": "You can close this window.",

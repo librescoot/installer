@@ -1898,6 +1898,18 @@ abstract class AppLocalizations {
   /// **'Done'**
   String get keycardStopLearning;
 
+  /// No description provided for @keycardStartLearningFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to start keycard learning: {error}'**
+  String keycardStartLearningFailed(String error);
+
+  /// No description provided for @keycardSkipMasterFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to skip master card: {error}'**
+  String keycardSkipMasterFailed(String error);
+
   /// No description provided for @willAskForElevation.
   ///
   /// In en, this message translates to:

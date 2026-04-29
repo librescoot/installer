@@ -1012,6 +1012,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get keycardStopLearning => 'Done';
 
   @override
+  String keycardStartLearningFailed(String error) {
+    return 'Failed to start keycard learning: $error';
+  }
+
+  @override
+  String keycardSkipMasterFailed(String error) {
+    return 'Failed to skip master card: $error';
+  }
+
+  @override
   String get willAskForElevation =>
       'Start Installation (will ask for elevation)';
 

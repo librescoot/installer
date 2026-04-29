@@ -1020,6 +1020,16 @@ class AppLocalizationsDe extends AppLocalizations {
   String get keycardStopLearning => 'Fertig';
 
   @override
+  String keycardStartLearningFailed(String error) {
+    return 'Kartenanlernung konnte nicht gestartet werden: $error';
+  }
+
+  @override
+  String keycardSkipMasterFailed(String error) {
+    return 'Anlernschlüssel konnte nicht übersprungen werden: $error';
+  }
+
+  @override
   String get willAskForElevation =>
       'Installation starten (fragt nach Berechtigung)';
 
