@@ -235,14 +235,14 @@ jobs:
           ls -la dist/
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/*
           generate_release_notes: true
 
       - name: Generate app token for site rebuilds
         id: app-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
@@ -250,14 +250,14 @@ jobs:
           repositories: downloads.librescoot.org,librescoot.github.io
 
       - name: Trigger downloads site rebuild
-        uses: peter-evans/repository-dispatch@v3
+        uses: peter-evans/repository-dispatch@v4
         with:
           token: ${{ steps.app-token.outputs.token }}
           repository: librescoot/downloads.librescoot.org
           event-type: releases-changed
 
       - name: Trigger main site rebuild
-        uses: peter-evans/repository-dispatch@v3
+        uses: peter-evans/repository-dispatch@v4
         with:
           token: ${{ steps.app-token.outputs.token }}
           repository: librescoot/librescoot.github.io
