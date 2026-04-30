@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart' show LaunchArgs, installerLog, launchArgs;
 import '../l10n/app_localizations.dart';
@@ -2654,65 +2655,164 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   Widget _buildFinish(AppLocalizations l10n) {
     return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.celebration, size: 64, color: Colors.tealAccent),
+            const SizedBox(height: 16),
+            Text(l10n.welcomeToLibreScoot,
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+            const SizedBox(height: 24),
+            Text(l10n.finalSteps, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 16),
+            InstructionStep(
+              number: 1,
+              title: l10n.disconnectUsbFromLaptopFinal,
+              description: l10n.disconnectUsbFromLaptopFinalDesc,
+            ),
+            InstructionStep(
+              number: 2,
+              title: l10n.reconnectDbcUsbCable,
+              description: l10n.reconnectDbcUsbCableDesc,
+            ),
+            InstructionStep(
+              number: 3,
+              title: l10n.insertMainBattery,
+              description: l10n.insertMainBatteryDesc,
+            ),
+            InstructionStep(
+              number: 4,
+              title: l10n.closeSeatboxAndFootwell,
+              description: l10n.closeSeatboxAndFootwellDesc,
+            ),
+            InstructionStep(
+              number: 5,
+              title: l10n.unlockScooter,
+              description: l10n.unlockScooterDesc,
+            ),
+            const SizedBox(height: 24),
+            _buildGettingStarted(l10n),
+            const SizedBox(height: 24),
+            CheckboxListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(l10n.keepCachedDownloads),
+              subtitle: Text(l10n.mbOnDisk(_totalCacheSizeMb()),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+              value: _keepCache,
+              onChanged: (v) => setState(() => _keepCache = v ?? false),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () async {
+                if (!_keepCache) {
+                  await _offerCleanup();
+                }
+                if (mounted) exit(0);
+              },
+              icon: const Icon(Icons.check_circle),
+              label: Text(l10n.finished),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGettingStarted(AppLocalizations l10n) {
+    final isGerman = Localizations.localeOf(context).languageCode == 'de';
+    final handbookUrl = isGerman
+        ? 'https://librescoot.org/handbook/'
+        : 'https://librescoot.org/en/handbook/';
+    const websiteUrl = 'https://librescoot.org/';
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.tealAccent.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(8),
+        color: Colors.tealAccent.withValues(alpha: 0.05),
+      ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.celebration, size: 64, color: Colors.tealAccent),
-          const SizedBox(height: 16),
-          Text(l10n.welcomeToLibreScoot,
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
-          const SizedBox(height: 24),
-          Text(l10n.finalSteps, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(height: 16),
-          InstructionStep(
-            number: 1,
-            title: l10n.disconnectUsbFromLaptopFinal,
-            description: l10n.disconnectUsbFromLaptopFinalDesc,
-          ),
-          InstructionStep(
-            number: 2,
-            title: l10n.reconnectDbcUsbCable,
-            description: l10n.reconnectDbcUsbCableDesc,
-          ),
-          InstructionStep(
-            number: 3,
-            title: l10n.insertMainBattery,
-            description: l10n.insertMainBatteryDesc,
-          ),
-          InstructionStep(
-            number: 4,
-            title: l10n.closeSeatboxAndFootwell,
-            description: l10n.closeSeatboxAndFootwellDesc,
-          ),
-          InstructionStep(
-            number: 5,
-            title: l10n.unlockScooter,
-            description: l10n.unlockScooterDesc,
-          ),
-          const SizedBox(height: 24),
-          CheckboxListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            title: Text(l10n.keepCachedDownloads),
-            subtitle: Text(l10n.mbOnDisk(_totalCacheSizeMb()),
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-            value: _keepCache,
-            onChanged: (v) => setState(() => _keepCache = v ?? false),
+          Row(
+            children: [
+              const Icon(Icons.lightbulb_outline, size: 20, color: Colors.tealAccent),
+              const SizedBox(width: 8),
+              Text(l10n.gettingStartedTitle,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+            ],
           ),
           const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: () async {
-              if (!_keepCache) {
-                await _offerCleanup();
-              }
-              if (mounted) exit(0);
-            },
-            icon: const Icon(Icons.check_circle),
-            label: Text(l10n.finished),
+          _buildTip(Icons.menu_open, l10n.gettingStartedOpenMenuTitle, l10n.gettingStartedOpenMenuDesc),
+          _buildTip(Icons.swipe_vertical, l10n.gettingStartedDriveMenuTitle, l10n.gettingStartedDriveMenuDesc),
+          _buildTip(Icons.system_update_alt, l10n.gettingStartedUpdateModeTitle, l10n.gettingStartedUpdateModeDesc),
+          _buildTip(Icons.navigation_outlined, l10n.gettingStartedNavigationTitle, l10n.gettingStartedNavigationDesc),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 16,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(l10n.gettingStartedFooter,
+                  style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
+              _buildLinkButton(Icons.open_in_new, l10n.gettingStartedLinkWebsite, websiteUrl),
+              _buildLinkButton(Icons.menu_book_outlined, l10n.gettingStartedLinkHandbook, handbookUrl),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildTip(IconData icon, String title, String description) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: Colors.tealAccent),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                const SizedBox(height: 2),
+                Text(description, style: TextStyle(color: Colors.grey.shade400, fontSize: 13, height: 1.4)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLinkButton(IconData icon, String label, String url) {
+    return TextButton.icon(
+      onPressed: () => _openExternalUrl(url),
+      icon: Icon(icon, size: 16),
+      label: Text(label),
+      style: TextButton.styleFrom(
+        foregroundColor: Colors.tealAccent,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
+  }
+
+  Future<void> _openExternalUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(url)),
+      );
+    }
   }
 
   String _totalCacheSizeMb() {

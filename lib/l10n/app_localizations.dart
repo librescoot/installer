@@ -2269,6 +2269,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'English'**
   String get languageEnglish;
+
+  /// No description provided for @gettingStartedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Getting started'**
+  String get gettingStartedTitle;
+
+  /// No description provided for @gettingStartedOpenMenuTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open the menu'**
+  String get gettingStartedOpenMenuTitle;
+
+  /// No description provided for @gettingStartedOpenMenuDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'While parked, give two short pulls in a row on the left brake lever. Use the brake levers to scroll and select; the on-screen hints show what each lever does.'**
+  String get gettingStartedOpenMenuDesc;
+
+  /// No description provided for @gettingStartedDriveMenuTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick menu while riding'**
+  String get gettingStartedDriveMenuTitle;
+
+  /// No description provided for @gettingStartedDriveMenuDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold the seatbox button to open the on-screen quick menu and cycle through options. Release to highlight the next option, then press once briefly to confirm.'**
+  String get gettingStartedDriveMenuDesc;
+
+  /// No description provided for @gettingStartedUpdateModeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Update Mode again later'**
+  String get gettingStartedUpdateModeTitle;
+
+  /// No description provided for @gettingStartedUpdateModeDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'To install map or routing updates, change settings, or copy other files: turn the scooter on, open the menu, go to Settings → System → Update Mode…, then connect a computer via USB.'**
+  String get gettingStartedUpdateModeDesc;
+
+  /// No description provided for @gettingStartedNavigationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Navigate to a destination'**
+  String get gettingStartedNavigationTitle;
+
+  /// No description provided for @gettingStartedNavigationDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Open the menu → Navigation → Enter Address…, Recent Destinations or Saved Locations. Use Save Current Location to keep the spot you\'re at for later, and Save to Favorites on a recent entry to keep it long-term.'**
+  String get gettingStartedNavigationDesc;
+
+  /// No description provided for @gettingStartedFooter.
+  ///
+  /// In en, this message translates to:
+  /// **'More on librescoot.org and in the handbook.'**
+  String get gettingStartedFooter;
+
+  /// No description provided for @gettingStartedLinkWebsite.
+  ///
+  /// In en, this message translates to:
+  /// **'librescoot.org'**
+  String get gettingStartedLinkWebsite;
+
+  /// No description provided for @gettingStartedLinkHandbook.
+  ///
+  /// In en, this message translates to:
+  /// **'Handbook'**
+  String get gettingStartedLinkHandbook;
 }
 
 class _AppLocalizationsDelegate

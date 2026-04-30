@@ -1225,4 +1225,45 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get languageEnglish => 'English';
+
+  @override
+  String get gettingStartedTitle => 'Erste Schritte';
+
+  @override
+  String get gettingStartedOpenMenuTitle => 'Menü öffnen';
+
+  @override
+  String get gettingStartedOpenMenuDesc =>
+      'Im Parkmodus zweimal kurz hintereinander am linken Bremshebel ziehen. Innerhalb des Menüs scrollst und wählst du mit den Bremshebeln; was die jeweilige Bremse gerade tut, steht unten am Bildschirmrand.';
+
+  @override
+  String get gettingStartedDriveMenuTitle => 'Kurzmenü während der Fahrt';
+
+  @override
+  String get gettingStartedDriveMenuDesc =>
+      'Sitzbank-Schalter gedrückt halten, um das Kurzmenü zu öffnen und die Einträge durchzugehen. Loslassen springt zum nächsten Eintrag, ein kurzer Druck bestätigt den ausgewählten Eintrag.';
+
+  @override
+  String get gettingStartedUpdateModeTitle =>
+      'Update-Modus später erneut öffnen';
+
+  @override
+  String get gettingStartedUpdateModeDesc =>
+      'Für Karten- oder Routing-Updates, Einstellungen oder weitere Dateiübertragungen: Roller einschalten, Menü öffnen, dann Einstellungen → System → Update-Modus… aufrufen und einen Rechner per USB anschließen.';
+
+  @override
+  String get gettingStartedNavigationTitle => 'Zu einem Ziel navigieren';
+
+  @override
+  String get gettingStartedNavigationDesc =>
+      'Menü → Navigation → Adresse eingeben…, Letzte Ziele oder Gespeicherte Orte. Mit Aktuellen Standort speichern hältst du die aktuelle Position für später fest; In Favoriten speichern bei einem letzten Ziel hält es dauerhaft.';
+
+  @override
+  String get gettingStartedFooter => 'Mehr auf librescoot.org und im Handbuch.';
+
+  @override
+  String get gettingStartedLinkWebsite => 'librescoot.org';
+
+  @override
+  String get gettingStartedLinkHandbook => 'Handbuch';
 }

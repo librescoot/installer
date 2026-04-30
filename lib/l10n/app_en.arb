@@ -499,5 +499,18 @@
   "afterImageLabel": "After",
   "language": "Language",
   "languageGerman": "Deutsch",
-  "languageEnglish": "English"
+  "languageEnglish": "English",
+
+  "gettingStartedTitle": "Getting started",
+  "gettingStartedOpenMenuTitle": "Open the menu",
+  "gettingStartedOpenMenuDesc": "While parked, give two short pulls in a row on the left brake lever. Use the brake levers to scroll and select; the on-screen hints show what each lever does.",
+  "gettingStartedDriveMenuTitle": "Quick menu while riding",
+  "gettingStartedDriveMenuDesc": "Hold the seatbox button to open the on-screen quick menu and cycle through options. Release to highlight the next option, then press once briefly to confirm.",
+  "gettingStartedUpdateModeTitle": "Open Update Mode again later",
+  "gettingStartedUpdateModeDesc": "To install map or routing updates, change settings, or copy other files: turn the scooter on, open the menu, go to Settings → System → Update Mode…, then connect a computer via USB.",
+  "gettingStartedNavigationTitle": "Navigate to a destination",
+  "gettingStartedNavigationDesc": "Open the menu → Navigation → Enter Address…, Recent Destinations or Saved Locations. Use Save Current Location to keep the spot you're at for later, and Save to Favorites on a recent entry to keep it long-term.",
+  "gettingStartedFooter": "More on librescoot.org and in the handbook.",
+  "gettingStartedLinkWebsite": "librescoot.org",
+  "gettingStartedLinkHandbook": "Handbook"
 }

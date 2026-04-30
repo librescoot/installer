@@ -1213,4 +1213,45 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get languageEnglish => 'English';
+
+  @override
+  String get gettingStartedTitle => 'Getting started';
+
+  @override
+  String get gettingStartedOpenMenuTitle => 'Open the menu';
+
+  @override
+  String get gettingStartedOpenMenuDesc =>
+      'While parked, give two short pulls in a row on the left brake lever. Use the brake levers to scroll and select; the on-screen hints show what each lever does.';
+
+  @override
+  String get gettingStartedDriveMenuTitle => 'Quick menu while riding';
+
+  @override
+  String get gettingStartedDriveMenuDesc =>
+      'Hold the seatbox button to open the on-screen quick menu and cycle through options. Release to highlight the next option, then press once briefly to confirm.';
+
+  @override
+  String get gettingStartedUpdateModeTitle => 'Open Update Mode again later';
+
+  @override
+  String get gettingStartedUpdateModeDesc =>
+      'To install map or routing updates, change settings, or copy other files: turn the scooter on, open the menu, go to Settings → System → Update Mode…, then connect a computer via USB.';
+
+  @override
+  String get gettingStartedNavigationTitle => 'Navigate to a destination';
+
+  @override
+  String get gettingStartedNavigationDesc =>
+      'Open the menu → Navigation → Enter Address…, Recent Destinations or Saved Locations. Use Save Current Location to keep the spot you\'re at for later, and Save to Favorites on a recent entry to keep it long-term.';
+
+  @override
+  String get gettingStartedFooter =>
+      'More on librescoot.org and in the handbook.';
+
+  @override
+  String get gettingStartedLinkWebsite => 'librescoot.org';
+
+  @override
+  String get gettingStartedLinkHandbook => 'Handbook';
 }

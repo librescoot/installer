@@ -361,5 +361,18 @@
   "afterImageLabel": "Nachher",
   "language": "Sprache",
   "languageGerman": "Deutsch",
-  "languageEnglish": "English"
+  "languageEnglish": "English",
+
+  "gettingStartedTitle": "Erste Schritte",
+  "gettingStartedOpenMenuTitle": "Menü öffnen",
+  "gettingStartedOpenMenuDesc": "Im Parkmodus zweimal kurz hintereinander am linken Bremshebel ziehen. Innerhalb des Menüs scrollst und wählst du mit den Bremshebeln; was die jeweilige Bremse gerade tut, steht unten am Bildschirmrand.",
+  "gettingStartedDriveMenuTitle": "Kurzmenü während der Fahrt",
+  "gettingStartedDriveMenuDesc": "Sitzbank-Schalter gedrückt halten, um das Kurzmenü zu öffnen und die Einträge durchzugehen. Loslassen springt zum nächsten Eintrag, ein kurzer Druck bestätigt den ausgewählten Eintrag.",
+  "gettingStartedUpdateModeTitle": "Update-Modus später erneut öffnen",
+  "gettingStartedUpdateModeDesc": "Für Karten- oder Routing-Updates, Einstellungen oder weitere Dateiübertragungen: Roller einschalten, Menü öffnen, dann Einstellungen → System → Update-Modus… aufrufen und einen Rechner per USB anschließen.",
+  "gettingStartedNavigationTitle": "Zu einem Ziel navigieren",
+  "gettingStartedNavigationDesc": "Menü → Navigation → Adresse eingeben…, Letzte Ziele oder Gespeicherte Orte. Mit Aktuellen Standort speichern hältst du die aktuelle Position für später fest; In Favoriten speichern bei einem letzten Ziel hält es dauerhaft.",
+  "gettingStartedFooter": "Mehr auf librescoot.org und im Handbuch.",
+  "gettingStartedLinkWebsite": "librescoot.org",
+  "gettingStartedLinkHandbook": "Handbuch"
 }
