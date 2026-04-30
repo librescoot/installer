@@ -250,6 +250,23 @@ class AppLocalizationsDe extends AppLocalizations {
       'Zeitlimit beim Warten auf Entsperrung. Roller entsperren und erneut versuchen.';
 
   @override
+  String get awaitingUnlockHeading => 'Roller entsperren';
+
+  @override
+  String get awaitingUnlockDetail =>
+      'Bitte entsperre deinen Roller, um fortzufahren. Halte deine Schlüsselkarte an den Leser oder benutze ein gekoppeltes Handy.';
+
+  @override
+  String get awaitingParkHeading => 'Roller parken';
+
+  @override
+  String get awaitingParkDetail =>
+      'Bitte parke deinen Roller (Seitenständer ausklappen), um fortzufahren.';
+
+  @override
+  String get awaitingParkContinueAnyway => 'Trotzdem weiter';
+
+  @override
   String get lockingScooter => 'Roller wird für das Flashen gesperrt...';
 
   @override

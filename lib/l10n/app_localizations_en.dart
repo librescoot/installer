@@ -246,6 +246,23 @@ class AppLocalizationsEn extends AppLocalizations {
       'Timed out waiting for scooter to be unlocked. Unlock and retry.';
 
   @override
+  String get awaitingUnlockHeading => 'Unlock your scooter';
+
+  @override
+  String get awaitingUnlockDetail =>
+      'Please unlock your scooter to continue. Use your keycard or paired phone.';
+
+  @override
+  String get awaitingParkHeading => 'Park your scooter';
+
+  @override
+  String get awaitingParkDetail =>
+      'Please park your scooter (flip the kickstand down) to continue.';
+
+  @override
+  String get awaitingParkContinueAnyway => 'Continue anyway';
+
+  @override
   String get lockingScooter => 'Locking scooter for flashing...';
 
   @override

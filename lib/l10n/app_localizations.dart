@@ -542,6 +542,36 @@ abstract class AppLocalizations {
   /// **'Timed out waiting for scooter to be unlocked. Unlock and retry.'**
   String get unlockTimeout;
 
+  /// No description provided for @awaitingUnlockHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock your scooter'**
+  String get awaitingUnlockHeading;
+
+  /// No description provided for @awaitingUnlockDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Please unlock your scooter to continue. Use your keycard or paired phone.'**
+  String get awaitingUnlockDetail;
+
+  /// No description provided for @awaitingParkHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Park your scooter'**
+  String get awaitingParkHeading;
+
+  /// No description provided for @awaitingParkDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Please park your scooter (flip the kickstand down) to continue.'**
+  String get awaitingParkDetail;
+
+  /// No description provided for @awaitingParkContinueAnyway.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue anyway'**
+  String get awaitingParkContinueAnyway;
+
   /// No description provided for @lockingScooter.
   ///
   /// In en, this message translates to:

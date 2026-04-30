@@ -78,6 +78,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
   int _keycardMasterCount = 0;
   bool _masterRegisteredViaInstaller = false;
   Timer? _masterPollTimer;
+  String? _awaitingUnlockState; // null when not awaiting; current vehicle state otherwise
+  Completer<bool>? _unlockCompleter;
   bool _keepCache = false;
   bool _isCriticalOperation = false; // prevent quit during flash/upload
   Process? _caffeinateProcess; // macOS sleep prevention
@@ -160,6 +162,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
     _usbDetector.stopMonitoring();
     _blePinPollTimer?.cancel();
     _masterPollTimer?.cancel();
+    if (_unlockCompleter != null && !_unlockCompleter!.isCompleted) {
+      _unlockCompleter!.complete(false);
+    }
     _allowSleep();
     super.dispose();
   }
@@ -875,6 +880,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
       Future.microtask(_autoConnectMdb);
     }
 
+    if (_awaitingUnlockState != null) {
+      return _buildAwaitingUnlock(l10n);
+    }
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -902,6 +911,99 @@ class _InstallerScreenState extends State<InstallerScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildAwaitingUnlock(AppLocalizations l10n) {
+    final isRtd = _awaitingUnlockState == 'ready-to-drive';
+    return Center(
+      child: SizedBox(
+        width: 520,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(isRtd ? Icons.local_parking : Icons.lock_open,
+                size: 72, color: Colors.amber),
+            const SizedBox(height: 16),
+            Text(isRtd ? l10n.awaitingParkHeading : l10n.awaitingUnlockHeading,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.amber)),
+            const SizedBox(height: 12),
+            Text(isRtd ? l10n.awaitingParkDetail : l10n.awaitingUnlockDetail,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade300)),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (isRtd) ...[
+                  FilledButton.icon(
+                    onPressed: _userOverrideRtd,
+                    icon: const Icon(Icons.arrow_forward),
+                    label: Text(l10n.awaitingParkContinueAnyway),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+                TextButton(
+                  onPressed: _userCancelUnlockWait,
+                  child: Text(l10n.cancelButton),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<bool> _waitForUnlock() async {
+    final completer = Completer<bool>();
+    _unlockCompleter = completer;
+
+    Future<void> poll() async {
+      while (!completer.isCompleted) {
+        if (!mounted) {
+          if (!completer.isCompleted) completer.complete(false);
+          return;
+        }
+        String? state;
+        try {
+          state = await _sshService.getVehicleState();
+        } catch (e) {
+          debugPrint('SSH: vehicle state read failed: $e');
+        }
+        if (!mounted || completer.isCompleted) return;
+        if (state == 'parked') {
+          completer.complete(true);
+          return;
+        }
+        if (state != null && state != _awaitingUnlockState && mounted) {
+          setState(() => _awaitingUnlockState = state);
+        }
+        await Future.delayed(const Duration(seconds: 1));
+      }
+    }
+
+    unawaited(poll());
+    final result = await completer.future;
+    if (mounted) setState(() => _awaitingUnlockState = null);
+    if (identical(_unlockCompleter, completer)) _unlockCompleter = null;
+    return result;
+  }
+
+  void _userOverrideRtd() {
+    if (_awaitingUnlockState == 'ready-to-drive' &&
+        _unlockCompleter != null && !_unlockCompleter!.isCompleted) {
+      debugPrint('UI: user override accepted ready-to-drive as parked');
+      _unlockCompleter!.complete(true);
+    }
+  }
+
+  void _userCancelUnlockWait() {
+    if (_unlockCompleter != null && !_unlockCompleter!.isCompleted) {
+      debugPrint('UI: user cancelled unlock wait');
+      _unlockCompleter!.complete(false);
+    }
   }
 
   Future<void> _autoConnectMdb() async {
@@ -965,19 +1067,17 @@ class _InstallerScreenState extends State<InstallerScreen> {
       setState(() => _mdbInfo = info);
       debugPrint('SSH: firmware=${info.firmwareVersion}, serial=${info.serialNumber ?? "unknown"}');
 
-      // Wait for scooter to be unlocked (parked state) before proceeding
+      // Wait for scooter to be in parked state (or user-overridden ready-to-drive)
       _setStatus(l10n.waitingForUnlock);
-      final state = await _sshService.getVehicleState();
-      debugPrint('SSH: vehicle state = $state');
-      if (state != 'parked') {
-        final reached = await _sshService.waitForVehicleState('parked');
-        if (!reached) {
-          _setStatus(l10n.unlockTimeout);
+      final ok = await _waitForUnlock();
+      if (!ok) {
+        // User cancelled, or widget went away.
+        if (mounted) {
           setState(() { _isProcessing = false; _mdbConnectStarted = false; });
-          return;
         }
+        return;
       }
-      debugPrint('SSH: scooter is unlocked (parked), locking...');
+      debugPrint('SSH: scooter is parked (or overridden), locking...');
 
       // Lock the scooter for safe flashing
       _setStatus(l10n.lockingScooter);
