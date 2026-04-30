@@ -626,6 +626,18 @@ abstract class AppLocalizations {
   /// **'Connect'**
   String get manualPasswordSubmit;
 
+  /// No description provided for @untestedFirmwareHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Untested firmware version'**
+  String get untestedFirmwareHeading;
+
+  /// No description provided for @untestedFirmwareBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Installation has not been tested on firmware versions older than 1.12.0 (yours: {version}). The installer should still work, but please share any issues on the LibreScoot Discord.'**
+  String untestedFirmwareBody(String version);
+
   /// No description provided for @healthCheckHeading.
   ///
   /// In en, this message translates to:

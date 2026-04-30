@@ -297,6 +297,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get manualPasswordSubmit => 'Connect';
 
   @override
+  String get untestedFirmwareHeading => 'Untested firmware version';
+
+  @override
+  String untestedFirmwareBody(String version) {
+    return 'Installation has not been tested on firmware versions older than 1.12.0 (yours: $version). The installer should still work, but please share any issues on the LibreScoot Discord.';
+  }
+
+  @override
   String get healthCheckHeading => 'Health Check';
 
   @override

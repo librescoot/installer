@@ -116,6 +116,12 @@
   "manualPasswordFieldLabel": "Password",
   "manualPasswordSubmit": "Connect",
 
+  "untestedFirmwareHeading": "Untested firmware version",
+  "untestedFirmwareBody": "Installation has not been tested on firmware versions older than 1.12.0 (yours: {version}). The installer should still work, but please share any issues on the LibreScoot Discord.",
+  "@untestedFirmwareBody": {
+    "placeholders": { "version": { "type": "String" } }
+  },
+
   "healthCheckHeading": "Health Check",
   "verifyingReadiness": "Verifying scooter readiness...",
   "continueButton": "Continue",

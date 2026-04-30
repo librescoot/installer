@@ -301,6 +301,14 @@ class AppLocalizationsDe extends AppLocalizations {
   String get manualPasswordSubmit => 'Verbinden';
 
   @override
+  String get untestedFirmwareHeading => 'Ungetestete Firmware-Version';
+
+  @override
+  String untestedFirmwareBody(String version) {
+    return 'Die Installation auf Firmware-Versionen älter als 1.12.0 ist nicht getestet (deine: $version). Der Installer sollte trotzdem funktionieren — über Feedback im LibreScoot-Discord freuen wir uns.';
+  }
+
+  @override
   String get healthCheckHeading => 'Statusprüfung';
 
   @override

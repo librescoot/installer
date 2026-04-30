@@ -88,6 +88,11 @@
   "manualPasswordPromptRetry": "Das Passwort war falsch. Bitte erneut versuchen (noch {remaining} Versuche).",
   "manualPasswordFieldLabel": "Passwort",
   "manualPasswordSubmit": "Verbinden",
+  "untestedFirmwareHeading": "Ungetestete Firmware-Version",
+  "untestedFirmwareBody": "Die Installation auf Firmware-Versionen älter als 1.12.0 ist nicht getestet (deine: {version}). Der Installer sollte trotzdem funktionieren — über Feedback im LibreScoot-Discord freuen wir uns.",
+  "@untestedFirmwareBody": {
+    "placeholders": { "version": { "type": "String" } }
+  },
   "healthCheckHeading": "Statusprüfung",
   "verifyingReadiness": "Roller-Bereitschaft wird geprüft...",
   "continueButton": "Weiter",

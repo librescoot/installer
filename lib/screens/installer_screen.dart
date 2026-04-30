@@ -1158,6 +1158,25 @@ class _InstallerScreenState extends State<InstallerScreen> {
         v.contains('testing') || v.contains('stable');
   }
 
+  bool get _isUntestedStockFirmware {
+    if (_isLibreScootFirmware) return false;
+    final v = _mdbInfo?.firmwareVersion ?? '';
+    if (v.isEmpty || v.toLowerCase() == 'unknown') return false;
+    return _semverLessThan(v, '1.12.0');
+  }
+
+  bool _semverLessThan(String a, String b) {
+    int n(String s) {
+      final c = s.trim().toLowerCase().replaceFirst('v', '');
+      final p = c.split('.');
+      final major = p.isNotEmpty ? int.tryParse(p[0]) ?? 0 : 0;
+      final minor = p.length > 1 ? int.tryParse(p[1]) ?? 0 : 0;
+      final patch = p.length > 2 ? int.tryParse(p[2]) ?? 0 : 0;
+      return major * 1000000 + minor * 1000 + patch;
+    }
+    return n(a) < n(b);
+  }
+
   Widget _buildHealthCheck(AppLocalizations l10n) {
     if (!_healthCheckStarted && _scooterHealth == null && !_isProcessing) {
       _healthCheckStarted = true;
@@ -1196,6 +1215,37 @@ class _InstallerScreenState extends State<InstallerScreen> {
           const SizedBox(height: 8),
           Text(l10n.verifyingReadiness,
               style: TextStyle(color: Colors.grey.shade400)),
+          if (_isUntestedStockFirmware) ...[
+            const SizedBox(height: 16),
+            Container(
+              width: 400,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.warning_amber, color: Colors.amber),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(l10n.untestedFirmwareHeading,
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber)),
+                        const SizedBox(height: 4),
+                        Text(l10n.untestedFirmwareBody(_mdbInfo?.firmwareVersion ?? ''),
+                            style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
           if (_scooterHealth != null)
             SizedBox(width: 400, child: HealthCheckPanel(health: _scooterHealth!)),
