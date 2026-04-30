@@ -95,18 +95,18 @@ void main(List<String> args) async {
     });
   }
 
-  runApp(const LibreScootInstaller());
+  runApp(const LibrescootInstaller());
 }
 
-class LibreScootInstaller extends StatelessWidget {
-  const LibreScootInstaller({super.key});
+class LibrescootInstaller extends StatelessWidget {
+  const LibrescootInstaller({super.key});
 
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<Locale>(
       valueListenable: appLocale,
       builder: (context, locale, _) => MaterialApp(
-        title: 'LibreScoot Installer',
+        title: 'Librescoot Installer',
         debugShowCheckedModeBanner: false,
         locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,

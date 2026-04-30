@@ -30,7 +30,7 @@ class DriverInstallResult {
       );
 }
 
-/// Current binding state for the LibreScoot ethernet device.
+/// Current binding state for the Librescoot ethernet device.
 enum DriverBinding {
   /// Device is bound to our RNDIS driver (or another Net-class RNDIS driver).
   correct,
@@ -68,7 +68,7 @@ class DriverDiagnosis {
 
 /// Service for managing Windows RNDIS driver installation.
 ///
-/// On Windows, the LibreScoot MDB uses USB RNDIS (Ethernet over USB).
+/// On Windows, the Librescoot MDB uses USB RNDIS (Ethernet over USB).
 /// This service checks if the driver is installed and installs it if needed.
 class DriverService {
   static const String _driverInfAsset = 'assets/drivers/RNDIS.inf';
@@ -103,7 +103,7 @@ class DriverService {
     }
   }
 
-  /// Diagnose the current driver binding for the LibreScoot ethernet device.
+  /// Diagnose the current driver binding for the Librescoot ethernet device.
   ///
   /// Inspects PnP class and service via PowerShell so we can tell apart:
   ///   * correct binding (Net + RNDIS service),
@@ -175,7 +175,7 @@ if ($d) {
     }
   }
 
-  /// Install the LibreScoot RNDIS driver from bundled assets.
+  /// Install the Librescoot RNDIS driver from bundled assets.
   ///
   /// Stages `RNDIS.inf` via `pnputil /add-driver /install` and, if another
   /// driver (usbser, modem, …) had already claimed the device, forces a

@@ -1,8 +1,8 @@
-# LibreScoot Simple GUI Installer - Design Spec
+# Librescoot Simple GUI Installer - Design Spec
 
 ## Overview
 
-A Flutter desktop application (Windows, macOS, Linux) that guides users through a complete LibreScoot firmware installation on both MDB and DBC boards. Replaces the existing 6-step MDB-only installer with a 14-phase wizard that handles firmware download, two-phase safe flashing, and autonomous DBC flashing via a trampoline script.
+A Flutter desktop application (Windows, macOS, Linux) that guides users through a complete Librescoot firmware installation on both MDB and DBC boards. Replaces the existing 6-step MDB-only installer with a 14-phase wizard that handles firmware download, two-phase safe flashing, and autonomous DBC flashing via a trampoline script.
 
 ## Installation Flow
 
@@ -129,7 +129,7 @@ MDB is in UMS mode (no OS running) - instructions only, no Redis verification. *
 1. Instruct user to reconnect AUX pole
 2. Wait for USB re-enumeration:
    - If UMS device (PID `A4A5`) appears → flash didn't take, retry from Phase 6
-   - If RNDIS device (PID `A4A2`) appears → MDB booted into LibreScoot, continue
+   - If RNDIS device (PID `A4A2`) appears → MDB booted into Librescoot, continue
    - If nothing appears → check AUX connection, check cable
 3. User visual feedback: DBC boot LED turns orange on startup, green during boot, off when running
 4. Ping MDB (`192.168.7.1`) until stable for 10 consecutive seconds (accounts for partition resize reboots)
@@ -220,9 +220,9 @@ Trampoline script runs autonomously on MDB. Installer cannot communicate with MD
    - Insert main battery
    - Close seatbox
    - Replace footwell cover
-   - Unlock scooter (keycard/BT pairing handled by LibreScoot first-run)
+   - Unlock scooter (keycard/BT pairing handled by Librescoot first-run)
 2. Offer to delete downloaded firmware images and tiles (show total size)
-3. Display: "Welcome to LibreScoot!"
+3. Display: "Welcome to Librescoot!"
 
 ## Firmware Download & Caching
 
@@ -246,7 +246,7 @@ Trampoline script runs autonomously on MDB. Installer cannot communicate with MD
 
 - Cache directory:
   - Linux/macOS: `~/.cache/librescoot-installer/`
-  - Windows: `%LOCALAPPDATA%\LibreScoot\Installer\cache\`
+  - Windows: `%LOCALAPPDATA%\Librescoot\Installer\cache\`
 - Cache key: full asset filename (unique per channel + timestamp)
 - Validation: check file exists and matches expected size from GitHub API
 - No automatic cleanup; user offered deletion at end of install
@@ -323,7 +323,7 @@ Dark theme with teal accent (matching current app). Material 3.
 ### Resume Detection
 
 On app launch, detect current device state:
-- RNDIS device → SSH in, check if LibreScoot or stock → determine phase
+- RNDIS device → SSH in, check if Librescoot or stock → determine phase
 - UMS device → MDB in flash-ready state, resume from Phase 6
 - No device → start from Phase 1
 
@@ -358,7 +358,7 @@ MDB has one physical USB connector (ci_hdrc.0, OTG). An internal cable normally 
 **USB role switching on MDB:**
 - Gadget mode: `g_ether` kernel module (RNDIS network)
 - To host mode: `modprobe -r g_ether && echo host > /sys/kernel/debug/ci_hdrc.0/role` → `/dev/sda` appears
-- Back to gadget: `echo gadget > /sys/kernel/debug/ci_hdrc.0/role && modprobe g_ether` (no reboot needed on LibreScoot - `CONFIG_USB_ROLE_SWITCH=y` + `dr_mode = "otg"`)
+- Back to gadget: `echo gadget > /sys/kernel/debug/ci_hdrc.0/role && modprobe g_ether` (no reboot needed on Librescoot - `CONFIG_USB_ROLE_SWITCH=y` + `dr_mode = "otg"`)
 - OTG capability check: `cat /sys/kernel/debug/ci_hdrc.0/device | grep 'is_otg'`
 - Alternative sysfs: `/sys/class/usb_role/` (proper role switch framework)
 - Detach detection: poll `/sys/class/udc/ci_hdrc.0/state`
@@ -366,6 +366,6 @@ MDB has one physical USB connector (ci_hdrc.0, OTG). An internal cable normally 
 ## Scoped Out / Deferred
 
 - **MDB backup** (dd of running system before flash) - deferred to future version
-- **Keycard enrollment / Bluetooth pairing** - handled by LibreScoot first-run experience, not the installer
+- **Keycard enrollment / Bluetooth pairing** - handled by Librescoot first-run experience, not the installer
 - **Advanced mode** - use CLI installer or manual steps
 - **Redis-verified physical steps during UMS mode** (Phase 7) - impossible, instruction-only

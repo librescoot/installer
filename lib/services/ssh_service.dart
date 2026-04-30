@@ -122,7 +122,7 @@ class SshService {
 
   /// Set a callback to be invoked when the bundled credentials don't work
   /// and we need to ask the user for the root password. Only the initial
-  /// MDB connect on stock firmware needs this — once LibreScoot is flashed
+  /// MDB connect on stock firmware needs this — once Librescoot is flashed
   /// the password is empty.
   void setManualPasswordPrompt(ManualPasswordPrompt? prompt) {
     _manualPasswordPrompt = prompt;
@@ -146,7 +146,7 @@ class SshService {
 
   Future<DeviceInfo> _connect(String host) async {
     // Auth strategy:
-    //   1. empty password (LibreScoot)
+    //   1. empty password (Librescoot)
     //   2. bundled credential matched against banner version (stock OS)
     //   3. user-supplied password via manual prompt callback (unknown stock)
     var authVersion = 'v1.20';
@@ -522,7 +522,7 @@ class SshService {
       throw Exception('Not connected');
     }
 
-    // Check if the device already has fw_setenv and fw_env.config (LibreScoot).
+    // Check if the device already has fw_setenv and fw_env.config (Librescoot).
     // If so, use the device's own tools and config (correct env offsets).
     // If not (stock scooterOS), upload our bundled versions.
     final hasNativeFwSetenv = (await runCommand('command -v fw_setenv >/dev/null 2>&1 && echo yes || echo no')).trim() == 'yes';
@@ -793,7 +793,7 @@ class SshService {
   String _shellEscape(String s) => "'${s.replaceAll("'", "'\\''")}'";
 
   /// Back up radio-gaga config from the MDB to a local directory.
-  /// Checks both LibreScoot (/data/radio-gaga/) and stock (/etc/rescoot/) paths.
+  /// Checks both Librescoot (/data/radio-gaga/) and stock (/etc/rescoot/) paths.
   /// Returns the backup directory path, or null if no config was found.
   Future<String?> backupRadioGagaConfig(String backupBaseDir) async {
     final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-').split('.').first;
@@ -801,7 +801,7 @@ class SshService {
 
     var found = false;
 
-    // LibreScoot path: /data/radio-gaga/config.yaml + any referenced certs
+    // Librescoot path: /data/radio-gaga/config.yaml + any referenced certs
     final lsConfig = await downloadFile('/data/radio-gaga/config.yaml');
     if (lsConfig != null && lsConfig.isNotEmpty) {
       final targetDir = Directory(path.join(backupDir.path, 'data-radio-gaga'));
@@ -889,7 +889,7 @@ class SshService {
 
     await runCommand('mkdir -p /data/radio-gaga');
 
-    // Prefer LibreScoot backup (already in the right format)
+    // Prefer Librescoot backup (already in the right format)
     final librescootDir = Directory(path.join(backupPath, 'data-radio-gaga'));
     if (await librescootDir.exists()) {
       for (final file in await librescootDir.list().toList()) {

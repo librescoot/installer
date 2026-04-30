@@ -101,7 +101,7 @@ abstract class AppLocalizations {
   /// No description provided for @appTitle.
   ///
   /// In en, this message translates to:
-  /// **'LibreScoot Installer'**
+  /// **'Librescoot Installer'**
   String get appTitle;
 
   /// No description provided for @elevationWarning.
@@ -293,13 +293,13 @@ abstract class AppLocalizations {
   /// No description provided for @welcomeHeading.
   ///
   /// In en, this message translates to:
-  /// **'Welcome to LibreScoot Installer'**
+  /// **'Welcome to Librescoot Installer'**
   String get welcomeHeading;
 
   /// No description provided for @welcomeSubheading.
   ///
   /// In en, this message translates to:
-  /// **'This wizard will guide you through installing LibreScoot firmware on your scooter.'**
+  /// **'This wizard will guide you through installing Librescoot firmware on your scooter.'**
   String get welcomeSubheading;
 
   /// No description provided for @whatYouNeed.
@@ -635,8 +635,14 @@ abstract class AppLocalizations {
   /// No description provided for @untestedFirmwareBody.
   ///
   /// In en, this message translates to:
-  /// **'Installation has not been tested on firmware versions older than 1.12.0 (yours: {version}). The installer should still work, but please share any issues on the LibreScoot Discord.'**
+  /// **'Installation has not been tested on firmware versions older than 1.12.0 (yours: {version}). The installer should still work, but please share any issues on the Librescoot Discord.'**
   String untestedFirmwareBody(String version);
+
+  /// No description provided for @openLibrescootDiscord.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Librescoot Discord'**
+  String get openLibrescootDiscord;
 
   /// No description provided for @healthCheckHeading.
   ///
@@ -935,7 +941,7 @@ abstract class AppLocalizations {
   /// No description provided for @reconnectAuxPoleDesc.
   ///
   /// In en, this message translates to:
-  /// **'Reconnect the positive AUX pole. The MDB will power on and boot into LibreScoot.'**
+  /// **'Reconnect the positive AUX pole. The MDB will power on and boot into Librescoot.'**
   String get reconnectAuxPoleDesc;
 
   /// No description provided for @dbcLedHint.
@@ -1244,11 +1250,11 @@ abstract class AppLocalizations {
   /// **'Trampoline status unknown. Check /data/trampoline.log on MDB.'**
   String get trampolineStatusUnknown;
 
-  /// No description provided for @welcomeToLibreScoot.
+  /// No description provided for @welcomeToLibrescoot.
   ///
   /// In en, this message translates to:
-  /// **'Welcome to LibreScoot!'**
-  String get welcomeToLibreScoot;
+  /// **'Welcome to Librescoot!'**
+  String get welcomeToLibrescoot;
 
   /// No description provided for @finalSteps.
   ///
@@ -1313,7 +1319,7 @@ abstract class AppLocalizations {
   /// No description provided for @unlockScooterDesc.
   ///
   /// In en, this message translates to:
-  /// **'Keycard and Bluetooth pairing will be set up during LibreScoot first run.'**
+  /// **'Keycard and Bluetooth pairing will be set up during Librescoot first run.'**
   String get unlockScooterDesc;
 
   /// No description provided for @deleteCachedDownloads.
@@ -1361,7 +1367,7 @@ abstract class AppLocalizations {
   /// No description provided for @homeAppTitle.
   ///
   /// In en, this message translates to:
-  /// **'LibreScoot Installer'**
+  /// **'Librescoot Installer'**
   String get homeAppTitle;
 
   /// No description provided for @notElevated.
@@ -2054,11 +2060,11 @@ abstract class AppLocalizations {
   /// **'Keep cached downloads'**
   String get keepCachedDownloads;
 
-  /// No description provided for @libreScootFirmwareDetected.
+  /// No description provided for @librescootFirmwareDetected.
   ///
   /// In en, this message translates to:
-  /// **'LibreScoot firmware detected'**
-  String get libreScootFirmwareDetected;
+  /// **'Librescoot firmware detected'**
+  String get librescootFirmwareDetected;
 
   /// No description provided for @skipMdbReflash.
   ///

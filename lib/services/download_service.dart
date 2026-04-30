@@ -57,7 +57,7 @@ class DownloadService {
   static Future<Directory> getCacheDir() async {
     final String base;
     if (Platform.isWindows) {
-      base = p.join(Platform.environment['LOCALAPPDATA'] ?? '', 'LibreScoot', 'Installer', 'cache');
+      base = p.join(Platform.environment['LOCALAPPDATA'] ?? '', 'Librescoot', 'Installer', 'cache');
     } else {
       base = p.join(Platform.environment['HOME'] ?? '', '.cache', 'librescoot-installer');
     }

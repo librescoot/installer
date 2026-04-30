@@ -1,7 +1,7 @@
 {
   "@@locale": "en",
 
-  "appTitle": "LibreScoot Installer",
+  "appTitle": "Librescoot Installer",
 
   "elevationWarning": "Running without administrator privileges. Some operations may fail.",
 
@@ -36,8 +36,8 @@
   "phaseFinishTitle": "Finish",
   "phaseFinishDescription": "Reassemble and welcome",
 
-  "welcomeHeading": "Welcome to LibreScoot Installer",
-  "welcomeSubheading": "This wizard will guide you through installing LibreScoot firmware on your scooter.",
+  "welcomeHeading": "Welcome to Librescoot Installer",
+  "welcomeSubheading": "This wizard will guide you through installing Librescoot firmware on your scooter.",
   "whatYouNeed": "What you need:",
   "prerequisiteScrewdriverPH2": "PH2 or H4 screwdriver for footwell screws",
   "prerequisiteScrewdriverFlat": "Flat head or PH1 screwdriver for USB cable",
@@ -117,10 +117,11 @@
   "manualPasswordSubmit": "Connect",
 
   "untestedFirmwareHeading": "Untested firmware version",
-  "untestedFirmwareBody": "Installation has not been tested on firmware versions older than 1.12.0 (yours: {version}). The installer should still work, but please share any issues on the LibreScoot Discord.",
+  "untestedFirmwareBody": "Installation has not been tested on firmware versions older than 1.12.0 (yours: {version}). The installer should still work, but please share any issues on the Librescoot Discord.",
   "@untestedFirmwareBody": {
     "placeholders": { "version": { "type": "String" } }
   },
+  "openLibrescootDiscord": "Open Librescoot Discord",
 
   "healthCheckHeading": "Health Check",
   "verifyingReadiness": "Verifying scooter readiness...",
@@ -177,7 +178,7 @@
 
   "waitingForMdbBoot": "Waiting for MDB Boot",
   "reconnectAuxPole": "Reconnect the AUX pole",
-  "reconnectAuxPoleDesc": "Reconnect the positive AUX pole. The MDB will power on and boot into LibreScoot.",
+  "reconnectAuxPoleDesc": "Reconnect the positive AUX pole. The MDB will power on and boot into Librescoot.",
   "dbcLedHint": "DBC LED: orange = starting, green = booting, off = running",
   "mdbStillUms": "MDB still in UMS mode \u2014 flash may not have taken. Retrying...",
   "mdbDetectedNetwork": "MDB detected in network mode. Waiting for stable connection...",
@@ -259,7 +260,7 @@
   "closeButton": "Close",
   "trampolineStatusUnknown": "Trampoline status unknown. Check /data/trampoline.log on MDB.",
 
-  "welcomeToLibreScoot": "Welcome to LibreScoot!",
+  "welcomeToLibrescoot": "Welcome to Librescoot!",
   "finalSteps": "Final steps:",
   "disconnectUsbFromLaptopFinal": "Disconnect USB from laptop",
   "disconnectUsbFromLaptopFinalDesc": "Unplug the USB cable from your laptop.",
@@ -270,7 +271,7 @@
   "closeSeatboxAndFootwell": "Close seatbox and footwell",
   "closeSeatboxAndFootwellDesc": "Close the seatbox and replace the footwell cover.",
   "unlockScooter": "Unlock your scooter",
-  "unlockScooterDesc": "Keycard and Bluetooth pairing will be set up during LibreScoot first run.",
+  "unlockScooterDesc": "Keycard and Bluetooth pairing will be set up during Librescoot first run.",
   "deleteCachedDownloads": "Delete cached downloads ({sizeMb} MB)",
   "@deleteCachedDownloads": {
     "placeholders": {
@@ -290,7 +291,7 @@
   "downloadMapTiles": "Map Tiles",
   "downloadRoutingTiles": "Routing Tiles",
 
-  "homeAppTitle": "LibreScoot Installer",
+  "homeAppTitle": "Librescoot Installer",
   "notElevated": "Not elevated",
   "selectFirmwareStep": "Select Firmware",
   "connectDeviceStep": "Connect Device",
@@ -457,7 +458,7 @@
   "finished": "Finished",
   "keepCachedDownloads": "Keep cached downloads",
 
-  "libreScootFirmwareDetected": "LibreScoot firmware detected",
+  "librescootFirmwareDetected": "Librescoot firmware detected",
   "skipMdbReflash": "Skip MDB reflash",
   "keepCurrentMdbFirmware": "Keep current MDB firmware",
   "skipDbcFlashOption": "Skip DBC flash",

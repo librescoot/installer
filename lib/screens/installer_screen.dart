@@ -1049,7 +1049,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     _setStatus(l10n.configuringNetwork);
     final networkService = NetworkService();
-    final iface = await networkService.findLibreScootInterface();
+    final iface = await networkService.findLibrescootInterface();
     if (iface != null) {
       try {
         await networkService.configureInterface(iface);
@@ -1111,7 +1111,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _setStatus(l10n.mdbDetectedWaitingForSsh);
       await Future.delayed(const Duration(seconds: 10));
 
-      final iface = await NetworkService().findLibreScootInterface();
+      final iface = await NetworkService().findLibrescootInterface();
       if (iface != null) {
         try {
           await NetworkService().configureInterface(iface);
@@ -1152,14 +1152,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
     return true;
   }
 
-  bool get _isLibreScootFirmware {
+  bool get _isLibrescootFirmware {
     final v = _mdbInfo?.firmwareVersion ?? '';
     return v.contains('librescoot') || v.contains('nightly') ||
         v.contains('testing') || v.contains('stable');
   }
 
   bool get _isUntestedStockFirmware {
-    if (_isLibreScootFirmware) return false;
+    if (_isLibrescootFirmware) return false;
     final v = _mdbInfo?.firmwareVersion ?? '';
     if (v.isEmpty || v.toLowerCase() == 'unknown') return false;
     return _semverLessThan(v, '1.12.0');
@@ -1239,6 +1239,18 @@ class _InstallerScreenState extends State<InstallerScreen> {
                         const SizedBox(height: 4),
                         Text(l10n.untestedFirmwareBody(_mdbInfo?.firmwareVersion ?? ''),
                             style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
+                        const SizedBox(height: 8),
+                        TextButton.icon(
+                          onPressed: () => _openExternalUrl('https://discord.gg/BmY2P2T9j3'),
+                          icon: const Icon(Icons.chat_bubble_outline, size: 16, color: Colors.amber),
+                          label: Text(l10n.openLibrescootDiscord,
+                              style: const TextStyle(color: Colors.amber)),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1267,8 +1279,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
               ),
             ),
 
-          // LibreScoot detected — offer to skip MDB reflash
-          if (_scooterHealth != null && _isLibreScootFirmware) ...[
+          // Librescoot detected — offer to skip MDB reflash
+          if (_scooterHealth != null && _isLibrescootFirmware) ...[
             const SizedBox(height: 24),
             Container(
               width: 400,
@@ -1281,7 +1293,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(l10n.libreScootFirmwareDetected,
+                  Text(l10n.librescootFirmwareDetected,
                       style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.tealAccent)),
                   const SizedBox(height: 12),
                   CheckboxListTile(
@@ -1829,7 +1841,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // would never succeed without redoing the static config. configureInterface
     // no-ops if the MDB is already reachable.
     final networkService = NetworkService();
-    final iface = await networkService.findLibreScootInterface();
+    final iface = await networkService.findLibrescootInterface();
     if (iface != null) {
       try {
         await networkService.configureInterface(iface);
@@ -2462,7 +2474,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     await _waitForDevice(DeviceMode.ethernet);
 
     _setStatus(l10n.configuringNetwork);
-    final iface = await NetworkService().findLibreScootInterface();
+    final iface = await NetworkService().findLibrescootInterface();
     if (iface != null) {
       try {
         await NetworkService().configureInterface(iface);
@@ -2990,7 +3002,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
           children: [
             const Icon(Icons.celebration, size: 64, color: Colors.tealAccent),
             const SizedBox(height: 16),
-            Text(l10n.welcomeToLibreScoot,
+            Text(l10n.welcomeToLibrescoot,
                 style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
             const SizedBox(height: 24),
             Text(l10n.finalSteps, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),

@@ -1,12 +1,12 @@
-# LibreScoot Installer
+# Librescoot Installer
 
 > **Beta software.** Tested on all three platforms against real hardware, but things can still go wrong. Flashing firmware carries inherent risk. Use at your own risk, no warranty expressed or implied.
 
-Cross-platform desktop app for installing [LibreScoot](https://librescoot.org) on unu scooters (MDB + DBC).
+Cross-platform desktop app for installing [Librescoot](https://librescoot.org) on unu scooters (MDB + DBC).
 
 ## What it does
 
-Step-by-step wizard for converting stock scooterOS to LibreScoot:
+Step-by-step wizard for converting stock scooterOS to Librescoot:
 
 1. Download firmware and map tiles from GitHub releases (stable/testing/nightly)
 2. Connect to the MDB over USB RNDIS, detect hardware, read serial and firmware version
@@ -14,7 +14,7 @@ Step-by-step wizard for converting stock scooterOS to LibreScoot:
 4. Flash DBC: autonomous "trampoline" process where the MDB switches to USB host, flashes the DBC, and reboots
 5. Post-install: offline map tiles, Bluetooth pairing, keycard setup
 
-Also handles LibreScoot-to-LibreScoot re-flashing (detects installed firmware, offers skip options).
+Also handles Librescoot-to-Librescoot re-flashing (detects installed firmware, offers skip options).
 
 ## Download
 

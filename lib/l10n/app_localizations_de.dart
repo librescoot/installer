@@ -9,7 +9,7 @@ class AppLocalizationsDe extends AppLocalizations {
   AppLocalizationsDe([String locale = 'de']) : super(locale);
 
   @override
-  String get appTitle => 'LibreScoot Installer';
+  String get appTitle => 'Librescoot Installer';
 
   @override
   String get elevationWarning =>
@@ -110,11 +110,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get phaseFinishDescription => 'Zusammenbau und Abschluss';
 
   @override
-  String get welcomeHeading => 'Willkommen beim LibreScoot Installer';
+  String get welcomeHeading => 'Willkommen beim Librescoot Installer';
 
   @override
   String get welcomeSubheading =>
-      'Dieser Assistent führt dich durch die Installation der LibreScoot-Firmware auf deinem Roller.';
+      'Dieser Assistent führt dich durch die Installation der Librescoot-Firmware auf deinem Roller.';
 
   @override
   String get whatYouNeed => 'Was du brauchst:';
@@ -305,8 +305,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String untestedFirmwareBody(String version) {
-    return 'Die Installation auf Firmware-Versionen älter als 1.12.0 ist nicht getestet (deine: $version). Der Installer sollte trotzdem funktionieren — über Feedback im LibreScoot-Discord freuen wir uns.';
+    return 'Die Installation auf Firmware-Versionen älter als 1.12.0 ist nicht getestet (deine: $version). Der Installer sollte trotzdem funktionieren — über Feedback im Librescoot-Discord freuen wir uns.';
   }
+
+  @override
+  String get openLibrescootDiscord => 'Librescoot-Discord öffnen';
 
   @override
   String get healthCheckHeading => 'Statusprüfung';
@@ -470,7 +473,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get reconnectAuxPoleDesc =>
-      'Schließe den positiven AUX-Pol wieder an. Das MDB startet und bootet LibreScoot.';
+      'Schließe den positiven AUX-Pol wieder an. Das MDB startet und bootet Librescoot.';
 
   @override
   String get dbcLedHint =>
@@ -650,7 +653,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Trampoline-Status unbekannt. Prüfe /data/trampoline.log auf dem MDB.';
 
   @override
-  String get welcomeToLibreScoot => 'Willkommen bei LibreScoot!';
+  String get welcomeToLibrescoot => 'Willkommen bei Librescoot!';
 
   @override
   String get finalSteps => 'Letzte Schritte:';
@@ -688,7 +691,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get unlockScooterDesc =>
-      'Keycard- und Bluetooth-Kopplung werden beim ersten Start von LibreScoot eingerichtet.';
+      'Keycard- und Bluetooth-Kopplung werden beim ersten Start von Librescoot eingerichtet.';
 
   @override
   String deleteCachedDownloads(String sizeMb) {
@@ -716,7 +719,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get downloadRoutingTiles => 'Routing-Kacheln';
 
   @override
-  String get homeAppTitle => 'LibreScoot Installer';
+  String get homeAppTitle => 'Librescoot Installer';
 
   @override
   String get notElevated => 'Keine Adminrechte';
@@ -1109,7 +1112,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get keepCachedDownloads => 'Heruntergeladene Dateien behalten';
 
   @override
-  String get libreScootFirmwareDetected => 'LibreScoot-Firmware erkannt';
+  String get librescootFirmwareDetected => 'Librescoot-Firmware erkannt';
 
   @override
   String get skipMdbReflash => 'MDB nicht neu flashen';

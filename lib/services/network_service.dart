@@ -34,8 +34,8 @@ class NetworkService {
   static const String subnetMask = '255.255.255.0';
   static const String mdbIp = '192.168.7.1';
 
-  /// Find the network interface for the LibreScoot USB ethernet device
-  Future<NetworkInterface?> findLibreScootInterface() async {
+  /// Find the network interface for the Librescoot USB ethernet device
+  Future<NetworkInterface?> findLibrescootInterface() async {
     NetworkInterface? iface;
     if (Platform.isWindows) {
       iface = await _findWindowsInterface();
@@ -44,7 +44,7 @@ class NetworkService {
     } else if (Platform.isLinux) {
       iface = await _findLinuxInterface();
     }
-    debugPrint('Network: findLibreScootInterface => $iface');
+    debugPrint('Network: findLibrescootInterface => $iface');
     return iface;
   }
 
@@ -367,7 +367,7 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
       for (final entry in entries) {
         final name = entry.path.split('/').last;
         if (name == 'lo') continue;
-        if (await _isLibreScootInterface(name)) {
+        if (await _isLibrescootInterface(name)) {
           return NetworkInterface(
             name: name,
             displayName: 'USB Ethernet ($name)',
@@ -380,10 +380,10 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
     return null;
   }
 
-  /// Decide whether the given iface is the LibreScoot USB gadget.
+  /// Decide whether the given iface is the Librescoot USB gadget.
   /// Primary check: USB MODALIAS in uevent contains v0525pA4A2.
   /// Fallback: driver symlink basename is cdc_ether or rndis_host.
-  Future<bool> _isLibreScootInterface(String name) async {
+  Future<bool> _isLibrescootInterface(String name) async {
     try {
       final uevent = File('/sys/class/net/$name/device/uevent');
       if (await uevent.exists()) {

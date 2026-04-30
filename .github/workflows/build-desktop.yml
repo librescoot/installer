@@ -122,7 +122,7 @@ jobs:
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          APP="build/macos/Build/Products/Release/LibreScoot Installer.app"
+          APP="build/macos/Build/Products/Release/Librescoot Installer.app"
           IDENTITY="Developer ID Application: Starsong GmbH ($APPLE_TEAM_ID)"
           ENTITLEMENTS="macos/Runner/Release.entitlements"
 
@@ -157,9 +157,9 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.describe }}"
           DMG_DIR=$(mktemp -d)
-          cp -R "build/macos/Build/Products/Release/LibreScoot Installer.app" "$DMG_DIR/"
+          cp -R "build/macos/Build/Products/Release/Librescoot Installer.app" "$DMG_DIR/"
           ln -s /Applications "$DMG_DIR/Applications"
-          hdiutil create -volname "LibreScoot Installer" \
+          hdiutil create -volname "Librescoot Installer" \
             -srcfolder "$DMG_DIR" \
             -ov -format UDZO \
             "build/macos/Build/Products/Release/librescoot-installer-macos-universal-${VERSION}.dmg"

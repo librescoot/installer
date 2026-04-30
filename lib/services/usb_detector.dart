@@ -32,20 +32,20 @@ class UsbDevice {
     this.isSystemDisk = false,
   });
 
-  bool get isLibreScootDevice => vendorId == 0x0525;
+  bool get isLibrescootDevice => vendorId == 0x0525;
 
   /// Safety check: Is this device safe to write to?
   bool get isSafeToFlash {
     // NEVER flash if it's a system disk
     if (isSystemDisk) return false;
 
-    // Must be a LibreScoot device with correct VID
-    if (!isLibreScootDevice) return false;
+    // Must be a Librescoot device with correct VID
+    if (!isLibrescootDevice) return false;
 
     // Must be in mass storage mode
     if (mode != DeviceMode.massStorage) return false;
 
-    // Size sanity check: LibreScoot uses 4GB or 8GB eMMC
+    // Size sanity check: Librescoot uses 4GB or 8GB eMMC
     // Reject anything larger than 16GB or smaller than 1GB
     if (sizeBytes != null) {
       const minSize = 1 * 1024 * 1024 * 1024; // 1 GB
@@ -77,7 +77,7 @@ enum DeviceMode {
   unknown,
 }
 
-/// Service for detecting LibreScoot devices connected via USB
+/// Service for detecting Librescoot devices connected via USB
 class UsbDetector {
   static const int targetVendorId = 0x0525;
   static const int ethernetPid = 0xA4A2;
@@ -143,7 +143,7 @@ class UsbDetector {
     }
   }
 
-  /// Detect a LibreScoot device
+  /// Detect a Librescoot device
   Future<UsbDevice?> detectDevice() async {
     if (Platform.isWindows) {
       return _detectWindows();
@@ -216,7 +216,7 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.PNPDeviceID)" }
   }
 
   Future<UsbDevice?> _detectWindowsStorage() async {
-    // Query WMI for disk drives matching the LibreScoot UMS device.
+    // Query WMI for disk drives matching the Librescoot UMS device.
     // In UMS mode the PNPDeviceID is USBSTOR\DISK&VEN_LINUX&PROD_UMS_DISK_0,
     // not USB\VID_0525, so we match on both patterns.
     try {
@@ -241,7 +241,7 @@ if ($dev) { "$($dev.Model)`t$($dev.PNPDeviceID)`t$($dev.DeviceID)`t$($dev.Size)`
       if (line.isEmpty) return null;
 
       final parts = line.split('\t');
-      final model = parts.isNotEmpty ? parts[0].trim() : 'LibreScoot Device';
+      final model = parts.isNotEmpty ? parts[0].trim() : 'Librescoot Device';
       final pnpId = parts.length > 1 ? parts[1].trim() : '';
       final deviceId = parts.length > 2 ? parts[2].trim() : '';
       final sizeStr = parts.length > 3 ? parts[3].trim() : '';
@@ -306,7 +306,7 @@ if ($dev) { "$($dev.Model)`t$($dev.PNPDeviceID)`t$($dev.DeviceID)`t$($dev.Size)`
 
         final name = nameIdx >= 0 && nameIdx < parts.length
             ? parts[nameIdx]
-            : 'LibreScoot MDB (USB)';
+            : 'Librescoot MDB (USB)';
 
         return UsbDevice(
           id: pnpId,
@@ -342,13 +342,13 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
       if (line.isEmpty) return null;
 
       final parts = line.split('\t');
-      final name = parts.isNotEmpty ? parts[0].trim() : 'LibreScoot MDB (USB)';
+      final name = parts.isNotEmpty ? parts[0].trim() : 'Librescoot MDB (USB)';
       final pnpId = parts.length > 1 ? parts[1].trim() : '';
       if (!pnpId.toUpperCase().contains('VID_0525&PID_A4A2')) return null;
 
       return UsbDevice(
         id: pnpId,
-        name: name.isNotEmpty ? name : 'LibreScoot MDB (USB)',
+        name: name.isNotEmpty ? name : 'Librescoot MDB (USB)',
         path: pnpId,
         vendorId: targetVendorId,
         productId: ethernetPid,
@@ -416,7 +416,7 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
       if (ping.exitCode == 0) {
         return UsbDevice(
           id: 'net-192.168.7.1',
-          name: 'LibreScoot MDB (Ethernet)',
+          name: 'Librescoot MDB (Ethernet)',
           path: '',
           vendorId: targetVendorId,
           productId: ethernetPid,
@@ -444,7 +444,7 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
       final hasVendor15A2 = RegExp(r'"idvendor"\s*=\s*(?:5538|0x0*15a2)\b').hasMatch(lower);
       final hasPid0061 = RegExp(r'"idproduct"\s*=\s*(?:97|0x0*61)\b').hasMatch(lower);
 
-      // Check LibreScoot modes. Prioritize mass storage in case both PIDs
+      // Check Librescoot modes. Prioritize mass storage in case both PIDs
       // appear in a noisy aggregate IORegistry dump.
       if (hasVendor0525) {
         if (hasPidA4A5) {
@@ -453,7 +453,7 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
           final diskInfo = _macDiskInfoCache;
           return UsbDevice(
             id: 'usb-0525-a4a5',
-            name: 'LibreScoot MDB (Mass Storage)',
+            name: 'Librescoot MDB (Mass Storage)',
             path: diskInfo?['path'] ?? '',
             vendorId: targetVendorId,
             productId: massStoragePid,
@@ -467,7 +467,7 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
         if (hasPidA4A2) {
           return UsbDevice(
             id: 'usb-0525-a4a2',
-            name: 'LibreScoot MDB (Ethernet)',
+            name: 'Librescoot MDB (Ethernet)',
             path: '', // Will be determined by network interface
             vendorId: targetVendorId,
             productId: ethernetPid,
@@ -481,7 +481,7 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
         if (hasPid0061) {
           return UsbDevice(
             id: 'usb-15a2-0061',
-            name: 'LibreScoot DBC (Recovery)',
+            name: 'Librescoot DBC (Recovery)',
             path: '',
             vendorId: nxpVendorId,
             productId: recoveryPid,
@@ -509,7 +509,7 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
       if (hasVendor0525 && hasPidA4A5) {
         return UsbDevice(
           id: 'usb-0525-a4a5-profiler',
-          name: 'LibreScoot MDB (Mass Storage)',
+          name: 'Librescoot MDB (Mass Storage)',
           path: '',
           vendorId: targetVendorId,
           productId: massStoragePid,
@@ -519,7 +519,7 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
       if (hasVendor0525 && hasPidA4A2) {
         return UsbDevice(
           id: 'usb-0525-a4a2-profiler',
-          name: 'LibreScoot MDB (Ethernet)',
+          name: 'Librescoot MDB (Ethernet)',
           path: '',
           vendorId: targetVendorId,
           productId: ethernetPid,
@@ -689,7 +689,7 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
       if (output.contains('a4a2') || output.contains('A4A2')) {
         return UsbDevice(
           id: 'usb-0525-a4a2',
-          name: 'LibreScoot MDB (Ethernet)',
+          name: 'Librescoot MDB (Ethernet)',
           path: '',
           vendorId: targetVendorId,
           productId: ethernetPid,
@@ -701,7 +701,7 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
         final diskPath = await _findLinuxDiskPath();
         return UsbDevice(
           id: 'usb-0525-a4a5',
-          name: 'LibreScoot MDB (Mass Storage)',
+          name: 'Librescoot MDB (Mass Storage)',
           path: diskPath ?? '',
           vendorId: targetVendorId,
           productId: massStoragePid,
@@ -716,7 +716,7 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
       if (result.exitCode == 0 && result.stdout.toString().isNotEmpty) {
         return UsbDevice(
           id: 'usb-15a2-0061',
-          name: 'LibreScoot DBC (Recovery)',
+          name: 'Librescoot DBC (Recovery)',
           path: '',
           vendorId: nxpVendorId,
           productId: recoveryPid,
