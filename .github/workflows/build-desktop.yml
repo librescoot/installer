@@ -107,15 +107,15 @@ jobs:
 
       - name: Build macOS
         if: matrix.target == 'macos'
-        run: flutter build macos --release --dart-define=AUTH_KEY=${{ secrets.AUTH_KEY }}
+        run: flutter build macos --release --dart-define=AUTH_KEY=${{ secrets.AUTH_KEY }} --dart-define=APP_VERSION=${{ steps.version.outputs.describe }}
 
       - name: Build Linux
         if: runner.os == 'Linux'
-        run: flutter build linux --release --dart-define=AUTH_KEY=${{ secrets.AUTH_KEY }}
+        run: flutter build linux --release --dart-define=AUTH_KEY=${{ secrets.AUTH_KEY }} --dart-define=APP_VERSION=${{ steps.version.outputs.describe }}
 
       - name: Build Windows
         if: matrix.target == 'windows'
-        run: flutter build windows --release --dart-define=AUTH_KEY=${{ secrets.AUTH_KEY }}
+        run: flutter build windows --release --dart-define=AUTH_KEY=${{ secrets.AUTH_KEY }} --dart-define=APP_VERSION=${{ steps.version.outputs.describe }}
 
       - name: Sign macOS app
         if: matrix.target == 'macos'

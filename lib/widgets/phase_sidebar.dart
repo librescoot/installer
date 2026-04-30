@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/phase_l10n.dart';
+import '../main.dart' show appVersion;
 import '../models/download_state.dart';
 import '../models/installer_phase.dart';
 
@@ -50,6 +51,14 @@ class PhaseSidebar extends StatelessWidget {
                         style: TextStyle(
                           color: Colors.tealAccent.withValues(alpha: 0.7),
                           fontSize: 12,
+                        ),
+                      ),
+                      Text(
+                        appVersion,
+                        style: TextStyle(
+                          color: Colors.tealAccent.withValues(alpha: 0.45),
+                          fontSize: 10,
+                          fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
                     ],

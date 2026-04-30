@@ -54,6 +54,10 @@ late final LaunchArgs launchArgs;
 /// `--lang=xx` overrides the default at startup.
 final ValueNotifier<Locale> appLocale = ValueNotifier(const Locale('de'));
 
+/// Installer version. Injected by CI via --dart-define=APP_VERSION=<git describe>;
+/// falls back to 'dev' for local unflagged builds.
+const String appVersion = String.fromEnvironment('APP_VERSION', defaultValue: 'dev');
+
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   launchArgs = LaunchArgs.fromArgs(args);
@@ -70,6 +74,8 @@ void main(List<String> args) async {
     }
     originalDebugPrint(message, wrapWidth: wrapWidth);
   };
+
+  debugPrint('Librescoot Installer $appVersion starting (lang=${appLocale.value.languageCode}, platform=${Platform.operatingSystem})');
 
   // On fresh Windows installs, the CA certificate store may be incomplete.
   // Windows lazily downloads missing CA certs when SChannel-based apps (like
