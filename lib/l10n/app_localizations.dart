@@ -1820,47 +1820,59 @@ abstract class AppLocalizations {
   /// **'Keycard Setup'**
   String get keycardLearningHeading;
 
-  /// No description provided for @keycardMasterHeading.
+  /// No description provided for @keycardMasterStageHeading.
   ///
   /// In en, this message translates to:
-  /// **'With a master card:'**
-  String get keycardMasterHeading;
+  /// **'Master keycard (optional)'**
+  String get keycardMasterStageHeading;
 
-  /// No description provided for @keycardLearningStep1.
+  /// No description provided for @keycardMasterStageWarning.
   ///
   /// In en, this message translates to:
-  /// **'1. The DBC LED blinks green — no keycards are registered yet.'**
-  String get keycardLearningStep1;
+  /// **'A master keycard is used only to teach in additional user keycards later. It cannot unlock or lock the scooter for daily use. If you have a master card, tap it on the reader now. Otherwise, skip this step and register only user cards.'**
+  String get keycardMasterStageWarning;
 
-  /// No description provided for @keycardLearningStep2.
+  /// No description provided for @keycardMasterStageWaiting.
   ///
   /// In en, this message translates to:
-  /// **'2. Hold your first NFC card to the reader. This becomes the master key, and the LED stops blinking.'**
-  String get keycardLearningStep2;
+  /// **'Waiting for master card'**
+  String get keycardMasterStageWaiting;
 
-  /// No description provided for @keycardLearningStep3.
+  /// No description provided for @keycardMasterStageWaitingHint.
   ///
   /// In en, this message translates to:
-  /// **'3. Tap the master key again to enter learning mode, then tap each card you want to register as a key.'**
-  String get keycardLearningStep3;
+  /// **'The reader\'s LED is blinking — tap your master card now.'**
+  String get keycardMasterStageWaitingHint;
 
-  /// No description provided for @keycardLearningStep4.
+  /// No description provided for @keycardMasterStageSkip.
   ///
   /// In en, this message translates to:
-  /// **'4. Tap the master key once more to exit learning mode.'**
-  String get keycardLearningStep4;
+  /// **'Skip — no master card'**
+  String get keycardMasterStageSkip;
 
-  /// No description provided for @keycardNoMasterHeading.
+  /// No description provided for @keycardMasterRegistered.
   ///
   /// In en, this message translates to:
-  /// **'Without a master card:'**
-  String get keycardNoMasterHeading;
+  /// **'Master card registered'**
+  String get keycardMasterRegistered;
 
-  /// No description provided for @keycardNoMasterHint.
+  /// No description provided for @keycardMasterRegisteredHint.
   ///
   /// In en, this message translates to:
-  /// **'If you don\'t have a dedicated master card, you can register keycards directly via the installer while the USB cable is still connected.'**
-  String get keycardNoMasterHint;
+  /// **'This card teaches in additional cards only — it cannot unlock or lock the scooter. Use one of the user cards you\'ll register next for daily use.'**
+  String get keycardMasterRegisteredHint;
+
+  /// No description provided for @keycardCardsStageHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Register user keycards'**
+  String get keycardCardsStageHeading;
+
+  /// No description provided for @keycardCardsStageHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Click Start, then tap each NFC card you want to use to unlock and lock the scooter. Click Done when finished.'**
+  String get keycardCardsStageHint;
 
   /// No description provided for @keycardStartLearning.
   ///
@@ -1885,6 +1897,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Done'**
   String get keycardStopLearning;
+
+  /// No description provided for @keycardStartLearningFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to start keycard learning: {error}'**
+  String keycardStartLearningFailed(String error);
+
+  /// No description provided for @keycardSkipMasterFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to skip master card: {error}'**
+  String keycardSkipMasterFailed(String error);
 
   /// No description provided for @willAskForElevation.
   ///
