@@ -110,6 +110,24 @@ class AppLocalizationsDe extends AppLocalizations {
   String get phaseFinishDescription => 'Zusammenbau und Abschluss';
 
   @override
+  String get majorStepPrepare => 'Vorbereitung';
+
+  @override
+  String get majorStepConnect => 'Verbinden';
+
+  @override
+  String get majorStepMdbFlash => 'MDB flashen';
+
+  @override
+  String get majorStepDbcFlash => 'DBC flashen';
+
+  @override
+  String get majorStepFinish => 'Abschluss';
+
+  @override
+  String get majorStepSkippedSuffix => 'übersprungen';
+
+  @override
   String get welcomeHeading => 'Willkommen beim Librescoot Installer';
 
   @override
@@ -153,11 +171,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get channelNightlyDesc => 'Täglich aus main gebaut, für Entwickler';
-
-  @override
-  String channelLatest(String date) {
-    return 'Aktuell: $date';
-  }
 
   @override
   String get channelNoReleases => 'Keine Releases verfügbar';

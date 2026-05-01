@@ -16,8 +16,8 @@ import '../services/services.dart';
 import '../widgets/download_progress.dart';
 import '../widgets/health_check_panel.dart';
 import '../widgets/instruction_step.dart';
-import '../widgets/language_switcher.dart';
 import '../widgets/phase_sidebar.dart';
+import '../theme.dart';
 
 class InstallerScreen extends StatefulWidget {
   const InstallerScreen({super.key});
@@ -427,11 +427,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
               ),
             ],
           ),
-          const Positioned(
-            top: 8,
-            right: 8,
-            child: LanguageSwitcher(),
-          ),
         ],
       ),
     ),
@@ -459,7 +454,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Widget _buildStatusBar(AppLocalizations l10n) {
     return Container(
       height: 36,
-      color: const Color(0xFF1A1A2E),
+      color: kBgSidebar,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
@@ -470,7 +465,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
               child: CircularProgressIndicator(
                 strokeWidth: 2,
                 value: _progress > 0 ? _progress : null,
-                color: Colors.tealAccent,
+                color: kAccent,
               ),
             ),
           if (_isProcessing) const SizedBox(width: 8),
@@ -508,7 +503,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.open_in_new, size: 48, color: Colors.tealAccent),
+            const Icon(Icons.open_in_new, size: 48, color: kAccent),
             const SizedBox(height: 16),
             Text(l10n.installationContinuesInNewWindow,
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
@@ -594,18 +589,27 @@ class _InstallerScreenState extends State<InstallerScreen> {
           children: [
             Text(l10n.region, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const Spacer(),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Checkbox(
-                  value: !_downloadState.wantsOfflineMaps,
-                  onChanged: (v) => setState(() {
-                    _downloadState.wantsOfflineMaps = !(v ?? false);
-                  }),
+            InkWell(
+              onTap: () => setState(() {
+                _downloadState.wantsOfflineMaps = !_downloadState.wantsOfflineMaps;
+              }),
+              borderRadius: BorderRadius.circular(4),
+              child: Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Checkbox(
+                      value: !_downloadState.wantsOfflineMaps,
+                      onChanged: (v) => setState(() {
+                        _downloadState.wantsOfflineMaps = !(v ?? false);
+                      }),
+                    ),
+                    Text(l10n.skipOfflineMaps,
+                        style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+                  ],
                 ),
-                Text(l10n.skipOfflineMaps,
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
-              ],
+              ),
             ),
           ],
         ),
@@ -663,6 +667,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 channel: channel,
                 name: channelInfo[channel]!.name,
                 description: channelInfo[channel]!.desc,
+                releaseTag: _availableChannels?[channel]?.tag,
                 releaseDate: _availableChannels?[channel]?.date,
                 available: _availableChannels?.containsKey(channel) ?? false,
                 selected: _downloadState.channel == channel,
@@ -679,6 +684,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     required DownloadChannel channel,
     required String name,
     required String description,
+    required String? releaseTag,
     required String? releaseDate,
     required bool available,
     required bool selected,
@@ -691,11 +697,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: selected ? Colors.tealAccent : Colors.grey.shade700,
+            color: selected ? kAccent : Colors.grey.shade700,
             width: selected ? 2 : 1,
           ),
           color: selected
-              ? Colors.tealAccent.withValues(alpha: 0.08)
+              ? kAccent.withValues(alpha: 0.08)
               : available
                   ? Colors.transparent
                   : Colors.grey.shade900.withValues(alpha: 0.4),
@@ -710,18 +716,32 @@ class _InstallerScreenState extends State<InstallerScreen> {
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
-                    color: selected ? Colors.tealAccent : null,
+                    color: selected ? kAccent : null,
                   )),
               const SizedBox(height: 4),
               Text(description,
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
               const SizedBox(height: 8),
-              Text(
-                releaseDate != null
-                    ? l10n.channelLatest(releaseDate)
-                    : l10n.channelNoReleases,
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-              ),
+              if (releaseTag != null) ...[
+                Text(
+                  releaseTag,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade300,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (releaseDate != null)
+                  Text(
+                    releaseDate,
+                    style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                  ),
+              ] else
+                Text(
+                  l10n.channelNoReleases,
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                ),
             ],
           ),
         ),
@@ -739,7 +759,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
           Icon(
             _prerequisiteChecks[index] ? Icons.check_box : Icons.check_box_outline_blank,
             size: 18,
-            color: _prerequisiteChecks[index] ? Colors.tealAccent : Colors.grey,
+            color: _prerequisiteChecks[index] ? kAccent : Colors.grey,
           ),
           const SizedBox(width: 8),
           Text(text, style: TextStyle(
@@ -1278,15 +1298,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
               width: 400,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.teal.withValues(alpha: 0.1),
+                color: kAccent.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.teal.withValues(alpha: 0.3)),
+                border: Border.all(color: kAccent.withValues(alpha: 0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(l10n.librescootFirmwareDetected,
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: kAccent)),
                   const SizedBox(height: 12),
                   CheckboxListTile(
                     dense: true,
@@ -1403,7 +1423,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
               Text(_statusMessage, style: TextStyle(color: Colors.grey.shade400)),
             ],
           ] else ...[
-            const Icon(Icons.check_circle, size: 48, color: Colors.tealAccent),
+            const Icon(Icons.check_circle, size: 48, color: kAccent),
             const SizedBox(height: 16),
             Text(l10n.mainBatteryAlreadyRemoved),
             const SizedBox(height: 16),
@@ -1976,9 +1996,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.check_circle, size: 16, color: Colors.tealAccent),
+                const Icon(Icons.check_circle, size: 16, color: kAccent),
                 const SizedBox(width: 8),
-                Text(l10n.cbbDetected, style: const TextStyle(color: Colors.tealAccent, fontSize: 13)),
+                Text(l10n.cbbDetected, style: const TextStyle(color: kAccent, fontSize: 13)),
               ],
             )
           else ...[
@@ -2041,9 +2061,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.check_circle, size: 16, color: Colors.tealAccent),
+                          const Icon(Icons.check_circle, size: 16, color: kAccent),
                           const SizedBox(width: 8),
-                          Text(l10n.batteryDetected, style: const TextStyle(color: Colors.tealAccent, fontSize: 13)),
+                          Text(l10n.batteryDetected, style: const TextStyle(color: kAccent, fontSize: 13)),
                         ],
                       ),
                     ),
@@ -2365,7 +2385,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       child: Row(
         children: [
           const SizedBox(width: 8),
-          const Icon(Icons.circle, size: 8, color: Colors.tealAccent),
+          const Icon(Icons.circle, size: 8, color: kAccent),
           const SizedBox(width: 8),
           Expanded(child: Text(signal, style: const TextStyle(fontSize: 13))),
           Text(meaning, style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
@@ -2791,7 +2811,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.nfc, size: 48, color: Colors.tealAccent),
+          const Icon(Icons.nfc, size: 48, color: kAccent),
           const SizedBox(height: 16),
           Text(l10n.keycardLearningHeading,
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
@@ -2841,16 +2861,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.tealAccent.withValues(alpha: 0.1),
+                      color: kAccent.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.tealAccent.withValues(alpha: 0.3)),
+                      border: Border.all(color: kAccent.withValues(alpha: 0.3)),
                     ),
                     child: Column(
                       children: [
-                        const Icon(Icons.contactless, size: 28, color: Colors.tealAccent),
+                        const Icon(Icons.contactless, size: 28, color: kAccent),
                         const SizedBox(height: 8),
                         Text(l10n.keycardLearningActive,
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: kAccent)),
                         const SizedBox(height: 4),
                         Text(l10n.keycardLearningActiveHint,
                             textAlign: TextAlign.center,
@@ -2894,10 +2914,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.celebration, size: 64, color: Colors.tealAccent),
+            const Icon(Icons.celebration, size: 64, color: kAccent),
             const SizedBox(height: 16),
             Text(l10n.welcomeToLibrescoot,
-                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: kAccent)),
             const SizedBox(height: 24),
             Text(l10n.finalSteps, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 16),
@@ -2965,19 +2985,19 @@ class _InstallerScreenState extends State<InstallerScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.tealAccent.withValues(alpha: 0.4)),
+        border: Border.all(color: kAccent.withValues(alpha: 0.4)),
         borderRadius: BorderRadius.circular(8),
-        color: Colors.tealAccent.withValues(alpha: 0.05),
+        color: kAccent.withValues(alpha: 0.05),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.lightbulb_outline, size: 20, color: Colors.tealAccent),
+              const Icon(Icons.lightbulb_outline, size: 20, color: kAccent),
               const SizedBox(width: 8),
               Text(l10n.gettingStartedTitle,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: kAccent)),
             ],
           ),
           const SizedBox(height: 16),
@@ -3008,7 +3028,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: Colors.tealAccent),
+          Icon(icon, size: 18, color: kAccent),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -3031,7 +3051,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       icon: Icon(icon, size: 16),
       label: Text(label),
       style: TextButton.styleFrom(
-        foregroundColor: Colors.tealAccent,
+        foregroundColor: kAccent,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         minimumSize: Size.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,

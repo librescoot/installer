@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../models/download_state.dart';
+import '../theme.dart';
 
 class DownloadProgressWidget extends StatelessWidget {
   const DownloadProgressWidget({super.key, required this.items});
@@ -23,7 +24,7 @@ class DownloadProgressWidget extends StatelessWidget {
             child: Row(
               children: [
                 if (item.isComplete)
-                  const Icon(Icons.check_circle, size: 16, color: Colors.tealAccent)
+                  const Icon(Icons.check_circle, size: 16, color: kAccent)
                 else
                   SizedBox(
                     width: 16,

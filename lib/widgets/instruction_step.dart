@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
+import '../theme.dart';
 
 class InstructionStep extends StatelessWidget {
   const InstructionStep({
@@ -40,7 +41,7 @@ class InstructionStep extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 16,
-            backgroundColor: isWarning ? Colors.orange : Colors.tealAccent,
+            backgroundColor: isWarning ? Colors.orange : kAccent,
             foregroundColor: Colors.black,
             child: Text('$number', style: const TextStyle(fontWeight: FontWeight.bold)),
           ),

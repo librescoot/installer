@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../models/scooter_health.dart';
+import '../theme.dart';
 
 class HealthCheckPanel extends StatelessWidget {
   const HealthCheckPanel({super.key, required this.health});
@@ -48,14 +49,14 @@ class HealthCheckPanel extends StatelessWidget {
           Icon(
             ok ? Icons.check_circle : Icons.error,
             size: 16,
-            color: ok ? Colors.tealAccent : Colors.orange,
+            color: ok ? kAccent : Colors.orange,
           ),
           const SizedBox(width: 8),
           Expanded(child: Text(label, style: const TextStyle(fontSize: 13))),
           Text(value, style: TextStyle(
             fontSize: 13,
             fontFamily: 'monospace',
-            color: ok ? Colors.tealAccent : Colors.orange,
+            color: ok ? kAccent : Colors.orange,
           )),
           if (threshold.isNotEmpty) ...[
             const SizedBox(width: 8),

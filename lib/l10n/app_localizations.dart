@@ -290,6 +290,42 @@ abstract class AppLocalizations {
   /// **'Reassemble and welcome'**
   String get phaseFinishDescription;
 
+  /// No description provided for @majorStepPrepare.
+  ///
+  /// In en, this message translates to:
+  /// **'Prepare'**
+  String get majorStepPrepare;
+
+  /// No description provided for @majorStepConnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect'**
+  String get majorStepConnect;
+
+  /// No description provided for @majorStepMdbFlash.
+  ///
+  /// In en, this message translates to:
+  /// **'Flash MDB'**
+  String get majorStepMdbFlash;
+
+  /// No description provided for @majorStepDbcFlash.
+  ///
+  /// In en, this message translates to:
+  /// **'Flash DBC'**
+  String get majorStepDbcFlash;
+
+  /// No description provided for @majorStepFinish.
+  ///
+  /// In en, this message translates to:
+  /// **'Finish'**
+  String get majorStepFinish;
+
+  /// No description provided for @majorStepSkippedSuffix.
+  ///
+  /// In en, this message translates to:
+  /// **'skipped'**
+  String get majorStepSkippedSuffix;
+
   /// No description provided for @welcomeHeading.
   ///
   /// In en, this message translates to:
@@ -373,12 +409,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Built daily from main, for developers'**
   String get channelNightlyDesc;
-
-  /// No description provided for @channelLatest.
-  ///
-  /// In en, this message translates to:
-  /// **'Latest: {date}'**
-  String channelLatest(String date);
 
   /// No description provided for @channelNoReleases.
   ///

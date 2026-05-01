@@ -5,6 +5,8 @@ import '../l10n/phase_l10n.dart';
 import '../main.dart' show appVersion;
 import '../models/download_state.dart';
 import '../models/installer_phase.dart';
+import '../theme.dart';
+import 'language_switcher.dart';
 
 class PhaseSidebar extends StatelessWidget {
   const PhaseSidebar({
@@ -25,7 +27,7 @@ class PhaseSidebar extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     return Container(
       width: 220,
-      color: const Color(0xFF1A1A2E),
+      color: kBgSidebar,
       child: Column(
         children: [
           Expanded(
@@ -33,33 +35,50 @@ class PhaseSidebar extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 16),
               children: [
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      SvgPicture.asset(
-                        'assets/logotype.svg',
-                        height: 24,
-                        colorFilter: const ColorFilter.mode(
-                          Colors.tealAccent,
-                          BlendMode.srcIn,
+                      Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: SvgPicture.asset(
+                          'assets/logotype.svg',
+                          height: 24,
+                          colorFilter: const ColorFilter.mode(
+                            kAccent,
+                            BlendMode.srcIn,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        'Installer',
-                        style: TextStyle(
-                          color: Colors.tealAccent.withValues(alpha: 0.7),
-                          fontSize: 12,
-                        ),
-                      ),
-                      Text(
-                        appVersion,
-                        style: TextStyle(
-                          color: Colors.tealAccent.withValues(alpha: 0.45),
-                          fontSize: 10,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Installer',
+                                style: TextStyle(
+                                  color: kAccent.withValues(alpha: 0.7),
+                                  fontSize: 12,
+                                ),
+                              ),
+                              Text(
+                                appVersion,
+                                style: TextStyle(
+                                  color: kAccent.withValues(alpha: 0.45),
+                                  fontSize: 10,
+                                  fontFeatures: const [FontFeature.tabularFigures()],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 4),
+                          const LanguageSwitcher(),
+                        ],
                       ),
                     ],
                   ),
@@ -71,6 +90,7 @@ class PhaseSidebar extends StatelessWidget {
                     isActive: major.isActive(currentPhase),
                     isCompleted: major.isCompleted(currentPhase),
                     isSkipped: major.phases.every((p) => skippedPhases.contains(p)),
+                    l10n: l10n,
                   ),
                   // Show substeps only for the active major step
                   if (major.isActive(currentPhase) && major.phases.length > 1)
@@ -100,6 +120,7 @@ class _MajorStepItem extends StatelessWidget {
     required this.step,
     required this.isActive,
     required this.isCompleted,
+    required this.l10n,
     this.isSkipped = false,
   });
 
@@ -107,6 +128,7 @@ class _MajorStepItem extends StatelessWidget {
   final bool isActive;
   final bool isCompleted;
   final bool isSkipped;
+  final AppLocalizations l10n;
 
   @override
   Widget build(BuildContext context) {
@@ -119,20 +141,20 @@ class _MajorStepItem extends StatelessWidget {
       leading = Icon(Icons.circle_outlined, size: 18, color: Colors.grey.shade700);
     } else if (isCompleted) {
       textColor = Colors.grey;
-      leading = const Icon(Icons.check_circle, size: 18, color: Colors.tealAccent);
+      leading = const Icon(Icons.check_circle, size: 18, color: kAccent);
     } else if (isActive) {
-      textColor = Colors.tealAccent;
+      textColor = kAccent;
       leading = Container(
         width: 18,
         height: 18,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: Colors.tealAccent,
+          color: kAccent,
         ),
         child: Center(
           child: Text(
             '$stepNum',
-            style: const TextStyle(color: Color(0xFF1A1A2E), fontSize: 11, fontWeight: FontWeight.bold),
+            style: const TextStyle(color: kOnAccent, fontSize: 11, fontWeight: FontWeight.bold),
           ),
         ),
       );
@@ -155,14 +177,14 @@ class _MajorStepItem extends StatelessWidget {
     }
 
     return Container(
-      color: isActive ? Colors.tealAccent.withValues(alpha: 0.06) : null,
+      color: isActive ? kAccent.withValues(alpha: 0.06) : null,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
           leading,
           const SizedBox(width: 10),
           Text(
-            isSkipped ? '${step.title} (skipped)' : step.title,
+            isSkipped ? '${step.localizedTitle(l10n)} (${l10n.majorStepSkippedSuffix})' : step.localizedTitle(l10n),
             style: TextStyle(
               color: textColor,
               fontSize: 14,
@@ -197,8 +219,8 @@ class _SubStepItem extends StatelessWidget {
       textColor = Colors.grey.shade500;
       leading = Icon(Icons.check, size: 12, color: Colors.grey.shade500);
     } else if (isCurrent) {
-      textColor = Colors.tealAccent;
-      leading = const Icon(Icons.arrow_right, size: 14, color: Colors.tealAccent);
+      textColor = kAccent;
+      leading = const Icon(Icons.arrow_right, size: 14, color: kAccent);
     } else {
       textColor = Colors.grey.shade700;
       leading = Icon(Icons.circle_outlined, size: 8, color: Colors.grey.shade700);
@@ -240,14 +262,14 @@ class _DownloadsFinished extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.check_circle, size: 14, color: Colors.tealAccent),
+          const Icon(Icons.check_circle, size: 14, color: kAccent),
           const SizedBox(width: 6),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(l10n.downloadsFinished,
-                    style: const TextStyle(fontSize: 11, color: Colors.tealAccent)),
+                    style: const TextStyle(fontSize: 11, color: kAccent)),
                 const SizedBox(height: 2),
                 Text(l10n.downloadsFinishedHint,
                     style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
@@ -322,7 +344,7 @@ class _DownloadStatus extends StatelessWidget {
                       Icon(
                         item.isComplete ? Icons.check_circle : Icons.circle_outlined,
                         size: 10,
-                        color: item.isComplete ? Colors.tealAccent : Colors.grey.shade600,
+                        color: item.isComplete ? kAccent : Colors.grey.shade600,
                       ),
                       const SizedBox(width: 3),
                       Text(

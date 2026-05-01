@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'l10n/app_localizations.dart';
 import 'screens/installer_screen.dart';
+import 'theme.dart';
 
 /// Global log buffer accessible from anywhere.
 final List<String> installerLog = [];
@@ -119,9 +120,17 @@ class LibrescootInstaller extends StatelessWidget {
         supportedLocales: AppLocalizations.supportedLocales,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.teal,
+            seedColor: kAccent,
             brightness: Brightness.dark,
+          ).copyWith(
+            primary: kAccent,
+            onPrimary: kOnAccent,
+            secondary: kAccent,
+            onSecondary: kOnAccent,
+            surface: kBgPrimary,
+            onSurface: kTextPrimary,
           ),
+          scaffoldBackgroundColor: kBgPrimary,
           useMaterial3: true,
         ),
         home: const InstallerScreen(),

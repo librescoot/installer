@@ -36,6 +36,13 @@
   "phaseFinishTitle": "Finish",
   "phaseFinishDescription": "Reassemble and welcome",
 
+  "majorStepPrepare": "Prepare",
+  "majorStepConnect": "Connect",
+  "majorStepMdbFlash": "Flash MDB",
+  "majorStepDbcFlash": "Flash DBC",
+  "majorStepFinish": "Finish",
+  "majorStepSkippedSuffix": "skipped",
+
   "welcomeHeading": "Welcome to Librescoot Installer",
   "welcomeSubheading": "This wizard will guide you through installing Librescoot firmware on your scooter.",
   "whatYouNeed": "What you need:",
@@ -50,12 +57,6 @@
   "channelStableDesc": "Tested and reliable",
   "channelTestingDesc": "Latest features, may have rough edges",
   "channelNightlyDesc": "Built daily from main, for developers",
-  "channelLatest": "Latest: {date}",
-  "@channelLatest": {
-    "placeholders": {
-      "date": { "type": "String" }
-    }
-  },
   "channelNoReleases": "No releases available",
   "loadingChannels": "Loading available channels...",
   "region": "Region",

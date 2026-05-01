@@ -1,6 +1,16 @@
 import 'app_localizations.dart';
 import '../models/installer_phase.dart';
 
+extension MajorStepL10n on MajorStep {
+  String localizedTitle(AppLocalizations l10n) => switch (this) {
+        MajorStep.prepare => l10n.majorStepPrepare,
+        MajorStep.connect => l10n.majorStepConnect,
+        MajorStep.mdbFlash => l10n.majorStepMdbFlash,
+        MajorStep.dbcFlash => l10n.majorStepDbcFlash,
+        MajorStep.finish => l10n.majorStepFinish,
+      };
+}
+
 extension InstallerPhaseL10n on InstallerPhase {
   String localizedTitle(AppLocalizations l10n) => switch (this) {
         InstallerPhase.welcome => l10n.phaseWelcomeTitle,
