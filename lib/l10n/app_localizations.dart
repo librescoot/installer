@@ -1340,6 +1340,18 @@ abstract class AppLocalizations {
   /// **'Downloads'**
   String get downloads;
 
+  /// No description provided for @downloadsFinished.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads finished'**
+  String get downloadsFinished;
+
+  /// No description provided for @downloadsFinishedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'You can continue offline.'**
+  String get downloadsFinishedHint;
+
   /// No description provided for @downloadMdbFirmware.
   ///
   /// In en, this message translates to:

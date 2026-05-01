@@ -210,6 +210,8 @@
   "deleteCachedDownloads": "Heruntergeladene Dateien löschen ({sizeMb} MB)",
   "deletedCache": "{sizeMb} MB gelöscht",
   "downloads": "Downloads",
+  "downloadsFinished": "Downloads abgeschlossen",
+  "downloadsFinishedHint": "Du kannst jetzt offline weitermachen.",
   "downloadMdbFirmware": "MDB-Firmware",
   "downloadDbcFirmware": "DBC-Firmware",
   "downloadMapTiles": "Kartenkacheln",

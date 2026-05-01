@@ -286,6 +286,8 @@
   },
 
   "downloads": "Downloads",
+  "downloadsFinished": "Downloads finished",
+  "downloadsFinishedHint": "You can continue offline.",
   "downloadMdbFirmware": "MDB Firmware",
   "downloadDbcFirmware": "DBC Firmware",
   "downloadMapTiles": "Map Tiles",

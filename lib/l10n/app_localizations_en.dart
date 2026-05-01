@@ -701,6 +701,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloads => 'Downloads';
 
   @override
+  String get downloadsFinished => 'Downloads finished';
+
+  @override
+  String get downloadsFinishedHint => 'You can continue offline.';
+
+  @override
   String get downloadMdbFirmware => 'MDB Firmware';
 
   @override

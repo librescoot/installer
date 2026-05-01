@@ -85,8 +85,10 @@ class PhaseSidebar extends StatelessWidget {
               ],
             ),
           ),
-          if (downloadItems.isNotEmpty && !downloadItems.every((i) => i.isComplete))
-            _DownloadStatus(items: downloadItems),
+          if (downloadItems.isNotEmpty)
+            downloadItems.every((i) => i.isComplete)
+                ? const _DownloadsFinished()
+                : _DownloadStatus(items: downloadItems),
         ],
       ),
     );
@@ -216,6 +218,40 @@ class _SubStepItem extends StatelessWidget {
                 fontSize: 11,
                 fontWeight: isCurrent ? FontWeight.w600 : FontWeight.normal,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DownloadsFinished extends StatelessWidget {
+  const _DownloadsFinished();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: Colors.grey.shade800)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.check_circle, size: 14, color: Colors.tealAccent),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l10n.downloadsFinished,
+                    style: const TextStyle(fontSize: 11, color: Colors.tealAccent)),
+                const SizedBox(height: 2),
+                Text(l10n.downloadsFinishedHint,
+                    style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
+              ],
             ),
           ),
         ],
