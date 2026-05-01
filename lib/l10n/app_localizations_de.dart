@@ -1010,45 +1010,18 @@ class AppLocalizationsDe extends AppLocalizations {
   String get keycardLearningHeading => 'Schlüsselkarten einrichten';
 
   @override
-  String get keycardMasterStageHeading => 'Anlernschlüssel (optional)';
+  String get keycardLearningBody =>
+      'Lerne die NFC-Karten an, mit denen du den Roller ent- und verriegeln möchtest. Klicke auf Starten, halte dann nacheinander jede Karte an den Leser, und klicke anschließend auf Fertig.';
 
   @override
-  String get keycardMasterStageWarning =>
-      'Ein Anlernschlüssel dient ausschließlich dazu, später weitere Schlüsselkarten anzulernen. Er kann den Roller nicht ent- oder verriegeln. Wenn du einen Anlernschlüssel hast, halte ihn jetzt an den Leser. Andernfalls überspringe diesen Schritt und lerne direkt nur Nutzerkarten an.';
-
-  @override
-  String get keycardMasterStageWaiting => 'Warte auf Anlernschlüssel';
-
-  @override
-  String get keycardMasterStageWaitingHint =>
-      'Die LED am Leser blinkt — halte jetzt deinen Anlernschlüssel an.';
-
-  @override
-  String get keycardMasterStageSkip => 'Überspringen — kein Anlernschlüssel';
-
-  @override
-  String get keycardMasterRegistered => 'Anlernschlüssel registriert';
-
-  @override
-  String get keycardMasterRegisteredHint =>
-      'Diese Karte lernt nur weitere Karten an — sie kann den Roller nicht ent- oder verriegeln. Verwende für den Alltag eine der Nutzerkarten, die du gleich anlernst.';
-
-  @override
-  String get keycardCardsStageHeading => 'Schlüsselkarten anlernen';
-
-  @override
-  String get keycardCardsStageHint =>
-      'Klicke auf Starten, halte dann nacheinander jede NFC-Karte an den Leser, mit der du den Roller ent- und verriegeln möchtest. Klicke auf Fertig, wenn du fertig bist.';
-
-  @override
-  String get keycardStartLearning => 'Kartenanlernung starten';
+  String get keycardStartLearning => 'Starten';
 
   @override
   String get keycardLearningActive => 'Anlernmodus aktiv';
 
   @override
   String get keycardLearningActiveHint =>
-      'Tippe jede NFC-Karte an, die als Schlüssel registriert werden soll. Drücke Fertig wenn du fertig bist.';
+      'Halte jede Karte an den Leser. Klicke auf Fertig, wenn du fertig bist.';
 
   @override
   String get keycardStopLearning => 'Fertig';
@@ -1056,11 +1029,6 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String keycardStartLearningFailed(String error) {
     return 'Kartenanlernung konnte nicht gestartet werden: $error';
-  }
-
-  @override
-  String keycardSkipMasterFailed(String error) {
-    return 'Anlernschlüssel konnte nicht übersprungen werden: $error';
   }
 
   @override
@@ -1203,8 +1171,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get phaseKeycardSetupTitle => 'Schlüsselkarten einrichten';
 
   @override
-  String get phaseKeycardSetupDescription =>
-      'Anlernschlüssel und Schlüsselkarten registrieren';
+  String get phaseKeycardSetupDescription => 'Schlüsselkarten anlernen';
 
   @override
   String get usingLocalFirmwareImages =>

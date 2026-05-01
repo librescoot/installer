@@ -420,25 +420,13 @@
   "bleAlreadyConnected": "A device is already connected",
   "bleAlreadyConnectedHint": "You can pair additional devices or press Done to continue.",
   "keycardLearningHeading": "Keycard Setup",
-  "keycardMasterStageHeading": "Master keycard (optional)",
-  "keycardMasterStageWarning": "A master keycard is used only to teach in additional user keycards later. It cannot unlock or lock the scooter for daily use. If you have a master card, tap it on the reader now. Otherwise, skip this step and register only user cards.",
-  "keycardMasterStageWaiting": "Waiting for master card",
-  "keycardMasterStageWaitingHint": "The reader's LED is blinking — tap your master card now.",
-  "keycardMasterStageSkip": "Skip — no master card",
-  "keycardMasterRegistered": "Master card registered",
-  "keycardMasterRegisteredHint": "This card teaches in additional cards only — it cannot unlock or lock the scooter. Use one of the user cards you'll register next for daily use.",
-  "keycardCardsStageHeading": "Register user keycards",
-  "keycardCardsStageHint": "Click Start, then tap each NFC card you want to use to unlock and lock the scooter. Click Done when finished.",
-  "keycardStartLearning": "Start keycard learning",
+  "keycardLearningBody": "Register the NFC cards you want to use to unlock and lock the scooter. Click Start, hold each card to the reader one by one, then click Done.",
+  "keycardStartLearning": "Start",
   "keycardLearningActive": "Learning mode active",
-  "keycardLearningActiveHint": "Tap each NFC card you want to register as a key. Press Done when finished.",
+  "keycardLearningActiveHint": "Hold each card to the reader. Click Done when finished.",
   "keycardStopLearning": "Done",
-  "keycardStartLearningFailed": "Failed to start keycard learning: {error}",
+  "keycardStartLearningFailed": "Could not start keycard learning: {error}",
   "@keycardStartLearningFailed": {
-    "placeholders": { "error": { "type": "String" } }
-  },
-  "keycardSkipMasterFailed": "Failed to skip master card: {error}",
-  "@keycardSkipMasterFailed": {
     "placeholders": { "error": { "type": "String" } }
   },
   "willAskForElevation": "Start Installation (will ask for elevation)",
@@ -496,7 +484,7 @@
   "ledIsRed": "LED is red",
 
   "phaseKeycardSetupTitle": "Keycard Setup",
-  "phaseKeycardSetupDescription": "Register master and user keycards",
+  "phaseKeycardSetupDescription": "Register your keycards",
 
   "usingLocalFirmwareImages": "Using local firmware images",
   "mdbDetectedUmsSkipping": "MDB detected in UMS mode — skipping to flash.",

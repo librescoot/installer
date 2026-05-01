@@ -1880,64 +1880,16 @@ abstract class AppLocalizations {
   /// **'Keycard Setup'**
   String get keycardLearningHeading;
 
-  /// No description provided for @keycardMasterStageHeading.
+  /// No description provided for @keycardLearningBody.
   ///
   /// In en, this message translates to:
-  /// **'Master keycard (optional)'**
-  String get keycardMasterStageHeading;
-
-  /// No description provided for @keycardMasterStageWarning.
-  ///
-  /// In en, this message translates to:
-  /// **'A master keycard is used only to teach in additional user keycards later. It cannot unlock or lock the scooter for daily use. If you have a master card, tap it on the reader now. Otherwise, skip this step and register only user cards.'**
-  String get keycardMasterStageWarning;
-
-  /// No description provided for @keycardMasterStageWaiting.
-  ///
-  /// In en, this message translates to:
-  /// **'Waiting for master card'**
-  String get keycardMasterStageWaiting;
-
-  /// No description provided for @keycardMasterStageWaitingHint.
-  ///
-  /// In en, this message translates to:
-  /// **'The reader\'s LED is blinking — tap your master card now.'**
-  String get keycardMasterStageWaitingHint;
-
-  /// No description provided for @keycardMasterStageSkip.
-  ///
-  /// In en, this message translates to:
-  /// **'Skip — no master card'**
-  String get keycardMasterStageSkip;
-
-  /// No description provided for @keycardMasterRegistered.
-  ///
-  /// In en, this message translates to:
-  /// **'Master card registered'**
-  String get keycardMasterRegistered;
-
-  /// No description provided for @keycardMasterRegisteredHint.
-  ///
-  /// In en, this message translates to:
-  /// **'This card teaches in additional cards only — it cannot unlock or lock the scooter. Use one of the user cards you\'ll register next for daily use.'**
-  String get keycardMasterRegisteredHint;
-
-  /// No description provided for @keycardCardsStageHeading.
-  ///
-  /// In en, this message translates to:
-  /// **'Register user keycards'**
-  String get keycardCardsStageHeading;
-
-  /// No description provided for @keycardCardsStageHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Click Start, then tap each NFC card you want to use to unlock and lock the scooter. Click Done when finished.'**
-  String get keycardCardsStageHint;
+  /// **'Register the NFC cards you want to use to unlock and lock the scooter. Click Start, hold each card to the reader one by one, then click Done.'**
+  String get keycardLearningBody;
 
   /// No description provided for @keycardStartLearning.
   ///
   /// In en, this message translates to:
-  /// **'Start keycard learning'**
+  /// **'Start'**
   String get keycardStartLearning;
 
   /// No description provided for @keycardLearningActive.
@@ -1949,7 +1901,7 @@ abstract class AppLocalizations {
   /// No description provided for @keycardLearningActiveHint.
   ///
   /// In en, this message translates to:
-  /// **'Tap each NFC card you want to register as a key. Press Done when finished.'**
+  /// **'Hold each card to the reader. Click Done when finished.'**
   String get keycardLearningActiveHint;
 
   /// No description provided for @keycardStopLearning.
@@ -1961,14 +1913,8 @@ abstract class AppLocalizations {
   /// No description provided for @keycardStartLearningFailed.
   ///
   /// In en, this message translates to:
-  /// **'Failed to start keycard learning: {error}'**
+  /// **'Could not start keycard learning: {error}'**
   String keycardStartLearningFailed(String error);
-
-  /// No description provided for @keycardSkipMasterFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Failed to skip master card: {error}'**
-  String keycardSkipMasterFailed(String error);
 
   /// No description provided for @willAskForElevation.
   ///
@@ -2231,7 +2177,7 @@ abstract class AppLocalizations {
   /// No description provided for @phaseKeycardSetupDescription.
   ///
   /// In en, this message translates to:
-  /// **'Register master and user keycards'**
+  /// **'Register your keycards'**
   String get phaseKeycardSetupDescription;
 
   /// No description provided for @usingLocalFirmwareImages.

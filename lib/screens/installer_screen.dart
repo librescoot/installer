@@ -19,8 +19,6 @@ import '../widgets/instruction_step.dart';
 import '../widgets/language_switcher.dart';
 import '../widgets/phase_sidebar.dart';
 
-enum _KeycardStage { master, cards }
-
 class InstallerScreen extends StatefulWidget {
   const InstallerScreen({super.key});
 
@@ -74,10 +72,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _bleConnected = false;
   Timer? _blePinPollTimer;
   bool _keycardLearning = false;
-  _KeycardStage _keycardStage = _KeycardStage.master;
-  int _keycardMasterCount = 0;
-  bool _masterRegisteredViaInstaller = false;
-  Timer? _masterPollTimer;
   String? _awaitingUnlockState; // null when not awaiting; current vehicle state otherwise
   Completer<bool>? _unlockCompleter;
   bool _keepCache = false;
@@ -161,7 +155,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
     _deviceSub?.cancel();
     _usbDetector.stopMonitoring();
     _blePinPollTimer?.cancel();
-    _masterPollTimer?.cancel();
     if (_unlockCompleter != null && !_unlockCompleter!.isCompleted) {
       _unlockCompleter!.complete(false);
     }
@@ -221,9 +214,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
     });
     if (phase == InstallerPhase.keycardSetup) {
       _onEnterKeycardSetup();
-    } else {
-      _masterPollTimer?.cancel();
-      _masterPollTimer = null;
     }
   }
 
@@ -2709,120 +2699,59 @@ class _InstallerScreenState extends State<InstallerScreen> {
     _setPhase(InstallerPhase.keycardSetup);
   }
 
+  // Killed on entry to keycardSetup so that any auto-startup master-learning
+  // mode in keycard-service is disengaged before the user can tap a card.
+  // Without this, a stray tap on the reader during the install would be
+  // learned as the master keycard and wipe the authorized list.
   Future<void> _onEnterKeycardSetup() async {
     setState(() {
-      _keycardStage = _KeycardStage.master;
-      _masterRegisteredViaInstaller = false;
       _keycardLearning = false;
-      _keycardMasterCount = 0;
     });
-    if (!_sshService.isConnected) return;
-    await _refreshMasterCount();
-    if (!mounted) return;
-    if (_keycardMasterCount > 0) {
-      setState(() => _keycardStage = _KeycardStage.cards);
-    } else {
-      _startMasterPoll();
-    }
-  }
-
-  Future<void> _refreshMasterCount() async {
-    try {
-      final raw = await _sshService.redisHget('system', 'keycard-master-count');
-      final n = int.tryParse(raw ?? '') ?? 0;
-      if (mounted) setState(() => _keycardMasterCount = n);
-    } catch (e) {
-      debugPrint('UI: failed to read keycard-master-count: $e');
-    }
-  }
-
-  void _startMasterPoll() {
-    _masterPollTimer?.cancel();
-    _masterPollTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
-      if (!mounted ||
-          _currentPhase != InstallerPhase.keycardSetup ||
-          _keycardStage != _KeycardStage.master) {
-        _masterPollTimer?.cancel();
-        _masterPollTimer = null;
-        return;
-      }
-      await _refreshMasterCount();
-      if (_keycardMasterCount > 0 && mounted) {
-        _masterPollTimer?.cancel();
-        _masterPollTimer = null;
-        setState(() {
-          _masterRegisteredViaInstaller = true;
-          _keycardStage = _KeycardStage.cards;
-        });
-      }
-    });
-  }
-
-  Future<void> _skipMasterCard() async {
-    _masterPollTimer?.cancel();
-    _masterPollTimer = null;
-    // Re-read before overwriting — guard against the user clicking Skip in
-    // the 1s window between a master tap and the next poll.
-    await _refreshMasterCount();
-    if (_keycardMasterCount > 0) {
-      if (mounted) {
-        setState(() {
-          _masterRegisteredViaInstaller = true;
-          _keycardStage = _KeycardStage.cards;
-        });
-      }
+    if (!_canDriveKeycard) return;
+    if (_isDryRun) {
+      debugPrint('UI: [DRY RUN] would send set-master:NONE');
       return;
     }
     try {
       await _sshService.redisLpush('scooter:keycard', 'set-master:NONE');
-      debugPrint('UI: master card skipped (set-master:NONE)');
+      debugPrint('UI: keycardSetup entered, master mode disengaged');
     } catch (e) {
-      debugPrint('UI: failed to set master:NONE: $e');
-      if (mounted) {
-        _setStatus(AppLocalizations.of(context)!.keycardSkipMasterFailed(e.toString()));
-      }
+      debugPrint('UI: failed to disengage master-learning on entry: $e');
     }
-    if (mounted) setState(() => _keycardStage = _KeycardStage.cards);
   }
 
+  bool get _canDriveKeycard => _sshService.isConnected || _isDryRun;
+
   Future<void> _startKeycardLearning() async {
-    try {
-      await _sshService.redisLpush('scooter:keycard', 'learn:start');
-      debugPrint('UI: keycard learning started');
-      setState(() => _keycardLearning = true);
-    } catch (e) {
-      debugPrint('UI: failed to start keycard learning: $e');
-      if (mounted) {
-        _setStatus(AppLocalizations.of(context)!.keycardStartLearningFailed(e.toString()));
+    if (!_isDryRun) {
+      try {
+        await _sshService.redisLpush('scooter:keycard', 'learn:start');
+      } catch (e) {
+        debugPrint('UI: failed to start keycard learning: $e');
+        if (mounted) {
+          _setStatus(AppLocalizations.of(context)!.keycardStartLearningFailed(e.toString()));
+        }
+        return;
       }
     }
+    debugPrint('UI: keycard learning started');
+    setState(() => _keycardLearning = true);
   }
 
   Future<void> _stopKeycardLearning() async {
-    try {
-      await _sshService.redisLpush('scooter:keycard', 'learn:stop');
-      debugPrint('UI: keycard learning stopped');
-    } catch (e) {
-      debugPrint('UI: failed to stop keycard learning: $e');
+    if (!_isDryRun) {
+      try {
+        await _sshService.redisLpush('scooter:keycard', 'learn:stop');
+      } catch (e) {
+        debugPrint('UI: failed to stop keycard learning: $e');
+      }
     }
+    debugPrint('UI: keycard learning stopped');
     setState(() => _keycardLearning = false);
   }
 
   Future<void> _skipKeycardSetupEntirely() async {
-    _masterPollTimer?.cancel();
-    _masterPollTimer = null;
-    if (_keycardStage == _KeycardStage.master && _sshService.isConnected) {
-      // Re-read so a master tapped seconds ago isn't overwritten by NONE.
-      await _refreshMasterCount();
-      if (_keycardMasterCount == 0) {
-        try {
-          await _sshService.redisLpush('scooter:keycard', 'set-master:NONE');
-        } catch (e) {
-          debugPrint('UI: failed to disengage master-learning on full skip: $e');
-        }
-      }
-    }
-    if (_keycardLearning && _sshService.isConnected) {
+    if (_keycardLearning && _canDriveKeycard) {
       await _stopKeycardLearning();
     }
     if (mounted) _setPhase(InstallerPhase.finish);
@@ -2840,10 +2769,53 @@ class _InstallerScreenState extends State<InstallerScreen> {
           const SizedBox(height: 24),
           SizedBox(
             width: 400,
-            child: switch (_keycardStage) {
-              _KeycardStage.master => _buildKeycardMasterStage(l10n),
-              _KeycardStage.cards => _buildKeycardCardsStage(l10n),
-            },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l10n.keycardLearningBody,
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
+                const SizedBox(height: 16),
+                if (!_keycardLearning)
+                  Center(
+                    child: OutlinedButton.icon(
+                      onPressed: _canDriveKeycard ? _startKeycardLearning : null,
+                      icon: const Icon(Icons.nfc, size: 18),
+                      label: Text(l10n.keycardStartLearning),
+                    ),
+                  )
+                else ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.tealAccent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.tealAccent.withValues(alpha: 0.3)),
+                    ),
+                    child: Column(
+                      children: [
+                        const Icon(Icons.contactless, size: 28, color: Colors.tealAccent),
+                        const SizedBox(height: 8),
+                        Text(l10n.keycardLearningActive,
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+                        const SizedBox(height: 4),
+                        Text(l10n.keycardLearningActiveHint,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Center(
+                    child: FilledButton.icon(
+                      onPressed: _stopKeycardLearning,
+                      icon: const Icon(Icons.check, size: 18),
+                      label: Text(l10n.keycardStopLearning),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
           const SizedBox(height: 24),
           Row(
@@ -2863,133 +2835,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildKeycardMasterStage(AppLocalizations l10n) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(l10n.keycardMasterStageHeading,
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade200)),
-        const SizedBox(height: 8),
-        Text(l10n.keycardMasterStageWarning,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
-        const SizedBox(height: 16),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.tealAccent.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.tealAccent.withValues(alpha: 0.3)),
-          ),
-          child: Column(
-            children: [
-              const Icon(Icons.contactless, size: 28, color: Colors.tealAccent),
-              const SizedBox(height: 8),
-              Text(l10n.keycardMasterStageWaiting,
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.tealAccent)),
-              const SizedBox(height: 4),
-              Text(l10n.keycardMasterStageWaitingHint,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Center(
-          child: TextButton.icon(
-            onPressed: _sshService.isConnected ? _skipMasterCard : null,
-            icon: const Icon(Icons.skip_next, size: 18),
-            label: Text(l10n.keycardMasterStageSkip),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildKeycardCardsStage(AppLocalizations l10n) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (_masterRegisteredViaInstaller) ...[
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.green.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.check_circle, color: Colors.green),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(l10n.keycardMasterRegistered,
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
-                      const SizedBox(height: 4),
-                      Text(l10n.keycardMasterRegisteredHint,
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade300)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
-        Text(l10n.keycardCardsStageHeading,
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade200)),
-        const SizedBox(height: 8),
-        Text(l10n.keycardCardsStageHint,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
-        const SizedBox(height: 16),
-        if (!_keycardLearning)
-          Center(
-            child: OutlinedButton.icon(
-              onPressed: _sshService.isConnected ? _startKeycardLearning : null,
-              icon: const Icon(Icons.nfc, size: 18),
-              label: Text(l10n.keycardStartLearning),
-            ),
-          )
-        else ...[
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.tealAccent.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.tealAccent.withValues(alpha: 0.3)),
-            ),
-            child: Column(
-              children: [
-                const Icon(Icons.contactless, size: 28, color: Colors.tealAccent),
-                const SizedBox(height: 8),
-                Text(l10n.keycardLearningActive,
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.tealAccent)),
-                const SizedBox(height: 4),
-                Text(l10n.keycardLearningActiveHint,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Center(
-            child: FilledButton.icon(
-              onPressed: _stopKeycardLearning,
-              icon: const Icon(Icons.check, size: 18),
-              label: Text(l10n.keycardStopLearning),
-            ),
-          ),
-        ],
-      ],
     );
   }
 

@@ -1002,57 +1002,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get keycardLearningHeading => 'Keycard Setup';
 
   @override
-  String get keycardMasterStageHeading => 'Master keycard (optional)';
+  String get keycardLearningBody =>
+      'Register the NFC cards you want to use to unlock and lock the scooter. Click Start, hold each card to the reader one by one, then click Done.';
 
   @override
-  String get keycardMasterStageWarning =>
-      'A master keycard is used only to teach in additional user keycards later. It cannot unlock or lock the scooter for daily use. If you have a master card, tap it on the reader now. Otherwise, skip this step and register only user cards.';
-
-  @override
-  String get keycardMasterStageWaiting => 'Waiting for master card';
-
-  @override
-  String get keycardMasterStageWaitingHint =>
-      'The reader\'s LED is blinking — tap your master card now.';
-
-  @override
-  String get keycardMasterStageSkip => 'Skip — no master card';
-
-  @override
-  String get keycardMasterRegistered => 'Master card registered';
-
-  @override
-  String get keycardMasterRegisteredHint =>
-      'This card teaches in additional cards only — it cannot unlock or lock the scooter. Use one of the user cards you\'ll register next for daily use.';
-
-  @override
-  String get keycardCardsStageHeading => 'Register user keycards';
-
-  @override
-  String get keycardCardsStageHint =>
-      'Click Start, then tap each NFC card you want to use to unlock and lock the scooter. Click Done when finished.';
-
-  @override
-  String get keycardStartLearning => 'Start keycard learning';
+  String get keycardStartLearning => 'Start';
 
   @override
   String get keycardLearningActive => 'Learning mode active';
 
   @override
   String get keycardLearningActiveHint =>
-      'Tap each NFC card you want to register as a key. Press Done when finished.';
+      'Hold each card to the reader. Click Done when finished.';
 
   @override
   String get keycardStopLearning => 'Done';
 
   @override
   String keycardStartLearningFailed(String error) {
-    return 'Failed to start keycard learning: $error';
-  }
-
-  @override
-  String keycardSkipMasterFailed(String error) {
-    return 'Failed to skip master card: $error';
+    return 'Could not start keycard learning: $error';
   }
 
   @override
@@ -1194,8 +1162,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get phaseKeycardSetupTitle => 'Keycard Setup';
 
   @override
-  String get phaseKeycardSetupDescription =>
-      'Register master and user keycards';
+  String get phaseKeycardSetupDescription => 'Register your keycards';
 
   @override
   String get usingLocalFirmwareImages => 'Using local firmware images';
