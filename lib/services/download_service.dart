@@ -281,30 +281,46 @@ class DownloadService {
     await _cleanupOldVersions(cacheDir, item);
   }
 
-  /// Delete older cached files of the same type and channel
+  /// Delete older cached files of the same family/channel as the new item.
+  /// Files of the *same* family but a *different* channel flavour are kept
+  /// (e.g. downloading stable v1.0.1 must not nuke a cached nightly image).
   Future<void> _cleanupOldVersions(Directory cacheDir, DownloadItem item) async {
-    // Extract channel-aware prefix from filename
-    // e.g. "librescoot-unu-mdb-nightly-20260404T112344.sdimg.gz" -> "librescoot-unu-mdb-nightly-"
-    // e.g. "tiles_berlin_brandenburg.mbtiles" -> "tiles_" (no channel)
     final name = item.filename;
-    final String prefix;
-    final channelMatch = RegExp(r'^(.*?-(?:nightly|testing|stable)-)').firstMatch(name);
+    final suffix = name.endsWith('.bmap') ? '.bmap' : p.extension(name);
+    final escSuffix = RegExp.escape(suffix);
+
+    RegExp? cleanupPattern;
+
+    final channelMatch =
+        RegExp(r'^(.*?-)(nightly|testing|stable)-').firstMatch(name);
+    final versionMatch = RegExp(r'^(.*?)-v\d').firstMatch(name);
+
     if (channelMatch != null) {
-      prefix = channelMatch.group(1)!;
+      // librescoot-unu-mdb-nightly-20260404T112344.sdimg.gz
+      //   -> match librescoot-unu-mdb-nightly-*.sdimg.gz only
+      final family = RegExp.escape(channelMatch.group(1)!);
+      final channel = channelMatch.group(2)!;
+      cleanupPattern = RegExp('^$family$channel-.*$escSuffix\$');
+    } else if (versionMatch != null) {
+      // librescoot-unu-mdb-v1.0.0.sdimg.gz
+      //   -> match librescoot-unu-mdb-vX… only (NOT …-nightly-… etc)
+      final family = RegExp.escape(versionMatch.group(1)!);
+      cleanupPattern = RegExp('^$family-v\\d.*$escSuffix\$');
     } else {
       // Tiles etc — use everything before the first digit/date
       final tileMatch = RegExp(r'^([a-z_]+)').firstMatch(name);
-      prefix = tileMatch?.group(1) ?? name.substring(0, 5);
+      final prefix =
+          RegExp.escape(tileMatch?.group(1) ?? name.substring(0, 5));
+      cleanupPattern = RegExp('^$prefix.*$escSuffix\$');
     }
-
-    final suffix = name.endsWith('.bmap') ? '.bmap' : p.extension(name);
 
     try {
       await for (final entity in cacheDir.list()) {
         if (entity is! File) continue;
-        final name = p.basename(entity.path);
-        if (name.startsWith(prefix) && name.endsWith(suffix) && name != item.filename) {
-          debugPrint('Cache cleanup: deleting old $name');
+        final candidate = p.basename(entity.path);
+        if (candidate == name) continue;
+        if (cleanupPattern.hasMatch(candidate)) {
+          debugPrint('Cache cleanup: deleting old $candidate');
           await entity.delete();
         }
       }
