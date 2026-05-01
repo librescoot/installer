@@ -71,7 +71,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
   String? _blePinCode;
   bool _bleConnected = false;
   Timer? _blePinPollTimer;
+  final ScrollController _phaseScrollController = ScrollController();
   bool _keycardLearning = false;
+  bool _keycardLearned = false; // true once a Start→Done cycle actually registered cards
+  int _keycardAuthorizedCountBefore = 0; // captured at Start, compared at Done
   String? _awaitingUnlockState; // null when not awaiting; current vehicle state otherwise
   Completer<bool>? _unlockCompleter;
   bool _keepCache = false;
@@ -155,6 +158,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     _deviceSub?.cancel();
     _usbDetector.stopMonitoring();
     _blePinPollTimer?.cancel();
+    _phaseScrollController.dispose();
     if (_unlockCompleter != null && !_unlockCompleter!.isCompleted) {
       _unlockCompleter!.complete(false);
     }
@@ -400,11 +404,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
                         children: [
                           Expanded(
                             child: LayoutBuilder(
-                              builder: (context, constraints) => SingleChildScrollView(
-                                padding: const EdgeInsets.all(32),
-                                child: ConstrainedBox(
-                                  constraints: BoxConstraints(minHeight: constraints.maxHeight - 64),
-                                  child: Center(child: _buildPhaseContent(l10n)),
+                              builder: (context, constraints) => Scrollbar(
+                                controller: _phaseScrollController,
+                                thumbVisibility: true,
+                                child: SingleChildScrollView(
+                                  controller: _phaseScrollController,
+                                  padding: const EdgeInsets.all(32),
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(minHeight: constraints.maxHeight - 64),
+                                    child: Center(child: _buildPhaseContent(l10n)),
+                                  ),
                                 ),
                               ),
                             ),
@@ -548,21 +557,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
             style: TextStyle(color: Colors.grey.shade400)),
         const SizedBox(height: 24),
 
-        // Prerequisites (2x2 grid)
+        // Prerequisites — items size to their content; a long item gets a row
+        // to itself, short items pack onto a single line.
         Text(l10n.whatYouNeed, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         const SizedBox(height: 8),
-        Row(
+        Wrap(
+          spacing: 24,
+          runSpacing: 4,
           children: [
-            Expanded(child: _prerequisite(prerequisites[0], 0)),
-            const SizedBox(width: 8),
-            Expanded(child: _prerequisite(prerequisites[1], 1)),
-          ],
-        ),
-        Row(
-          children: [
-            Expanded(child: _prerequisite(prerequisites[2], 2)),
-            const SizedBox(width: 8),
-            Expanded(child: _prerequisite(prerequisites[3], 3)),
+            for (int i = 0; i < prerequisites.length; i++)
+              _prerequisite(prerequisites[i], i),
           ],
         ),
         const SizedBox(height: 24),
@@ -726,24 +730,22 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Widget _prerequisite(String text, int index) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: InkWell(
-        onTap: () => setState(() => _prerequisiteChecks[index] = !_prerequisiteChecks[index]),
-        borderRadius: BorderRadius.circular(4),
-        child: Row(
-          children: [
-            Icon(
-              _prerequisiteChecks[index] ? Icons.check_box : Icons.check_box_outline_blank,
-              size: 18,
-              color: _prerequisiteChecks[index] ? Colors.tealAccent : Colors.grey,
-            ),
-            const SizedBox(width: 8),
-            Text(text, style: TextStyle(
-              color: _prerequisiteChecks[index] ? Colors.grey.shade200 : Colors.grey.shade400,
-            )),
-          ],
-        ),
+    return InkWell(
+      onTap: () => setState(() => _prerequisiteChecks[index] = !_prerequisiteChecks[index]),
+      borderRadius: BorderRadius.circular(4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _prerequisiteChecks[index] ? Icons.check_box : Icons.check_box_outline_blank,
+            size: 18,
+            color: _prerequisiteChecks[index] ? Colors.tealAccent : Colors.grey,
+          ),
+          const SizedBox(width: 8),
+          Text(text, style: TextStyle(
+            color: _prerequisiteChecks[index] ? Colors.grey.shade200 : Colors.grey.shade400,
+          )),
+        ],
       ),
     );
   }
@@ -1913,6 +1915,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
   static const int _cbbNoticeAfterIterations = 15;
 
   Future<bool> _pollForCbb(AppLocalizations l10n) async {
+    if (_isDryRun) {
+      _setStatus('[DRY RUN] CBB detected');
+      await Future.delayed(const Duration(seconds: 1));
+      return true;
+    }
     for (var i = 0; i < _cbbPollIterations; i++) {
       if (!mounted) return false;
       if (await _sshService.isCbbPresent()) return true;
@@ -1931,7 +1938,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
     if (!_cbbAutoCheckStarted && !_isProcessing) {
       _cbbAutoCheckStarted = true;
       Future.microtask(() async {
-        if (_isDryRun) return;
         if (mounted) setState(() => _isProcessing = true);
         _setStatus(l10n.checkingCbb);
         final detected = await _pollForCbb(l10n);
@@ -1942,7 +1948,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         });
         _setStatus('');
         if (detected) {
-          final bat = await _sshService.isBatteryPresent();
+          final bat = _isDryRun ? true : await _sshService.isBatteryPresent();
           if (mounted) {
             setState(() => _batteryDetected = bat);
             if (bat) _setPhase(InstallerPhase.dbcPrep);
@@ -2056,7 +2062,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
               onPressed: () async {
                 setState(() => _isProcessing = true);
                 _setStatus(l10n.checkingCbbAndBattery);
-                final bat = await _sshService.isBatteryPresent();
+                final bat = _isDryRun ? true : await _sshService.isBatteryPresent();
                 if (bat) {
                   setState(() { _batteryDetected = true; _isProcessing = false; });
                   await Future.delayed(const Duration(seconds: 1));
@@ -2706,6 +2712,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _onEnterKeycardSetup() async {
     setState(() {
       _keycardLearning = false;
+      _keycardLearned = false;
     });
     if (!_canDriveKeycard) return;
     if (_isDryRun) {
@@ -2725,6 +2732,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _startKeycardLearning() async {
     if (!_isDryRun) {
       try {
+        final raw = await _sshService.redisHget('system', 'keycard-authorized-count');
+        _keycardAuthorizedCountBefore = int.tryParse(raw ?? '') ?? 0;
+      } catch (e) {
+        debugPrint('UI: failed to read authorized count before learn: $e');
+        _keycardAuthorizedCountBefore = 0;
+      }
+      try {
         await _sshService.redisLpush('scooter:keycard', 'learn:start');
       } catch (e) {
         debugPrint('UI: failed to start keycard learning: $e');
@@ -2739,15 +2753,30 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _stopKeycardLearning() async {
+    // True only if the count actually changed — keycard-service's exitLearnMode
+    // is a no-op when newUIDs is empty, so no count change means no taps.
+    bool registered = _isDryRun; // dry-run assumes yes so the flow is testable
     if (!_isDryRun) {
       try {
         await _sshService.redisLpush('scooter:keycard', 'learn:stop');
       } catch (e) {
         debugPrint('UI: failed to stop keycard learning: $e');
       }
+      // Brief wait for keycard-service to process learn:stop and republish counts
+      await Future.delayed(const Duration(milliseconds: 300));
+      try {
+        final raw = await _sshService.redisHget('system', 'keycard-authorized-count');
+        final after = int.tryParse(raw ?? '') ?? 0;
+        registered = after != _keycardAuthorizedCountBefore;
+      } catch (e) {
+        debugPrint('UI: failed to read authorized count after learn: $e');
+      }
     }
-    debugPrint('UI: keycard learning stopped');
-    setState(() => _keycardLearning = false);
+    debugPrint('UI: keycard learning stopped (registered=$registered)');
+    setState(() {
+      _keycardLearning = false;
+      if (registered) _keycardLearned = true;
+    });
   }
 
   Future<void> _skipKeycardSetupEntirely() async {
@@ -2772,15 +2801,39 @@ class _InstallerScreenState extends State<InstallerScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(l10n.keycardLearningBody,
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
-                const SizedBox(height: 16),
+                if (_keycardLearned) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(l10n.keycardLearnedAck,
+                              style: TextStyle(fontSize: 13, color: Colors.grey.shade200)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ] else ...[
+                  Text(l10n.keycardLearningBody,
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
+                  const SizedBox(height: 16),
+                ],
                 if (!_keycardLearning)
                   Center(
                     child: OutlinedButton.icon(
                       onPressed: _canDriveKeycard ? _startKeycardLearning : null,
                       icon: const Icon(Icons.nfc, size: 18),
-                      label: Text(l10n.keycardStartLearning),
+                      label: Text(_keycardLearned ? l10n.keycardAddMore : l10n.keycardStartLearning),
                     ),
                   )
                 else ...[
@@ -2818,21 +2871,17 @@ class _InstallerScreenState extends State<InstallerScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextButton(
-                onPressed: _skipKeycardSetupEntirely,
-                child: Text(l10n.skipKeycardSetup),
-              ),
-              const SizedBox(width: 16),
-              FilledButton.icon(
-                onPressed: () => _setPhase(InstallerPhase.finish),
-                icon: const Icon(Icons.arrow_forward),
-                label: Text(l10n.continueButton),
-              ),
-            ],
-          ),
+          if (!_keycardLearning)
+            _keycardLearned
+                ? FilledButton.icon(
+                    onPressed: () => _setPhase(InstallerPhase.finish),
+                    icon: const Icon(Icons.arrow_forward),
+                    label: Text(l10n.continueButton),
+                  )
+                : TextButton(
+                    onPressed: _skipKeycardSetupEntirely,
+                    child: Text(l10n.skipKeycardSetup),
+                  ),
         ],
       ),
     );

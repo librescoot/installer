@@ -1319,7 +1319,7 @@ abstract class AppLocalizations {
   /// No description provided for @unlockScooterDesc.
   ///
   /// In en, this message translates to:
-  /// **'Keycard and Bluetooth pairing will be set up during Librescoot first run.'**
+  /// **'Use one of the keycards you registered, or unlock via Bluetooth.'**
   String get unlockScooterDesc;
 
   /// No description provided for @deleteCachedDownloads.
@@ -1886,11 +1886,23 @@ abstract class AppLocalizations {
   /// **'Register the NFC cards you want to use to unlock and lock the scooter. Click Start, hold each card to the reader one by one, then click Done.'**
   String get keycardLearningBody;
 
+  /// No description provided for @keycardLearnedAck.
+  ///
+  /// In en, this message translates to:
+  /// **'Keycards registered. Click Continue to finish, or Add more cards to register additional ones.'**
+  String get keycardLearnedAck;
+
   /// No description provided for @keycardStartLearning.
   ///
   /// In en, this message translates to:
   /// **'Start'**
   String get keycardStartLearning;
+
+  /// No description provided for @keycardAddMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Add more cards'**
+  String get keycardAddMore;
 
   /// No description provided for @keycardLearningActive.
   ///

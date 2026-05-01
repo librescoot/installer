@@ -685,7 +685,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get unlockScooterDesc =>
-      'Keycard and Bluetooth pairing will be set up during Librescoot first run.';
+      'Use one of the keycards you registered, or unlock via Bluetooth.';
 
   @override
   String deleteCachedDownloads(String sizeMb) {
@@ -1006,7 +1006,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Register the NFC cards you want to use to unlock and lock the scooter. Click Start, hold each card to the reader one by one, then click Done.';
 
   @override
+  String get keycardLearnedAck =>
+      'Keycards registered. Click Continue to finish, or Add more cards to register additional ones.';
+
+  @override
   String get keycardStartLearning => 'Start';
+
+  @override
+  String get keycardAddMore => 'Add more cards';
 
   @override
   String get keycardLearningActive => 'Learning mode active';

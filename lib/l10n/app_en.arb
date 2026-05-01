@@ -271,7 +271,7 @@
   "closeSeatboxAndFootwell": "Close seatbox and footwell",
   "closeSeatboxAndFootwellDesc": "Close the seatbox and replace the footwell cover.",
   "unlockScooter": "Unlock your scooter",
-  "unlockScooterDesc": "Keycard and Bluetooth pairing will be set up during Librescoot first run.",
+  "unlockScooterDesc": "Use one of the keycards you registered, or unlock via Bluetooth.",
   "deleteCachedDownloads": "Delete cached downloads ({sizeMb} MB)",
   "@deleteCachedDownloads": {
     "placeholders": {
@@ -421,7 +421,9 @@
   "bleAlreadyConnectedHint": "You can pair additional devices or press Done to continue.",
   "keycardLearningHeading": "Keycard Setup",
   "keycardLearningBody": "Register the NFC cards you want to use to unlock and lock the scooter. Click Start, hold each card to the reader one by one, then click Done.",
+  "keycardLearnedAck": "Keycards registered. Click Continue to finish, or Add more cards to register additional ones.",
   "keycardStartLearning": "Start",
+  "keycardAddMore": "Add more cards",
   "keycardLearningActive": "Learning mode active",
   "keycardLearningActiveHint": "Hold each card to the reader. Click Done when finished.",
   "keycardStopLearning": "Done",
