@@ -1642,12 +1642,19 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
 
     var mdbItem = _downloadState.itemOfType(DownloadItemType.mdbFirmware);
-    if (mdbItem == null || !mdbItem.isComplete) {
+    // Bmap is optional (older releases may not ship one), but if it was
+    // queued we must wait for it — flashing the .gz sequentially when a
+    // bmap was meant to be used skips the sparse-write fast path.
+    var mdbBmapItem = _downloadState.itemOfType(DownloadItemType.mdbBmap);
+    if (mdbItem == null || !mdbItem.isComplete ||
+        (mdbBmapItem != null && !mdbBmapItem.isComplete)) {
       _setStatus(l10n.waitingForMdbFirmware);
-      while (mdbItem == null || !mdbItem.isComplete) {
+      while (mdbItem == null || !mdbItem.isComplete ||
+          (mdbBmapItem != null && !mdbBmapItem.isComplete)) {
         await Future.delayed(const Duration(seconds: 1));
         if (!mounted) return;
         mdbItem = _downloadState.itemOfType(DownloadItemType.mdbFirmware);
+        mdbBmapItem = _downloadState.itemOfType(DownloadItemType.mdbBmap);
       }
     }
 
