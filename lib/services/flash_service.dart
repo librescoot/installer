@@ -321,8 +321,9 @@ class FlashService {
     return FlashResult(success: true);
   }
 
-  /// Two-phase flash for Windows using the Go flasher binary.
-  Future<void> _writeTwoPhaseWindows(
+  /// Windows entry point for the Go flasher. Uses the bmap fast path when
+  /// [bmapPath] is provided; otherwise falls back to two-phase.
+  Future<void> _writeWindowsViaGoFlasher(
     String imagePath,
     String devicePath,
     bool isCompressed,
@@ -334,8 +335,6 @@ class FlashService {
       throw Exception('librescoot-flasher-windows-amd64.exe not found in app bundle');
     }
 
-    // The Go flasher takes the disk offline before writing, which prevents
-    // Windows from interfering. Bmap and two-phase both work with this approach.
     await _writeWithGoFlasher(flasherPath, imagePath, devicePath, bmapPath, true, onProgress);
   }
 
@@ -551,7 +550,7 @@ class FlashService {
     final isCompressed = imagePath.endsWith('.gz');
 
     if (Platform.isWindows) {
-      await _writeTwoPhaseWindows(imagePath, devicePath, isCompressed, onProgress, bmapPath: bmapPath);
+      await _writeWindowsViaGoFlasher(imagePath, devicePath, isCompressed, onProgress, bmapPath: bmapPath);
     } else if (Platform.isMacOS) {
       final flasherPath = await _getFlasherPath();
       if (flasherPath == null) {
