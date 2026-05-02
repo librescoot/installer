@@ -550,6 +550,37 @@ class _InstallerScreenState extends State<InstallerScreen> {
         const SizedBox(height: 8),
         Text(l10n.welcomeSubheading,
             style: TextStyle(color: Colors.grey.shade400)),
+        const SizedBox(height: 16),
+
+        // Reliability warning — flash failures are dominated by USB drops
+        // and laptop sleep. Surface this before the user starts.
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.amber.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.warning_amber, color: Colors.amber),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l10n.reliabilityWarningTitle,
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber)),
+                    const SizedBox(height: 4),
+                    Text(l10n.reliabilityWarningBody,
+                        style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 24),
 
         // Prerequisites — items size to their content; a long item gets a row
@@ -1168,6 +1199,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   bool get _isLibrescootFirmware {
+    // /etc/os-release ID= is the authoritative discriminator. Stable
+    // LibreScoot ships VERSION_ID=1.0.1, indistinguishable from stock by
+    // version alone — the channel-tag heuristic only catches nightly /
+    // testing builds. Fall back to the heuristic if osId wasn't readable.
+    final id = _mdbInfo?.osId ?? '';
+    if (id.startsWith('librescoot')) return true;
     final v = _mdbInfo?.firmwareVersion ?? '';
     return v.contains('librescoot') || v.contains('nightly') ||
         v.contains('testing') || v.contains('stable');
@@ -1703,30 +1740,68 @@ class _InstallerScreenState extends State<InstallerScreen> {
       debugPrint('Flash STACKTRACE: $stackTrace');
       _setCritical(false);
       await DriverService.restoreAutoPlay();
-      // Diagnose: is the device still present and what state is it in?
-      String diagnosis = e.toString();
-      if (_device == null) {
-        diagnosis += '\n\nDevice disconnected. Reconnect USB and retry.';
-      } else if (_device!.mode == DeviceMode.massStorage) {
-        final devName = _device!.path.split('/').last;
-        final sizeCheck = await Process.run('cat', ['/sys/block/$devName/size']);
-        final size = int.tryParse(sizeCheck.stdout.toString().trim()) ?? 0;
-        if (size == 0) {
-          diagnosis += '\n\nDevice is connected but reports 0 size. '
-              'Power cycle the board and retry.';
-        } else {
-          diagnosis += '\n\nDevice is still available — you can retry.';
-        }
-      } else {
+
+      final errText = e.toString();
+      final midWrite = RegExp(r'write at offset (\d+)').firstMatch(errText);
+      final pathGone = errText.contains('No such file or directory') ||
+          errText.contains('authopen') ||
+          errText.contains('device not configured');
+
+      String diagnosis = errText;
+      if (midWrite != null) {
+        final offset = int.tryParse(midWrite.group(1)!);
+        final mb = offset == null ? '?' : (offset / (1024 * 1024)).toStringAsFixed(1);
+        diagnosis += '\n\nDevice stopped responding mid-write at $mb MB. '
+            'This is almost always the USB cable or port. '
+            'Unplug and replug the USB cable (try a different cable or port), then retry. '
+            'Only power-cycle the MDB if the device does not reappear.';
+      } else if (pathGone || _device == null) {
+        diagnosis += '\n\nDevice is no longer present. '
+            'Unplug and replug the USB cable, then retry. '
+            'Only power-cycle the MDB if the device does not reappear.';
+      } else if (_device!.mode != DeviceMode.massStorage) {
         diagnosis += '\n\nDevice is in ${_device!.mode.name} mode, not mass storage. '
-            'Power cycle the board to re-enter UMS mode.';
+            'Power-cycle the board so u-boot re-enters UMS mode.';
+      } else {
+        diagnosis += '\n\nDevice is still visible — you can retry.';
       }
       _setStatus(diagnosis);
       setState(() => _isProcessing = false);
-      if (await _shouldRetry('mdbFlash')) {
+
+      if (!await _shouldRetry('mdbFlash')) return;
+
+      // Wait for the device to come back before re-running the flash —
+      // otherwise we burn retries against a stale path that can't be
+      // opened. Detector was resumed by _setCritical(false) above.
+      _setStatus('$diagnosis\n\nWaiting for the device to be re-detected...');
+      final back = await _waitForMassStorageDevice(timeout: const Duration(seconds: 60));
+      if (!back) {
+        _setStatus('$diagnosis\n\nDevice did not come back within 60s. '
+            'Replug the USB (or, as a last resort, power-cycle the MDB) '
+            'and use the manual retry button.');
         setState(() => _mdbFlashStarted = false);
+        return;
       }
+      setState(() => _mdbFlashStarted = false);
     }
+  }
+
+  /// Wait until the USB detector reports a mass-storage device with a usable
+  /// path again. Returns false on timeout or unmount.
+  Future<bool> _waitForMassStorageDevice({required Duration timeout}) async {
+    final deadline = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(deadline)) {
+      if (!mounted) return false;
+      if (_device != null && _device!.mode == DeviceMode.massStorage) {
+        final path = await _usbDetector.resolveDevicePath();
+        if (path != null && path.isNotEmpty) {
+          debugPrint('Flash: device reappeared as $path');
+          return true;
+        }
+      }
+      await Future.delayed(const Duration(seconds: 1));
+    }
+    return false;
   }
 
   Widget _buildScooterPrep(AppLocalizations l10n) {

@@ -152,6 +152,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get prerequisiteTime => 'Ungefähr 20 Minuten Zeit';
 
   @override
+  String get reliabilityWarningTitle => 'Bevor du startest';
+
+  @override
+  String get reliabilityWarningBody =>
+      'Das Flashen dauert mehrere Minuten, und jeder USB-Wackler oder Laptop-Standby mittendrin hinterlässt das MDB in einem inkonsistenten Zustand. Bitte prüfen:\n• Ein zuverlässiges USB-Kabel, an beiden Enden fest eingesteckt — Wackelkontakte sind die häufigste Ursache für gescheiterte Installationen\n• Laptop am Netzteil oder vollgeladen — Energiesparmodus / Standby unterbricht den Flash\n• Möglichst direkter USB-Port, kein USB-Hub\n• Während des Flashens nichts umstecken oder bewegen';
+
+  @override
   String get firmwareChannel => 'Firmware-Kanal';
 
   @override

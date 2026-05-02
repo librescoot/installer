@@ -15,11 +15,15 @@ class DeviceInfo {
   final String host;
   final String firmwareVersion;
   final String? serialNumber;
+  /// Value of ID= in /etc/os-release if known (e.g. 'librescoot-mdb').
+  /// Used to distinguish LibreScoot from stock when version numbers collide.
+  final String? osId;
 
   DeviceInfo({
     required this.host,
     required this.firmwareVersion,
     this.serialNumber,
+    this.osId,
   });
 }
 
@@ -257,10 +261,11 @@ class SshService {
       _sftpAvailable = false;
     }
 
-    final detectedVersion = await _detectFirmwareVersion();
-    if (detectedVersion != null) {
-      authVersion = detectedVersion;
-      debugPrint('SSH: detected firmware version $detectedVersion');
+    final detected = await _detectFirmwareVersion();
+    if (detected.version != null) {
+      authVersion = detected.version!;
+      debugPrint('SSH: detected firmware version ${detected.version}'
+          '${detected.osId != null ? " (os-id=${detected.osId})" : ""}');
     } else {
       debugPrint('SSH: firmware version detection failed, using Unknown for UI');
     }
@@ -279,15 +284,17 @@ class SshService {
 
     return DeviceInfo(
       host: host,
-      firmwareVersion: detectedVersion ?? 'Unknown',
+      firmwareVersion: detected.version ?? 'Unknown',
       serialNumber: serial,
+      osId: detected.osId,
     );
   }
 
-  Future<String?> _detectFirmwareVersion() async {
-    if (_client == null) return null;
+  Future<({String? version, String? osId})> _detectFirmwareVersion() async {
+    if (_client == null) return (version: null, osId: null);
 
     final versionIdRegex = RegExp(r'^VERSION_ID="?([^"\n]+)"?$', multiLine: true);
+    final idRegex = RegExp(r'^ID="?([^"\n]+)"?$', multiLine: true);
     final semverRegex = RegExp(r'\bv?(\d+\.\d+(?:\.\d+)?)\b');
 
     final commands = <String>[
@@ -301,18 +308,21 @@ class SshService {
         debugPrint('SSH: checking firmware version via `$command`');
         final output = await runCommand(command);
 
+        final idMatch = idRegex.firstMatch(output);
+        final osId = idMatch?.group(1)?.trim();
+
         final versionIdMatch = versionIdRegex.firstMatch(output);
         if (versionIdMatch != null) {
           final version = _normalizeVersion(versionIdMatch.group(1)!);
           debugPrint('SSH: parsed VERSION_ID -> $version');
-          return version;
+          return (version: version, osId: osId);
         }
 
         final semverMatch = semverRegex.firstMatch(output);
         if (semverMatch != null) {
           final version = _normalizeVersion(semverMatch.group(1)!);
           debugPrint('SSH: parsed semver -> $version');
-          return version;
+          return (version: version, osId: osId);
         }
 
         debugPrint('SSH: no version match from command output');
@@ -322,7 +332,7 @@ class SshService {
       }
     }
 
-    return null;
+    return (version: null, osId: null);
   }
 
   String _normalizeVersion(String raw) {

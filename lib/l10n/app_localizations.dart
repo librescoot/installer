@@ -368,6 +368,18 @@ abstract class AppLocalizations {
   /// **'About 20 minutes'**
   String get prerequisiteTime;
 
+  /// No description provided for @reliabilityWarningTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Before you start'**
+  String get reliabilityWarningTitle;
+
+  /// No description provided for @reliabilityWarningBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The flash takes several minutes and any USB drop or laptop sleep mid-flash leaves the MDB in an inconsistent state. Please check:\n• A known-good USB cable, plugged in firmly at both ends — flaky cables are the #1 cause of failed installs\n• Laptop on power, or fully charged — battery saver / sleep can break the flash\n• Use a direct USB port, not a USB hub if possible\n• Don\'t unplug or move things around once the flash starts'**
+  String get reliabilityWarningBody;
+
   /// No description provided for @firmwareChannel.
   ///
   /// In en, this message translates to:

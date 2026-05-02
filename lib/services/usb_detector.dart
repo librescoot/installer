@@ -133,6 +133,13 @@ class UsbDetector {
           device?.isSystemDisk != _lastDevice?.isSystemDisk;
       if (changed) {
         _lastDevice = device;
+        if (device == null) {
+          // The cached path can outlive the device (USB drop, power-cycle).
+          // Drop it so resolveDevicePath() doesn't hand back a node that
+          // no longer exists on the host.
+          _macDiskInfoCache = null;
+          _macDiskProbeAttempts = 0;
+        }
         debugPrint(device == null
             ? 'USB detector: device disconnected'
             : 'USB detector: detected ${device.name} mode=${device.mode.name}');
