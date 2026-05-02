@@ -707,6 +707,100 @@ class SshService {
     await runCommand('redis-cli LPUSH $key $value');
   }
 
+  /// Run a Redis HGETALL on the MDB and return all field/value pairs.
+  /// Returns an empty map on error or if the hash is empty.
+  Future<Map<String, String>> redisHgetall(String hash) async {
+    try {
+      final result = await runCommand('redis-cli HGETALL $hash');
+      final lines = result.split('\n');
+      final out = <String, String>{};
+      for (var i = 0; i + 1 < lines.length; i += 2) {
+        final k = lines[i].trim();
+        final v = lines[i + 1].trim();
+        if (k.isEmpty) continue;
+        out[k] = v;
+      }
+      return out;
+    } catch (_) {
+      return const <String, String>{};
+    }
+  }
+
+  /// Snapshot battery / CBB / aux state to the installer log.
+  /// One line per source so the log stays greppable. [tag] identifies
+  /// the call site (e.g. 'health-check', 'pre-flash').
+  Future<void> logScooterStats(String tag) async {
+    final results = await Future.wait([
+      redisHgetall('aux-battery'),
+      redisHgetall('cb-battery'),
+      redisHgetall('battery:0'),
+      redisHgetall('battery:1'),
+    ]);
+    final aux = results[0];
+    final cbb = results[1];
+    final b0 = results[2];
+    final b1 = results[3];
+
+    String fmtAux() {
+      if (aux.isEmpty) return 'no-data';
+      final v = aux['voltage'];
+      final c = aux['charge'];
+      final s = aux['charge-status'];
+      final parts = <String>[];
+      if (v != null) parts.add('V=${v}mV');
+      if (c != null) parts.add('charge=$c%');
+      if (s != null && s.isNotEmpty) parts.add('status=$s');
+      return parts.isEmpty ? 'no-data' : parts.join(' ');
+    }
+
+    String fmtCbb() {
+      if (cbb.isEmpty) return 'no-data';
+      final present = cbb['present'] == 'true';
+      if (!present) return 'present=false';
+      final parts = <String>['present=true'];
+      if (cbb['charge'] != null) parts.add('charge=${cbb['charge']}%');
+      if (cbb['state-of-health'] != null) parts.add('soh=${cbb['state-of-health']}%');
+      if (cbb['cycle-count'] != null) parts.add('cycles=${cbb['cycle-count']}');
+      if (cbb['temperature'] != null) parts.add('temp=${cbb['temperature']}C');
+      if (cbb['cell-voltage'] != null) parts.add('V=${cbb['cell-voltage']}uV');
+      if (cbb['current'] != null) parts.add('I=${cbb['current']}uA');
+      if (cbb['charge-status'] != null && cbb['charge-status']!.isNotEmpty) {
+        parts.add('status=${cbb['charge-status']}');
+      }
+      return parts.join(' ');
+    }
+
+    String fmtMain(Map<String, String> b) {
+      if (b.isEmpty) return 'no-data';
+      final present = b['present'] == 'true';
+      if (!present) return 'present=false';
+      final parts = <String>['present=true'];
+      if (b['state'] != null) parts.add('state=${b['state']}');
+      if (b['charge'] != null) parts.add('charge=${b['charge']}%');
+      if (b['voltage'] != null) parts.add('V=${b['voltage']}mV');
+      if (b['current'] != null) parts.add('I=${b['current']}mA');
+      // Pick the hottest cell to keep the line short.
+      final temps = <int>[];
+      for (var i = 0; i < 4; i++) {
+        final t = int.tryParse(b['temperature:$i'] ?? '');
+        if (t != null) temps.add(t);
+      }
+      if (temps.isNotEmpty) parts.add('temp=${temps.reduce((a, b) => a > b ? a : b)}C');
+      if (b['temperature-state'] != null) parts.add('temp-state=${b['temperature-state']}');
+      if (b['state-of-health'] != null) parts.add('soh=${b['state-of-health']}%');
+      if (b['cycle-count'] != null) parts.add('cycles=${b['cycle-count']}');
+      if (b['serial-number'] != null && b['serial-number']!.isNotEmpty) {
+        parts.add('sn=${b['serial-number']}');
+      }
+      return parts.join(' ');
+    }
+
+    debugPrint('Stats[$tag] aux: ${fmtAux()}');
+    debugPrint('Stats[$tag] cbb: ${fmtCbb()}');
+    debugPrint('Stats[$tag] battery:0: ${fmtMain(b0)}');
+    debugPrint('Stats[$tag] battery:1: ${fmtMain(b1)}');
+  }
+
   /// Get the current vehicle state from Redis.
   Future<String?> getVehicleState() async {
     return redisHget('vehicle', 'state');

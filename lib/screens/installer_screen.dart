@@ -1377,6 +1377,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     try {
       final health = await _sshService.queryHealth();
       setState(() => _scooterHealth = health);
+      await _sshService.logScooterStats('health-check');
 
       // Back up radio-gaga config before we flash anything
       _setStatus(l10n.backingUpConfig);
@@ -1455,10 +1456,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
     await _sshService.openSeatbox();
 
     _setStatus(l10n.waitingForBatteryRemoval);
+    debugPrint('Battery: waiting for depart on battery:0');
     while (await _sshService.isBatteryPresent()) {
       await Future.delayed(const Duration(seconds: 2));
       if (!mounted) return;
     }
+    debugPrint('Battery: depart detected on battery:0');
+    await _sshService.logScooterStats('battery-removed');
 
     _setStatus(l10n.batteryRemoved);
     setState(() {
@@ -1950,9 +1954,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
       await Future.delayed(const Duration(seconds: 1));
       return true;
     }
+    debugPrint('CBB: waiting for insert on cb-battery');
     for (var i = 0; i < _cbbPollIterations; i++) {
       if (!mounted) return false;
-      if (await _sshService.isCbbPresent()) return true;
+      if (await _sshService.isCbbPresent()) {
+        debugPrint('CBB: insert detected on cb-battery');
+        return true;
+      }
       if (!mounted) return false;
       if (i + 1 == _cbbNoticeAfterIterations && !_cbbWaitNoticeShown) {
         setState(() => _cbbWaitNoticeShown = true);
@@ -1960,6 +1968,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _setStatus(l10n.waitingForCbb(i + 1));
       await Future.delayed(const Duration(seconds: 2));
     }
+    debugPrint('CBB: poll timed out (no insert seen)');
     return false;
   }
 
@@ -1979,6 +1988,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
         _setStatus('');
         if (detected) {
           final bat = _isDryRun ? true : await _sshService.isBatteryPresent();
+          if (bat) {
+            debugPrint('Battery: insert detected on battery:0');
+            await _sshService.logScooterStats('cbb-and-battery-reconnected');
+          }
           if (mounted) {
             setState(() => _batteryDetected = bat);
             if (bat) _setPhase(InstallerPhase.dbcPrep);
@@ -2094,6 +2107,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 _setStatus(l10n.checkingCbbAndBattery);
                 final bat = _isDryRun ? true : await _sshService.isBatteryPresent();
                 if (bat) {
+                  debugPrint('Battery: insert detected on battery:0 (manual verify)');
+                  await _sshService.logScooterStats('cbb-and-battery-reconnected');
                   setState(() { _batteryDetected = true; _isProcessing = false; });
                   await Future.delayed(const Duration(seconds: 1));
                   if (mounted) _setPhase(InstallerPhase.dbcPrep);
