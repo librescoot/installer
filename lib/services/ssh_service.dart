@@ -57,12 +57,12 @@ class SshService {
     if (_authKey.isNotEmpty) {
       try {
         final data = await rootBundle.load('$assetsPath/device_configs.bin');
-        debugPrint('SSH: loading device config (encrypted, bundle)');
+        debugPrint('SSH: loading device profile (bundle)');
         yamlContent = _decryptAsset(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
       } catch (_) {
         final encFile = File(path.join(assetsPath, 'device_configs.bin'));
         if (await encFile.exists()) {
-          debugPrint('SSH: loading device config (encrypted, filesystem)');
+          debugPrint('SSH: loading device profile (filesystem)');
           yamlContent = _decryptAsset(await encFile.readAsBytes());
         } else {
           yamlContent = '';
@@ -75,10 +75,10 @@ class SshService {
     if (yamlContent.isEmpty) {
       final plainFile = File(path.join(assetsPath, 'device_configs.yml'));
       if (await plainFile.exists()) {
-        debugPrint('SSH: loading device config (dev fallback)');
+        debugPrint('SSH: loading device profile (dev fallback)');
         yamlContent = await plainFile.readAsString();
       } else {
-        debugPrint('SSH: no device config found (empty password may still work)');
+        debugPrint('SSH: no device profile available, will use defaults');
         _deviceConfig = {};
         return;
       }
@@ -92,7 +92,7 @@ class SshService {
       final decodedRaw = utf8.decode(base64.decode(encoded));
       _deviceConfig![version] = decodedRaw.trim();
     }
-    debugPrint('SSH: device config loaded (${_deviceConfig!.length} versions)');
+    debugPrint('SSH: device profile loaded (${_deviceConfig!.length} entries)');
   }
 
   /// Decrypt AES-256-CBC with IV prepended, PKCS7 padding.
@@ -168,17 +168,17 @@ class SshService {
         username: sshUser,
         onPasswordRequest: () {
           if (stage == 0) {
-            debugPrint('SSH: trying empty password');
+            debugPrint('SSH: attempting default device configuration');
             return '';
           }
           if (stage == 1) {
             // Stage 0 already verified this version has a non-empty bundled
             // credential before transitioning here.
             final credential = _resolveDeviceCredential(authVersion);
-            debugPrint('SSH: trying bundled credential for version $authVersion');
+            debugPrint('SSH: attempting bundled device configuration for version $authVersion');
             return credential;
           }
-          debugPrint('SSH: trying user-supplied password (attempt $manualAttempts)');
+          debugPrint('SSH: attempting user-supplied configuration (attempt $manualAttempts)');
           return manualPassword ?? '';
         },
         onUserauthBanner: (banner) {
@@ -213,10 +213,10 @@ class SshService {
             }
             if (bundled != null && bundled.isNotEmpty) {
               stage = 1;
-              debugPrint('SSH: empty password failed, trying bundled credential for $authVersion');
+              debugPrint('SSH: default configuration not accepted, attempting bundled device configuration for $authVersion');
               continue;
             }
-            debugPrint('SSH: no bundled credential for $authVersion, jumping to manual prompt');
+            debugPrint('SSH: no bundled device configuration for $authVersion, prompting user');
           }
           stage = 2;
         } else if (stage == 1) {
@@ -229,12 +229,12 @@ class SshService {
             previousAttempts: manualAttempts,
           );
           if (entered == null || entered.isEmpty) {
-            debugPrint('SSH: user cancelled manual password prompt');
+            debugPrint('SSH: user cancelled manual configuration prompt');
             rethrow;
           }
           manualPassword = entered;
           manualAttempts++;
-          debugPrint('SSH: retrying authentication with user-supplied password (attempt $manualAttempts)');
+          debugPrint('SSH: retrying with user-supplied configuration (attempt $manualAttempts)');
           continue;
         }
 
@@ -351,12 +351,12 @@ class SshService {
 
   String _resolveDeviceCredential(String version) {
     if (_deviceConfig == null || _deviceConfig!.isEmpty) {
-      debugPrint('SSH: no device config available, returning empty password');
+      debugPrint('SSH: no device profile available, using default configuration');
       return '';
     }
 
     final normalized = _normalizeVersion(version);
-    debugPrint('SSH: resolving credential for version "$version"');
+    debugPrint('SSH: resolving device configuration for version "$version"');
 
     // Try exact match first
     if (_deviceConfig!.containsKey(normalized)) {
@@ -393,7 +393,7 @@ class SshService {
     }
 
     if (closestVersion != null) {
-      debugPrint('SSH: using closest config key "$closestVersion"');
+      debugPrint('SSH: using closest profile entry "$closestVersion"');
       return _deviceConfig![closestVersion]!;
     }
 
