@@ -1050,13 +1050,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
       return;
     }
 
-    // RNDIS mode — normal flow
+    // RNDIS mode — normal flow.
+    //
+    // Always run installDriver() rather than gating on isDriverInstalled():
+    // the driver may be in the driver store from a prior run while the device
+    // is currently bound to usbser. installDriver() short-circuits internally
+    // when the binding is already correct, and pnputil /add-driver is
+    // idempotent.
     if (Platform.isWindows) {
       _setStatus(l10n.checkingRndisDriver);
-      if (!await DriverService.isDriverInstalled()) {
-        _setStatus(l10n.installingRndisDriver);
-        await DriverService.installDriver();
-      }
+      await DriverService.installDriver();
     }
 
     _setStatus(l10n.configuringNetwork);

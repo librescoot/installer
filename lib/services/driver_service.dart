@@ -66,6 +66,33 @@ class DriverDiagnosis {
       'class=$currentClass, service=$currentService, id=$instanceId)';
 }
 
+/// Captured output of a logged subprocess invocation.
+class _RunResult {
+  final int exitCode;
+  final String stdout;
+  final String stderr;
+
+  _RunResult(this.exitCode, this.stdout, this.stderr);
+
+  bool get ok => exitCode == 0;
+
+  String get combined {
+    final s = stderr.trim();
+    final o = stdout.trim();
+    if (s.isNotEmpty && o.isNotEmpty) return '$o\n$s';
+    return s.isNotEmpty ? s : o;
+  }
+}
+
+/// Outcome of a forced INF -> hardware-ID install via newdev.dll.
+class _ForceInstallOutcome {
+  final bool ok;
+  final bool rebootRequired;
+  final String detail;
+
+  _ForceInstallOutcome(this.ok, this.rebootRequired, this.detail);
+}
+
 /// Service for managing Windows RNDIS driver installation.
 ///
 /// On Windows, the Librescoot MDB uses USB RNDIS (Ethernet over USB).
@@ -75,6 +102,10 @@ class DriverService {
   static const String _driverCatAsset = 'assets/drivers/rndis.cat';
   static const String _driverInfName = 'RNDIS.inf';
   static const String _driverCatName = 'rndis.cat';
+
+  /// Hardware ID of the Librescoot ethernet device. Used for both PnP
+  /// enumeration matching and as the target of forced INF installs.
+  static const String _hardwareId = r'USB\VID_0525&PID_A4A2';
 
   /// Check if an RNDIS driver is already installed.
   ///
@@ -177,9 +208,11 @@ if ($d) {
 
   /// Install the Librescoot RNDIS driver from bundled assets.
   ///
-  /// Stages `RNDIS.inf` via `pnputil /add-driver /install` and, if another
+  /// Stages `RNDIS.inf` via `pnputil /add-driver /install` and, if a wrong
   /// driver (usbser, modem, …) had already claimed the device, forces a
-  /// rebind so the more-specific hardware-ID match in our INF wins.
+  /// rebind by calling `newdev.dll!UpdateDriverForPlugAndPlayDevicesW` with
+  /// `INSTALLFLAG_FORCE` against the hardware ID. Falls back to the legacy
+  /// remove+scan rebind if the force install does not converge.
   static Future<DriverInstallResult> installDriver() async {
     if (!Platform.isWindows) {
       return DriverInstallResult.alreadyInstalled();
@@ -195,57 +228,65 @@ if ($d) {
       return DriverInstallResult.alreadyInstalled();
     }
 
-    // If the device isn't present and we already have the driver staged,
-    // there's nothing more to do until the user plugs in.
-    if (pre.state == DriverBinding.notPresent && await isDriverInstalled()) {
-      return DriverInstallResult.alreadyInstalled();
-    }
-
     String? infPath;
     try {
       infPath = await _extractDriverFiles();
+      debugPrint('Driver: extracted INF to $infPath');
 
       // Stage + install. Idempotent; safe to run even if the INF is already
-      // in the driver store.
-      final add = await Process.run(
+      // in the driver store. /install auto-binds to any matching device that
+      // has no driver yet but cannot displace an existing binding.
+      final add = await _runLogged(
+        'pnputil-add',
         'pnputil',
         ['/add-driver', infPath, '/install'],
         runInShell: true,
       );
-
-      if (add.exitCode != 0) {
-        final stderr = add.stderr.toString().trim();
-        final stdout = add.stdout.toString().trim();
-        final errorMsg = stderr.isNotEmpty ? stderr : stdout;
+      if (!add.ok) {
         return DriverInstallResult.failed(
-          'pnputil failed (exit ${add.exitCode}): $errorMsg',
+          'pnputil /add-driver failed (exit ${add.exitCode}): ${add.combined}',
         );
       }
 
-      // If something else had already claimed the device, /add-driver /install
-      // alone won't displace it — Windows only auto-binds to devices that have
-      // no driver yet. Force a rebind by removing the device node and
-      // re-enumerating.
-      if (pre.state == DriverBinding.wrongDriver && pre.instanceId != null) {
-        debugPrint('Driver: evicting ${pre.currentClass}/${pre.currentService} '
-            'on ${pre.instanceId}');
-        await _forceRebind(pre.instanceId!);
+      // No device to rebind right now — INF is staged, Windows will pick it
+      // up when the user plugs in.
+      if (pre.state == DriverBinding.notPresent) {
+        debugPrint('Driver: device not present — INF staged for plug-in');
+        return DriverInstallResult.installed();
       }
 
-      // Poll for up to ~10s to let Windows finish re-enumeration / driver
-      // ranking before we declare success or failure.
-      final post = await _waitForCorrectBinding(
-        const Duration(seconds: 10),
-      );
-      debugPrint('Driver: post-install diagnosis: $post');
+      // Force-install our INF onto the matching hardware ID. This bypasses
+      // driver ranking entirely and rebinds even when usbser (or a modem
+      // class) is currently claiming the device.
+      final forced = await _forceInstallByHardwareId(infPath);
+      debugPrint('Driver: force-install ok=${forced.ok} '
+          'reboot=${forced.rebootRequired} detail=${forced.detail}');
+
+      var post = await _waitForCorrectBinding(const Duration(seconds: 10));
+      debugPrint('Driver: post-force-install diagnosis: $post');
 
       if (post.state == DriverBinding.correct) {
         return DriverInstallResult.installed();
       }
 
-      // notPresent after a successful /add-driver is fine — the user just
-      // hasn't plugged in (or unplugged during install). Treat as installed
-      // so the UI can move on.
+      // Force-install didn't take. Last-ditch fallback: remove the device
+      // node and re-scan so Windows re-runs ranking. Useful when newdev.dll
+      // returned an unexpected error (e.g. on Windows builds with unusual
+      // policy).
+      if (pre.instanceId != null) {
+        debugPrint('Driver: force-install did not converge — '
+            'falling back to remove+scan rebind on ${pre.instanceId}');
+        await _forceRebind(pre.instanceId!);
+        post = await _waitForCorrectBinding(const Duration(seconds: 10));
+        debugPrint('Driver: post-fallback diagnosis: $post');
+      }
+
+      if (post.state == DriverBinding.correct) {
+        return DriverInstallResult.installed();
+      }
+
+      // notPresent after a successful staging is fine — the user just
+      // unplugged during install. Treat as installed so the UI can move on.
       if (post.state == DriverBinding.notPresent) {
         return DriverInstallResult.installed();
       }
@@ -268,40 +309,119 @@ if ($d) {
     }
   }
 
-  /// Remove the device node and trigger re-enumeration so the most-specific
-  /// staged INF (ours) wins driver ranking. Falls back to a disable/enable
-  /// cycle on Windows builds where `/remove-device` isn't available.
+  /// Force the staged INF onto the Librescoot hardware ID via
+  /// `newdev.dll!UpdateDriverForPlugAndPlayDevicesW` with `INSTALLFLAG_FORCE`
+  /// (= 0x1). This is the documented "rebind regardless of current driver"
+  /// API — equivalent to `devcon update` — and bypasses driver ranking.
   ///
   /// Caller must have already staged the INF via `pnputil /add-driver
-  /// /install`. Requires admin (which the caller already has — `/add-driver`
-  /// needs it too).
+  /// /install`. Requires admin (which the caller already has).
+  static Future<_ForceInstallOutcome> _forceInstallByHardwareId(
+    String infPath,
+  ) async {
+    // Pass paths/IDs through the environment so PowerShell never sees
+    // backslashes or ampersands as syntax. The script reads them via
+    // `$env:LIBRESCOOT_INF` / `$env:LIBRESCOOT_HWID`.
+    const script = r'''
+$ErrorActionPreference = 'Continue'
+$inf  = $env:LIBRESCOOT_INF
+$hwid = $env:LIBRESCOOT_HWID
+if (-not $inf -or -not $hwid) {
+    Write-Output "FAILED missing-env inf=$inf hwid=$hwid"
+    exit 2
+}
+$src = @"
+using System;
+using System.Runtime.InteropServices;
+public class NewDev {
+    [DllImport("newdev.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+    public static extern bool UpdateDriverForPlugAndPlayDevices(
+        IntPtr hwndParent, string HardwareId, string FullInfPath,
+        uint InstallFlags, out bool bRebootRequired);
+}
+"@
+try {
+    Add-Type -TypeDefinition $src -ErrorAction Stop
+} catch {
+    Write-Output "FAILED add-type $($_.Exception.Message)"
+    exit 2
+}
+$reboot = $false
+$ok = [NewDev]::UpdateDriverForPlugAndPlayDevices(
+    [IntPtr]::Zero, $hwid, $inf, 1, [ref]$reboot
+)
+if ($ok) {
+    Write-Output "OK reboot=$reboot"
+    exit 0
+} else {
+    $gle = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+    $msg = (New-Object System.ComponentModel.Win32Exception $gle).Message
+    Write-Output "FAILED gle=$gle msg=$msg"
+    exit 1
+}
+''';
+
+    final r = await _runLogged(
+      'force-install',
+      'powershell',
+      ['-NoProfile', '-NonInteractive', '-Command', script],
+      runInShell: false,
+      environment: {
+        'LIBRESCOOT_INF': infPath,
+        'LIBRESCOOT_HWID': _hardwareId,
+      },
+    );
+    final detail = r.combined.trim();
+    final reboot = detail.contains('reboot=True');
+    return _ForceInstallOutcome(
+      r.ok,
+      reboot,
+      detail.isEmpty ? '(no output)' : detail,
+    );
+  }
+
+  /// Remove the device node and trigger re-enumeration so the most-specific
+  /// staged INF (ours) wins driver ranking. Falls back to a disable/enable
+  /// cycle on Windows builds where `/remove-device` isn't available. Used as
+  /// a last-ditch fallback when [_forceInstallByHardwareId] fails to converge.
   static Future<bool> _forceRebind(String instanceId) async {
     // /remove-device exists on Win10 2004+. Pass the InstanceId as a single
     // argv element with runInShell: false so cmd.exe never sees the embedded
     // '&' characters.
-    final remove = await Process.run(
+    final remove = await _runLogged(
+      'pnputil-remove',
       'pnputil',
       ['/remove-device', instanceId],
       runInShell: false,
     );
 
-    if (remove.exitCode != 0) {
+    if (!remove.ok) {
       debugPrint(
-        'Driver: pnputil /remove-device failed (${remove.exitCode}): '
-        '${remove.stderr.toString().trim()} — falling back to disable/enable',
+        'Driver: pnputil /remove-device failed — '
+        'falling back to disable/enable cycle',
       );
       // Fallback for older builds: bounce the device.
-      await Process.run('powershell', [
-        '-NoProfile',
-        '-Command',
-        'Disable-PnpDevice -InstanceId "$instanceId" -Confirm:\$false; '
-            'Start-Sleep -Milliseconds 500; '
-            'Enable-PnpDevice  -InstanceId "$instanceId" -Confirm:\$false',
-      ]);
+      await _runLogged(
+        'disable-enable',
+        'powershell',
+        [
+          '-NoProfile',
+          '-Command',
+          'Disable-PnpDevice -InstanceId "$instanceId" -Confirm:\$false; '
+              'Start-Sleep -Milliseconds 500; '
+              'Enable-PnpDevice  -InstanceId "$instanceId" -Confirm:\$false',
+        ],
+        runInShell: false,
+      );
     }
 
-    final scan = await Process.run('pnputil', ['/scan-devices']);
-    return scan.exitCode == 0;
+    final scan = await _runLogged(
+      'pnputil-scan',
+      'pnputil',
+      ['/scan-devices'],
+      runInShell: true,
+    );
+    return scan.ok;
   }
 
   /// Poll [diagnoseBinding] until it returns a non-transient state
@@ -341,6 +461,46 @@ if ($d) {
       await Process.run('net', ['start', 'ShellHWDetection']);
     } catch (e) {
       debugPrint('Driver: failed to start ShellHWDetection: $e');
+    }
+  }
+
+  /// Run a subprocess and pipe its stdout/stderr line-by-line into
+  /// `debugPrint` under a labelled prefix so field logs make it obvious
+  /// what each command did. Returns a [_RunResult] for callers that need to
+  /// branch on the outcome.
+  static Future<_RunResult> _runLogged(
+    String label,
+    String executable,
+    List<String> args, {
+    bool runInShell = false,
+    Map<String, String>? environment,
+  }) async {
+    debugPrint('Driver[$label]: $executable ${args.join(' ')}');
+    try {
+      final r = await Process.run(
+        executable,
+        args,
+        runInShell: runInShell,
+        environment: environment,
+      );
+      final out = r.stdout.toString();
+      final err = r.stderr.toString();
+      debugPrint('Driver[$label]: exit=${r.exitCode}');
+      _logLines('Driver[$label]: stdout', out);
+      _logLines('Driver[$label]: stderr', err);
+      return _RunResult(r.exitCode, out, err);
+    } catch (e) {
+      debugPrint('Driver[$label]: exception: $e');
+      return _RunResult(-1, '', e.toString());
+    }
+  }
+
+  static void _logLines(String prefix, String body) {
+    final trimmed = body.trim();
+    if (trimmed.isEmpty) return;
+    for (final line in trimmed.split(RegExp(r'\r?\n'))) {
+      final l = line.trimRight();
+      if (l.isNotEmpty) debugPrint('$prefix: $l');
     }
   }
 
