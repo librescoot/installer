@@ -51,6 +51,14 @@ class SshService {
   bool _sftpAvailable = false;
   ManualPasswordPrompt? _manualPasswordPrompt;
 
+  // Snapshot of the last successful auth so we can silently re-establish the
+  // session if the underlying socket dies (e.g. USB cable wiggle during a
+  // poll loop). Cleared by [disconnect] so reboot paths don't auto-reconnect
+  // before the device is back.
+  String _lastHost = mdbHost;
+  String? _lastPassword;
+  Future<void>? _reconnectInFlight;
+
   /// Auth key injected at build time via --dart-define=AUTH_KEY=...
   static const _authKey = String.fromEnvironment('AUTH_KEY');
 
@@ -167,23 +175,26 @@ class SshService {
       debugPrint('SSH: connected socket to $host:$sshPort');
 
       var bannerVersionSeen = authVersion;
+      String? attemptedPassword;
       _client = SSHClient(
         socket,
         username: sshUser,
         onPasswordRequest: () {
+          String pw;
           if (stage == 0) {
             debugPrint('SSH: attempting default device configuration');
-            return '';
-          }
-          if (stage == 1) {
+            pw = '';
+          } else if (stage == 1) {
             // Stage 0 already verified this version has a non-empty bundled
             // credential before transitioning here.
-            final credential = _resolveDeviceCredential(authVersion);
+            pw = _resolveDeviceCredential(authVersion);
             debugPrint('SSH: attempting bundled device configuration for version $authVersion');
-            return credential;
+          } else {
+            debugPrint('SSH: attempting user-supplied configuration (attempt $manualAttempts)');
+            pw = manualPassword ?? '';
           }
-          debugPrint('SSH: attempting user-supplied configuration (attempt $manualAttempts)');
-          return manualPassword ?? '';
+          attemptedPassword = pw;
+          return pw;
         },
         onUserauthBanner: (banner) {
           final bannerVersion = _extractVersionFromText(banner);
@@ -198,6 +209,8 @@ class SshService {
       try {
         await _client!.authenticated;
         debugPrint('SSH: authentication successful');
+        _lastHost = host;
+        _lastPassword = attemptedPassword ?? '';
         break;
       } catch (e) {
         debugPrint('SSH: authentication failed: $e');
@@ -410,12 +423,33 @@ class SshService {
     throw Exception('No device config found for version $version');
   }
 
-  /// Run a command on the connected device
+  /// Run a command on the connected device. If the underlying SSH socket has
+  /// died (e.g. USB drop during a poll loop) and we still have credentials
+  /// from a prior successful auth, transparently re-establish the session
+  /// and retry the command once before surfacing the failure.
   Future<String> runCommand(String command, {Duration timeout = const Duration(seconds: 60)}) async {
     if (_client == null) {
-      throw Exception('Not connected');
+      if (_lastPassword == null) {
+        throw Exception('Not connected');
+      }
+      await _reconnect();
     }
 
+    try {
+      return await _runCommandOnce(command, timeout);
+    } catch (e) {
+      if (_lastPassword != null && _looksLikeDisconnect(e.toString().toLowerCase())) {
+        debugPrint('SSH: command failed (disconnect-class), reconnecting and retrying once: $e');
+        _client?.close();
+        _client = null;
+        await _reconnect();
+        return await _runCommandOnce(command, timeout);
+      }
+      rethrow;
+    }
+  }
+
+  Future<String> _runCommandOnce(String command, Duration timeout) async {
     final session = await _client!.execute(command);
     final stdout = StringBuffer();
     final stderr = StringBuffer();
@@ -444,6 +478,51 @@ class SshService {
     }
 
     return stdout.toString();
+  }
+
+  /// Re-establish the SSH session using the credentials that worked on the
+  /// last successful [_connect]. Skips the post-auth setup (pm-stop, sftp
+  /// check, version detect) since that state is already known. Concurrent
+  /// callers share the same in-flight attempt.
+  Future<void> _reconnect() async {
+    final existing = _reconnectInFlight;
+    if (existing != null) {
+      await existing;
+      return;
+    }
+    final attempt = _doReconnect();
+    _reconnectInFlight = attempt;
+    try {
+      await attempt;
+    } finally {
+      _reconnectInFlight = null;
+    }
+  }
+
+  Future<void> _doReconnect() async {
+    final pw = _lastPassword;
+    if (pw == null) {
+      throw Exception('No prior connection to recover');
+    }
+    debugPrint('SSH: silent reconnect to $_lastHost');
+    final socket = await SSHSocket.connect(
+      _lastHost,
+      sshPort,
+      timeout: connectionTimeout,
+    );
+    final client = SSHClient(
+      socket,
+      username: sshUser,
+      onPasswordRequest: () => pw,
+    );
+    try {
+      await client.authenticated;
+    } catch (e) {
+      client.close();
+      rethrow;
+    }
+    _client = client;
+    debugPrint('SSH: silent reconnect succeeded');
   }
 
   /// Upload a file to the device via SFTP with progress reporting.
@@ -692,10 +771,14 @@ class SshService {
     return matches.map((part) => part.replaceFirst(RegExp(r'^0x', caseSensitive: false), '')).join().toLowerCase();
   }
 
-  /// Disconnect from device
+  /// Disconnect from device. Clears the cached auth so any subsequent
+  /// [runCommand] will fail loudly instead of silently re-establishing —
+  /// the reboot path relies on this so we don't auto-reconnect to a device
+  /// that's mid-reboot.
   void disconnect() {
     _client?.close();
     _client = null;
+    _lastPassword = null;
   }
 
   bool get isConnected => _client != null;
