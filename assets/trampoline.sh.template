@@ -302,6 +302,8 @@ if [ $? -ne 0 ]; then
     log "  DBC is in UMS mode — skipping to flash"
   else
     log "  DBC not reachable and not in UMS — rebooting MDB"
+    log "  lsusb output:"
+    lsusb 2>&1 | sed 's/^/    /' >> "$LOG_FILE" || log "    (lsusb unavailable)"
     echo "error: DBC not reachable and not in UMS mode" > "$STATUS_FILE"
     cat "$LOG_FILE" >> "$STATUS_FILE"
     bootled red
@@ -323,6 +325,8 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
       log "  DBC is in UMS mode — skipping to flash"
     else
       log "  DBC not reachable and not in UMS — rebooting MDB"
+      log "  lsusb output:"
+      lsusb 2>&1 | sed 's/^/    /' >> "$LOG_FILE" || log "    (lsusb unavailable)"
       echo "error: DBC not reachable" > "$STATUS_FILE"
       cat "$LOG_FILE" >> "$STATUS_FILE"
       bootled red
