@@ -550,85 +550,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
         const SizedBox(height: 8),
         Text(l10n.welcomeSubheading,
             style: TextStyle(color: Colors.grey.shade400)),
-        const SizedBox(height: 16),
-
-        // Critical no-power-cycle warning — users keep yanking power
-        // when they think things are stuck, which is what actually
-        // bricks scooters. Loud, red, with a direct Discord link.
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.red.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.red.shade400, width: 2),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.dangerous, color: Colors.red.shade300, size: 28),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.noPowerCycleWarningTitle,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red.shade300,
-                          fontSize: 15,
-                        )),
-                    const SizedBox(height: 6),
-                    Text(l10n.noPowerCycleWarningBody,
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade200)),
-                    const SizedBox(height: 8),
-                    TextButton.icon(
-                      onPressed: () => _openExternalUrl('https://discord.gg/BmY2P2T9j3'),
-                      icon: Icon(Icons.chat_bubble_outline, size: 16, color: Colors.red.shade200),
-                      label: Text(l10n.openLibrescootDiscord,
-                          style: TextStyle(color: Colors.red.shade200)),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // Reliability warning — flash failures are dominated by USB drops
-        // and laptop sleep. Surface this before the user starts.
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.amber.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.warning_amber, color: Colors.amber),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.reliabilityWarningTitle,
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber)),
-                    const SizedBox(height: 4),
-                    Text(l10n.reliabilityWarningBody,
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
         const SizedBox(height: 24),
 
         // Prerequisites — items size to their content; a long item gets a row
@@ -709,6 +630,87 @@ class _InstallerScreenState extends State<InstallerScreen> {
             onChanged: (r) => setState(() => _downloadState.selectedRegion = r),
           ),
 
+        const SizedBox(height: 24),
+
+        // Critical no-power-cycle warning — users keep yanking power
+        // when they think things are stuck, which is what actually
+        // bricks scooters. Loud, red, with a direct Discord link.
+        // Sits right before the Start button so it's the last thing the
+        // user reads before kicking the install off.
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.red.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.red.shade400, width: 2),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.dangerous, color: Colors.red.shade300, size: 28),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l10n.noPowerCycleWarningTitle,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red.shade300,
+                          fontSize: 15,
+                        )),
+                    const SizedBox(height: 6),
+                    Text(l10n.noPowerCycleWarningBody,
+                        style: TextStyle(fontSize: 13, color: Colors.grey.shade200)),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: () => _openExternalUrl('https://discord.gg/BmY2P2T9j3'),
+                      icon: Icon(Icons.chat_bubble_outline, size: 16, color: Colors.red.shade200),
+                      label: Text(l10n.openLibrescootDiscord,
+                          style: TextStyle(color: Colors.red.shade200)),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Reliability warning — flash failures are dominated by USB drops
+        // and laptop sleep. Surface this before the user starts.
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.amber.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.warning_amber, color: Colors.amber),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l10n.reliabilityWarningTitle,
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber)),
+                    const SizedBox(height: 4),
+                    Text(l10n.reliabilityWarningBody,
+                        style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 24),
 
         // Start button (with elevation hint on macOS/Linux if not elevated)
