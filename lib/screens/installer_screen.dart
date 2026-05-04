@@ -692,6 +692,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Widget _buildNotices(AppLocalizations l10n) {
+    // Kick downloads off as soon as the user lands here so the sidebar
+    // shows progress while they read the warnings, and the Continue
+    // button can gate on _downloadState.allReady. Microtask so we don't
+    // mutate state during build.
+    if (!_downloadsKicked && !launchArgs.hasLocalImages) {
+      Future.microtask(_kickoffDownloads);
+    }
+    final downloadsReady = _downloadState.allReady && _downloadState.items.isNotEmpty;
+    final hasItems = _downloadState.items.isNotEmpty;
+    final waitingOnDownloads = !downloadsReady && hasItems;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -783,6 +793,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             TextButton.icon(
               onPressed: _isProcessing
@@ -791,10 +802,40 @@ class _InstallerScreenState extends State<InstallerScreen> {
               icon: const Icon(Icons.arrow_back, size: 18),
               label: Text(l10n.backButton),
             ),
-            FilledButton.icon(
-              onPressed: _isProcessing ? null : _startDownloadsAndContinue,
-              icon: const Icon(Icons.arrow_forward),
-              label: Text(l10n.noticesAcknowledgeButton),
+            // While downloads are in flight, the primary Continue is
+            // disabled and we show a small "I'll have internet later"
+            // override link next to it. Once downloads are ready,
+            // Continue becomes a normal active button.
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if (waitingOnDownloads) ...[
+                  TextButton(
+                    onPressed: _isProcessing
+                        ? null
+                        : () => _setPhase(InstallerPhase.physicalPrep),
+                    child: Text(l10n.noticesContinueOfflineAnyway,
+                        style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                FilledButton.icon(
+                  onPressed: _isProcessing || waitingOnDownloads
+                      ? null
+                      : _startDownloadsAndContinue,
+                  icon: waitingOnDownloads
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.arrow_forward),
+                  label: Text(waitingOnDownloads
+                      ? l10n.noticesWaitingForDownloads
+                      : l10n.noticesAcknowledgeButton),
+                ),
+              ],
             ),
           ],
         ),
@@ -969,18 +1010,19 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
   }
 
-  Future<void> _startDownloadsAndContinue() async {
+  bool _downloadsKicked = false;
+
+  /// Build the download queue and start downloads in the background.
+  /// Called when the user enters the Notices phase so the sidebar shows
+  /// progress while they read the warnings; the Continue button on
+  /// Notices then waits on _downloadState.allReady (or the override).
+  Future<void> _kickoffDownloads() async {
+    if (_downloadsKicked) return;
+    _downloadsKicked = true;
     final l10n = AppLocalizations.of(context)!;
-    if (_downloadState.wantsOfflineMaps && _downloadState.selectedRegion == null && !launchArgs.hasLocalImages) {
-      _setStatus(l10n.selectRegionError);
-      return;
-    }
-
     setState(() => _isProcessing = true);
-
     try {
       if (launchArgs.hasLocalImages) {
-        // Use local images instead of downloading
         _setStatus(l10n.usingLocalFirmwareImages);
         final items = <DownloadItem>[];
         if (launchArgs.mdbImage != null) {
@@ -1010,18 +1052,28 @@ class _InstallerScreenState extends State<InstallerScreen> {
           wantsOfflineMaps: _downloadState.wantsOfflineMaps,
         );
         setState(() => _downloadState.items = items);
-
-        // Start downloads in background
         _downloadInBackground();
       }
-
-      // Move to next phase immediately
-      _setPhase(InstallerPhase.physicalPrep);
     } catch (e) {
       _setStatus(l10n.errorPrefix(e.toString()));
+      _downloadsKicked = false; // allow retry
     } finally {
-      setState(() => _isProcessing = false);
+      if (mounted) {
+        _setStatus('');
+        setState(() => _isProcessing = false);
+      }
     }
+  }
+
+  Future<void> _startDownloadsAndContinue() async {
+    // Downloads are kicked off when entering Notices (_kickoffDownloads),
+    // so by the time Continue is clicked here all we need to do is move
+    // the phase along. Falls back to _kickoffDownloads for the rare
+    // race where the user landed here without going through Notices.
+    if (!_downloadsKicked) {
+      await _kickoffDownloads();
+    }
+    if (mounted) _setPhase(InstallerPhase.physicalPrep);
   }
 
   void _downloadInBackground() async {
@@ -1032,6 +1084,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
           if (mounted) setState(() {}); // Trigger rebuild to update progress
         },
       );
+      // The last onProgress fires before localPath is set on the final item,
+      // so the UI is stuck in "almost-but-not-done" without this final rebuild.
+      if (mounted) setState(() {});
     } catch (e) {
       if (mounted) {
         setState(() => _downloadState.error = e.toString());

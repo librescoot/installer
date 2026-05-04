@@ -422,6 +422,18 @@ abstract class AppLocalizations {
   /// **'I\'ve read this, continue'**
   String get noticesAcknowledgeButton;
 
+  /// No description provided for @noticesWaitingForDownloads.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading firmware...'**
+  String get noticesWaitingForDownloads;
+
+  /// No description provided for @noticesContinueOfflineAnyway.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue anyway (I\'ll have internet at the scooter)'**
+  String get noticesContinueOfflineAnyway;
+
   /// No description provided for @backButton.
   ///
   /// In en, this message translates to:

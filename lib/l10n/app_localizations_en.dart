@@ -180,6 +180,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noticesAcknowledgeButton => 'I\'ve read this, continue';
 
   @override
+  String get noticesWaitingForDownloads => 'Downloading firmware...';
+
+  @override
+  String get noticesContinueOfflineAnyway =>
+      'Continue anyway (I\'ll have internet at the scooter)';
+
+  @override
   String get backButton => 'Back';
 
   @override

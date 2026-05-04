@@ -59,6 +59,8 @@
   "noticesHeading": "Read this before continuing",
   "noticesSubheading": "Two things that will save your install if you take them seriously.",
   "noticesAcknowledgeButton": "I've read this, continue",
+  "noticesWaitingForDownloads": "Downloading firmware...",
+  "noticesContinueOfflineAnyway": "Continue anyway (I'll have internet at the scooter)",
   "backButton": "Back",
   "elevationRequiredTitle": "Administrator privileges required",
   "elevationRequiredBody": "Librescoot Installer needs administrator privileges to write to the scooter's storage and configure the network interface. The elevation prompt was declined or could not be shown.\n\nClick Continue to dismiss this dialog and try again. If you keep declining the prompt, the installer cannot proceed.",

@@ -183,6 +183,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get noticesAcknowledgeButton => 'Gelesen, weitermachen';
 
   @override
+  String get noticesWaitingForDownloads => 'Firmware wird geladen...';
+
+  @override
+  String get noticesContinueOfflineAnyway =>
+      'Trotzdem weiter (am Roller habe ich Internet)';
+
+  @override
   String get backButton => 'Zurück';
 
   @override

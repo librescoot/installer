@@ -54,6 +54,8 @@
   "noticesHeading": "Vor dem Weitermachen lesen",
   "noticesSubheading": "Zwei Dinge, die deine Installation retten, wenn du sie ernst nimmst.",
   "noticesAcknowledgeButton": "Gelesen, weitermachen",
+  "noticesWaitingForDownloads": "Firmware wird geladen...",
+  "noticesContinueOfflineAnyway": "Trotzdem weiter (am Roller habe ich Internet)",
   "backButton": "Zurück",
   "elevationRequiredTitle": "Administratorrechte erforderlich",
   "elevationRequiredBody": "Der Librescoot Installer benötigt Administratorrechte, um auf den Speicher des Rollers zu schreiben und das Netzwerk-Interface zu konfigurieren. Die Berechtigungsanfrage wurde abgelehnt oder konnte nicht angezeigt werden.\n\nKlicke auf Weiter, um den Dialog zu schließen, und versuche es erneut. Wenn du die Anfrage immer wieder ablehnst, kann der Installer nicht fortfahren.",
