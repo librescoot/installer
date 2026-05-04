@@ -507,8 +507,8 @@
   "ledBootRedMeaning": "Error. Reconnect laptop to check log; the indicators stop once you reconnect",
   "flashingTakesAbout10Min": "Flashing takes about 10 minutes. Once the boot LED is blinking (green or red), and only then, reconnect the laptop USB cable.",
   "waitingForMdbToReconnect": "Waiting for MDB to reconnect...",
-  "ledIsGreen": "LED is green",
-  "ledIsRed": "LED is red",
+  "ledIsGreen": "LED blinking green",
+  "ledIsRed": "LED blinking red",
   "ledAmberWaitNotice": "Most important: do NOT disconnect USB or power while this is running. While the boot LED is amber/orange, flashing is still in progress. Hands off, don't click anything. The LED will start blinking once it's done: green = success, red = error. Only continue once it's blinking.",
 
   "phaseKeycardSetupTitle": "Keycard Setup",

@@ -2303,13 +2303,13 @@ abstract class AppLocalizations {
   /// No description provided for @ledIsGreen.
   ///
   /// In en, this message translates to:
-  /// **'LED is green'**
+  /// **'LED blinking green'**
   String get ledIsGreen;
 
   /// No description provided for @ledIsRed.
   ///
   /// In en, this message translates to:
-  /// **'LED is red'**
+  /// **'LED blinking red'**
   String get ledIsRed;
 
   /// No description provided for @ledAmberWaitNotice.

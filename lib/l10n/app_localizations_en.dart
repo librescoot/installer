@@ -1250,10 +1250,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get waitingForMdbToReconnect => 'Waiting for MDB to reconnect...';
 
   @override
-  String get ledIsGreen => 'LED is green';
+  String get ledIsGreen => 'LED blinking green';
 
   @override
-  String get ledIsRed => 'LED is red';
+  String get ledIsRed => 'LED blinking red';
 
   @override
   String get ledAmberWaitNotice =>

@@ -1259,10 +1259,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get waitingForMdbToReconnect => 'Warte auf MDB-Wiederverbindung...';
 
   @override
-  String get ledIsGreen => 'LED ist grün';
+  String get ledIsGreen => 'LED blinkt grün';
 
   @override
-  String get ledIsRed => 'LED ist rot';
+  String get ledIsRed => 'LED blinkt rot';
 
   @override
   String get ledAmberWaitNotice =>
