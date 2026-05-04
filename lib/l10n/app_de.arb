@@ -313,7 +313,14 @@
   "bleAlreadyConnectedHint": "Du kannst weitere Geräte koppeln oder auf Fertig drücken.",
   "keycardLearningHeading": "Schlüsselkarten einrichten",
   "keycardLearningBody": "Lerne die NFC-Karten an, mit denen du den Roller ent- und verriegeln möchtest. Klicke auf Starten, halte dann nacheinander jede Karte an den Leser, und klicke anschließend auf Fertig.",
-  "keycardLearnedAck": "Schlüsselkarten angelernt. Klicke auf Weiter zum Abschließen, oder lerne weitere Karten an.",
+  "keycardLearnedAck": "{count, plural, one{1 Schlüsselkarte angelernt} other{{count} Schlüsselkarten angelernt}}. Klicke auf Weiter zum Abschließen, oder lerne weitere Karten an.",
+  "@keycardLearnedAck": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "keycardLearningTapped": "{count, plural, =0{Noch keine Karte erfasst} one{1 Karte erfasst} other{{count} Karten erfasst}}",
+  "@keycardLearningTapped": {
+    "placeholders": { "count": { "type": "int" } }
+  },
   "keycardStartLearning": "Starten",
   "keycardAddMore": "Weitere Karten anlernen",
   "keycardLearningActive": "Anlernmodus aktiv",

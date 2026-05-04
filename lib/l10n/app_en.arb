@@ -429,7 +429,14 @@
   "bleAlreadyConnectedHint": "You can pair additional devices or press Done to continue.",
   "keycardLearningHeading": "Keycard Setup",
   "keycardLearningBody": "Register the NFC cards you want to use to unlock and lock the scooter. Click Start, hold each card to the reader one by one, then click Done.",
-  "keycardLearnedAck": "Keycards registered. Click Continue to finish, or Add more cards to register additional ones.",
+  "keycardLearnedAck": "{count, plural, one{1 keycard registered} other{{count} keycards registered}}. Click Continue to finish, or Add more cards to register additional ones.",
+  "@keycardLearnedAck": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "keycardLearningTapped": "{count, plural, =0{No keycards tapped yet} one{1 keycard tapped} other{{count} keycards tapped}}",
+  "@keycardLearningTapped": {
+    "placeholders": { "count": { "type": "int" } }
+  },
   "keycardStartLearning": "Start",
   "keycardAddMore": "Add more cards",
   "keycardLearningActive": "Learning mode active",

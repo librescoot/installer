@@ -1961,8 +1961,14 @@ abstract class AppLocalizations {
   /// No description provided for @keycardLearnedAck.
   ///
   /// In en, this message translates to:
-  /// **'Keycards registered. Click Continue to finish, or Add more cards to register additional ones.'**
-  String get keycardLearnedAck;
+  /// **'{count, plural, one{1 keycard registered} other{{count} keycards registered}}. Click Continue to finish, or Add more cards to register additional ones.'**
+  String keycardLearnedAck(int count);
+
+  /// No description provided for @keycardLearningTapped.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No keycards tapped yet} one{1 keycard tapped} other{{count} keycards tapped}}'**
+  String keycardLearningTapped(int count);
 
   /// No description provided for @keycardStartLearning.
   ///

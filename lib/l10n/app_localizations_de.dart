@@ -1053,8 +1053,27 @@ class AppLocalizationsDe extends AppLocalizations {
       'Lerne die NFC-Karten an, mit denen du den Roller ent- und verriegeln möchtest. Klicke auf Starten, halte dann nacheinander jede Karte an den Leser, und klicke anschließend auf Fertig.';
 
   @override
-  String get keycardLearnedAck =>
-      'Schlüsselkarten angelernt. Klicke auf Weiter zum Abschließen, oder lerne weitere Karten an.';
+  String keycardLearnedAck(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Schlüsselkarten angelernt',
+      one: '1 Schlüsselkarte angelernt',
+    );
+    return '$_temp0. Klicke auf Weiter zum Abschließen, oder lerne weitere Karten an.';
+  }
+
+  @override
+  String keycardLearningTapped(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Karten erfasst',
+      one: '1 Karte erfasst',
+      zero: 'Noch keine Karte erfasst',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get keycardStartLearning => 'Starten';

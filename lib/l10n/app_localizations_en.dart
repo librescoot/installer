@@ -1045,8 +1045,27 @@ class AppLocalizationsEn extends AppLocalizations {
       'Register the NFC cards you want to use to unlock and lock the scooter. Click Start, hold each card to the reader one by one, then click Done.';
 
   @override
-  String get keycardLearnedAck =>
-      'Keycards registered. Click Continue to finish, or Add more cards to register additional ones.';
+  String keycardLearnedAck(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count keycards registered',
+      one: '1 keycard registered',
+    );
+    return '$_temp0. Click Continue to finish, or Add more cards to register additional ones.';
+  }
+
+  @override
+  String keycardLearningTapped(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count keycards tapped',
+      one: '1 keycard tapped',
+      zero: 'No keycards tapped yet',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get keycardStartLearning => 'Start';

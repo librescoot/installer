@@ -75,6 +75,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _keycardLearning = false;
   bool _keycardLearned = false; // true once a Start→Done cycle actually registered cards
   int _keycardAuthorizedCountBefore = 0; // captured at Start, compared at Done
+  int _keycardSessionTapCount = 0; // delta = current - before, polled live
+  Timer? _keycardCountPollTimer;
   String? _awaitingUnlockState; // null when not awaiting; current vehicle state otherwise
   Completer<bool>? _unlockCompleter;
   bool _keepCache = false;
@@ -158,6 +160,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     _deviceSub?.cancel();
     _usbDetector.stopMonitoring();
     _blePinPollTimer?.cancel();
+    _keycardCountPollTimer?.cancel();
     _phaseScrollController.dispose();
     if (_unlockCompleter != null && !_unlockCompleter!.isCompleted) {
       _unlockCompleter!.complete(false);
@@ -2965,13 +2968,35 @@ class _InstallerScreenState extends State<InstallerScreen> {
       }
     }
     debugPrint('UI: keycard learning started');
-    setState(() => _keycardLearning = true);
+    setState(() {
+      _keycardLearning = true;
+      _keycardSessionTapCount = 0;
+    });
+    // Poll the authorized-count once a second so the UI shows live tap
+    // feedback as the user holds each card to the reader.
+    _keycardCountPollTimer?.cancel();
+    if (!_isDryRun) {
+      _keycardCountPollTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
+        if (!mounted || !_keycardLearning) return;
+        try {
+          final raw = await _sshService.redisHget('system', 'keycard-authorized-count');
+          final cur = int.tryParse(raw ?? '') ?? _keycardAuthorizedCountBefore;
+          final delta = cur - _keycardAuthorizedCountBefore;
+          if (mounted && delta != _keycardSessionTapCount) {
+            setState(() => _keycardSessionTapCount = delta);
+          }
+        } catch (_) {}
+      });
+    }
   }
 
   Future<void> _stopKeycardLearning() async {
+    _keycardCountPollTimer?.cancel();
+    _keycardCountPollTimer = null;
     // True only if the count actually changed: keycard-service's exitLearnMode
     // is a no-op when newUIDs is empty, so no count change means no taps.
     bool registered = _isDryRun; // dry-run assumes yes so the flow is testable
+    int sessionDelta = _isDryRun ? 1 : _keycardSessionTapCount;
     if (!_isDryRun) {
       try {
         await _sshService.redisLpush('scooter:keycard', 'learn:stop');
@@ -2983,14 +3008,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
       try {
         final raw = await _sshService.redisHget('system', 'keycard-authorized-count');
         final after = int.tryParse(raw ?? '') ?? 0;
-        registered = after != _keycardAuthorizedCountBefore;
+        sessionDelta = after - _keycardAuthorizedCountBefore;
+        registered = sessionDelta != 0;
       } catch (e) {
         debugPrint('UI: failed to read authorized count after learn: $e');
       }
     }
-    debugPrint('UI: keycard learning stopped (registered=$registered)');
+    debugPrint('UI: keycard learning stopped (registered=$registered, sessionDelta=$sessionDelta)');
     setState(() {
       _keycardLearning = false;
+      _keycardSessionTapCount = sessionDelta < 0 ? 0 : sessionDelta;
       if (registered) _keycardLearned = true;
     });
   }
@@ -3032,7 +3059,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                         const Icon(Icons.check_circle, color: Colors.green, size: 20),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: Text(l10n.keycardLearnedAck,
+                          child: Text(l10n.keycardLearnedAck(_keycardSessionTapCount),
                               style: TextStyle(fontSize: 13, color: Colors.grey.shade200)),
                         ),
                       ],
@@ -3071,6 +3098,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
                         Text(l10n.keycardLearningActiveHint,
                             textAlign: TextAlign.center,
                             style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+                        const SizedBox(height: 8),
+                        Text(l10n.keycardLearningTapped(_keycardSessionTapCount),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: _keycardSessionTapCount > 0 ? Colors.green : Colors.grey.shade400,
+                              fontWeight: _keycardSessionTapCount > 0 ? FontWeight.bold : FontWeight.normal,
+                            )),
                       ],
                     ),
                   ),
