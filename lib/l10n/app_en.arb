@@ -456,6 +456,37 @@
   "@keycardStartLearningFailed": {
     "placeholders": { "error": { "type": "String" } }
   },
+
+  "keycardEntryAlreadyConfiguredHeading": "Keycards already configured",
+  "keycardEntryAlreadyConfiguredBody": "{master, plural, =0{No master card is set} one{1 master card is set} other{{master} master cards are set}} and {authorized, plural, =0{no unlock cards are registered} one{1 unlock card is registered} other{{authorized} unlock cards are registered}}. You can keep this state, or wipe everything and start over.",
+  "@keycardEntryAlreadyConfiguredBody": {
+    "placeholders": {
+      "master": { "type": "int" },
+      "authorized": { "type": "int" }
+    }
+  },
+  "keycardEntryContinueButton": "Continue",
+  "keycardStartOverButton": "Start over",
+  "keycardStartOverConfirmTitle": "Wipe all keycards?",
+  "keycardStartOverConfirmBody": "This deletes the master card and every registered unlock card on the scooter. You'll need to re-register them. Continue?",
+  "keycardStartOverConfirmYes": "Wipe everything",
+  "keycardStartOverConfirmNo": "Cancel",
+
+  "keycardCardsStageContinueButton": "Continue",
+  "keycardCardsStageAddMasterButton": "Add master card (advanced)",
+
+  "keycardMasterStageHeading": "Add master card",
+  "keycardMasterStageWarningHeading": "WARNING: master card is NOT for unlocking",
+  "keycardMasterStageWarningBody": "The master card is used to manage other keycards. It CANNOT unlock the scooter. Do NOT use any of the cards you just registered as unlock cards. Use a separate, fresh card.",
+  "keycardMasterStageHint": "Hold the master card to the reader.",
+  "keycardMasterStageRejectedToast": "This card is already registered as an unlock card.",
+  "keycardMasterStageSaveFailedToast": "Could not save master card: write failed.",
+  "keycardMasterStageLearnedToast": "Master card registered.",
+  "keycardMasterStageSkipButton": "Skip",
+
+  "keycardSimulateTapButton": "[DRY RUN] Simulate tap",
+  "keycardSimulateMasterTapButton": "[DRY RUN] Simulate master tap",
+  "keycardSimulateRejectedTapButton": "[DRY RUN] Simulate already-authorized rejection",
   "willAskForElevation": "Start Installation (will ask for elevation)",
   "installationContinuesInNewWindow": "Installation continues in the new window",
   "youCanCloseThisWindow": "You can close this window.",

@@ -73,10 +73,24 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Timer? _blePinPollTimer;
   final ScrollController _phaseScrollController = ScrollController();
   bool _keycardLearning = false;
-  bool _keycardLearned = false; // true once a Start→Done cycle actually registered cards
   int _keycardAuthorizedCountBefore = 0; // captured at Start, compared at Done
   int _keycardSessionTapCount = 0; // delta = current - before, polled live
   Timer? _keycardCountPollTimer;
+  // Substage of the keycardSetup phase. The phase is rendered as a small
+  // state machine so we can branch between the cards-only legacy flow and
+  // the new master-teach-in flow without splitting it into separate phases.
+  _KeycardStage _keycardStage = _KeycardStage.loading;
+  // null = capability still unknown, true = new keycard-service (supports
+  // learn:master:start / reset / keycard:events), false = old service (only
+  // the original learn:start/learn:stop/set-master commands).
+  bool? _keycardServiceCanMaster;
+  int _keycardMasterCount = 0;
+  int _keycardAuthorizedCount = 0;
+  Future<void> Function()? _keycardEventsStop;
+  StreamSubscription<String>? _keycardEventsSub;
+  String? _keycardToastMessage;
+  Color _keycardToastColor = Colors.green;
+  Timer? _keycardToastTimer;
   String? _awaitingUnlockState; // null when not awaiting; current vehicle state otherwise
   Completer<bool>? _unlockCompleter;
   bool _keepCache = false;
@@ -171,6 +185,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
     _usbDetector.stopMonitoring();
     _blePinPollTimer?.cancel();
     _keycardCountPollTimer?.cancel();
+    _keycardToastTimer?.cancel();
+    final stop = _keycardEventsStop;
+    if (stop != null) {
+      // Fire-and-forget: dispose can't await, but the SSH session should be
+      // closed even if it briefly outlives the widget.
+      stop();
+      _keycardEventsStop = null;
+    }
+    _keycardEventsSub?.cancel();
     _phaseScrollController.dispose();
     if (_unlockCompleter != null && !_unlockCompleter!.isCompleted) {
       _unlockCompleter!.complete(false);
@@ -225,6 +248,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   void _setPhase(InstallerPhase phase) {
+    final leaving = _currentPhase;
     setState(() {
       _completedPhases.add(_currentPhase);
       _currentPhase = phase;
@@ -232,6 +256,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _progress = 0.0;
       _isProcessing = false;
     });
+    if (leaving == InstallerPhase.keycardSetup &&
+        phase != InstallerPhase.keycardSetup) {
+      _keycardTearDown();
+    }
     if (phase == InstallerPhase.keycardSetup) {
       _onEnterKeycardSetup();
     }
@@ -3083,22 +3111,129 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _onEnterKeycardSetup() async {
     setState(() {
       _keycardLearning = false;
-      _keycardLearned = false;
+      _keycardStage = _KeycardStage.loading;
+      _keycardServiceCanMaster = null;
+      _keycardMasterCount = 0;
+      _keycardAuthorizedCount = 0;
+      _keycardSessionTapCount = 0;
+      _keycardToastMessage = null;
     });
-    if (!_canDriveKeycard) return;
-    if (_isDryRun) {
-      debugPrint('UI: [DRY RUN] would send set-master:NONE');
+    if (!_canDriveKeycard) {
+      // No SSH and no dry-run — render an empty cards stage so the Skip
+      // button still works; the actual commands will no-op.
+      if (mounted) setState(() => _keycardStage = _KeycardStage.cards);
       return;
     }
+
+    if (_isDryRun) {
+      debugPrint('UI: [DRY RUN] would send set-master:NONE');
+      // Pretend the new service is present so the master flow is testable.
+      setState(() {
+        _keycardServiceCanMaster = true;
+        _keycardStage = _KeycardStage.cards;
+      });
+      return;
+    }
+
+    // Disengage boot-time auto-master-learning before any tap can land.
     try {
       await _sshService.redisLpush('scooter:keycard', 'set-master:NONE');
       debugPrint('UI: keycardSetup entered, master mode disengaged');
     } catch (e) {
       debugPrint('UI: failed to disengage master-learning on entry: $e');
     }
+
+    final canMaster = await _keycardDetectCapability();
+    await _keycardRefreshCounts();
+    if (!mounted) return;
+
+    setState(() {
+      _keycardServiceCanMaster = canMaster;
+      if (canMaster &&
+          (_keycardMasterCount > 0 || _keycardAuthorizedCount > 0)) {
+        _keycardStage = _KeycardStage.alreadyConfigured;
+      } else {
+        _keycardStage = _KeycardStage.cards;
+      }
+    });
   }
 
   bool get _canDriveKeycard => _sshService.isConnected || _isDryRun;
+
+  /// Probe the keycard-service for new-command support by sending
+  /// `learn:master:stop` and inspecting `keycard.command-result`. The new
+  /// service answers either `ok` (was in master teach-in) or
+  /// `error:not in master teach-in`; the old service answers
+  /// `error:unknown command`. We snapshot command-result before the probe so
+  /// we can wait for it to actually change, instead of racing against an old
+  /// stale value.
+  Future<bool> _keycardDetectCapability() async {
+    try {
+      final before = await _sshService.redisHget('keycard', 'command-result');
+      await _sshService.redisLpush('scooter:keycard', 'learn:master:stop');
+      // ~3 s budget at 150 ms intervals. The keycard-service typically writes
+      // command-result well under 500 ms on the local USB-network link.
+      for (var i = 0; i < 20; i++) {
+        await Future.delayed(const Duration(milliseconds: 150));
+        final result = await _sshService.redisHget('keycard', 'command-result');
+        if (result == null || result == before) continue;
+        final lower = result.toLowerCase();
+        if (lower.startsWith('error:unknown')) {
+          debugPrint('UI: keycard capability probe -> legacy ($result)');
+          return false;
+        }
+        debugPrint('UI: keycard capability probe -> new ($result)');
+        return true;
+      }
+      debugPrint('UI: keycard capability probe timed out, assuming legacy');
+    } catch (e) {
+      debugPrint('UI: keycard capability probe failed: $e');
+    }
+    return false;
+  }
+
+  Future<void> _keycardRefreshCounts() async {
+    if (_isDryRun) return;
+    try {
+      final m = await _sshService.redisHget('system', 'keycard-master-count');
+      final a = await _sshService.redisHget('system', 'keycard-authorized-count');
+      if (!mounted) return;
+      setState(() {
+        _keycardMasterCount = int.tryParse(m ?? '') ?? 0;
+        _keycardAuthorizedCount = int.tryParse(a ?? '') ?? 0;
+      });
+    } catch (e) {
+      debugPrint('UI: failed to read keycard counts: $e');
+    }
+  }
+
+  void _keycardShowToast(String message, Color color, {int ms = 3000}) {
+    _keycardToastTimer?.cancel();
+    setState(() {
+      _keycardToastMessage = message;
+      _keycardToastColor = color;
+    });
+    _keycardToastTimer = Timer(Duration(milliseconds: ms), () {
+      if (!mounted) return;
+      setState(() => _keycardToastMessage = null);
+    });
+  }
+
+  Future<void> _keycardTearDown() async {
+    _keycardCountPollTimer?.cancel();
+    _keycardCountPollTimer = null;
+    _keycardToastTimer?.cancel();
+    _keycardToastTimer = null;
+    final stop = _keycardEventsStop;
+    _keycardEventsStop = null;
+    if (stop != null) {
+      try {
+        await stop();
+      } catch (_) {}
+    }
+    await _keycardEventsSub?.cancel();
+    _keycardEventsSub = null;
+  }
 
   Future<void> _startKeycardLearning() async {
     if (!_isDryRun) {
@@ -3124,8 +3259,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _keycardLearning = true;
       _keycardSessionTapCount = 0;
     });
-    // Poll the authorized-count once a second so the UI shows live tap
-    // feedback as the user holds each card to the reader.
     _keycardCountPollTimer?.cancel();
     if (!_isDryRun) {
       _keycardCountPollTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
@@ -3135,157 +3268,530 @@ class _InstallerScreenState extends State<InstallerScreen> {
           final cur = int.tryParse(raw ?? '') ?? _keycardAuthorizedCountBefore;
           final delta = cur - _keycardAuthorizedCountBefore;
           if (mounted && delta != _keycardSessionTapCount) {
-            setState(() => _keycardSessionTapCount = delta);
+            setState(() {
+              _keycardSessionTapCount = delta;
+              _keycardAuthorizedCount = cur;
+            });
           }
         } catch (_) {}
       });
     }
   }
 
-  Future<void> _stopKeycardLearning() async {
+  Future<void> _stopKeycardLearning({bool advance = true}) async {
     _keycardCountPollTimer?.cancel();
     _keycardCountPollTimer = null;
-    // True only if the count actually changed: keycard-service's exitLearnMode
-    // is a no-op when newUIDs is empty, so no count change means no taps.
-    bool registered = _isDryRun; // dry-run assumes yes so the flow is testable
-    int sessionDelta = _isDryRun ? 1 : _keycardSessionTapCount;
+    bool registered = _isDryRun;
+    int sessionDelta = _isDryRun ? _keycardSessionTapCount : _keycardSessionTapCount;
+    if (_isDryRun && sessionDelta == 0) sessionDelta = 1;
     if (!_isDryRun) {
       try {
         await _sshService.redisLpush('scooter:keycard', 'learn:stop');
       } catch (e) {
         debugPrint('UI: failed to stop keycard learning: $e');
       }
-      // Brief wait for keycard-service to process learn:stop and republish counts
       await Future.delayed(const Duration(milliseconds: 300));
       try {
         final raw = await _sshService.redisHget('system', 'keycard-authorized-count');
         final after = int.tryParse(raw ?? '') ?? 0;
         sessionDelta = after - _keycardAuthorizedCountBefore;
         registered = sessionDelta != 0;
+        _keycardAuthorizedCount = after;
       } catch (e) {
         debugPrint('UI: failed to read authorized count after learn: $e');
       }
     }
     debugPrint('UI: keycard learning stopped (registered=$registered, sessionDelta=$sessionDelta)');
+    if (!mounted) return;
     setState(() {
       _keycardLearning = false;
       _keycardSessionTapCount = sessionDelta < 0 ? 0 : sessionDelta;
-      if (registered) _keycardLearned = true;
+      if (advance) {
+        _keycardStage = registered
+            ? _KeycardStage.cardsReview
+            : _KeycardStage.cards;
+      }
+    });
+  }
+
+  void _keycardSimulateCardTap() {
+    if (!_isDryRun || !_keycardLearning) return;
+    setState(() {
+      _keycardSessionTapCount += 1;
+      _keycardAuthorizedCount += 1;
+    });
+  }
+
+  Future<void> _keycardStartMasterStage() async {
+    setState(() {
+      _keycardStage = _KeycardStage.master;
+      _keycardToastMessage = null;
+    });
+    if (!_isDryRun) {
+      try {
+        await _keycardSubscribeEvents();
+      } catch (e) {
+        debugPrint('UI: failed to subscribe to keycard events: $e');
+      }
+      try {
+        await _sshService.redisLpush('scooter:keycard', 'learn:master:start');
+      } catch (e) {
+        debugPrint('UI: failed to start master teach-in: $e');
+      }
+    }
+  }
+
+  Future<void> _keycardSubscribeEvents() async {
+    if (_keycardEventsStop != null) return;
+    final sub = await _sshService.subscribeRedisChannel('keycard:events');
+    _keycardEventsStop = sub.stop;
+    _keycardEventsSub = sub.events.listen(
+      _handleKeycardEvent,
+      onError: (Object e) => debugPrint('UI: keycard event stream error: $e'),
+      onDone: () => debugPrint('UI: keycard event stream closed'),
+    );
+  }
+
+  void _handleKeycardEvent(String payload) {
+    debugPrint('UI: keycard event: $payload');
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context)!;
+    if (payload.startsWith('master-learned:')) {
+      _keycardShowToast(l10n.keycardMasterStageLearnedToast, Colors.green);
+      _keycardRefreshCounts();
+      // Auto-advance: master successfully registered.
+      Timer(const Duration(milliseconds: 1200), () async {
+        if (!mounted) return;
+        await _keycardTearDown();
+        if (!mounted) return;
+        _setPhase(InstallerPhase.finish);
+      });
+    } else if (payload.startsWith('rejected:already-authorized:')) {
+      _keycardShowToast(l10n.keycardMasterStageRejectedToast, Colors.redAccent);
+    } else if (payload.startsWith('error:save-failed:')) {
+      _keycardShowToast(l10n.keycardMasterStageSaveFailedToast, Colors.redAccent);
+    } else if (payload == 'reset') {
+      // Service told everyone state was wiped; refresh counts.
+      _keycardRefreshCounts();
+    }
+  }
+
+  Future<void> _keycardSimulateMasterEvent(String payload) async {
+    if (!_isDryRun) return;
+    if (payload.startsWith('master-learned:')) {
+      setState(() {
+        _keycardMasterCount += 1;
+      });
+    }
+    _handleKeycardEvent(payload);
+  }
+
+  Future<void> _keycardStopMasterStage({required bool advance}) async {
+    if (!_isDryRun) {
+      try {
+        await _sshService.redisLpush('scooter:keycard', 'learn:master:stop');
+      } catch (e) {
+        debugPrint('UI: failed to stop master teach-in: $e');
+      }
+    }
+    await _keycardTearDown();
+    if (!mounted) return;
+    if (advance) {
+      _setPhase(InstallerPhase.finish);
+    } else {
+      setState(() {
+        _keycardStage = _KeycardStage.cardsReview;
+      });
+    }
+  }
+
+  Future<void> _keycardStartOver() async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.keycardStartOverConfirmTitle),
+        content: Text(l10n.keycardStartOverConfirmBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.keycardStartOverConfirmNo),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(l10n.keycardStartOverConfirmYes),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    if (_keycardLearning) {
+      // Don't bother advancing — we're going to wipe anyway.
+      _keycardCountPollTimer?.cancel();
+      _keycardCountPollTimer = null;
+      _keycardLearning = false;
+    }
+    if (!_isDryRun) {
+      try {
+        await _sshService.redisLpush('scooter:keycard', 'reset');
+      } catch (e) {
+        debugPrint('UI: failed to send reset: $e');
+      }
+      // Brief wait for keycard-service to flush counts.
+      await Future.delayed(const Duration(milliseconds: 300));
+      await _keycardRefreshCounts();
+    }
+    if (!mounted) return;
+    setState(() {
+      _keycardSessionTapCount = 0;
+      if (_isDryRun) {
+        _keycardMasterCount = 0;
+        _keycardAuthorizedCount = 0;
+      }
+      _keycardStage = _KeycardStage.cards;
     });
   }
 
   Future<void> _skipKeycardSetupEntirely() async {
     if (_keycardLearning && _canDriveKeycard) {
-      await _stopKeycardLearning();
+      await _stopKeycardLearning(advance: false);
     }
+    await _keycardTearDown();
     if (mounted) _setPhase(InstallerPhase.finish);
   }
 
   Widget _buildKeycardSetup(AppLocalizations l10n) {
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.nfc, size: 48, color: kAccent),
-          const SizedBox(height: 16),
-          Text(l10n.keycardLearningHeading,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: 400,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Icon(Icons.nfc, size: 48, color: kAccent),
+            const SizedBox(height: 16),
+            Text(_keycardStageHeading(l10n),
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 24),
+            switch (_keycardStage) {
+              _KeycardStage.loading => const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
+                ),
+              _KeycardStage.alreadyConfigured =>
+                _buildKeycardAlreadyConfigured(l10n),
+              _KeycardStage.cards => _buildKeycardCardsStage(l10n),
+              _KeycardStage.cardsReview => _buildKeycardCardsReview(l10n),
+              _KeycardStage.master => _buildKeycardMasterStage(l10n),
+              _KeycardStage.done => const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
+                ),
+            },
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _keycardStageHeading(AppLocalizations l10n) {
+    switch (_keycardStage) {
+      case _KeycardStage.alreadyConfigured:
+        return l10n.keycardEntryAlreadyConfiguredHeading;
+      case _KeycardStage.master:
+        return l10n.keycardMasterStageHeading;
+      default:
+        return l10n.keycardLearningHeading;
+    }
+  }
+
+  Widget _buildKeycardAlreadyConfigured(AppLocalizations l10n) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          l10n.keycardEntryAlreadyConfiguredBody(
+              _keycardMasterCount, _keycardAuthorizedCount),
+          style: TextStyle(fontSize: 13, color: Colors.grey.shade300),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 24),
+        FilledButton.icon(
+          onPressed: () => _setPhase(InstallerPhase.finish),
+          icon: const Icon(Icons.arrow_forward),
+          label: Text(l10n.keycardEntryContinueButton),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: _keycardStartOver,
+          icon: const Icon(Icons.refresh, size: 18),
+          label: Text(l10n.keycardStartOverButton),
+        ),
+        const SizedBox(height: 8),
+        TextButton(
+          onPressed: _skipKeycardSetupEntirely,
+          child: Text(l10n.skipKeycardSetup),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildKeycardCardsStage(AppLocalizations l10n) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          l10n.keycardLearningBody,
+          style: TextStyle(fontSize: 13, color: Colors.grey.shade300),
+        ),
+        const SizedBox(height: 16),
+        if (!_keycardLearning)
+          Center(
+            child: OutlinedButton.icon(
+              onPressed: _canDriveKeycard ? _startKeycardLearning : null,
+              icon: const Icon(Icons.nfc, size: 18),
+              label: Text(l10n.keycardStartLearning),
+            ),
+          )
+        else ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: kAccent.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: kAccent.withValues(alpha: 0.3)),
+            ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (_keycardLearned) ...[
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.check_circle, color: Colors.green, size: 20),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(l10n.keycardLearnedAck(_keycardSessionTapCount),
-                              style: TextStyle(fontSize: 13, color: Colors.grey.shade200)),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ] else ...[
-                  Text(l10n.keycardLearningBody,
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
-                  const SizedBox(height: 16),
-                ],
-                if (!_keycardLearning)
-                  Center(
-                    child: OutlinedButton.icon(
-                      onPressed: _canDriveKeycard ? _startKeycardLearning : null,
-                      icon: const Icon(Icons.nfc, size: 18),
-                      label: Text(_keycardLearned ? l10n.keycardAddMore : l10n.keycardStartLearning),
-                    ),
-                  )
-                else ...[
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: kAccent.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: kAccent.withValues(alpha: 0.3)),
-                    ),
-                    child: Column(
-                      children: [
-                        const Icon(Icons.contactless, size: 28, color: kAccent),
-                        const SizedBox(height: 8),
-                        Text(l10n.keycardLearningActive,
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: kAccent)),
-                        const SizedBox(height: 4),
-                        Text(l10n.keycardLearningActiveHint,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
-                        const SizedBox(height: 8),
-                        Text(l10n.keycardLearningTapped(_keycardSessionTapCount),
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: _keycardSessionTapCount > 0 ? Colors.green : Colors.grey.shade400,
-                              fontWeight: _keycardSessionTapCount > 0 ? FontWeight.bold : FontWeight.normal,
-                            )),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Center(
-                    child: FilledButton.icon(
-                      onPressed: _stopKeycardLearning,
-                      icon: const Icon(Icons.check, size: 18),
-                      label: Text(l10n.keycardStopLearning),
-                    ),
-                  ),
-                ],
+                const Icon(Icons.contactless, size: 28, color: kAccent),
+                const SizedBox(height: 8),
+                Text(l10n.keycardLearningActive,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, color: kAccent)),
+                const SizedBox(height: 4),
+                Text(l10n.keycardLearningActiveHint,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+                const SizedBox(height: 8),
+                Text(l10n.keycardLearningTapped(_keycardSessionTapCount),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: _keycardSessionTapCount > 0
+                          ? Colors.green
+                          : Colors.grey.shade400,
+                      fontWeight: _keycardSessionTapCount > 0
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    )),
               ],
             ),
           ),
-          const SizedBox(height: 24),
-          if (!_keycardLearning)
-            _keycardLearned
-                ? FilledButton.icon(
-                    onPressed: () => _setPhase(InstallerPhase.finish),
-                    icon: const Icon(Icons.arrow_forward),
-                    label: Text(l10n.continueButton),
-                  )
-                : TextButton(
-                    onPressed: _skipKeycardSetupEntirely,
-                    child: Text(l10n.skipKeycardSetup),
-                  ),
+          const SizedBox(height: 12),
+          Center(
+            child: FilledButton.icon(
+              onPressed: () => _stopKeycardLearning(),
+              icon: const Icon(Icons.check, size: 18),
+              label: Text(l10n.keycardStopLearning),
+            ),
+          ),
+          if (_isDryRun) ...[
+            const SizedBox(height: 8),
+            Center(
+              child: TextButton.icon(
+                onPressed: _keycardSimulateCardTap,
+                icon: const Icon(Icons.touch_app, size: 16),
+                label: Text(l10n.keycardSimulateTapButton),
+              ),
+            ),
+          ],
         ],
-      ),
+        if (!_keycardLearning && (_keycardServiceCanMaster ?? false)) ...[
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: _keycardStartOver,
+            icon: const Icon(Icons.refresh, size: 18),
+            label: Text(l10n.keycardStartOverButton),
+          ),
+        ],
+        if (!_keycardLearning) ...[
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: _skipKeycardSetupEntirely,
+            child: Text(l10n.skipKeycardSetup),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildKeycardCardsReview(AppLocalizations l10n) {
+    final canMaster = _keycardServiceCanMaster ?? false;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.green.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.check_circle, color: Colors.green, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(l10n.keycardLearnedAck(_keycardSessionTapCount),
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade200)),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          onPressed: () => _setPhase(InstallerPhase.finish),
+          icon: const Icon(Icons.arrow_forward),
+          label: Text(l10n.keycardCardsStageContinueButton),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _canDriveKeycard ? _startKeycardLearning : null,
+          icon: const Icon(Icons.nfc, size: 18),
+          label: Text(l10n.keycardAddMore),
+        ),
+        if (canMaster && _keycardAuthorizedCount > 0) ...[
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: _keycardStartMasterStage,
+            icon: const Icon(Icons.shield_outlined, size: 18),
+            label: Text(l10n.keycardCardsStageAddMasterButton),
+          ),
+        ],
+        if (canMaster) ...[
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: _keycardStartOver,
+            icon: const Icon(Icons.refresh, size: 16),
+            label: Text(l10n.keycardStartOverButton),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildKeycardMasterStage(AppLocalizations l10n) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.redAccent.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.redAccent.withValues(alpha: 0.6), width: 1.5),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.warning_amber_rounded,
+                      color: Colors.redAccent, size: 22),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(l10n.keycardMasterStageWarningHeading,
+                        style: const TextStyle(
+                          color: Colors.redAccent,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        )),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(l10n.keycardMasterStageWarningBody,
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade200)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: kAccent.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: kAccent.withValues(alpha: 0.3)),
+          ),
+          child: Column(
+            children: [
+              const Icon(Icons.contactless, size: 28, color: kAccent),
+              const SizedBox(height: 8),
+              Text(l10n.keycardMasterStageHint,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, color: kAccent)),
+            ],
+          ),
+        ),
+        if (_keycardToastMessage != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: _keycardToastColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: _keycardToastColor.withValues(alpha: 0.4)),
+            ),
+            child: Text(_keycardToastMessage!,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: _keycardToastColor,
+                  fontWeight: FontWeight.w600,
+                )),
+          ),
+        ],
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          onPressed: () => _keycardStopMasterStage(advance: true),
+          icon: const Icon(Icons.skip_next),
+          label: Text(l10n.keycardMasterStageSkipButton),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _keycardStartOver,
+          icon: const Icon(Icons.refresh, size: 18),
+          label: Text(l10n.keycardStartOverButton),
+        ),
+        if (_isDryRun) ...[
+          const SizedBox(height: 16),
+          Text('[DRY RUN]',
+              style: TextStyle(
+                  fontSize: 11, color: Colors.grey.shade500)),
+          const SizedBox(height: 4),
+          TextButton.icon(
+            onPressed: () =>
+                _keycardSimulateMasterEvent('master-learned:DEADBEEF'),
+            icon: const Icon(Icons.touch_app, size: 16),
+            label: Text(l10n.keycardSimulateMasterTapButton),
+          ),
+          TextButton.icon(
+            onPressed: () => _keycardSimulateMasterEvent(
+                'rejected:already-authorized:CAFEBABE'),
+            icon: const Icon(Icons.block, size: 16),
+            label: Text(l10n.keycardSimulateRejectedTapButton),
+          ),
+        ],
+      ],
     );
   }
 
@@ -3567,4 +4073,13 @@ class _ManualPasswordDialogState extends State<_ManualPasswordDialog> {
       ],
     );
   }
+}
+
+enum _KeycardStage {
+  loading,
+  alreadyConfigured,
+  cards,
+  cardsReview,
+  master,
+  done,
 }
