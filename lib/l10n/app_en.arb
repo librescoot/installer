@@ -184,6 +184,16 @@
   "noDevicePath": "Error: no device path available",
   "mdbFlashComplete": "MDB flash complete!",
 
+  "flashProgressMb": "{mb} MB written",
+  "@flashProgressMb": { "placeholders": { "mb": { "type": "String" } } },
+  "flashProgressMbOfTotal": "{mb} / {total} MB written",
+  "@flashProgressMbOfTotal": { "placeholders": { "mb": { "type": "String" }, "total": { "type": "String" } } },
+  "flashProgressEta": "{minutes}m {seconds}s remaining",
+  "@flashProgressEta": { "placeholders": { "minutes": { "type": "int" }, "seconds": { "type": "int" } } },
+  "flashProgressBootSector": "Boot sector: {mb} MB written",
+  "@flashProgressBootSector": { "placeholders": { "mb": { "type": "String" } } },
+
+
   "scooterPrepHeading": "Scooter Preparation",
   "scooterPrepSubheading": "MDB firmware has been written. Now prepare for reboot.",
   "disconnectCbb": "Disconnect the CBB",

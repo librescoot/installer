@@ -677,9 +677,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
         const SizedBox(height: 24),
 
-        // Heads-up that clicking Start will trigger UAC / sudo prompt.
-        // Only shown on Windows / macOS while we're not yet elevated.
-        if (!_isElevated && (Platform.isWindows || Platform.isMacOS)) ...[
+        // Heads-up that clicking Start will trigger the UAC prompt.
+        // Windows-only — macOS uses per-call authopen during the flash itself.
+        if (!_isElevated && Platform.isWindows) ...[
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1008,7 +1008,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     setState(() => _isProcessing = true);
 
-    if ((Platform.isWindows || Platform.isMacOS) && !await ElevationService.isElevated()) {
+    // macOS: don't self-elevate the GUI. TCC gates /dev/rdiskN by responsible
+    // app, and a self-elevated unsigned .app gets EPERM on raw disk opens even
+    // as root. Instead let the bundled flasher pop its own authopen dialog
+    // when it needs to write the device. Re-enable once the .app is signed +
+    // notarised and Removable Volumes TCC can be granted to the bundle id.
+    if (Platform.isWindows && !await ElevationService.isElevated()) {
       _setStatus(l10n.requestingAdminPrivileges);
       debugPrint('Elevation: not elevated, attempting self-elevate');
       final relaunched = await ElevationService.elevateIfNeeded(
@@ -1964,7 +1969,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       }
       debugPrint('Flash: device path resolved: $devicePath');
 
-      final flashService = FlashService();
+      final flashService = FlashService()..l10n = l10n;
       final bmapPath = _downloadState.bmapPathFor(DownloadItemType.mdbFirmware);
       await flashService.writeTwoPhase(
         mdbItem.localPath!,

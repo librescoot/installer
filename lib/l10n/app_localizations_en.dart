@@ -501,6 +501,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mdbFlashComplete => 'MDB flash complete!';
 
   @override
+  String flashProgressMb(String mb) {
+    return '$mb MB written';
+  }
+
+  @override
+  String flashProgressMbOfTotal(String mb, String total) {
+    return '$mb / $total MB written';
+  }
+
+  @override
+  String flashProgressEta(int minutes, int seconds) {
+    return '${minutes}m ${seconds}s remaining';
+  }
+
+  @override
+  String flashProgressBootSector(String mb) {
+    return 'Boot sector: $mb MB written';
+  }
+
+  @override
   String get scooterPrepHeading => 'Scooter Preparation';
 
   @override

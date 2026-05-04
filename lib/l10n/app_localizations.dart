@@ -1004,6 +1004,30 @@ abstract class AppLocalizations {
   /// **'MDB flash complete!'**
   String get mdbFlashComplete;
 
+  /// No description provided for @flashProgressMb.
+  ///
+  /// In en, this message translates to:
+  /// **'{mb} MB written'**
+  String flashProgressMb(String mb);
+
+  /// No description provided for @flashProgressMbOfTotal.
+  ///
+  /// In en, this message translates to:
+  /// **'{mb} / {total} MB written'**
+  String flashProgressMbOfTotal(String mb, String total);
+
+  /// No description provided for @flashProgressEta.
+  ///
+  /// In en, this message translates to:
+  /// **'{minutes}m {seconds}s remaining'**
+  String flashProgressEta(int minutes, int seconds);
+
+  /// No description provided for @flashProgressBootSector.
+  ///
+  /// In en, this message translates to:
+  /// **'Boot sector: {mb} MB written'**
+  String flashProgressBootSector(String mb);
+
   /// No description provided for @scooterPrepHeading.
   ///
   /// In en, this message translates to:

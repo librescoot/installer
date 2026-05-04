@@ -154,6 +154,12 @@
   "waitingForMdbFirmware": "Warte auf MDB-Firmware-Download...",
   "noDevicePath": "Fehler: kein Gerätepfad verfügbar",
   "mdbFlashComplete": "MDB-Flash abgeschlossen!",
+
+  "flashProgressMb": "{mb} MB geschrieben",
+  "flashProgressMbOfTotal": "{mb} / {total} MB geschrieben",
+  "flashProgressEta": "noch {minutes} Min. {seconds} Sek.",
+  "flashProgressBootSector": "Bootsektor: {mb} MB geschrieben",
+
   "scooterPrepHeading": "Roller vorbereiten",
   "scooterPrepSubheading": "MDB-Firmware wurde geschrieben. Jetzt für den Neustart vorbereiten.",
   "disconnectCbb": "CBB trennen",

@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 
+import '../l10n/app_localizations.dart';
+
 /// Progress callback for flashing operations
 typedef ProgressCallback = void Function(double progress, String status);
 
@@ -36,6 +38,8 @@ class SafetyCheck {
 
 /// Service for writing firmware images to devices
 class FlashService {
+  AppLocalizations? l10n;
+
   /// Build the command(s) that would be used for flashing without executing.
   Future<String> buildFlashPlan(
     String imagePath,
@@ -432,7 +436,9 @@ class FlashService {
               onProgress?.call(0.2 + (0.7 * fraction), 'Writing image... ${(fraction * 100).toStringAsFixed(1)}%');
             } else {
               final mb = bytes / (1024 * 1024);
-              onProgress?.call(0.2, 'Writing image... ${mb.toStringAsFixed(1)} MB written');
+              final mbStr = mb.toStringAsFixed(1);
+              final base = l10n?.flashProgressMb(mbStr) ?? '$mbStr MB written';
+              onProgress?.call(0.2, 'Writing image... $base');
             }
           }
         }
@@ -691,7 +697,8 @@ class FlashService {
           final bytes = int.tryParse(progressMatch.group(1)!);
           if (bytes != null) {
             final mb = bytes / (1024 * 1024);
-            onProgress?.call(0.5, '${mb.toStringAsFixed(1)} MB written');
+            final mbStr = mb.toStringAsFixed(1);
+            onProgress?.call(0.5, l10n?.flashProgressMb(mbStr) ?? '$mbStr MB written');
           }
         }
       }
@@ -747,7 +754,8 @@ class FlashService {
       if (bytesMatch != null) {
         final bytes = int.tryParse(bytesMatch.group(1)!);
         if (bytes != null) {
-          onProgress?.call(0.5, '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB written');
+          final mbStr = (bytes / 1024 / 1024).toStringAsFixed(1);
+          onProgress?.call(0.5, l10n?.flashProgressMb(mbStr) ?? '$mbStr MB written');
         }
       }
     }
@@ -851,7 +859,8 @@ class FlashService {
           onProgress?.call(fraction,
               'dd: ${mb.toStringAsFixed(0)} / ${totalMb.toStringAsFixed(0)} MB');
         } else {
-          onProgress?.call(0.0, 'dd: ${mb.toStringAsFixed(0)} MB written');
+          final mbStr = mb.toStringAsFixed(0);
+          onProgress?.call(0.0, 'dd: ${l10n?.flashProgressMb(mbStr) ?? '$mbStr MB written'}');
         }
       }
     }
@@ -973,13 +982,19 @@ class FlashService {
           if (bytes != null && totalBytes > 0) {
             final fraction = (bytes / totalBytes).clamp(0.0, 0.95);
             final mb = bytes / (1024 * 1024);
+            final mbStr = mb.toStringAsFixed(0);
+            final totalMbStr = totalMb.toStringAsFixed(0);
+            final base = l10n?.flashProgressMbOfTotal(mbStr, totalMbStr)
+                ?? '$mbStr / $totalMbStr MB written';
             String eta = '';
             if (fraction > 0.01) {
               final elapsed = stopwatch.elapsedMilliseconds / 1000;
               final remaining = (elapsed / fraction) * (1.0 - fraction);
-              eta = ': ${remaining ~/ 60}m ${(remaining % 60).floor()}s remaining';
+              final mins = remaining ~/ 60;
+              final secs = (remaining % 60).floor();
+              eta = ': ${l10n?.flashProgressEta(mins, secs) ?? '${mins}m ${secs}s remaining'}';
             }
-            onProgress?.call(fraction, '${mb.toStringAsFixed(0)} / ${totalMb.toStringAsFixed(0)} MB written$eta');
+            onProgress?.call(fraction, '$base$eta');
           }
         }
         if (line.startsWith('CHECKSUM MISMATCH')) {
@@ -1106,17 +1121,19 @@ echo "VERIFY:OK"
             if (currentPhase == 'A' && phaseABytes > 0) {
               final fraction = (bytes / phaseABytes).clamp(0.0, 1.0);
               final progress = fraction * 0.9; // Phase A is 0-0.9
-              // Calculate ETA
               if (fraction > 0.01) {
                 final elapsed = stopwatch.elapsedMilliseconds / 1000;
                 final remaining = (elapsed / fraction) * (1.0 - fraction);
                 final mins = (remaining / 60).floor();
                 final secs = (remaining % 60).floor();
-                eta = ': ${mins}m ${secs}s remaining';
+                eta = ': ${l10n?.flashProgressEta(mins, secs) ?? '${mins}m ${secs}s remaining'}';
               }
-              onProgress?.call(progress, '${mb.toStringAsFixed(0)} MB written$eta');
+              final mbStr = mb.toStringAsFixed(0);
+              final base = l10n?.flashProgressMb(mbStr) ?? '$mbStr MB written';
+              onProgress?.call(progress, '$base$eta');
             } else if (currentPhase == 'B') {
-              onProgress?.call(0.92, 'Boot sector: ${mb.toStringAsFixed(1)} MB written');
+              final mbStr = mb.toStringAsFixed(1);
+              onProgress?.call(0.92, l10n?.flashProgressBootSector(mbStr) ?? 'Boot sector: $mbStr MB written');
             }
           }
         }
