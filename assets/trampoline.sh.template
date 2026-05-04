@@ -869,8 +869,13 @@ else
   log "=========================================="
   echo "success" > "$STATUS_FILE"
   cat "$LOG" >> "$STATUS_FILE"
-  # Restart keycard service — it will blink the boot LED green (success indicator)
-  systemctl start librescoot-keycard 2>/dev/null || systemctl start keycard-service 2>/dev/null || true
+  # Restart keycard service as the FINAL step — it will re-init the LP5662
+  # (full enable+clock+PWM frame, recovering from any earlier bus state) and,
+  # since master_uids.txt doesn't exist on a fresh image, blink the dashboard
+  # LED green to signal "ready, present master card / waiting for setup".
+  # Use restart, not start: start is a no-op if the unit happens to be active
+  # and skips LP5662.init() — which is exactly what we need to fire here.
+  systemctl restart librescoot-keycard 2>/dev/null || systemctl restart keycard-service 2>/dev/null || true
 fi
 ONBOOT_END
 chmod +x /data/onboot.sh

@@ -2875,9 +2875,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // TODO: re-enable after dev
     // await _cleanupMdb();
 
-    // Restart keycard service
+    // Restart keycard service as the final MDB-side step. Using restart (not
+    // start) guarantees LP5662.init() runs and the LED returns to a known
+    // state, even if onboot.sh already started the service or the helper
+    // above clobbered the PWM regs.
     try {
-      await _sshService.runCommand('systemctl start librescoot-keycard 2>/dev/null || systemctl start keycard-service 2>/dev/null || true');
+      await _sshService.runCommand('systemctl restart librescoot-keycard 2>/dev/null || systemctl restart keycard-service 2>/dev/null || true');
     } catch (_) {}
 
     if (status.result == TrampolineResult.success) {
