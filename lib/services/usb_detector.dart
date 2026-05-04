@@ -71,9 +71,10 @@ class UsbDevice {
 
 /// Device operating modes
 enum DeviceMode {
-  ethernet,    // 0525:A4A2 - SSH access available
-  massStorage, // 0525:A4A5 - Ready for firmware write
-  recovery,    // 15A2:0061 - NXP bootloader (DBC only)
+  ethernet,     // 0525:A4A2 - SSH access available
+  massStorage,  // 0525:A4A5 - Ready for firmware write
+  recoveryDbc,  // 15A2:0061 - DBC i.MX6SL ROM in serial-download mode
+  recoveryMdb,  // 15A2:007D - MDB i.MX6UL ROM in serial-download mode
   unknown,
 }
 
@@ -83,7 +84,8 @@ class UsbDetector {
   static const int ethernetPid = 0xA4A2;
   static const int massStoragePid = 0xA4A5;
   static const int nxpVendorId = 0x15A2;
-  static const int recoveryPid = 0x0061;
+  static const int recoveryPidDbc = 0x0061;
+  static const int recoveryPidMdb = 0x007D;
 
   final _deviceController = StreamController<UsbDevice?>.broadcast();
   Timer? _pollingTimer;
@@ -176,6 +178,53 @@ class UsbDetector {
     final storageDevice = await _detectWindowsStorage();
     if (storageDevice != null) return storageDevice;
 
+    // Check for SDP / serial-download recovery (no driver available, but
+    // we can still see the PnP enumeration).
+    final recoveryDevice = await _detectWindowsRecovery();
+    if (recoveryDevice != null) return recoveryDevice;
+
+    return null;
+  }
+
+  /// Detect a Librescoot board in i.MX SDP / serial-download mode on
+  /// Windows by querying PnP for VID_15A2 + the relevant PID.
+  Future<UsbDevice?> _detectWindowsRecovery() async {
+    try {
+      final result = await Process.run(
+        'powershell',
+        [
+          '-NoProfile',
+          '-Command',
+          r'''
+$dev = Get-PnpDevice -PresentOnly | Where-Object { $_.InstanceId -like "*VID_15A2*" } | Select-Object -First 1 InstanceId
+if ($dev) { $dev.InstanceId }
+''',
+        ],
+      );
+      if (result.exitCode != 0) return null;
+      final id = result.stdout.toString().trim().toUpperCase();
+      if (id.isEmpty) return null;
+      if (id.contains('PID_0061')) {
+        return UsbDevice(
+          id: 'usb-15a2-0061',
+          name: 'Librescoot DBC (Recovery)',
+          path: '',
+          vendorId: nxpVendorId,
+          productId: recoveryPidDbc,
+          mode: DeviceMode.recoveryDbc,
+        );
+      }
+      if (id.contains('PID_007D')) {
+        return UsbDevice(
+          id: 'usb-15a2-007d',
+          name: 'Librescoot MDB (Recovery)',
+          path: '',
+          vendorId: nxpVendorId,
+          productId: recoveryPidMdb,
+          mode: DeviceMode.recoveryMdb,
+        );
+      }
+    } catch (_) {}
     return null;
   }
 
@@ -450,6 +499,7 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
       final hasPidA4A5 = RegExp(r'"idproduct"\s*=\s*(?:42149|0x0*a4a5)\b').hasMatch(lower);
       final hasVendor15A2 = RegExp(r'"idvendor"\s*=\s*(?:5538|0x0*15a2)\b').hasMatch(lower);
       final hasPid0061 = RegExp(r'"idproduct"\s*=\s*(?:97|0x0*61)\b').hasMatch(lower);
+      final hasPid007D = RegExp(r'"idproduct"\s*=\s*(?:125|0x0*7d)\b').hasMatch(lower);
 
       // Check Librescoot modes. Prioritize mass storage in case both PIDs
       // appear in a noisy aggregate IORegistry dump.
@@ -483,7 +533,11 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
         }
       }
 
-      // Check for recovery mode (15A2:0061)
+      // Check for serial-download (SDP) recovery mode — what the i.MX
+      // Boot ROM exposes when no valid bootloader was found or BOOT_MODE
+      // pins were set. DBC i.MX6SL => 15A2:0061, MDB i.MX6UL => 15A2:007D.
+      // Both UUU and imx_usb_loader are host-side clients of SDP, so this
+      // detection covers either tool.
       if (hasVendor15A2) {
         if (hasPid0061) {
           return UsbDevice(
@@ -491,8 +545,18 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
             name: 'Librescoot DBC (Recovery)',
             path: '',
             vendorId: nxpVendorId,
-            productId: recoveryPid,
-            mode: DeviceMode.recovery,
+            productId: recoveryPidDbc,
+            mode: DeviceMode.recoveryDbc,
+          );
+        }
+        if (hasPid007D) {
+          return UsbDevice(
+            id: 'usb-15a2-007d',
+            name: 'Librescoot MDB (Recovery)',
+            path: '',
+            vendorId: nxpVendorId,
+            productId: recoveryPidMdb,
+            mode: DeviceMode.recoveryMdb,
           );
         }
       }
@@ -717,17 +781,31 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
       }
     } catch (_) {}
 
-    // Check for recovery mode
+    // Check for SDP / serial-download recovery mode (DBC i.MX6SL or
+    // MDB i.MX6UL). See _detectMacOSIoreg for the protocol notes.
     try {
-      final result = await Process.run('lsusb', ['-d', '15a2:0061']);
-      if (result.exitCode == 0 && result.stdout.toString().isNotEmpty) {
+      final dbc = await Process.run('lsusb', ['-d', '15a2:0061']);
+      if (dbc.exitCode == 0 && dbc.stdout.toString().isNotEmpty) {
         return UsbDevice(
           id: 'usb-15a2-0061',
           name: 'Librescoot DBC (Recovery)',
           path: '',
           vendorId: nxpVendorId,
-          productId: recoveryPid,
-          mode: DeviceMode.recovery,
+          productId: recoveryPidDbc,
+          mode: DeviceMode.recoveryDbc,
+        );
+      }
+    } catch (_) {}
+    try {
+      final mdb = await Process.run('lsusb', ['-d', '15a2:007d']);
+      if (mdb.exitCode == 0 && mdb.stdout.toString().isNotEmpty) {
+        return UsbDevice(
+          id: 'usb-15a2-007d',
+          name: 'Librescoot MDB (Recovery)',
+          path: '',
+          vendorId: nxpVendorId,
+          productId: recoveryPidMdb,
+          mode: DeviceMode.recoveryMdb,
         );
       }
     } catch (_) {}

@@ -44,7 +44,8 @@ The installer handles elevation, driver installation, and network config on its 
 |------|-----|-----|------|
 | Ethernet (RNDIS) | `0525` | `A4A2` | SSH access for bootloader config |
 | Mass Storage (UMS) | `0525` | `A4A5` | Direct eMMC access for flashing |
-| Recovery (NXP) | `15A2` | `0061` | DBC SDP mode (detected, not used) |
+| Recovery (NXP) | `15A2` | `0061` | DBC i.MX6SL boot ROM in SDP / serial-download mode (detected, not used) |
+| Recovery (NXP) | `15A2` | `007D` | MDB i.MX6UL boot ROM in SDP / serial-download mode (detected, not used) |
 
 ## Project layout
 
