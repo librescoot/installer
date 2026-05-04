@@ -153,7 +153,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reliabilityWarningBody =>
-      'The flash takes several minutes and any USB drop or laptop sleep mid-flash leaves the MDB in an inconsistent state. Please check:\n• A known-good USB cable, plugged in firmly at both ends — flaky cables are the #1 cause of failed installs\n• Laptop on power, or fully charged — battery saver / sleep can break the flash\n• Use a direct USB port, not a USB hub if possible\n• Don\'t unplug or move things around once the flash starts';
+      'The flash takes several minutes and any USB drop or laptop sleep mid-flash leaves the MDB in an inconsistent state. Please check:\n• A known-good USB cable, plugged in firmly at both ends. Flaky cables are the #1 cause of failed installs\n• Laptop on power, or fully charged. Battery saver / sleep can break the flash\n• Use a direct USB port, not a USB hub if possible\n• Don\'t unplug or move things around once the flash starts';
 
   @override
   String get noPowerCycleWarningTitle =>
@@ -161,7 +161,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noPowerCycleWarningBody =>
-      'If something looks stuck, gives no feedback, or behaves weirdly: PAUSE and ask in Discord first. Do NOT pull the AUX battery, do NOT disconnect the CBB, do NOT yank USB, do NOT reboot the scooter or your laptop. The installer can recover from almost any state — but only if you don\'t intervene. Power-cycling mid-flash is what bricks scooters.';
+      'If something looks stuck, gives no feedback, or behaves weirdly: PAUSE and ask in Discord first. Do NOT pull the AUX battery, do NOT disconnect the CBB, do NOT yank USB, do NOT reboot the scooter or your laptop. The installer can recover from almost any state. But only if you don\'t intervene. Power-cycling mid-flash is what bricks scooters.';
 
   @override
   String get elevationRequiredTitle => 'Administrator privileges required';
@@ -227,7 +227,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get removeFootwellCoverDesc =>
-      'Four screws to remove — PH2 Phillips from factory, H4 hex or Torx if serviced by a good shop.';
+      'Four screws to remove. PH2 Phillips from factory, H4 hex or Torx if serviced by a good shop.';
 
   @override
   String get removeFootwellCoverImage =>
@@ -252,7 +252,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Plug your USB cable into the MDB port and connect the other end to your laptop.';
 
   @override
-  String get doneDetectDevice => 'Done — Detect Device';
+  String get doneDetectDevice => 'Done. Detect Device';
 
   @override
   String get connectingToMdb => 'Connecting to MDB';
@@ -485,7 +485,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get disconnectAuxPoleDesc =>
-      'Remove ONLY the positive pole (outermost, color-coded red) to avoid risk of inverting polarity. This will remove power from the MDB — the USB connection will disappear.';
+      'Remove ONLY the positive pole (outermost, the red cable and pole) to avoid risk of inverting polarity. This will remove power from the MDB; the USB connection will disappear.';
 
   @override
   String get disconnectAuxPoleImage =>
@@ -493,10 +493,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get auxDisconnectWarning =>
-      'The USB connection will be lost when you disconnect AUX. This is expected — the installer will wait for the MDB to reboot.';
+      'The USB connection will be lost when you disconnect AUX. This is expected. The installer will wait for the MDB to reboot.';
 
   @override
-  String get doneCbbAuxDisconnected => 'Done — I disconnected CBB and AUX';
+  String get doneCbbAuxDisconnected => 'Done. I disconnected CBB and AUX';
 
   @override
   String get waitingForMdbBoot => 'Waiting for MDB Boot';
@@ -514,7 +514,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mdbStillUms =>
-      'MDB still in UMS mode — flash may not have taken. Retrying...';
+      'MDB still in UMS mode. Flash may not have taken. Retrying...';
 
   @override
   String get mdbDetectedNetwork =>
@@ -530,7 +530,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get stableConnectionStallHint =>
-      'Connection still unstable — USB ethernet may have lost its IP. On Linux, your NetworkManager may be fighting for the interface (try disabling IPv6). See log for details.';
+      'Connection still unstable. USB ethernet may have lost its IP. On Linux, your NetworkManager may be fighting for the interface (try disabling IPv6). See log for details.';
 
   @override
   String get reconnectingSsh => 'Reconnecting SSH...';
@@ -623,37 +623,37 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ledFrontRingSolid => 'Front ring glows briefly';
 
   @override
-  String get ledFrontRingSolidMeaning => 'Flash complete — success!';
+  String get ledFrontRingSolidMeaning => 'Flash complete. Success!';
 
   @override
-  String get disconnectCbbImage => '[Photo: CBB connector location under seat]';
+  String get disconnectCbbImage =>
+      '[Photo: CBB connector location in footwell]';
 
   @override
   String get ledBlinkerProgress => 'Blinkers glow progressively';
 
   @override
   String get ledBlinkerProgressMeaning =>
-      'Flash progress — dim = done, breathing = active segment';
+      'Flash progress: glowing constantly = done, pulsing = in progress';
 
   @override
   String get ledBootGreen => 'Boot LED blinking green';
 
   @override
-  String get ledBootGreenMeaning => 'Success — reconnect laptop';
+  String get ledBootGreenMeaning => 'Success. Reconnect laptop';
 
   @override
   String get ledRearLightSolid => 'All four blinkers (hazards) flashing';
 
   @override
   String get ledRearLightSolidMeaning =>
-      'Error — reconnect laptop to see log; the indicators stop once you reconnect';
+      'Error. Reconnect laptop to see log; the indicators stop once you reconnect';
 
   @override
-  String get bootLedGreenReconnect =>
-      'Boot LED is blinking green — Reconnect Laptop';
+  String get bootLedGreenReconnect => 'LED blinking green';
 
   @override
-  String get rearLightCheckError => 'Hazards flashing — Check Error';
+  String get rearLightCheckError => 'LED blinking red, hazards flashing';
 
   @override
   String get verifyingDbcInstallation => 'Verifying DBC Installation';
@@ -1151,7 +1151,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reconnectCbbStepDesc =>
-      'Plug the CBB cable back into the connector under the seat. Without the CBB, the MDB could shut down during flashing.';
+      'Plug the CBB cable back into the connector in the footwell. Without the CBB, the MDB could shut down during flashing.';
 
   @override
   String get insertMainBatteryStep => 'Insert the main battery';
@@ -1190,11 +1190,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ledBootRedMeaning =>
-      'Error — reconnect laptop to check log; the indicators stop once you reconnect';
+      'Error. Reconnect laptop to check log; the indicators stop once you reconnect';
 
   @override
   String get flashingTakesAbout10Min =>
-      'Flashing takes about 10 minutes. Reconnect the laptop USB cable when done.';
+      'Flashing takes about 10 minutes. Once the boot LED is blinking (green or red), and only then, reconnect the laptop USB cable.';
 
   @override
   String get waitingForMdbToReconnect => 'Waiting for MDB to reconnect...';
@@ -1207,7 +1207,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ledAmberWaitNotice =>
-      'Most important: do NOT disconnect USB or power while this is running. While the boot LED is amber/orange, flashing is still in progress — hands off, don\'t click anything. The LED will start blinking once it\'s done: green = success, red = error. Only continue once it\'s blinking.';
+      'Most important: do NOT disconnect USB or power while this is running. While the boot LED is amber/orange, flashing is still in progress. Hands off, don\'t click anything. The LED will start blinking once it\'s done: green = success, red = error. Only continue once it\'s blinking.';
 
   @override
   String get phaseKeycardSetupTitle => 'Keycard Setup';
@@ -1220,7 +1220,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mdbDetectedUmsSkipping =>
-      'MDB detected in UMS mode — skipping to flash.';
+      'MDB detected in UMS mode. Skipping to flash.';
 
   @override
   String get waitingForMdbToReboot => 'Waiting for MDB to reboot...';
@@ -1247,7 +1247,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mdbDisconnectedFlashingDbc =>
-      'MDB disconnected — flashing DBC autonomously...';
+      'MDB disconnected. Flashing DBC autonomously...';
 
   @override
   String get mdbReconnectedVerifying => 'MDB reconnected! Verifying...';

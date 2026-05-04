@@ -85,7 +85,7 @@ class ElevationService {
     final launcher = File('/tmp/librescoot-elevate.sh');
     final argLine = args.map((a) => "'${a.replaceAll("'", "'\\''")}'").join(' ');
     // The launcher script MUST exit immediately. do shell script waits for it.
-    // Only launch the app in background and exit — nothing else.
+    // Only launch the app in background and exit: nothing else.
     await launcher.writeAsString(
       '#!/bin/sh\n'
       '\'${executable.replaceAll("'", "'\\''")}\' $argLine >> /tmp/librescoot-elevate.log 2>&1 &\n',

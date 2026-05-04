@@ -40,7 +40,7 @@ class TrampolineService {
   /// Check if a remote file exists and matches the local file's md5.
   Future<bool> _remoteFileMatches(String localPath, String remotePath) async {
     try {
-      // Get local md5 — use PowerShell on Windows, md5sum on Unix
+      // Get local md5: use PowerShell on Windows, md5sum on Unix
       String localMd5;
       if (Platform.isWindows) {
         final localResult = await Process.run('powershell', [
@@ -118,7 +118,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
         return;
       }
     } catch (_) {
-      // Not running — fall through to start the Python server.
+      // Not running: fall through to start the Python server.
     } finally {
       probeClient.close();
     }
@@ -135,7 +135,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     debugPrint('Trampoline: starting upload server...');
     await _ssh.runCommand('nohup python3 /tmp/upload_srv.py > /tmp/upload_srv.log 2>&1 &');
 
-    // Wait for server to be ready — retry connection
+    // Wait for server to be ready: retry connection
     debugPrint('Trampoline: waiting for upload server...');
     final client = HttpClient();
     try {
@@ -185,7 +185,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
         ? remotePath.substring(5)
         : '/$remotePath';
 
-    // Raw socket — write HTTP headers then stream file data with real progress
+    // Raw socket: write HTTP headers then stream file data with real progress
     final socket = await Socket.connect('192.168.7.1', 8080);
     try {
       // Send HTTP PUT header
@@ -196,7 +196,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
           '\r\n';
       socket.add(header.codeUnits);
 
-      // Stream file in 64KB chunks — socket.add + flush gives real backpressure
+      // Stream file in 64KB chunks: socket.add + flush gives real backpressure
       var sent = 0;
       var lastProgress = DateTime.now();
       const chunkSize = 64 * 1024;
@@ -260,7 +260,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       filesToUpload.add(MapEntry(valhallaTilesLocalPath, '/data/${region.valhallaTilesFilename}'));
     }
 
-    // Start HTTP upload server early — MDB may be busy creating UMS disk image on first boot
+    // Start HTTP upload server early: MDB may be busy creating UMS disk image on first boot
     onProgress?.call('Starting upload server...', 0.0);
     await _startUploadServer();
 
@@ -311,7 +311,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
                 final remaining = (elapsed / overall) * (1.0 - overall);
                 final mins = remaining ~/ 60;
                 final secs = (remaining % 60).floor();
-                eta = ' — ${mins}m ${secs}s remaining';
+                eta = ': ${mins}m ${secs}s remaining';
               }
               onProgress?.call(
                 'Uploading $filename... ${mb.toStringAsFixed(0)}/${totalMb.toStringAsFixed(0)} MB$eta',
@@ -373,7 +373,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       region: region,
       installTiles: osmTilesLocalPath != null || valhallaTilesLocalPath != null,
     );
-    // Ensure Unix line endings (LF only) — Windows may introduce CRLF which
+    // Ensure Unix line endings (LF only): Windows may introduce CRLF which
     // breaks the shebang line and prevents execution on Linux.
     final cleanScript = script.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
     debugPrint('Trampoline: script generated (${cleanScript.length} chars)');

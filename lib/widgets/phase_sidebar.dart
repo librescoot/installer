@@ -336,7 +336,7 @@ class _DownloadStatus extends StatelessWidget {
             spacing: 8,
             children: [
               for (final item in items)
-                // Skip bmap files — they're tiny and tracked with their firmware
+                // Skip bmap files: they're tiny and tracked with their firmware
                 if (item.type != DownloadItemType.mdbBmap && item.type != DownloadItemType.dbcBmap)
                   Row(
                     mainAxisSize: MainAxisSize.min,

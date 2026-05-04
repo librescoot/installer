@@ -533,7 +533,7 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
         }
       }
 
-      // Check for serial-download (SDP) recovery mode — what the i.MX
+      // Check for serial-download (SDP) recovery mode: what the i.MX
       // Boot ROM exposes when no valid bootloader was found or BOOT_MODE
       // pins were set. DBC i.MX6SL => 15A2:0061, MDB i.MX6UL => 15A2:007D.
       // Both UUU and imx_usb_loader are host-side clients of SDP, so this

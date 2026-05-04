@@ -111,7 +111,7 @@ class NetworkService {
 
   Future<NetworkInterface?> _findWindowsInterface() async {
     try {
-      // Use PowerShell to find RNDIS network adapter — avoids cmd.exe '&'
+      // Use PowerShell to find RNDIS network adapter: avoids cmd.exe '&'
       // escaping issues with wmic.
       final result = await Process.run(
         'powershell',

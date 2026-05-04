@@ -13,7 +13,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get elevationWarning =>
-      'Ohne Administratorrechte gestartet. Einige Funktionen sind ggf. eingeschränkt.';
+      'Ohne Administratorrechte gestartet. Einige Funktionen sind ggf. Eingeschränkt.';
 
   @override
   String get phaseWelcomeTitle => 'Willkommen';
@@ -156,7 +156,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get reliabilityWarningBody =>
-      'Das Flashen dauert mehrere Minuten, und jeder USB-Wackler oder Laptop-Standby mittendrin hinterlässt das MDB in einem inkonsistenten Zustand. Bitte prüfen:\n• Ein zuverlässiges USB-Kabel, an beiden Enden fest eingesteckt — Wackelkontakte sind die häufigste Ursache für gescheiterte Installationen\n• Laptop am Netzteil oder vollgeladen — Energiesparmodus / Standby unterbricht den Flash\n• Möglichst direkter USB-Port, kein USB-Hub\n• Während des Flashens nichts umstecken oder bewegen';
+      'Das Flashen dauert mehrere Minuten, und jeder USB-Wackler oder Laptop-Standby mittendrin hinterlässt das MDB in einem inkonsistenten Zustand. Bitte prüfen:\n• Ein zuverlässiges USB-Kabel, an beiden Enden fest eingesteckt. Wackelkontakte sind die häufigste Ursache für gescheiterte Installationen\n• Laptop am Netzteil oder vollgeladen. Energiesparmodus / Standby unterbricht den Flash\n• Möglichst direkter USB-Port, kein USB-Hub\n• Während des Flashens nichts umstecken oder bewegen';
 
   @override
   String get noPowerCycleWarningTitle =>
@@ -164,7 +164,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get noPowerCycleWarningBody =>
-      'Wenn irgendwas hängt, keine Rückmeldung gibt oder komisch aussieht: erstmal PAUSE und im Discord nachfragen. Nicht den AUX-Akku ziehen, nicht die CBB abklemmen, nicht USB rausreißen, weder Roller noch Laptop neu starten. Der Installer kann aus fast jedem Zustand wieder rauskommen — aber nur, wenn du nicht reingrätschst. Mittendrin den Strom trennen ist das, was Roller bricked.';
+      'Wenn irgendwas hängt, keine Rückmeldung gibt oder komisch aussieht: erstmal PAUSE und im Discord nachfragen. Nicht den AUX-Akku ziehen, nicht die CBB abklemmen, nicht USB rausreißen, weder Roller noch Laptop neu starten. Der Installer kann aus fast jedem Zustand wieder rauskommen. Aber nur, wenn du nicht reingrätschst. Mittendrin den Strom trennen ist das, was Roller bricked.';
 
   @override
   String get elevationRequiredTitle => 'Administratorrechte erforderlich';
@@ -231,7 +231,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get removeFootwellCoverDesc =>
-      'Vier Schrauben lösen — ab Werk PH2 Kreuzschrauben, bei guten Werkstätten H4 Innensechskant oder Torx.';
+      'Vier Schrauben lösen. Ab Werk PH2 Kreuzschrauben, bei guten Werkstätten H4 Innensechskant oder Torx.';
 
   @override
   String get removeFootwellCoverImage =>
@@ -256,7 +256,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Stecke dein USB-Kabel in den MDB-Port und verbinde das andere Ende mit deinem Laptop.';
 
   @override
-  String get doneDetectDevice => 'Fertig — Gerät erkennen';
+  String get doneDetectDevice => 'Fertig. Gerät erkennen';
 
   @override
   String get connectingToMdb => 'Verbindung zum MDB wird hergestellt';
@@ -343,7 +343,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String untestedFirmwareBody(String version) {
-    return 'Die Installation auf Firmware-Versionen älter als 1.12.0 ist nicht getestet (deine: $version). Der Installer sollte trotzdem funktionieren — über Feedback im Librescoot-Discord freuen wir uns.';
+    return 'Die Installation auf Firmware-Versionen älter als 1.12.0 ist nicht getestet (deine: $version). Der Installer sollte trotzdem funktionieren. Über Feedback im Librescoot-Discord freuen wir uns.';
   }
 
   @override
@@ -490,7 +490,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get disconnectAuxPoleDesc =>
-      'Entferne NUR den Pluspol (außen, rot markiert), um eine Verpolung zu vermeiden. Dadurch wird das MDB stromlos — die USB-Verbindung geht verloren.';
+      'Entferne NUR den Pluspol (außen, rotes Kabel und Pol), um eine Verpolung zu vermeiden. Dadurch wird das MDB stromlos; die USB-Verbindung geht verloren.';
 
   @override
   String get disconnectAuxPoleImage =>
@@ -498,10 +498,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get auxDisconnectWarning =>
-      'Die USB-Verbindung geht verloren, wenn du AUX trennst. Das ist normal — der Installer wartet auf den Neustart des MDB.';
+      'Die USB-Verbindung geht verloren, wenn du AUX trennst. Das ist normal. Der Installer wartet auf den Neustart des MDB.';
 
   @override
-  String get doneCbbAuxDisconnected => 'Fertig — CBB und AUX getrennt';
+  String get doneCbbAuxDisconnected => 'Fertig. CBB und AUX getrennt';
 
   @override
   String get waitingForMdbBoot => 'Warte auf MDB-Boot';
@@ -519,7 +519,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get mdbStillUms =>
-      'MDB immer noch im UMS-Modus — Flash war möglicherweise nicht erfolgreich. Neuer Versuch...';
+      'MDB immer noch im UMS-Modus. Flash war möglicherweise nicht erfolgreich. Neuer Versuch...';
 
   @override
   String get mdbDetectedNetwork =>
@@ -535,7 +535,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get stableConnectionStallHint =>
-      'Verbindung noch instabil — die USB-Netzwerkschnittstelle hat eventuell ihre IP verloren. Auf Linux: NetworkManager stört möglicherweise (IPv6 deaktivieren kann helfen). Details im Log.';
+      'Verbindung noch instabil. Die USB-Netzwerkschnittstelle hat eventuell ihre IP verloren. Auf Linux: NetworkManager stört möglicherweise (IPv6 deaktivieren kann helfen). Details im Log.';
 
   @override
   String get reconnectingSsh => 'SSH wird neu verbunden...';
@@ -630,36 +630,36 @@ class AppLocalizationsDe extends AppLocalizations {
   String get ledFrontRingSolid => 'Frontring leuchtet kurz';
 
   @override
-  String get ledFrontRingSolidMeaning => 'Flash abgeschlossen — Erfolg!';
+  String get ledFrontRingSolidMeaning => 'Flash abgeschlossen. Erfolg!';
 
   @override
-  String get disconnectCbbImage => '[Foto: CBB-Stecker unter der Sitzbank]';
+  String get disconnectCbbImage => '[Foto: CBB-Stecker im Fußraum]';
 
   @override
   String get ledBlinkerProgress => 'Blinker leuchten nacheinander';
 
   @override
   String get ledBlinkerProgressMeaning =>
-      'Flash-Fortschritt — gedimmt = fertig, atmend = aktiv';
+      'Flash-Fortschritt: dauerhaft an = fertig, pulsierend = läuft';
 
   @override
   String get ledBootGreen => 'Boot-LED blinkt grün';
 
   @override
-  String get ledBootGreenMeaning => 'Erfolgreich — Laptop wieder verbinden';
+  String get ledBootGreenMeaning => 'Erfolgreich. Laptop wieder verbinden';
 
   @override
   String get ledRearLightSolid => 'Alle vier Blinker (Warnblinker) blinken';
 
   @override
   String get ledRearLightSolidMeaning =>
-      'Fehler — Laptop verbinden für Log; Blinker und LED gehen aus, sobald du verbunden bist';
+      'Fehler. Laptop verbinden für Log; Blinker und LED gehen aus, sobald du verbunden bist';
 
   @override
-  String get bootLedGreenReconnect => 'Boot-LED blinkt grün — Laptop verbinden';
+  String get bootLedGreenReconnect => 'LED blinkt grün';
 
   @override
-  String get rearLightCheckError => 'Warnblinker an — Fehler prüfen';
+  String get rearLightCheckError => 'LED blinkt rot, Warnblinker an';
 
   @override
   String get verifyingDbcInstallation => 'DBC-Installation wird geprüft';
@@ -1159,7 +1159,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get reconnectCbbStepDesc =>
-      'Stecke das CBB-Kabel wieder in den Anschluss unter der Sitzbank. Ohne CBB könnte das MDB während des Flashens herunterfahren.';
+      'Stecke das CBB-Kabel wieder in den Anschluss im Fußraum. Ohne CBB könnte das MDB während des Flashens herunterfahren.';
 
   @override
   String get insertMainBatteryStep => 'Fahrakku einsetzen';
@@ -1199,11 +1199,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get ledBootRedMeaning =>
-      'Fehler — Laptop verbinden und Log prüfen; Blinker und LED gehen aus, sobald du verbunden bist';
+      'Fehler. Laptop verbinden und Log prüfen; Blinker und LED gehen aus, sobald du verbunden bist';
 
   @override
   String get flashingTakesAbout10Min =>
-      'Das Flashen dauert etwa 10 Minuten. Schließe danach das Laptop-USB-Kabel wieder an.';
+      'Das Flashen dauert etwa 10 Minuten. Erst wenn die Boot-LED blinkt (grün oder rot), und auch wirklich erst dann, das Laptop-USB-Kabel wieder anschließen.';
 
   @override
   String get waitingForMdbToReconnect => 'Warte auf MDB-Wiederverbindung...';
@@ -1216,7 +1216,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get ledAmberWaitNotice =>
-      'Wichtig: USB und Strom NICHT trennen, solange das hier läuft. Solange die Boot-LED gelb-orange leuchtet, läuft der Flash noch — Finger weg, nichts anklicken. Wenn der Flash durch ist, fängt die LED an zu blinken: grün = Erfolg, rot = Fehler. Erst weitermachen, wenn sie blinkt.';
+      'Wichtig: USB und Strom NICHT trennen, solange das hier läuft. Solange die Boot-LED gelb-orange leuchtet, läuft der Flash noch. Finger weg, nichts anklicken. Wenn der Flash durch ist, fängt die LED an zu blinken: grün = Erfolg, rot = Fehler. Erst weitermachen, wenn sie blinkt.';
 
   @override
   String get phaseKeycardSetupTitle => 'Schlüsselkarten einrichten';
@@ -1230,7 +1230,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get mdbDetectedUmsSkipping =>
-      'MDB im UMS-Modus erkannt — direkt zum Flashen.';
+      'MDB im UMS-Modus erkannt. Direkt zum Flashen.';
 
   @override
   String get waitingForMdbToReboot => 'Warte auf MDB-Neustart...';
@@ -1258,7 +1258,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get mdbDisconnectedFlashingDbc =>
-      'MDB getrennt — DBC wird autonom geflasht...';
+      'MDB getrennt. DBC wird autonom geflasht...';
 
   @override
   String get mdbReconnectedVerifying =>

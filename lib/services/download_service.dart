@@ -307,7 +307,7 @@ class DownloadService {
       final family = RegExp.escape(versionMatch.group(1)!);
       cleanupPattern = RegExp('^$family-v\\d.*$escSuffix\$');
     } else {
-      // Tiles etc — use everything before the first digit/date
+      // Tiles etc: use everything before the first digit/date
       final tileMatch = RegExp(r'^([a-z_]+)').firstMatch(name);
       final prefix =
           RegExp.escape(tileMatch?.group(1) ?? name.substring(0, 5));

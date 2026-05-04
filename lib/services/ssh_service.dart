@@ -134,7 +134,7 @@ class SshService {
 
   /// Set a callback to be invoked when the bundled credentials don't work
   /// and we need to ask the user for the root password. Only the initial
-  /// MDB connect on stock firmware needs this — once Librescoot is flashed
+  /// MDB connect on stock firmware needs this: once Librescoot is flashed
   /// the password is empty.
   void setManualPasswordPrompt(ManualPasswordPrompt? prompt) {
     _manualPasswordPrompt = prompt;
@@ -1089,7 +1089,7 @@ class SshService {
       return true;
     }
 
-    // Stock backup — needs path rewriting
+    // Stock backup: needs path rewriting
     final stockDir = Directory(path.join(backupPath, 'etc-rescoot'));
     if (!await stockDir.exists()) return false;
 

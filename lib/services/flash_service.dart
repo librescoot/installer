@@ -569,7 +569,7 @@ class FlashService {
         await _writeWithGoFlasher(flasherPath, imagePath, rawDevice, bmapPath, true, onProgress);
       } else {
         // No flasher binary for this arch (e.g. older bundle without
-        // darwin-amd64). Fall back to a plain dd write — slower, no
+        // darwin-amd64). Fall back to a plain dd write: slower, no
         // bmap fast path, no two-phase, but it gets the bits onto the
         // device. We're already running as root via self-elevation.
         debugPrint('Flash: no Go flasher for ${Abi.current()}, falling back to dd');
@@ -846,7 +846,7 @@ class FlashService {
   }
 
   /// Pick the librescoot-flasher binary that matches the current host
-  /// CPU. Returns null on an unsupported (OS, arch) combo — the caller
+  /// CPU. Returns null on an unsupported (OS, arch) combo: the caller
   /// must then either fall back (macOS) or surface an error.
   String? _flasherBinaryName() {
     final abi = Abi.current();
@@ -957,7 +957,7 @@ class FlashService {
             if (fraction > 0.01) {
               final elapsed = stopwatch.elapsedMilliseconds / 1000;
               final remaining = (elapsed / fraction) * (1.0 - fraction);
-              eta = ' — ${remaining ~/ 60}m ${(remaining % 60).floor()}s remaining';
+              eta = ': ${remaining ~/ 60}m ${(remaining % 60).floor()}s remaining';
             }
             onProgress?.call(fraction, '${mb.toStringAsFixed(0)} / ${totalMb.toStringAsFixed(0)} MB written$eta');
           }
@@ -975,7 +975,7 @@ class FlashService {
       final out = output.toString();
       debugPrint('Flash: Go flasher output: $out');
       if (exitCode == 126) {
-        throw Exception('Authorization was dismissed — flash incomplete');
+        throw Exception('Authorization was dismissed: flash incomplete');
       }
       throw Exception('Flash failed: $out');
     }
@@ -1092,7 +1092,7 @@ echo "VERIFY:OK"
                 final remaining = (elapsed / fraction) * (1.0 - fraction);
                 final mins = (remaining / 60).floor();
                 final secs = (remaining % 60).floor();
-                eta = ' — ${mins}m ${secs}s remaining';
+                eta = ': ${mins}m ${secs}s remaining';
               }
               onProgress?.call(progress, '${mb.toStringAsFixed(0)} MB written$eta');
             } else if (currentPhase == 'B') {
@@ -1113,10 +1113,10 @@ echo "VERIFY:OK"
       final out = output.toString();
       debugPrint('Flash: script output: $out');
       if (out.contains('VERIFY:FAIL')) {
-        throw Exception('Boot sector verification FAILED — checksum mismatch. Check log.');
+        throw Exception('Boot sector verification FAILED: checksum mismatch. Check log.');
       }
       if (exitCode == 126) {
-        throw Exception('Authorization was dismissed — flash incomplete');
+        throw Exception('Authorization was dismissed: flash incomplete');
       }
       throw Exception('Flash failed with exit code $exitCode');
     }
@@ -1158,7 +1158,7 @@ echo "VERIFY:OK"
     }
     if (sourceHash != deviceHash) {
       throw Exception(
-        'Boot sector verification FAILED — checksum mismatch!\n'
+        'Boot sector verification FAILED: checksum mismatch!\n'
         'Expected: $sourceHash\n'
         'Got:      $deviceHash',
       );

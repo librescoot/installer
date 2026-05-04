@@ -182,7 +182,7 @@ if ($d) {
         );
       }
 
-      // No driver bound yet — Windows reports class as USBDevice or leaves the
+      // No driver bound yet: Windows reports class as USBDevice or leaves the
       // service blank.
       if (cls == 'usbdevice' || cls.isEmpty || svc.isEmpty) {
         return DriverDiagnosis(
@@ -221,7 +221,7 @@ if ($d) {
     final pre = await diagnoseBinding();
     debugPrint('Driver: pre-install diagnosis: $pre');
 
-    // Already correctly bound — nothing to do, regardless of what's in the
+    // Already correctly bound: nothing to do, regardless of what's in the
     // driver store. (Covers users who already had the driver from a previous
     // install or from a similar device.)
     if (pre.state == DriverBinding.correct) {
@@ -248,10 +248,10 @@ if ($d) {
         );
       }
 
-      // No device to rebind right now — INF is staged, Windows will pick it
+      // No device to rebind right now: INF is staged, Windows will pick it
       // up when the user plugs in.
       if (pre.state == DriverBinding.notPresent) {
-        debugPrint('Driver: device not present — INF staged for plug-in');
+        debugPrint('Driver: device not present: INF staged for plug-in');
         return DriverInstallResult.installed();
       }
 
@@ -274,7 +274,7 @@ if ($d) {
       // returned an unexpected error (e.g. on Windows builds with unusual
       // policy).
       if (pre.instanceId != null) {
-        debugPrint('Driver: force-install did not converge — '
+        debugPrint('Driver: force-install did not converge: '
             'falling back to remove+scan rebind on ${pre.instanceId}');
         await _forceRebind(pre.instanceId!);
         post = await _waitForCorrectBinding(const Duration(seconds: 10));
@@ -285,7 +285,7 @@ if ($d) {
         return DriverInstallResult.installed();
       }
 
-      // notPresent after a successful staging is fine — the user just
+      // notPresent after a successful staging is fine: the user just
       // unplugged during install. Treat as installed so the UI can move on.
       if (post.state == DriverBinding.notPresent) {
         return DriverInstallResult.installed();
@@ -312,7 +312,7 @@ if ($d) {
   /// Force the staged INF onto the Librescoot hardware ID via
   /// `newdev.dll!UpdateDriverForPlugAndPlayDevicesW` with `INSTALLFLAG_FORCE`
   /// (= 0x1). This is the documented "rebind regardless of current driver"
-  /// API — equivalent to `devcon update` — and bypasses driver ranking.
+  /// API: equivalent to `devcon update`: and bypasses driver ranking.
   ///
   /// Caller must have already staged the INF via `pnputil /add-driver
   /// /install`. Requires admin (which the caller already has).
@@ -397,7 +397,7 @@ if ($ok) {
 
     if (!remove.ok) {
       debugPrint(
-        'Driver: pnputil /remove-device failed — '
+        'Driver: pnputil /remove-device failed: '
         'falling back to disable/enable cycle',
       );
       // Fallback for older builds: bounce the device.

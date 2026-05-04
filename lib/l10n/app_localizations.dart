@@ -377,7 +377,7 @@ abstract class AppLocalizations {
   /// No description provided for @reliabilityWarningBody.
   ///
   /// In en, this message translates to:
-  /// **'The flash takes several minutes and any USB drop or laptop sleep mid-flash leaves the MDB in an inconsistent state. Please check:\n• A known-good USB cable, plugged in firmly at both ends — flaky cables are the #1 cause of failed installs\n• Laptop on power, or fully charged — battery saver / sleep can break the flash\n• Use a direct USB port, not a USB hub if possible\n• Don\'t unplug or move things around once the flash starts'**
+  /// **'The flash takes several minutes and any USB drop or laptop sleep mid-flash leaves the MDB in an inconsistent state. Please check:\n• A known-good USB cable, plugged in firmly at both ends. Flaky cables are the #1 cause of failed installs\n• Laptop on power, or fully charged. Battery saver / sleep can break the flash\n• Use a direct USB port, not a USB hub if possible\n• Don\'t unplug or move things around once the flash starts'**
   String get reliabilityWarningBody;
 
   /// No description provided for @noPowerCycleWarningTitle.
@@ -389,7 +389,7 @@ abstract class AppLocalizations {
   /// No description provided for @noPowerCycleWarningBody.
   ///
   /// In en, this message translates to:
-  /// **'If something looks stuck, gives no feedback, or behaves weirdly: PAUSE and ask in Discord first. Do NOT pull the AUX battery, do NOT disconnect the CBB, do NOT yank USB, do NOT reboot the scooter or your laptop. The installer can recover from almost any state — but only if you don\'t intervene. Power-cycling mid-flash is what bricks scooters.'**
+  /// **'If something looks stuck, gives no feedback, or behaves weirdly: PAUSE and ask in Discord first. Do NOT pull the AUX battery, do NOT disconnect the CBB, do NOT yank USB, do NOT reboot the scooter or your laptop. The installer can recover from almost any state. But only if you don\'t intervene. Power-cycling mid-flash is what bricks scooters.'**
   String get noPowerCycleWarningBody;
 
   /// No description provided for @elevationRequiredTitle.
@@ -515,7 +515,7 @@ abstract class AppLocalizations {
   /// No description provided for @removeFootwellCoverDesc.
   ///
   /// In en, this message translates to:
-  /// **'Four screws to remove — PH2 Phillips from factory, H4 hex or Torx if serviced by a good shop.'**
+  /// **'Four screws to remove. PH2 Phillips from factory, H4 hex or Torx if serviced by a good shop.'**
   String get removeFootwellCoverDesc;
 
   /// No description provided for @removeFootwellCoverImage.
@@ -557,7 +557,7 @@ abstract class AppLocalizations {
   /// No description provided for @doneDetectDevice.
   ///
   /// In en, this message translates to:
-  /// **'Done — Detect Device'**
+  /// **'Done. Detect Device'**
   String get doneDetectDevice;
 
   /// No description provided for @connectingToMdb.
@@ -977,7 +977,7 @@ abstract class AppLocalizations {
   /// No description provided for @disconnectAuxPoleDesc.
   ///
   /// In en, this message translates to:
-  /// **'Remove ONLY the positive pole (outermost, color-coded red) to avoid risk of inverting polarity. This will remove power from the MDB — the USB connection will disappear.'**
+  /// **'Remove ONLY the positive pole (outermost, the red cable and pole) to avoid risk of inverting polarity. This will remove power from the MDB; the USB connection will disappear.'**
   String get disconnectAuxPoleDesc;
 
   /// No description provided for @disconnectAuxPoleImage.
@@ -989,13 +989,13 @@ abstract class AppLocalizations {
   /// No description provided for @auxDisconnectWarning.
   ///
   /// In en, this message translates to:
-  /// **'The USB connection will be lost when you disconnect AUX. This is expected — the installer will wait for the MDB to reboot.'**
+  /// **'The USB connection will be lost when you disconnect AUX. This is expected. The installer will wait for the MDB to reboot.'**
   String get auxDisconnectWarning;
 
   /// No description provided for @doneCbbAuxDisconnected.
   ///
   /// In en, this message translates to:
-  /// **'Done — I disconnected CBB and AUX'**
+  /// **'Done. I disconnected CBB and AUX'**
   String get doneCbbAuxDisconnected;
 
   /// No description provided for @waitingForMdbBoot.
@@ -1025,7 +1025,7 @@ abstract class AppLocalizations {
   /// No description provided for @mdbStillUms.
   ///
   /// In en, this message translates to:
-  /// **'MDB still in UMS mode — flash may not have taken. Retrying...'**
+  /// **'MDB still in UMS mode. Flash may not have taken. Retrying...'**
   String get mdbStillUms;
 
   /// No description provided for @mdbDetectedNetwork.
@@ -1049,7 +1049,7 @@ abstract class AppLocalizations {
   /// No description provided for @stableConnectionStallHint.
   ///
   /// In en, this message translates to:
-  /// **'Connection still unstable — USB ethernet may have lost its IP. On Linux, your NetworkManager may be fighting for the interface (try disabling IPv6). See log for details.'**
+  /// **'Connection still unstable. USB ethernet may have lost its IP. On Linux, your NetworkManager may be fighting for the interface (try disabling IPv6). See log for details.'**
   String get stableConnectionStallHint;
 
   /// No description provided for @reconnectingSsh.
@@ -1211,13 +1211,13 @@ abstract class AppLocalizations {
   /// No description provided for @ledFrontRingSolidMeaning.
   ///
   /// In en, this message translates to:
-  /// **'Flash complete — success!'**
+  /// **'Flash complete. Success!'**
   String get ledFrontRingSolidMeaning;
 
   /// No description provided for @disconnectCbbImage.
   ///
   /// In en, this message translates to:
-  /// **'[Photo: CBB connector location under seat]'**
+  /// **'[Photo: CBB connector location in footwell]'**
   String get disconnectCbbImage;
 
   /// No description provided for @ledBlinkerProgress.
@@ -1229,7 +1229,7 @@ abstract class AppLocalizations {
   /// No description provided for @ledBlinkerProgressMeaning.
   ///
   /// In en, this message translates to:
-  /// **'Flash progress — dim = done, breathing = active segment'**
+  /// **'Flash progress: glowing constantly = done, pulsing = in progress'**
   String get ledBlinkerProgressMeaning;
 
   /// No description provided for @ledBootGreen.
@@ -1241,7 +1241,7 @@ abstract class AppLocalizations {
   /// No description provided for @ledBootGreenMeaning.
   ///
   /// In en, this message translates to:
-  /// **'Success — reconnect laptop'**
+  /// **'Success. Reconnect laptop'**
   String get ledBootGreenMeaning;
 
   /// No description provided for @ledRearLightSolid.
@@ -1253,19 +1253,19 @@ abstract class AppLocalizations {
   /// No description provided for @ledRearLightSolidMeaning.
   ///
   /// In en, this message translates to:
-  /// **'Error — reconnect laptop to see log; the indicators stop once you reconnect'**
+  /// **'Error. Reconnect laptop to see log; the indicators stop once you reconnect'**
   String get ledRearLightSolidMeaning;
 
   /// No description provided for @bootLedGreenReconnect.
   ///
   /// In en, this message translates to:
-  /// **'Boot LED is blinking green — Reconnect Laptop'**
+  /// **'LED blinking green'**
   String get bootLedGreenReconnect;
 
   /// No description provided for @rearLightCheckError.
   ///
   /// In en, this message translates to:
-  /// **'Hazards flashing — Check Error'**
+  /// **'LED blinking red, hazards flashing'**
   String get rearLightCheckError;
 
   /// No description provided for @verifyingDbcInstallation.
@@ -2153,7 +2153,7 @@ abstract class AppLocalizations {
   /// No description provided for @reconnectCbbStepDesc.
   ///
   /// In en, this message translates to:
-  /// **'Plug the CBB cable back into the connector under the seat. Without the CBB, the MDB could shut down during flashing.'**
+  /// **'Plug the CBB cable back into the connector in the footwell. Without the CBB, the MDB could shut down during flashing.'**
   String get reconnectCbbStepDesc;
 
   /// No description provided for @insertMainBatteryStep.
@@ -2225,13 +2225,13 @@ abstract class AppLocalizations {
   /// No description provided for @ledBootRedMeaning.
   ///
   /// In en, this message translates to:
-  /// **'Error — reconnect laptop to check log; the indicators stop once you reconnect'**
+  /// **'Error. Reconnect laptop to check log; the indicators stop once you reconnect'**
   String get ledBootRedMeaning;
 
   /// No description provided for @flashingTakesAbout10Min.
   ///
   /// In en, this message translates to:
-  /// **'Flashing takes about 10 minutes. Reconnect the laptop USB cable when done.'**
+  /// **'Flashing takes about 10 minutes. Once the boot LED is blinking (green or red), and only then, reconnect the laptop USB cable.'**
   String get flashingTakesAbout10Min;
 
   /// No description provided for @waitingForMdbToReconnect.
@@ -2255,7 +2255,7 @@ abstract class AppLocalizations {
   /// No description provided for @ledAmberWaitNotice.
   ///
   /// In en, this message translates to:
-  /// **'Most important: do NOT disconnect USB or power while this is running. While the boot LED is amber/orange, flashing is still in progress — hands off, don\'t click anything. The LED will start blinking once it\'s done: green = success, red = error. Only continue once it\'s blinking.'**
+  /// **'Most important: do NOT disconnect USB or power while this is running. While the boot LED is amber/orange, flashing is still in progress. Hands off, don\'t click anything. The LED will start blinking once it\'s done: green = success, red = error. Only continue once it\'s blinking.'**
   String get ledAmberWaitNotice;
 
   /// No description provided for @phaseKeycardSetupTitle.
@@ -2279,7 +2279,7 @@ abstract class AppLocalizations {
   /// No description provided for @mdbDetectedUmsSkipping.
   ///
   /// In en, this message translates to:
-  /// **'MDB detected in UMS mode — skipping to flash.'**
+  /// **'MDB detected in UMS mode. Skipping to flash.'**
   String get mdbDetectedUmsSkipping;
 
   /// No description provided for @waitingForMdbToReboot.
@@ -2327,7 +2327,7 @@ abstract class AppLocalizations {
   /// No description provided for @mdbDisconnectedFlashingDbc.
   ///
   /// In en, this message translates to:
-  /// **'MDB disconnected — flashing DBC autonomously...'**
+  /// **'MDB disconnected. Flashing DBC autonomously...'**
   String get mdbDisconnectedFlashingDbc;
 
   /// No description provided for @mdbReconnectedVerifying.
