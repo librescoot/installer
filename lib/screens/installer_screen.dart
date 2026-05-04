@@ -140,12 +140,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _downloadState.wantsOfflineMaps = false;
     }
     if (args.autoStart) {
-      // Auto-advance past welcome after channels resolve. The elevated
-      // relaunch lands here with --auto-start and we want it to skip the
-      // welcome form (the user already filled it in on the unelevated
-      // parent and clicked Start) but stop on Notices so the warnings are
-      // not silently bypassed.
-      Future.delayed(const Duration(seconds: 2), () {
+      // Auto-advance past welcome to notices on the elevated relaunch.
+      // The user already filled in the welcome form on the unelevated
+      // parent and clicked Start, so showing Welcome again would just
+      // be noise; stop on Notices so the warnings still get read.
+      // Use addPostFrameCallback so the first frame paints first
+      // (otherwise the user briefly sees nothing while we transition),
+      // but don't add a real delay — the old 2 s wait was for channel
+      // resolution which Notices doesn't need.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _currentPhase == InstallerPhase.welcome) {
           _setPhase(InstallerPhase.notices);
         }
@@ -199,8 +202,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
         setState(() {
           _availableChannels = channels;
           _channelsLoading = false;
-          // Default to best available: stable > testing > nightly
-          if (channels.isNotEmpty) {
+          // Default to best available: stable > testing > nightly. But only
+          // if the user (or launchArgs --channel=) hasn't already chosen
+          // one — otherwise the elevated relaunch's --channel=nightly would
+          // get clobbered when this async fetch eventually completes.
+          if (channels.isNotEmpty && launchArgs.channel == null) {
             if (channels.containsKey(DownloadChannel.stable)) {
               _downloadState.channel = DownloadChannel.stable;
             } else if (channels.containsKey(DownloadChannel.testing)) {
