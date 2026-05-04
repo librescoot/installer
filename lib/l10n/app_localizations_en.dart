@@ -168,7 +168,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get elevationRequiredBody =>
-      'Librescoot Installer needs administrator privileges to write to the scooter\'s storage and configure the network interface. The elevation prompt was declined or failed.\n\nClose this window and re-launch the installer, then approve the elevation prompt.';
+      'Librescoot Installer needs administrator privileges to write to the scooter\'s storage and configure the network interface. The elevation prompt was declined or could not be shown.\n\nClick Continue to dismiss this dialog and try again. If you keep declining the prompt, the installer cannot proceed.';
+
+  @override
+  String get elevationNoticeWelcome =>
+      'When you click Start Installation, your system will ask you to allow administrator access. The installer needs it to write to the scooter\'s storage and configure networking.';
+
+  @override
+  String get requestingAdminPrivileges =>
+      'Requesting administrator privileges...';
 
   @override
   String get quitButton => 'Quit';

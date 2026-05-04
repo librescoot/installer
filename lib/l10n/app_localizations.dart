@@ -401,8 +401,20 @@ abstract class AppLocalizations {
   /// No description provided for @elevationRequiredBody.
   ///
   /// In en, this message translates to:
-  /// **'Librescoot Installer needs administrator privileges to write to the scooter\'s storage and configure the network interface. The elevation prompt was declined or failed.\n\nClose this window and re-launch the installer, then approve the elevation prompt.'**
+  /// **'Librescoot Installer needs administrator privileges to write to the scooter\'s storage and configure the network interface. The elevation prompt was declined or could not be shown.\n\nClick Continue to dismiss this dialog and try again. If you keep declining the prompt, the installer cannot proceed.'**
   String get elevationRequiredBody;
+
+  /// No description provided for @elevationNoticeWelcome.
+  ///
+  /// In en, this message translates to:
+  /// **'When you click Start Installation, your system will ask you to allow administrator access. The installer needs it to write to the scooter\'s storage and configure networking.'**
+  String get elevationNoticeWelcome;
+
+  /// No description provided for @requestingAdminPrivileges.
+  ///
+  /// In en, this message translates to:
+  /// **'Requesting administrator privileges...'**
+  String get requestingAdminPrivileges;
 
   /// No description provided for @quitButton.
   ///

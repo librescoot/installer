@@ -171,7 +171,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get elevationRequiredBody =>
-      'Der Librescoot Installer benötigt Administratorrechte, um auf den Speicher des Rollers zu schreiben und das Netzwerk-Interface zu konfigurieren. Die Berechtigungsanfrage wurde abgelehnt oder ist fehlgeschlagen.\n\nSchließe dieses Fenster und starte den Installer neu, und bestätige dann die Berechtigungsanfrage.';
+      'Der Librescoot Installer benötigt Administratorrechte, um auf den Speicher des Rollers zu schreiben und das Netzwerk-Interface zu konfigurieren. Die Berechtigungsanfrage wurde abgelehnt oder konnte nicht angezeigt werden.\n\nKlicke auf Weiter, um den Dialog zu schließen, und versuche es erneut. Wenn du die Anfrage immer wieder ablehnst, kann der Installer nicht fortfahren.';
+
+  @override
+  String get elevationNoticeWelcome =>
+      'Beim Klick auf Installation starten fragt dein System nach Administratorrechten. Der Installer braucht sie, um auf den Speicher des Rollers zu schreiben und das Netzwerk zu konfigurieren.';
+
+  @override
+  String get requestingAdminPrivileges =>
+      'Administratorrechte werden angefragt...';
 
   @override
   String get quitButton => 'Beenden';

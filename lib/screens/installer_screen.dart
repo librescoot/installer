@@ -136,6 +136,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
       final r = Region.all.where((r) => r.slug == args.region).firstOrNull;
       if (r != null) _downloadState.selectedRegion = r;
     }
+    if (args.noOfflineMaps) {
+      _downloadState.wantsOfflineMaps = false;
+    }
     if (args.autoStart) {
       // Auto-start downloads after channels resolve
       Future.delayed(const Duration(seconds: 2), () {
@@ -714,9 +717,28 @@ class _InstallerScreenState extends State<InstallerScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
 
-        // Start button (with elevation hint on macOS/Linux if not elevated)
+        // Heads-up that clicking Start will trigger UAC / sudo prompt.
+        // Only shown on Windows / macOS while we're not yet elevated;
+        // disappears once the elevated relaunch comes back.
+        if (!_isElevated && (Platform.isWindows || Platform.isMacOS)) ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.shield_outlined,
+                  size: 18, color: Colors.grey.shade400),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(l10n.elevationNoticeWelcome,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        // Start button
         Align(
           alignment: Alignment.centerRight,
           child: FilledButton.icon(
@@ -872,9 +894,17 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // the relaunched-with-auto-start case), this is a no-op. Linux relies
     // on pkexec for the individual privileged calls; nothing to do here.
     if ((Platform.isWindows || Platform.isMacOS) && !await ElevationService.isElevated()) {
+      _setStatus(l10n.requestingAdminPrivileges);
       debugPrint('Elevation: not elevated, attempting self-elevate');
+      // Carry the user's UI selections (channel, region, offline-maps
+      // toggle) into the elevated relaunch instead of the original CLI
+      // args, which were captured at process start before any UI clicks.
       final relaunched = await ElevationService.elevateIfNeeded(
-        extraArgs: launchArgs.toArgs(),
+        extraArgs: launchArgs.relaunchArgs(
+          channelName: _downloadState.channel.name,
+          regionSlug: _downloadState.selectedRegion?.slug,
+          wantsOfflineMaps: _downloadState.wantsOfflineMaps,
+        ),
       );
       if (relaunched) {
         debugPrint('Elevation: relaunched as elevated process, exiting parent');
@@ -882,7 +912,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
       }
       debugPrint('Elevation: user declined or relaunch failed; showing dialog');
       if (mounted) await showElevationRequiredDialog(context);
-      if (mounted) setState(() => _isProcessing = false);
+      if (mounted) {
+        _setStatus('');
+        setState(() => _isProcessing = false);
+      }
       return;
     }
 

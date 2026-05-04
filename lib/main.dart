@@ -18,8 +18,13 @@ class LaunchArgs {
   /// Set by self-elevation when we relaunch ourselves with admin rights.
   /// Causes the elevated process to skip the welcome screen and resume
   /// the install starting from "Start Installation" was clicked, with
-  /// the user's selections carried over as --channel/--region.
+  /// the user's selections carried over as --channel/--region/etc.
   final bool autoStart;
+  /// True if the user explicitly unchecked "offline maps" before clicking
+  /// Start. Lets the elevated relaunch preserve that choice (otherwise it
+  /// would default back to wanting offline maps and trip over a missing
+  /// region selection).
+  final bool noOfflineMaps;
   final bool dryRun;
 
   LaunchArgs({
@@ -29,12 +34,14 @@ class LaunchArgs {
     this.mdbImage,
     this.dbcImage,
     this.autoStart = false,
+    this.noOfflineMaps = false,
     this.dryRun = false,
   });
 
   factory LaunchArgs.fromArgs(List<String> args) {
     String? channel, region, lang, mdbImage, dbcImage;
     var autoStart = false;
+    var noOfflineMaps = false;
     var dryRun = false;
     for (final arg in args) {
       if (arg.startsWith('--channel=')) channel = arg.split('=')[1];
@@ -43,6 +50,7 @@ class LaunchArgs {
       if (arg.startsWith('--mdb-image=')) mdbImage = arg.split('=')[1];
       if (arg.startsWith('--dbc-image=')) dbcImage = arg.split('=')[1];
       if (arg == '--auto-start') autoStart = true;
+      if (arg == '--no-offline-maps') noOfflineMaps = true;
       if (arg == '--dry-run') dryRun = true;
     }
     return LaunchArgs(
@@ -52,18 +60,29 @@ class LaunchArgs {
       mdbImage: mdbImage,
       dbcImage: dbcImage,
       autoStart: autoStart,
+      noOfflineMaps: noOfflineMaps,
       dryRun: dryRun,
     );
   }
 
   bool get hasLocalImages => mdbImage != null || dbcImage != null;
 
-  List<String> toArgs() => [
-        if (channel != null) '--channel=$channel',
-        if (region != null) '--region=$region',
+  /// Build the args to relaunch with after the user has clicked Start
+  /// and made selections in the welcome screen. Pulls from the live
+  /// state, not from the original CLI args, so the elevated child
+  /// resumes with what the user picked.
+  List<String> relaunchArgs({
+    required String channelName,
+    required String? regionSlug,
+    required bool wantsOfflineMaps,
+  }) =>
+      [
+        '--channel=$channelName',
+        if (regionSlug != null) '--region=$regionSlug',
         if (lang != null) '--lang=$lang',
         if (mdbImage != null) '--mdb-image=$mdbImage',
         if (dbcImage != null) '--dbc-image=$dbcImage',
+        if (!wantsOfflineMaps) '--no-offline-maps',
         if (dryRun) '--dry-run',
         '--auto-start',
       ];
