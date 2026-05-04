@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 
@@ -22,7 +23,19 @@ class DownloadService {
 
   /// Fetch the combined latest-per-channel manifest from
   /// downloads.librescoot.org. One round trip yields the current pointer
-  /// for every firmware channel. Falls back to stale cache on network error.
+  /// for every firmware channel.
+  ///
+  /// Resolution order:
+  ///   1. In-memory cache (set by an earlier call this session).
+  ///   2. On-disk cache, if less than an hour old.
+  ///   3. Network with three retries (0s, 2s, 5s backoff). Fresh installs
+  ///      on Windows / macOS see TLS handshake failures on the first try
+  ///      because the OS hasn't lazy-fetched intermediates yet, so a
+  ///      single attempt isn't enough.
+  ///   4. Stale on-disk cache (any age) as a fallback.
+  ///   5. Bundled snapshot baked into the app at build time
+  ///      (`assets/latest.json.fallback`) as a final fallback so the
+  ///      installer can at least show channel choices when offline.
   Future<Map<String, dynamic>> _fetchLatest() async {
     if (_cachedLatest != null) return _cachedLatest!;
 
@@ -37,23 +50,44 @@ class DownloadService {
       }
     }
 
-    try {
-      final response = await _client.get(Uri.parse(_latestManifestUrl));
-      if (response.statusCode == 200) {
-        await cacheFile.writeAsString(response.body);
-        _cachedLatest = jsonDecode(response.body) as Map<String, dynamic>;
-        return _cachedLatest!;
+    const delays = [Duration.zero, Duration(seconds: 2), Duration(seconds: 5)];
+    for (var attempt = 0; attempt < delays.length; attempt++) {
+      if (delays[attempt] > Duration.zero) {
+        await Future.delayed(delays[attempt]);
       }
-      debugPrint('latest.json fetch HTTP ${response.statusCode}');
-    } catch (e) {
-      debugPrint('latest.json fetch failed: $e');
+      try {
+        final response = await _client
+            .get(Uri.parse(_latestManifestUrl))
+            .timeout(const Duration(seconds: 10));
+        if (response.statusCode == 200) {
+          await cacheFile.writeAsString(response.body);
+          _cachedLatest = jsonDecode(response.body) as Map<String, dynamic>;
+          return _cachedLatest!;
+        }
+        debugPrint('latest.json fetch HTTP ${response.statusCode} '
+            '(attempt ${attempt + 1}/${delays.length})');
+      } catch (e) {
+        debugPrint('latest.json fetch failed '
+            '(attempt ${attempt + 1}/${delays.length}): $e');
+      }
     }
 
     if (await cacheFile.exists()) {
+      debugPrint('latest.json: network unavailable, using stale on-disk cache');
       _cachedLatest =
           jsonDecode(await cacheFile.readAsString()) as Map<String, dynamic>;
       return _cachedLatest!;
     }
+
+    try {
+      debugPrint('latest.json: using bundled fallback snapshot');
+      final bundled = await rootBundle.loadString('assets/latest.json.fallback');
+      _cachedLatest = jsonDecode(bundled) as Map<String, dynamic>;
+      return _cachedLatest!;
+    } catch (e) {
+      debugPrint('latest.json: no bundled fallback: $e');
+    }
+
     throw Exception('No release manifest available');
   }
 

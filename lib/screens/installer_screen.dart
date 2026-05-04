@@ -721,6 +721,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
           alignment: Alignment.centerRight,
           child: FilledButton.icon(
             onPressed: _isProcessing ||
+                    _channelsLoading ||
+                    (_availableChannels?.isEmpty ?? true) ||
                     (_downloadState.wantsOfflineMaps && _downloadState.selectedRegion == null)
                 ? null
                 : _startDownloadsAndContinue,

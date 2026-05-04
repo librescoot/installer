@@ -86,6 +86,20 @@ jobs:
             rm -f dd.exe
           fi
 
+      - name: Refresh bundled latest.json fallback
+        shell: bash
+        run: |
+          # Best-effort: bundle a fresh release manifest with the build so
+          # the installer can show channel choices even when the user's
+          # network is offline / TLS-flaky on first run. Falls back to
+          # whatever is already committed if downloads.librescoot.org is
+          # unreachable from CI.
+          curl -fsSL --retry 3 --retry-delay 2 \
+            -o assets/latest.json.fallback \
+            https://downloads.librescoot.org/releases/latest.json \
+            || echo "warning: latest.json fetch failed, keeping committed snapshot"
+          ls -l assets/latest.json.fallback
+
       - name: Import signing certificate
         if: matrix.target == 'macos'
         env:
