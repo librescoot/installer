@@ -2222,6 +2222,12 @@ abstract class AppLocalizations {
   /// **'LED is red'**
   String get ledIsRed;
 
+  /// No description provided for @ledAmberWaitNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'If the boot LED is amber/orange, flashing is still in progress — please wait. Only click below once the LED is solid green or red.'**
+  String get ledAmberWaitNotice;
+
   /// No description provided for @phaseKeycardSetupTitle.
   ///
   /// In en, this message translates to:

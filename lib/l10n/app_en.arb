@@ -487,6 +487,7 @@
   "waitingForMdbToReconnect": "Waiting for MDB to reconnect...",
   "ledIsGreen": "LED is green",
   "ledIsRed": "LED is red",
+  "ledAmberWaitNotice": "If the boot LED is amber/orange, flashing is still in progress — please wait. Only click below once the LED is solid green or red.",
 
   "phaseKeycardSetupTitle": "Keycard Setup",
   "phaseKeycardSetupDescription": "Register your keycards",

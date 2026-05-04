@@ -360,6 +360,7 @@
   "waitingForMdbToReconnect": "Warte auf MDB-Wiederverbindung...",
   "ledIsGreen": "LED ist grün",
   "ledIsRed": "LED ist rot",
+  "ledAmberWaitNotice": "Wenn die Boot-LED gelb-orange leuchtet, läuft der Flash noch — bitte warten. Erst klicken, wenn die LED dauerhaft grün oder rot leuchtet.",
   "phaseKeycardSetupTitle": "Schlüsselkarten einrichten",
   "phaseKeycardSetupDescription": "Schlüsselkarten anlernen",
   "usingLocalFirmwareImages": "Lokale Firmware-Images werden verwendet",

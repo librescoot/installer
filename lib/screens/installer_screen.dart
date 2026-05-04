@@ -2427,6 +2427,26 @@ class _InstallerScreenState extends State<InstallerScreen> {
           const SizedBox(height: 8),
           const CircularProgressIndicator(),
           const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.12),
+              border: Border.all(color: Colors.orange.shade700),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.hourglass_top, color: Colors.orange.shade300, size: 20),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(l10n.ledAmberWaitNotice,
+                      style: TextStyle(color: Colors.orange.shade100, fontSize: 13)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [

@@ -1186,6 +1186,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ledIsRed => 'LED is red';
 
   @override
+  String get ledAmberWaitNotice =>
+      'If the boot LED is amber/orange, flashing is still in progress — please wait. Only click below once the LED is solid green or red.';
+
+  @override
   String get phaseKeycardSetupTitle => 'Keycard Setup';
 
   @override
