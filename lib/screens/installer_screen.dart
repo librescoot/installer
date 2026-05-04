@@ -2630,6 +2630,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
       return;
     }
 
+    // Stop the failure indicators (blinking boot LED, hazards) if any are
+    // running. The trampoline drops /data/stop-error-signals.sh for exactly
+    // this. Best-effort: if the script isn't there or there's nothing to
+    // stop, the helper just no-ops.
+    try {
+      await _sshService.runCommand(
+        '[ -x /data/stop-error-signals.sh ] && /data/stop-error-signals.sh; true',
+      );
+    } catch (_) {}
+
     // Poll for trampoline status — the script may still be running when MDB
     // reconnects to RNDIS. Wait up to 5 minutes for a definitive result.
     _setStatus(l10n.readingTrampolineStatus);

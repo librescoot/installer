@@ -35,6 +35,28 @@ bootled() {
   esac
 } 2>/dev/null
 
+# Blink red on the boot LED for failure indication. Detached so it survives
+# the trampoline script exiting; the installer kills it via the PID file
+# when it reconnects to MDB after a failure.
+BOOTLED_BLINK_PIDFILE="/data/bootled-blink.pid"
+bootled_blink_red() {
+  bootled_blink_stop
+  bootled red
+  setsid sh -c '
+    while true; do
+      sleep 0.4
+      i2cset -f -y 2 0x30 0x02 0x00; i2cset -f -y 2 0x30 0x03 0x00; i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
+      sleep 0.4
+      i2cset -f -y 2 0x30 0x02 0x00; i2cset -f -y 2 0x30 0x03 0x00; i2cset -f -y 2 0x30 0x04 0xFF 2>/dev/null
+    done
+  ' </dev/null >/dev/null 2>&1 &
+  echo $! > "$BOOTLED_BLINK_PIDFILE"
+}
+bootled_blink_stop() {
+  [ -f "$BOOTLED_BLINK_PIDFILE" ] && kill "$(cat "$BOOTLED_BLINK_PIDFILE")" 2>/dev/null
+  rm -f "$BOOTLED_BLINK_PIDFILE"
+}
+
 # --- PWM LED control via ioctl ---
 # Channels: 0=headlight 1=front_ring 2=brake 3=FL 4=FR 5=plates 6=RL 7=RR
 IOCTL=/usr/bin/ioctl
@@ -129,12 +151,47 @@ signal_success() {
   (sleep 10; led_off 1) &
 }
 
+# Hazards (all four blinkers — FL=3, FR=4, RL=6, RR=7) flashing in unison
+# is the universal "vehicle in trouble" signal — much more visible than
+# the brake light alone, especially since the user might not be at the
+# dash when the flash dies. Detached so it survives the script exiting;
+# stopped early by the installer when it reconnects to MDB, or by the
+# 60s self-timeout (we don't want to drain the battery on an abandoned
+# error scenario).
+HAZARDS_PIDFILE="/data/error-hazards.pid"
 signal_error() {
   breathe_stop
   signal_progress_off
-  # Rear/brake light solid on for 10s
-  led_activate 2; led_duty 2 $DIM_DUTY
-  (sleep 10; led_off 2) &
+  signal_error_stop
+  setsid sh -c '
+    DIM=2000
+    for ch in 3 4 6 7; do
+      /usr/bin/ioctl /dev/pwm_led$ch 0x00007549 -v 1 2>/dev/null
+    done
+    end=$(( $(date +%s) + 60 ))
+    while [ "$(date +%s)" -lt "$end" ]; do
+      for ch in 3 4 6 7; do
+        /usr/bin/ioctl /dev/pwm_led$ch 0x0000754A -v $DIM 2>/dev/null
+      done
+      sleep 0.5
+      for ch in 3 4 6 7; do
+        /usr/bin/ioctl /dev/pwm_led$ch 0x0000754A -v 0 2>/dev/null
+      done
+      sleep 0.5
+    done
+    for ch in 3 4 6 7; do
+      /usr/bin/ioctl /dev/pwm_led$ch 0x00007549 -v 0 2>/dev/null
+    done
+  ' </dev/null >/dev/null 2>&1 &
+  echo $! > "$HAZARDS_PIDFILE"
+}
+signal_error_stop() {
+  [ -f "$HAZARDS_PIDFILE" ] && kill "$(cat "$HAZARDS_PIDFILE")" 2>/dev/null
+  rm -f "$HAZARDS_PIDFILE"
+  for ch in 3 4 6 7; do
+    /usr/bin/ioctl /dev/pwm_led$ch 0x0000754A -v 0 2>/dev/null
+    /usr/bin/ioctl /dev/pwm_led$ch 0x00007549 -v 0 2>/dev/null
+  done
 }
 
 # Monitor dd progress output and update blinker progress.
@@ -171,9 +228,11 @@ fail() {
   log "ERROR: $1"
   echo "error: $1" > "$STATUS_FILE"
   cat "$LOG_FILE" >> "$STATUS_FILE"
-  bootled red
+  bootled_blink_red
   signal_error
   restore_gadget
+  # Indicators are detached and run until the installer reconnects via SSH
+  # and stops them. Just exit cleanly here.
   exit 1
 }
 
@@ -242,6 +301,27 @@ find_dbc_block_device() {
 }
 
 # =========================================================================
+# Drop a small helper the installer can invoke via SSH after a failure to
+# stop the boot-LED blink and the hazard flash and reset the LED state.
+cat > /data/stop-error-signals.sh << 'STOP_HELPER'
+#!/bin/sh
+[ -f /data/bootled-blink.pid ] && kill "$(cat /data/bootled-blink.pid)" 2>/dev/null
+rm -f /data/bootled-blink.pid
+[ -f /data/error-hazards.pid ] && kill "$(cat /data/error-hazards.pid)" 2>/dev/null
+rm -f /data/error-hazards.pid
+# LED off
+i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
+i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
+i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
+# Blinkers off + deactivate
+for ch in 3 4 6 7; do
+  /usr/bin/ioctl /dev/pwm_led$ch 0x0000754A -v 0 2>/dev/null
+  /usr/bin/ioctl /dev/pwm_led$ch 0x00007549 -v 0 2>/dev/null
+done
+exit 0
+STOP_HELPER
+chmod +x /data/stop-error-signals.sh
+
 echo "" > "$LOG_FILE"
 log "=========================================="
 log "Trampoline started"
@@ -750,8 +830,39 @@ if [ "${TILE_ERRORS:-0}" -gt 0 ]; then
   log "=========================================="
   echo "error: $TILE_ERRORS tile upload(s) failed" > "$STATUS_FILE"
   cat "$LOG" >> "$STATUS_FILE"
-  # Set boot LED red (error)
-  i2cset -f -y 2 0x30 0x02 0x00; i2cset -f -y 2 0x30 0x03 0x00; i2cset -f -y 2 0x30 0x04 0xFF 2>/dev/null
+  # Boot LED: blink red until installer reconnects and stops it
+  setsid sh -c '
+    while true; do
+      i2cset -f -y 2 0x30 0x02 0x00; i2cset -f -y 2 0x30 0x03 0x00; i2cset -f -y 2 0x30 0x04 0xFF 2>/dev/null
+      sleep 0.4
+      i2cset -f -y 2 0x30 0x02 0x00; i2cset -f -y 2 0x30 0x03 0x00; i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
+      sleep 0.4
+    done
+  ' </dev/null >/dev/null 2>&1 &
+  echo \$! > /data/bootled-blink.pid
+  # Hazards (all four blinkers) flashing in unison; 60s cap so an
+  # abandoned error doesn't drain the battery.
+  setsid sh -c '
+    DIM=2000
+    for ch in 3 4 6 7; do
+      /usr/bin/ioctl /dev/pwm_led\$ch 0x00007549 -v 1 2>/dev/null
+    done
+    end=\$(( \$(date +%s) + 60 ))
+    while [ "\$(date +%s)" -lt "\$end" ]; do
+      for ch in 3 4 6 7; do
+        /usr/bin/ioctl /dev/pwm_led\$ch 0x0000754A -v \$DIM 2>/dev/null
+      done
+      sleep 0.5
+      for ch in 3 4 6 7; do
+        /usr/bin/ioctl /dev/pwm_led\$ch 0x0000754A -v 0 2>/dev/null
+      done
+      sleep 0.5
+    done
+    for ch in 3 4 6 7; do
+      /usr/bin/ioctl /dev/pwm_led\$ch 0x00007549 -v 0 2>/dev/null
+    done
+  ' </dev/null >/dev/null 2>&1 &
+  echo \$! > /data/error-hazards.pid
 else
   log "=========================================="
   log "Installation complete - SUCCESS"
