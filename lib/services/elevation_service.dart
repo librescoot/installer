@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 /// Service for handling privilege elevation across platforms.
 ///
 /// Strategy: Self-elevate the entire app on startup to avoid
@@ -60,21 +62,37 @@ class ElevationService {
   }
 
   static Future<bool> _elevateWindows(String executable, List<String> args) async {
-    // Use PowerShell Start-Process with -Verb RunAs for UAC elevation
-    final escapedExe = executable.replaceAll("'", "''");
-    final escapedArgs = args.map((a) => a.replaceAll("'", "''")).join(' ');
+    // Use PowerShell Start-Process with -Verb RunAs for UAC elevation.
+    // ArgumentList wants an array of strings each individually quoted —
+    // joining them into one space-separated string breaks for any arg
+    // containing spaces (e.g. a path with spaces) and may cause
+    // Start-Process to silently fail. Build a real PowerShell array
+    // literal and use the call operator so the executable path is
+    // resolved before -Verb RunAs hands off to ShellExecuteEx.
+    String psQuote(String s) => "'${s.replaceAll("'", "''")}'";
+    final psExe = psQuote(executable);
+    final psArgArray = args.isEmpty ? '@()' : '@(${args.map(psQuote).join(',')})';
+    final psCmd =
+        'Start-Process -FilePath $psExe -ArgumentList $psArgArray -Verb RunAs '
+        '-ErrorAction Stop';
 
+    debugPrint('Elevation: PowerShell command = $psCmd');
     try {
       final result = await Process.run(
         'powershell',
-        [
-          '-Command',
-          "Start-Process -FilePath '$escapedExe' -ArgumentList '$escapedArgs' -Verb RunAs",
-        ],
+        ['-NoProfile', '-NonInteractive', '-Command', psCmd],
         runInShell: true,
       );
+      final stdout = result.stdout.toString().trim();
+      final stderr = result.stderr.toString().trim();
+      debugPrint(
+        'Elevation: PowerShell exit=${result.exitCode}'
+        '${stdout.isEmpty ? "" : " stdout=$stdout"}'
+        '${stderr.isEmpty ? "" : " stderr=$stderr"}',
+      );
       return result.exitCode == 0;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Elevation: PowerShell threw: $e');
       return false;
     }
   }
