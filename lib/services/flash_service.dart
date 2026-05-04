@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 
+import 'disk_arbitration_service.dart';
+
 /// Progress callback for flashing operations
 typedef ProgressCallback = void Function(double progress, String status);
 
@@ -562,33 +564,49 @@ class FlashService {
           : devicePath;
       final diskName = rawDevice.replaceFirst('/dev/rdisk', '/dev/disk');
 
-      // Free the disk from Disk Arbitration before authopen tries to grab it.
-      // Plain `unmountDisk` won't pry the disk loose if Finder/DiskUtility is
-      // holding it through the "Initialize / Erase / Ignore" dialog macOS pops
-      // for unrecognised partition tables (the MDB's eMMC layout). `force`
-      // boots them off. Retry a few times because the dialog can re-appear
-      // between attempts on a freshly-attached device.
-      for (var attempt = 1; attempt <= 3; attempt++) {
-        debugPrint('Flash: unmounting $diskName (attempt $attempt/3, force)');
-        final r = await Process.run('diskutil', ['unmountDisk', 'force', diskName]);
-        final stderr = (r.stderr as String).trim();
-        final stdout = (r.stdout as String).trim();
-        debugPrint('Flash: unmount exit=${r.exitCode} stdout=$stdout stderr=$stderr');
-        if (r.exitCode == 0) break;
-        if (attempt < 3) await Future.delayed(const Duration(milliseconds: 500));
+      // Pre-claim the disk via DiskArbitration. With a claim held, Finder
+      // won't auto-mount or pop the "Initialize / Erase / Ignore" dialog
+      // for unrecognised partition tables, and authopen no longer hits
+      // EPERM on /dev/rdiskN. Falls back gracefully to the cheap force-
+      // unmount path if the helper isn't bundled or fails to claim.
+      final da = DiskArbitrationService();
+      var daClaimed = false;
+      final daPath = await DiskArbitrationService.locate();
+      if (daPath != null && await da.start(daPath)) {
+        daClaimed = await da.claim(diskName);
+      } else {
+        debugPrint('Flash: daclaim helper unavailable, falling back to force-unmount');
       }
 
-      final flasherPath = await _getFlasherPath();
-      if (flasherPath != null) {
-        // Go flasher handles macOS authorization internally via Security.framework
-        await _writeWithGoFlasher(flasherPath, imagePath, rawDevice, bmapPath, true, onProgress);
-      } else {
-        // No flasher binary for this arch (e.g. older bundle without
-        // darwin-amd64). Fall back to a plain dd write: slower, no
-        // bmap fast path, no two-phase, but it gets the bits onto the
-        // device. We're already running as root via self-elevation.
-        debugPrint('Flash: no Go flasher for ${Abi.current()}, falling back to dd');
-        await _writeMacOSDdFallback(imagePath, rawDevice, onProgress);
+      try {
+        // Force-unmount as a belt-and-braces. With a DA claim held this is a
+        // no-op (nothing's mounted); without one, it's the cheap fix that
+        // pries Finder off the disk after the dialog has appeared.
+        for (var attempt = 1; attempt <= 3; attempt++) {
+          debugPrint('Flash: unmounting $diskName (attempt $attempt/3, force)');
+          final r = await Process.run('diskutil', ['unmountDisk', 'force', diskName]);
+          final stderr = (r.stderr as String).trim();
+          final stdout = (r.stdout as String).trim();
+          debugPrint('Flash: unmount exit=${r.exitCode} stdout=$stdout stderr=$stderr');
+          if (r.exitCode == 0) break;
+          if (attempt < 3) await Future.delayed(const Duration(milliseconds: 500));
+        }
+
+        final flasherPath = await _getFlasherPath();
+        if (flasherPath != null) {
+          // Go flasher handles macOS authorization internally via Security.framework
+          await _writeWithGoFlasher(flasherPath, imagePath, rawDevice, bmapPath, true, onProgress);
+        } else {
+          // No flasher binary for this arch (e.g. older bundle without
+          // darwin-amd64). Fall back to a plain dd write: slower, no
+          // bmap fast path, no two-phase, but it gets the bits onto the
+          // device. We're already running as root via self-elevation.
+          debugPrint('Flash: no Go flasher for ${Abi.current()}, falling back to dd');
+          await _writeMacOSDdFallback(imagePath, rawDevice, onProgress);
+        }
+      } finally {
+        if (daClaimed) await da.release(diskName);
+        await da.stop();
       }
     } else {
       // Linux: single pkexec elevation for both dd phases + verify

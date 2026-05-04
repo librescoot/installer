@@ -77,6 +77,7 @@
 		33CC11122044BFA00003C045 /* MainFlutterWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainFlutterWindow.swift; sourceTree = "<group>"; };
 		A1B2C3D400000002DEADBEEF /* DiskWriterPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskWriterPlugin.swift; sourceTree = "<group>"; };
 		A1B2C3D400000003DEADBEEF /* diskwriter.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = diskwriter.c; sourceTree = "<group>"; };
+		A1B2C3D400000006DEADBEEF /* daclaim.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = daclaim.m; sourceTree = "<group>"; };
 		33CEB47222A05771004F2AC0 /* Flutter-Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Flutter-Debug.xcconfig"; sourceTree = "<group>"; };
 		33CEB47422A05771004F2AC0 /* Flutter-Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Flutter-Release.xcconfig"; sourceTree = "<group>"; };
 		33CEB47722A0578A004F2AC0 /* Flutter-Generated.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = "Flutter-Generated.xcconfig"; path = "ephemeral/Flutter-Generated.xcconfig"; sourceTree = "<group>"; };
@@ -182,6 +183,7 @@
 				33CC11122044BFA00003C045 /* MainFlutterWindow.swift */,
 				A1B2C3D400000002DEADBEEF /* DiskWriterPlugin.swift */,
 				A1B2C3D400000003DEADBEEF /* diskwriter.c */,
+				A1B2C3D400000006DEADBEEF /* daclaim.m */,
 				33E51913231747F40026EE4D /* DebugProfile.entitlements */,
 				33E51914231749380026EE4D /* Release.entitlements */,
 				33CC11242044D66E0003C045 /* Resources */,
@@ -241,6 +243,7 @@
 			buildPhases = (
 				EEFC63E4CCD78F337610927F /* [CP] Check Pods Manifest.lock */,
 				A1B2C3D400000004DEADBEEF /* Compile diskwriter */,
+				A1B2C3D400000007DEADBEEF /* Compile daclaim */,
 				A1B2C3D400000005DEADBEEF /* Bundle flasher */,
 				33CC10E92044A3C60003C045 /* Sources */,
 				33CC10EA2044A3C60003C045 /* Frameworks */,
@@ -370,6 +373,26 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "set -e\ncc -arch arm64 -arch x86_64 -framework Security -O2 -o \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/diskwriter\" \"${SRCROOT}/Runner/diskwriter.c\"\n";
+		};
+		A1B2C3D400000007DEADBEEF /* Compile daclaim */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Runner/daclaim.m",
+			);
+			name = "Compile daclaim";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/daclaim",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nclang -arch arm64 -arch x86_64 -fobjc-arc -framework Foundation -framework DiskArbitration -O2 -o \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/daclaim\" \"${SRCROOT}/Runner/daclaim.m\"\n";
 		};
 		3399D490228B24CF009A79C7 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
