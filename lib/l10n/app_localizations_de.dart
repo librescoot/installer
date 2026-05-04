@@ -159,6 +159,14 @@ class AppLocalizationsDe extends AppLocalizations {
       'Das Flashen dauert mehrere Minuten, und jeder USB-Wackler oder Laptop-Standby mittendrin hinterlässt das MDB in einem inkonsistenten Zustand. Bitte prüfen:\n• Ein zuverlässiges USB-Kabel, an beiden Enden fest eingesteckt — Wackelkontakte sind die häufigste Ursache für gescheiterte Installationen\n• Laptop am Netzteil oder vollgeladen — Energiesparmodus / Standby unterbricht den Flash\n• Möglichst direkter USB-Port, kein USB-Hub\n• Während des Flashens nichts umstecken oder bewegen';
 
   @override
+  String get noPowerCycleWarningTitle =>
+      'Während der Installation NICHTS vom Strom trennen oder neu starten';
+
+  @override
+  String get noPowerCycleWarningBody =>
+      'Wenn irgendwas hängt, keine Rückmeldung gibt oder komisch aussieht: erstmal PAUSE und im Discord nachfragen. Nicht den AUX-Akku ziehen, nicht die CBB abklemmen, nicht USB rausreißen, weder Roller noch Laptop neu starten. Der Installer kann aus fast jedem Zustand wieder rauskommen — aber nur, wenn du nicht reingrätschst. Mittendrin den Strom trennen ist das, was Roller bricked.';
+
+  @override
   String get elevationRequiredTitle => 'Administratorrechte erforderlich';
 
   @override
@@ -1208,7 +1216,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get ledAmberWaitNotice =>
-      'Wenn die Boot-LED gelb-orange leuchtet, läuft der Flash noch — bitte warten. Erst klicken, wenn die LED dauerhaft grün oder rot leuchtet.';
+      'Wichtig: USB und Strom NICHT trennen, solange das hier läuft. Solange die Boot-LED gelb-orange leuchtet, läuft der Flash noch — Finger weg, nichts anklicken. Wenn der Flash durch ist, fängt die LED an zu blinken: grün = Erfolg, rot = Fehler. Erst weitermachen, wenn sie blinkt.';
 
   @override
   String get phaseKeycardSetupTitle => 'Schlüsselkarten einrichten';

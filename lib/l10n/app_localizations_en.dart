@@ -156,6 +156,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'The flash takes several minutes and any USB drop or laptop sleep mid-flash leaves the MDB in an inconsistent state. Please check:\n• A known-good USB cable, plugged in firmly at both ends — flaky cables are the #1 cause of failed installs\n• Laptop on power, or fully charged — battery saver / sleep can break the flash\n• Use a direct USB port, not a USB hub if possible\n• Don\'t unplug or move things around once the flash starts';
 
   @override
+  String get noPowerCycleWarningTitle =>
+      'DO NOT power-cycle anything during the install';
+
+  @override
+  String get noPowerCycleWarningBody =>
+      'If something looks stuck, gives no feedback, or behaves weirdly: PAUSE and ask in Discord first. Do NOT pull the AUX battery, do NOT disconnect the CBB, do NOT yank USB, do NOT reboot the scooter or your laptop. The installer can recover from almost any state — but only if you don\'t intervene. Power-cycling mid-flash is what bricks scooters.';
+
+  @override
   String get elevationRequiredTitle => 'Administrator privileges required';
 
   @override
@@ -1199,7 +1207,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ledAmberWaitNotice =>
-      'If the boot LED is amber/orange, flashing is still in progress — please wait. Only click below once the LED is solid green or red.';
+      'Most important: do NOT disconnect USB or power while this is running. While the boot LED is amber/orange, flashing is still in progress — hands off, don\'t click anything. The LED will start blinking once it\'s done: green = success, red = error. Only continue once it\'s blinking.';
 
   @override
   String get phaseKeycardSetupTitle => 'Keycard Setup';

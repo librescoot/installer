@@ -380,6 +380,18 @@ abstract class AppLocalizations {
   /// **'The flash takes several minutes and any USB drop or laptop sleep mid-flash leaves the MDB in an inconsistent state. Please check:\n• A known-good USB cable, plugged in firmly at both ends — flaky cables are the #1 cause of failed installs\n• Laptop on power, or fully charged — battery saver / sleep can break the flash\n• Use a direct USB port, not a USB hub if possible\n• Don\'t unplug or move things around once the flash starts'**
   String get reliabilityWarningBody;
 
+  /// No description provided for @noPowerCycleWarningTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'DO NOT power-cycle anything during the install'**
+  String get noPowerCycleWarningTitle;
+
+  /// No description provided for @noPowerCycleWarningBody.
+  ///
+  /// In en, this message translates to:
+  /// **'If something looks stuck, gives no feedback, or behaves weirdly: PAUSE and ask in Discord first. Do NOT pull the AUX battery, do NOT disconnect the CBB, do NOT yank USB, do NOT reboot the scooter or your laptop. The installer can recover from almost any state — but only if you don\'t intervene. Power-cycling mid-flash is what bricks scooters.'**
+  String get noPowerCycleWarningBody;
+
   /// No description provided for @elevationRequiredTitle.
   ///
   /// In en, this message translates to:
@@ -2243,7 +2255,7 @@ abstract class AppLocalizations {
   /// No description provided for @ledAmberWaitNotice.
   ///
   /// In en, this message translates to:
-  /// **'If the boot LED is amber/orange, flashing is still in progress — please wait. Only click below once the LED is solid green or red.'**
+  /// **'Most important: do NOT disconnect USB or power while this is running. While the boot LED is amber/orange, flashing is still in progress — hands off, don\'t click anything. The LED will start blinking once it\'s done: green = success, red = error. Only continue once it\'s blinking.'**
   String get ledAmberWaitNotice;
 
   /// No description provided for @phaseKeycardSetupTitle.
