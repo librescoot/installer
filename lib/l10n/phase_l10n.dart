@@ -14,6 +14,7 @@ extension MajorStepL10n on MajorStep {
 extension InstallerPhaseL10n on InstallerPhase {
   String localizedTitle(AppLocalizations l10n) => switch (this) {
         InstallerPhase.welcome => l10n.phaseWelcomeTitle,
+        InstallerPhase.notices => l10n.phaseNoticesTitle,
         InstallerPhase.physicalPrep => l10n.phasePhysicalPrepTitle,
         InstallerPhase.mdbConnect => l10n.phaseMdbConnectTitle,
         InstallerPhase.healthCheck => l10n.phaseHealthCheckTitle,
@@ -33,6 +34,7 @@ extension InstallerPhaseL10n on InstallerPhase {
 
   String localizedDescription(AppLocalizations l10n) => switch (this) {
         InstallerPhase.welcome => l10n.phaseWelcomeDescription,
+        InstallerPhase.notices => l10n.phaseNoticesDescription,
         InstallerPhase.physicalPrep => l10n.phasePhysicalPrepDescription,
         InstallerPhase.mdbConnect => l10n.phaseMdbConnectDescription,
         InstallerPhase.healthCheck => l10n.phaseHealthCheckDescription,

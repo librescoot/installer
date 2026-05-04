@@ -122,6 +122,18 @@ abstract class AppLocalizations {
   /// **'Prerequisites and firmware selection'**
   String get phaseWelcomeDescription;
 
+  /// No description provided for @phaseNoticesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Notices'**
+  String get phaseNoticesTitle;
+
+  /// No description provided for @phaseNoticesDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Important warnings before you start'**
+  String get phaseNoticesDescription;
+
   /// No description provided for @phasePhysicalPrepTitle.
   ///
   /// In en, this message translates to:
@@ -391,6 +403,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'If something looks stuck, gives no feedback, or behaves weirdly: PAUSE and ask in Discord first. Do NOT pull the AUX battery, do NOT disconnect the CBB, do NOT yank USB, do NOT reboot the scooter or your laptop. The installer can recover from almost any state. But only if you don\'t intervene. Power-cycling mid-flash is what bricks scooters.'**
   String get noPowerCycleWarningBody;
+
+  /// No description provided for @noticesHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Read this before continuing'**
+  String get noticesHeading;
+
+  /// No description provided for @noticesSubheading.
+  ///
+  /// In en, this message translates to:
+  /// **'Two things that will save your install if you take them seriously.'**
+  String get noticesSubheading;
+
+  /// No description provided for @noticesAcknowledgeButton.
+  ///
+  /// In en, this message translates to:
+  /// **'I\'ve read this, continue'**
+  String get noticesAcknowledgeButton;
+
+  /// No description provided for @backButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get backButton;
 
   /// No description provided for @elevationRequiredTitle.
   ///
@@ -1549,12 +1585,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Connect the MDB via USB and wait for detection'**
   String get connectMdbViaUsb;
-
-  /// No description provided for @backButton.
-  ///
-  /// In en, this message translates to:
-  /// **'Back'**
-  String get backButton;
 
   /// No description provided for @configuringNetworkHeading.
   ///

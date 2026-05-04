@@ -522,6 +522,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
     return switch (_currentPhase) {
       InstallerPhase.welcome => _buildWelcome(l10n),
+      InstallerPhase.notices => _buildNotices(l10n),
       InstallerPhase.physicalPrep => _buildPhysicalPrep(l10n),
       InstallerPhase.mdbConnect => _buildMdbConnect(l10n),
       InstallerPhase.healthCheck => _buildHealthCheck(l10n),
@@ -638,11 +639,41 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
         const SizedBox(height: 24),
 
+        // Start button: advances to the Notices page. Elevation,
+        // downloads, etc. are kicked off from Notices' Continue button
+        // so the user sees the warnings before anything irreversible
+        // happens (and before any UAC prompt fires).
+        Align(
+          alignment: Alignment.centerRight,
+          child: FilledButton.icon(
+            onPressed: _isProcessing ||
+                    _channelsLoading ||
+                    (_availableChannels?.isEmpty ?? true) ||
+                    (_downloadState.wantsOfflineMaps && _downloadState.selectedRegion == null)
+                ? null
+                : () => _setPhase(InstallerPhase.notices),
+            icon: const Icon(Icons.arrow_forward),
+            label: Text(l10n.startInstallation),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNotices(AppLocalizations l10n) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(l10n.noticesHeading,
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Text(l10n.noticesSubheading,
+            style: TextStyle(color: Colors.grey.shade400)),
+        const SizedBox(height: 24),
+
         // Critical no-power-cycle warning: users keep yanking power
         // when they think things are stuck, which is what actually
         // bricks scooters. Loud, red, with a direct Discord link.
-        // Sits right before the Start button so it's the last thing the
-        // user reads before kicking the install off.
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -689,7 +720,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         const SizedBox(height: 12),
 
         // Reliability warning: flash failures are dominated by USB drops
-        // and laptop sleep. Surface this before the user starts.
+        // and laptop sleep.
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -719,9 +750,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
         ),
         const SizedBox(height: 16),
 
-        // Heads-up that clicking Start will trigger UAC / sudo prompt.
-        // Only shown on Windows / macOS while we're not yet elevated;
-        // disappears once the elevated relaunch comes back.
+        // Heads-up that clicking Continue will trigger UAC / sudo prompt.
+        // Only shown on Windows / macOS while we're not yet elevated.
         if (!_isElevated && (Platform.isWindows || Platform.isMacOS)) ...[
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -738,19 +768,22 @@ class _InstallerScreenState extends State<InstallerScreen> {
           const SizedBox(height: 12),
         ],
 
-        // Start button
-        Align(
-          alignment: Alignment.centerRight,
-          child: FilledButton.icon(
-            onPressed: _isProcessing ||
-                    _channelsLoading ||
-                    (_availableChannels?.isEmpty ?? true) ||
-                    (_downloadState.wantsOfflineMaps && _downloadState.selectedRegion == null)
-                ? null
-                : _startDownloadsAndContinue,
-            icon: const Icon(Icons.arrow_forward),
-            label: Text(l10n.startInstallation),
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            TextButton.icon(
+              onPressed: _isProcessing
+                  ? null
+                  : () => _setPhase(InstallerPhase.welcome),
+              icon: const Icon(Icons.arrow_back, size: 18),
+              label: Text(l10n.backButton),
+            ),
+            FilledButton.icon(
+              onPressed: _isProcessing ? null : _startDownloadsAndContinue,
+              icon: const Icon(Icons.arrow_forward),
+              label: Text(l10n.noticesAcknowledgeButton),
+            ),
+          ],
         ),
       ],
     );

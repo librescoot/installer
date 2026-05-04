@@ -22,6 +22,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get phaseWelcomeDescription => 'Prerequisites and firmware selection';
 
   @override
+  String get phaseNoticesTitle => 'Notices';
+
+  @override
+  String get phaseNoticesDescription => 'Important warnings before you start';
+
+  @override
   String get phasePhysicalPrepTitle => 'Prepare Scooter';
 
   @override
@@ -162,6 +168,19 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get noPowerCycleWarningBody =>
       'If something looks stuck, gives no feedback, or behaves weirdly: PAUSE and ask in Discord first. Do NOT pull the AUX battery, do NOT disconnect the CBB, do NOT yank USB, do NOT reboot the scooter or your laptop. The installer can recover from almost any state. But only if you don\'t intervene. Power-cycling mid-flash is what bricks scooters.';
+
+  @override
+  String get noticesHeading => 'Read this before continuing';
+
+  @override
+  String get noticesSubheading =>
+      'Two things that will save your install if you take them seriously.';
+
+  @override
+  String get noticesAcknowledgeButton => 'I\'ve read this, continue';
+
+  @override
+  String get backButton => 'Back';
 
   @override
   String get elevationRequiredTitle => 'Administrator privileges required';
@@ -811,9 +830,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get connectMdbViaUsb =>
       'Connect the MDB via USB and wait for detection';
-
-  @override
-  String get backButton => 'Back';
 
   @override
   String get configuringNetworkHeading => 'Configuring Network';

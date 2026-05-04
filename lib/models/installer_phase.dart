@@ -4,6 +4,11 @@ enum InstallerPhase {
     description: 'Prerequisites and firmware selection',
     isManual: true,
   ),
+  notices(
+    title: 'Notices',
+    description: 'Important warnings before you start',
+    isManual: true,
+  ),
   physicalPrep(
     title: 'Physical Prep',
     description: 'Open footwell, connect USB',
@@ -93,7 +98,7 @@ enum InstallerPhase {
 
 /// Major step grouping for sidebar display
 enum MajorStep {
-  prepare('Prepare', [InstallerPhase.welcome, InstallerPhase.physicalPrep]),
+  prepare('Prepare', [InstallerPhase.welcome, InstallerPhase.notices, InstallerPhase.physicalPrep]),
   connect('Connect', [InstallerPhase.mdbConnect, InstallerPhase.healthCheck]),
   mdbFlash('Flash MDB', [InstallerPhase.batteryRemoval, InstallerPhase.mdbToUms, InstallerPhase.mdbFlash, InstallerPhase.scooterPrep, InstallerPhase.mdbBoot, InstallerPhase.cbbReconnect]),
   dbcFlash('Flash DBC', [InstallerPhase.dbcPrep, InstallerPhase.dbcFlash, InstallerPhase.reconnect]),

@@ -22,6 +22,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get phaseWelcomeDescription => 'Voraussetzungen und Firmware-Auswahl';
 
   @override
+  String get phaseNoticesTitle => 'Hinweise';
+
+  @override
+  String get phaseNoticesDescription => 'Wichtige Hinweise vor dem Start';
+
+  @override
   String get phasePhysicalPrepTitle => 'Vorbereitung';
 
   @override
@@ -165,6 +171,19 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get noPowerCycleWarningBody =>
       'Wenn irgendwas hängt, keine Rückmeldung gibt oder komisch aussieht: erstmal PAUSE und im Discord nachfragen. Nicht den AUX-Akku ziehen, nicht die CBB abklemmen, nicht USB rausreißen, weder Roller noch Laptop neu starten. Der Installer kann aus fast jedem Zustand wieder rauskommen. Aber nur, wenn du nicht reingrätschst. Mittendrin den Strom trennen ist das, was Roller bricked.';
+
+  @override
+  String get noticesHeading => 'Vor dem Weitermachen lesen';
+
+  @override
+  String get noticesSubheading =>
+      'Zwei Dinge, die deine Installation retten, wenn du sie ernst nimmst.';
+
+  @override
+  String get noticesAcknowledgeButton => 'Gelesen, weitermachen';
+
+  @override
+  String get backButton => 'Zurück';
 
   @override
   String get elevationRequiredTitle => 'Administratorrechte erforderlich';
@@ -817,9 +836,6 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get connectMdbViaUsb =>
       'Verbinde das MDB per USB und warte auf die Erkennung';
-
-  @override
-  String get backButton => 'Zurück';
 
   @override
   String get configuringNetworkHeading => 'Netzwerk wird konfiguriert';
