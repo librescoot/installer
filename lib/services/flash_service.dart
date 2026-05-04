@@ -388,9 +388,12 @@ class FlashService {
         : devicePath;
     final diskName = rawDevice.replaceFirst('/dev/rdisk', '/dev/disk');
 
-    final unmountResult = await Process.run('diskutil', ['unmountDisk', diskName]);
-    if (unmountResult.exitCode != 0) {
-      // Ignore unmount errors - disk might not be mounted
+    for (var attempt = 1; attempt <= 3; attempt++) {
+      debugPrint('Flash(_writeMacOS): unmounting $diskName (attempt $attempt/3, force)');
+      final r = await Process.run('diskutil', ['unmountDisk', 'force', diskName]);
+      debugPrint('Flash(_writeMacOS): unmount exit=${r.exitCode} stdout=${(r.stdout as String).trim()} stderr=${(r.stderr as String).trim()}');
+      if (r.exitCode == 0) break;
+      if (attempt < 3) await Future.delayed(const Duration(milliseconds: 500));
     }
 
     onProgress?.call(0.2, 'Writing image...');
@@ -559,9 +562,21 @@ class FlashService {
           : devicePath;
       final diskName = rawDevice.replaceFirst('/dev/rdisk', '/dev/disk');
 
-      // Unmount all partitions (macOS auto-mounts FAT32)
-      debugPrint('Flash: unmounting $diskName');
-      await Process.run('diskutil', ['unmountDisk', diskName]);
+      // Free the disk from Disk Arbitration before authopen tries to grab it.
+      // Plain `unmountDisk` won't pry the disk loose if Finder/DiskUtility is
+      // holding it through the "Initialize / Erase / Ignore" dialog macOS pops
+      // for unrecognised partition tables (the MDB's eMMC layout). `force`
+      // boots them off. Retry a few times because the dialog can re-appear
+      // between attempts on a freshly-attached device.
+      for (var attempt = 1; attempt <= 3; attempt++) {
+        debugPrint('Flash: unmounting $diskName (attempt $attempt/3, force)');
+        final r = await Process.run('diskutil', ['unmountDisk', 'force', diskName]);
+        final stderr = (r.stderr as String).trim();
+        final stdout = (r.stdout as String).trim();
+        debugPrint('Flash: unmount exit=${r.exitCode} stdout=$stdout stderr=$stderr');
+        if (r.exitCode == 0) break;
+        if (attempt < 3) await Future.delayed(const Duration(milliseconds: 500));
+      }
 
       final flasherPath = await _getFlasherPath();
       if (flasherPath != null) {
@@ -630,10 +645,15 @@ class FlashService {
         : devicePath;
     final diskName = rawDevice.replaceFirst('/dev/rdisk', '/dev/disk');
 
-    // Unmount the disk first (macOS auto-mounts)
-    debugPrint('Flash: unmounting $diskName');
-    final unmountResult = await Process.run('diskutil', ['unmountDisk', diskName]);
-    debugPrint('Flash: unmount result: ${unmountResult.exitCode} ${unmountResult.stderr}');
+    // Unmount the disk first (macOS auto-mounts; force kicks Finder/DA off
+    // even when the "Initialize / Erase / Ignore" dialog is holding the disk).
+    for (var attempt = 1; attempt <= 3; attempt++) {
+      debugPrint('Flash(dd): unmounting $diskName (attempt $attempt/3, force)');
+      final r = await Process.run('diskutil', ['unmountDisk', 'force', diskName]);
+      debugPrint('Flash(dd): unmount exit=${r.exitCode} stdout=${(r.stdout as String).trim()} stderr=${(r.stderr as String).trim()}');
+      if (r.exitCode == 0) break;
+      if (attempt < 3) await Future.delayed(const Duration(milliseconds: 500));
+    }
 
     // Locate the diskwriter binary bundled in the app
     final diskwriterPath = await _getDiskwriterPath();
