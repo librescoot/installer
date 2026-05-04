@@ -210,13 +210,41 @@ jobs:
           mv bundle librescoot-installer
           tar czf librescoot-installer-linux-x64-${{ steps.version.outputs.describe }}.tar.gz librescoot-installer/
 
-      - name: Package Windows
+      - name: Package Windows (zip)
         if: matrix.target == 'windows'
         shell: bash
         run: |
           cd build/windows/x64/runner
           mv Release librescoot-installer
           7z a librescoot-installer-windows-x64-${{ steps.version.outputs.describe }}.zip librescoot-installer/
+
+      - name: Package Windows (portable single-file exe)
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.describe }}"
+          # Derive a clean X.Y.Z.0 for VIProductVersion. Strips a leading 'v'
+          # and any -N-gSHA / -dirty suffix from `git describe`. Falls back to
+          # 0.0.0.0 for branch builds where the version isn't a clean tag.
+          if ($version -match '^v?(\d+)\.(\d+)\.(\d+)') {
+            $numeric = "$($Matches[1]).$($Matches[2]).$($Matches[3]).0"
+          } else {
+            $numeric = "0.0.0.0"
+          }
+          $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
+          if (-not (Test-Path $makensis)) {
+            choco install nsis -y --no-progress
+          }
+          $buildDir = "$PWD\build\windows\x64\runner\librescoot-installer"
+          $outFile  = "$PWD\build\windows\x64\runner\librescoot-installer-windows-x64-$version.exe"
+          & $makensis /V2 `
+            "/DPRODUCT_VERSION=$version" `
+            "/DNUMERIC_VERSION=$numeric" `
+            "/DBUILD_DIR=$buildDir" `
+            "/DOUT_FILE=$outFile" `
+            windows\installer.nsi
+          if ($LASTEXITCODE -ne 0) { throw "makensis failed (exit $LASTEXITCODE)" }
+          Get-Item $outFile | Format-List Name, Length
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -226,6 +254,7 @@ jobs:
             build/macos/Build/Products/Release/librescoot-installer-*.dmg
             build/linux/x64/release/librescoot-installer-*.tar.gz
             build/windows/x64/runner/librescoot-installer-*.zip
+            build/windows/x64/runner/librescoot-installer-*.exe
           if-no-files-found: error
 
   release:
@@ -245,7 +274,7 @@ jobs:
       - name: Collect release files
         run: |
           mkdir -p dist/
-          find artifacts/ -type f \( -name '*.dmg' -o -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} dist/ \;
+          find artifacts/ -type f \( -name '*.dmg' -o -name '*.tar.gz' -o -name '*.zip' -o -name '*.exe' \) -exec cp {} dist/ \;
           ls -la dist/
 
       - name: Create GitHub Release
