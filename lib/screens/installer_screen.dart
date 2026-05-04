@@ -140,10 +140,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _downloadState.wantsOfflineMaps = false;
     }
     if (args.autoStart) {
-      // Auto-start downloads after channels resolve
+      // Auto-advance past welcome after channels resolve. The elevated
+      // relaunch lands here with --auto-start and we want it to skip the
+      // welcome form (the user already filled it in on the unelevated
+      // parent and clicked Start) but stop on Notices so the warnings are
+      // not silently bypassed.
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted && _currentPhase == InstallerPhase.welcome) {
-          _startDownloadsAndContinue();
+          _setPhase(InstallerPhase.notices);
         }
       });
     }
@@ -639,10 +643,31 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
         const SizedBox(height: 24),
 
-        // Start button: advances to the Notices page. Elevation,
-        // downloads, etc. are kicked off from Notices' Continue button
-        // so the user sees the warnings before anything irreversible
-        // happens (and before any UAC prompt fires).
+        // Heads-up that clicking Start will trigger UAC / sudo prompt.
+        // Only shown on Windows / macOS while we're not yet elevated.
+        if (!_isElevated && (Platform.isWindows || Platform.isMacOS)) ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.shield_outlined,
+                  size: 18, color: Colors.grey.shade400),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(l10n.elevationNoticeWelcome,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        // Start button: fires the UAC / sudo elevation prompt on
+        // Windows / macOS, then advances to Notices. We elevate here
+        // (not at app startup) so the user can browse the welcome form
+        // first, but BEFORE Notices so the prompt is the cost of the
+        // big "I'm starting" click rather than buried inside Notices'
+        // Continue. If the user declines elevation, they stay on this
+        // page with the explanatory dialog and can try again.
         Align(
           alignment: Alignment.centerRight,
           child: FilledButton.icon(
@@ -651,7 +676,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                     (_availableChannels?.isEmpty ?? true) ||
                     (_downloadState.wantsOfflineMaps && _downloadState.selectedRegion == null)
                 ? null
-                : () => _setPhase(InstallerPhase.notices),
+                : _startClickedAdvanceToNotices,
             icon: const Icon(Icons.arrow_forward),
             label: Text(l10n.startInstallation),
           ),
@@ -749,24 +774,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
           ),
         ),
         const SizedBox(height: 16),
-
-        // Heads-up that clicking Continue will trigger UAC / sudo prompt.
-        // Only shown on Windows / macOS while we're not yet elevated.
-        if (!_isElevated && (Platform.isWindows || Platform.isMacOS)) ...[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.shield_outlined,
-                  size: 18, color: Colors.grey.shade400),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(l10n.elevationNoticeWelcome,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-        ],
 
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -911,7 +918,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
     );
   }
 
-  Future<void> _startDownloadsAndContinue() async {
+  /// Welcome → Notices Start handler. Validates that a region was picked
+  /// (when offline maps are wanted), then self-elevates on Windows / macOS
+  /// if needed. On a successful elevation kick-off the parent exits and
+  /// the elevated child resumes here via --auto-start. On UAC decline /
+  /// silent abort, surface the explanatory dialog and bail. Linux relies
+  /// on pkexec for the individual privileged calls; no UAC dance here.
+  Future<void> _startClickedAdvanceToNotices() async {
     final l10n = AppLocalizations.of(context)!;
     if (_downloadState.wantsOfflineMaps && _downloadState.selectedRegion == null && !launchArgs.hasLocalImages) {
       _setStatus(l10n.selectRegionError);
@@ -920,18 +933,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     setState(() => _isProcessing = true);
 
-    // Self-elevate on Windows / macOS at click-time, not startup. The
-    // privileged operations (raw disk write, network config) only kick in
-    // after this point, so there's no reason to fire UAC/sudo before the
-    // user has even chosen a channel. If we're already elevated (incl.
-    // the relaunched-with-auto-start case), this is a no-op. Linux relies
-    // on pkexec for the individual privileged calls; nothing to do here.
     if ((Platform.isWindows || Platform.isMacOS) && !await ElevationService.isElevated()) {
       _setStatus(l10n.requestingAdminPrivileges);
       debugPrint('Elevation: not elevated, attempting self-elevate');
-      // Carry the user's UI selections (channel, region, offline-maps
-      // toggle) into the elevated relaunch instead of the original CLI
-      // args, which were captured at process start before any UI clicks.
       final relaunched = await ElevationService.elevateIfNeeded(
         extraArgs: launchArgs.relaunchArgs(
           channelName: _downloadState.channel.name,
@@ -951,6 +955,22 @@ class _InstallerScreenState extends State<InstallerScreen> {
       }
       return;
     }
+
+    if (mounted) {
+      _setStatus('');
+      setState(() => _isProcessing = false);
+      _setPhase(InstallerPhase.notices);
+    }
+  }
+
+  Future<void> _startDownloadsAndContinue() async {
+    final l10n = AppLocalizations.of(context)!;
+    if (_downloadState.wantsOfflineMaps && _downloadState.selectedRegion == null && !launchArgs.hasLocalImages) {
+      _setStatus(l10n.selectRegionError);
+      return;
+    }
+
+    setState(() => _isProcessing = true);
 
     try {
       if (launchArgs.hasLocalImages) {
