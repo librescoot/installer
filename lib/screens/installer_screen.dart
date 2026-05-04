@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../main.dart' show LaunchArgs, installerLog, launchArgs;
+import '../main.dart' show LaunchArgs, installerLog, launchArgs, showElevationRequiredDialog;
 import '../l10n/app_localizations.dart';
 import '../models/download_state.dart';
 import '../models/installer_phase.dart';
@@ -150,7 +150,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _detectResumeState() async {
-    // Detection happens in _autoConnectMdb — no early jumping here.
+    // Detection happens in _autoConnectMdb: no early jumping here.
   }
 
   @override
@@ -552,7 +552,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             style: TextStyle(color: Colors.grey.shade400)),
         const SizedBox(height: 24),
 
-        // Prerequisites — items size to their content; a long item gets a row
+        // Prerequisites: items size to their content; a long item gets a row
         // to itself, short items pack onto a single line.
         Text(l10n.whatYouNeed, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         const SizedBox(height: 8),
@@ -632,7 +632,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
         const SizedBox(height: 24),
 
-        // Critical no-power-cycle warning — users keep yanking power
+        // Critical no-power-cycle warning: users keep yanking power
         // when they think things are stuck, which is what actually
         // bricks scooters. Loud, red, with a direct Discord link.
         // Sits right before the Start button so it's the last thing the
@@ -682,7 +682,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         ),
         const SizedBox(height: 12),
 
-        // Reliability warning — flash failures are dominated by USB drops
+        // Reliability warning: flash failures are dominated by USB drops
         // and laptop sleep. Surface this before the user starts.
         Container(
           padding: const EdgeInsets.all(12),
@@ -860,10 +860,26 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     setState(() => _isProcessing = true);
 
-    // On macOS, no self-elevation needed — diskwriter handles authorization
-    // via AuthorizationCreate + authopen when raw disk access is needed.
-    // On Windows, elevation is handled by UAC at app startup.
-    // On Linux, the app should be launched with sudo by the user.
+    // Self-elevate on Windows / macOS at click-time, not startup. The
+    // privileged operations (raw disk write, network config) only kick in
+    // after this point, so there's no reason to fire UAC/sudo before the
+    // user has even chosen a channel. If we're already elevated (incl.
+    // the relaunched-with-auto-start case), this is a no-op. Linux relies
+    // on pkexec for the individual privileged calls; nothing to do here.
+    if ((Platform.isWindows || Platform.isMacOS) && !await ElevationService.isElevated()) {
+      debugPrint('Elevation: not elevated, attempting self-elevate');
+      final relaunched = await ElevationService.elevateIfNeeded(
+        extraArgs: launchArgs.toArgs(),
+      );
+      if (relaunched) {
+        debugPrint('Elevation: relaunched as elevated process, exiting parent');
+        exit(0);
+      }
+      debugPrint('Elevation: user declined or relaunch failed; showing dialog');
+      if (mounted) await showElevationRequiredDialog(context);
+      if (mounted) setState(() => _isProcessing = false);
+      return;
+    }
 
     try {
       if (launchArgs.hasLocalImages) {
@@ -1109,7 +1125,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         await _sshService.loadDeviceConfig('assets');
         _setStatus('[DRY RUN] Auth loaded, simulating MDB v1.15.0 connection...');
       } catch (e) {
-        _setStatus('[DRY RUN] Auth load failed: $e — continuing anyway');
+        _setStatus('[DRY RUN] Auth load failed: $e: continuing anyway');
       }
       await Future.delayed(const Duration(seconds: 1));
       _setPhase(InstallerPhase.healthCheck);
@@ -1124,14 +1140,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
 
     if (_device!.mode == DeviceMode.massStorage) {
-      // Device is already in UMS mode — skip ahead to flash
+      // Device is already in UMS mode: skip ahead to flash
       _setStatus(l10n.mdbDetectedUmsSkipping);
       await Future.delayed(const Duration(seconds: 1));
       _setPhase(InstallerPhase.mdbFlash);
       return;
     }
 
-    // RNDIS mode — normal flow.
+    // RNDIS mode: normal flow.
     //
     // Always run installDriver() rather than gating on isDriverInstalled():
     // the driver may be in the driver store from a prior run while the device
@@ -1251,7 +1267,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool get _isLibrescootFirmware {
     // /etc/os-release ID= is the authoritative discriminator. Stable
     // LibreScoot ships VERSION_ID=1.0.1, indistinguishable from stock by
-    // version alone — the channel-tag heuristic only catches nightly /
+    // version alone: the channel-tag heuristic only catches nightly /
     // testing builds. Fall back to the heuristic if osId wasn't readable.
     final id = _mdbInfo?.osId ?? '';
     if (id.startsWith('librescoot')) return true;
@@ -1381,7 +1397,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
               ),
             ),
 
-          // Librescoot detected — offer to skip MDB reflash
+          // Librescoot detected: offer to skip MDB reflash
           if (_scooterHealth != null && _isLibrescootFirmware) ...[
             const SizedBox(height: 24),
             Container(
@@ -1625,7 +1641,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         );
         debugPrint('SSH: verified bootcmd = $bootcmd');
         if (!bootcmd.contains('ums')) {
-          _setStatus('fw_setenv failed — bootcmd is still: ${bootcmd.trim()}');
+          _setStatus('fw_setenv failed: bootcmd is still: ${bootcmd.trim()}');
           setState(() { _isProcessing = false; _mdbToUmsStarted = false; });
           return;
         }
@@ -1645,7 +1661,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         return;
       }
 
-      // UMS didn't appear — show retry/log buttons
+      // UMS didn't appear: show retry/log buttons
       _setStatus(l10n.umsNotDetectedTimeout);
     } catch (e) {
       _setStatus('Error: $e');
@@ -1734,7 +1750,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     var mdbItem = _downloadState.itemOfType(DownloadItemType.mdbFirmware);
     // Bmap is optional (older releases may not ship one), but if it was
-    // queued we must wait for it — flashing the .gz sequentially when a
+    // queued we must wait for it: flashing the .gz sequentially when a
     // bmap was meant to be used skips the sparse-write fast path.
     var mdbBmapItem = _downloadState.itemOfType(DownloadItemType.mdbBmap);
     if (mdbItem == null || !mdbItem.isComplete ||
@@ -1813,7 +1829,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         diagnosis += '\n\nDevice is in ${_device!.mode.name} mode, not mass storage. '
             'Power-cycle the board so u-boot re-enters UMS mode.';
       } else {
-        diagnosis += '\n\nDevice is still visible — you can retry.';
+        diagnosis += '\n\nDevice is still visible: you can retry.';
       }
       _setStatus(diagnosis);
       setState(() => _isProcessing = false);
@@ -2098,7 +2114,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Widget _buildCbbReconnect(AppLocalizations l10n) {
-    // Auto-check CBB on enter — poll for up to 3 minutes
+    // Auto-check CBB on enter: poll for up to 3 minutes
     if (!_cbbAutoCheckStarted && !_isProcessing) {
       _cbbAutoCheckStarted = true;
       Future.microtask(() async {
@@ -2387,7 +2403,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _setStatus(l10n.uploadError(e.toString()));
       debugPrint('DBC prep error: $e');
       setState(() => _isProcessing = false);
-      // Don't reset _dbcPrepStarted — retry button handles that
+      // Don't reset _dbcPrepStarted: retry button handles that
     }
   }
 
@@ -2430,7 +2446,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       );
     }
 
-    // Step 2: USB disconnected — MDB is flashing autonomously
+    // Step 2: USB disconnected: MDB is flashing autonomously
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -2534,7 +2550,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     setState(() => _dbcUsbDisconnected = true);
     _setStatus(l10n.mdbDisconnectedFlashingDbc);
 
-    // Poll for MDB reconnect every 10s — only while still on dbcFlash phase
+    // Poll for MDB reconnect every 10s: only while still on dbcFlash phase
     while (mounted && _currentPhase == InstallerPhase.dbcFlash) {
       await Future.delayed(const Duration(seconds: 10));
       if (_currentPhase != InstallerPhase.dbcFlash) return;
@@ -2690,7 +2706,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       );
     } catch (_) {}
 
-    // Poll for trampoline status — the script may still be running when MDB
+    // Poll for trampoline status: the script may still be running when MDB
     // reconnects to RNDIS. Wait up to 5 minutes for a definitive result.
     _setStatus(l10n.readingTrampolineStatus);
     TrampolineStatus status;
@@ -2881,7 +2897,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             setState(() => _blePinCode = pin);
           }
         } else if (_blePinCode != null) {
-          // PIN cleared — pairing completed for this device
+          // PIN cleared: pairing completed for this device
           setState(() => _blePinCode = null);
         }
       } catch (_) {}
@@ -2953,7 +2969,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _stopKeycardLearning() async {
-    // True only if the count actually changed — keycard-service's exitLearnMode
+    // True only if the count actually changed: keycard-service's exitLearnMode
     // is a no-op when newUIDs is empty, so no count change means no taps.
     bool registered = _isDryRun; // dry-run assumes yes so the flow is testable
     if (!_isDryRun) {

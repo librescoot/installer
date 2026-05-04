@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'l10n/app_localizations.dart';
 import 'screens/installer_screen.dart';
-import 'services/elevation_service.dart';
 import 'theme.dart';
 
 /// Global log buffer accessible from anywhere.
@@ -16,10 +15,22 @@ class LaunchArgs {
   final String? lang;
   final String? mdbImage;
   final String? dbcImage;
+  /// Set by self-elevation when we relaunch ourselves with admin rights.
+  /// Causes the elevated process to skip the welcome screen and resume
+  /// the install starting from "Start Installation" was clicked, with
+  /// the user's selections carried over as --channel/--region.
   final bool autoStart;
   final bool dryRun;
 
-  LaunchArgs({this.channel, this.region, this.lang, this.mdbImage, this.dbcImage, this.autoStart = false, this.dryRun = false});
+  LaunchArgs({
+    this.channel,
+    this.region,
+    this.lang,
+    this.mdbImage,
+    this.dbcImage,
+    this.autoStart = false,
+    this.dryRun = false,
+  });
 
   factory LaunchArgs.fromArgs(List<String> args) {
     String? channel, region, lang, mdbImage, dbcImage;
@@ -34,7 +45,15 @@ class LaunchArgs {
       if (arg == '--auto-start') autoStart = true;
       if (arg == '--dry-run') dryRun = true;
     }
-    return LaunchArgs(channel: channel, region: region, lang: lang, mdbImage: mdbImage, dbcImage: dbcImage, autoStart: autoStart, dryRun: dryRun);
+    return LaunchArgs(
+      channel: channel,
+      region: region,
+      lang: lang,
+      mdbImage: mdbImage,
+      dbcImage: dbcImage,
+      autoStart: autoStart,
+      dryRun: dryRun,
+    );
   }
 
   bool get hasLocalImages => mdbImage != null || dbcImage != null;
@@ -79,29 +98,12 @@ void main(List<String> args) async {
 
   debugPrint('Librescoot Installer $appVersion starting (lang=${appLocale.value.languageCode}, platform=${Platform.operatingSystem})');
 
-  // Self-elevate on Windows / macOS so privileged operations later (raw
-  // disk write, network config) don't fail mid-flow. If the user declines
-  // the UAC / sudo prompt we put up an explanatory dialog and exit on Quit
-  // — running unprivileged would just dead-end at the flash step. Linux
-  // has its own pkexec story already; skip there.
-  var elevationDeclined = false;
-  if (!launchArgs.autoStart && (Platform.isWindows || Platform.isMacOS)) {
-    final elevated = await ElevationService.isElevated();
-    if (!elevated) {
-      debugPrint('Elevation: not elevated, attempting self-elevate');
-      final relaunched = await ElevationService.elevateIfNeeded(
-        extraArgs: launchArgs.toArgs(),
-      );
-      if (relaunched) {
-        debugPrint('Elevation: relaunched as elevated process, exiting parent');
-        exit(0);
-      }
-      debugPrint('Elevation: user declined or relaunch failed; showing dialog');
-      elevationDeclined = true;
-    } else {
-      debugPrint('Elevation: already elevated');
-    }
-  }
+  // Self-elevation no longer happens here; it's deferred until the user
+  // actually clicks Start Installation. That way the user can browse the
+  // welcome screen, pick a channel/region etc. without the UAC/sudo
+  // prompt firing in their face on every launch, AND a --dry-run launch
+  // doesn't get auto-clicked through to the next phase before the user
+  // sees anything. See _startDownloadsAndContinue in installer_screen.dart.
 
   // On fresh Windows installs, the CA certificate store may be incomplete.
   // Windows lazily downloads missing CA certs when SChannel-based apps (like
@@ -119,7 +121,7 @@ void main(List<String> args) async {
   // If we were launched as the elevated process, bring ourselves to front
   if (launchArgs.autoStart && Platform.isMacOS) {
     Future.delayed(const Duration(seconds: 1), () {
-      // Activate by bundle ID — no Accessibility permissions needed
+      // Activate by bundle ID: no Accessibility permissions needed
       Process.run('osascript', [
         '-e',
         'tell application id "org.librescoot.installer" to activate',
@@ -127,13 +129,11 @@ void main(List<String> args) async {
     });
   }
 
-  runApp(LibrescootInstaller(elevationDeclined: elevationDeclined));
+  runApp(const LibrescootInstaller());
 }
 
 class LibrescootInstaller extends StatelessWidget {
-  const LibrescootInstaller({super.key, this.elevationDeclined = false});
-
-  final bool elevationDeclined;
+  const LibrescootInstaller({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -160,57 +160,29 @@ class LibrescootInstaller extends StatelessWidget {
           scaffoldBackgroundColor: kBgPrimary,
           useMaterial3: true,
         ),
-        home: elevationDeclined
-            ? const ElevationRequiredScreen()
-            : const InstallerScreen(),
+        home: const InstallerScreen(),
       ),
     );
   }
 }
 
-class ElevationRequiredScreen extends StatelessWidget {
-  const ElevationRequiredScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.lock_outline, color: Colors.amber, size: 48),
-                const SizedBox(height: 16),
-                Text(
-                  l10n.elevationRequiredTitle,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  l10n.elevationRequiredBody,
-                  style: TextStyle(color: Colors.grey.shade300),
-                ),
-                const SizedBox(height: 24),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: FilledButton(
-                    onPressed: () => exit(1),
-                    child: Text(l10n.quitButton),
-                  ),
-                ),
-              ],
-            ),
-          ),
+/// Modal shown when the user clicks Start Installation but UAC/sudo is
+/// declined. The user dismisses it and can re-attempt by clicking Start
+/// again, or close the app.
+Future<void> showElevationRequiredDialog(BuildContext context) async {
+  final l10n = AppLocalizations.of(context)!;
+  await showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      icon: const Icon(Icons.lock_outline, color: Colors.amber, size: 36),
+      title: Text(l10n.elevationRequiredTitle),
+      content: Text(l10n.elevationRequiredBody),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: Text(l10n.continueButton),
         ),
-      ),
-    );
-  }
+      ],
+    ),
+  );
 }
