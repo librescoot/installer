@@ -671,7 +671,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Flash progress: glowing constantly = done, pulsing = in progress';
 
   @override
-  String get ledBootGreen => 'Boot LED blinking green';
+  String get ledBootGreen => 'Dashboard LED blinking green';
 
   @override
   String get ledBootGreenMeaning => 'Success. Reconnect laptop';
@@ -1120,6 +1120,92 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get keycardEntryAlreadyConfiguredHeading =>
+      'Keycards already configured';
+
+  @override
+  String keycardEntryAlreadyConfiguredBody(int master, int authorized) {
+    String _temp0 = intl.Intl.pluralLogic(
+      master,
+      locale: localeName,
+      other: '$master master cards are set',
+      one: '1 master card is set',
+      zero: 'No master card is set',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      authorized,
+      locale: localeName,
+      other: '$authorized unlock cards are registered',
+      one: '1 unlock card is registered',
+      zero: 'no unlock cards are registered',
+    );
+    return '$_temp0 and $_temp1. You can keep this state, or wipe everything and start over.';
+  }
+
+  @override
+  String get keycardEntryContinueButton => 'Continue';
+
+  @override
+  String get keycardStartOverButton => 'Start over';
+
+  @override
+  String get keycardStartOverConfirmTitle => 'Wipe all keycards?';
+
+  @override
+  String get keycardStartOverConfirmBody =>
+      'This deletes the master card and every registered unlock card on the scooter. You\'ll need to re-register them. Continue?';
+
+  @override
+  String get keycardStartOverConfirmYes => 'Wipe everything';
+
+  @override
+  String get keycardStartOverConfirmNo => 'Cancel';
+
+  @override
+  String get keycardCardsStageContinueButton => 'Continue';
+
+  @override
+  String get keycardCardsStageAddMasterButton => 'Add master card (advanced)';
+
+  @override
+  String get keycardMasterStageHeading => 'Add master card';
+
+  @override
+  String get keycardMasterStageWarningHeading =>
+      'WARNING: master card is NOT for unlocking';
+
+  @override
+  String get keycardMasterStageWarningBody =>
+      'The master card is used to manage other keycards. It CANNOT unlock the scooter. Do NOT use any of the cards you just registered as unlock cards. Use a separate, fresh card.';
+
+  @override
+  String get keycardMasterStageHint => 'Hold the master card to the reader.';
+
+  @override
+  String get keycardMasterStageRejectedToast =>
+      'This card is already registered as an unlock card.';
+
+  @override
+  String get keycardMasterStageSaveFailedToast =>
+      'Could not save master card: write failed.';
+
+  @override
+  String get keycardMasterStageLearnedToast => 'Master card registered.';
+
+  @override
+  String get keycardMasterStageSkipButton => 'Skip';
+
+  @override
+  String get keycardSimulateTapButton => '[DRY RUN] Simulate tap';
+
+  @override
+  String get keycardSimulateMasterTapButton => '[DRY RUN] Simulate master tap';
+
+  @override
+  String get keycardSimulateRejectedTapButton =>
+      '[DRY RUN] Simulate already-authorized rejection';
+
+  @override
   String get willAskForElevation =>
       'Start Installation (will ask for elevation)';
 
@@ -1230,13 +1316,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'The DBC will turn on and off multiple times during this process. Do not disconnect the USB cable between MDB and DBC.';
 
   @override
-  String get ledBootAmber => 'Boot LED amber';
+  String get ledBootAmber => 'Dashboard LED amber';
 
   @override
   String get ledBootAmberMeaning => 'Flashing in progress';
 
   @override
-  String get ledBootRedError => 'Boot LED blinking red';
+  String get ledBootRedError => 'Dashboard LED blinking red';
 
   @override
   String get ledBootRedMeaning =>
@@ -1244,7 +1330,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flashingTakesAbout10Min =>
-      'Flashing takes about 10 minutes. Once the boot LED is blinking (green or red), and only then, reconnect the laptop USB cable.';
+      'Flashing takes about 10 minutes. Once the dashboard LED is blinking (green or red), and only then, reconnect the laptop USB cable.';
 
   @override
   String get waitingForMdbToReconnect => 'Waiting for MDB to reconnect...';
@@ -1257,7 +1343,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ledAmberWaitNotice =>
-      'Most important: do NOT disconnect USB or power while this is running. While the boot LED is amber/orange, flashing is still in progress. Hands off, don\'t click anything. The LED will start blinking once it\'s done: green = success, red = error. Only continue once it\'s blinking.';
+      'Most important: do NOT disconnect USB or power while this is running. While the dashboard LED is amber/orange, flashing is still in progress. Hands off, don\'t click anything. The LED will start blinking once it\'s done: green = success, red = error. Only continue once it\'s blinking.';
 
   @override
   String get phaseKeycardSetupTitle => 'Keycard Setup';

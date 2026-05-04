@@ -800,6 +800,77 @@ class SshService {
     await runCommand('redis-cli LPUSH $key $value');
   }
 
+  /// Subscribe to a Redis pub/sub [channel] over a long-running SSH session.
+  /// Yields one event per published message (the payload only). Caller must
+  /// invoke [stop] on the returned subscription to terminate the session and
+  /// release the SSH channel.
+  ///
+  /// redis-cli prints each delivered message as three lines of array-encoded
+  /// output:
+  ///   1\) `"message"`
+  ///   2\) `"channel"`
+  ///   3\) `"payload"`
+  /// awk strips the index prefix and surrounding quotes from line 3, and
+  /// fflush() defeats line-buffering so events arrive promptly.
+  Future<({Stream<String> events, Future<void> Function() stop})>
+      subscribeRedisChannel(String channel) async {
+    if (_client == null) throw Exception('Not connected');
+    final escapedChannel = _shellEscape(channel);
+    final cmd =
+        'redis-cli SUBSCRIBE $escapedChannel 2>&1 | '
+        "awk '"
+        '/^[0-9]+\\) "message"/ { state=1; next } '
+        'state==1 { state=2; next } '
+        'state==2 { sub(/^[0-9]+\\) "/, ""); sub(/"\$/, ""); print; fflush(); state=0; next }'
+        "'";
+    final session = await _client!.execute(cmd);
+    final controller = StreamController<String>();
+    final decoder = const Utf8Decoder(allowMalformed: true);
+    var buf = '';
+
+    final stdoutSub = session.stdout.listen(
+      (data) {
+        buf += decoder.convert(data);
+        var idx = buf.indexOf('\n');
+        while (idx != -1) {
+          final line = buf.substring(0, idx).trim();
+          buf = buf.substring(idx + 1);
+          if (line.isNotEmpty && !controller.isClosed) {
+            controller.add(line);
+          }
+          idx = buf.indexOf('\n');
+        }
+      },
+      onError: (Object e, StackTrace s) {
+        if (!controller.isClosed) controller.addError(e, s);
+      },
+      onDone: () {
+        final tail = buf.trim();
+        if (tail.isNotEmpty && !controller.isClosed) controller.add(tail);
+        if (!controller.isClosed) controller.close();
+      },
+    );
+    // Drain stderr so the channel doesn't block on flow control.
+    final stderrSub = session.stderr.listen((_) {});
+
+    Future<void> stop() async {
+      try {
+        session.close();
+      } catch (_) {}
+      try {
+        await stdoutSub.cancel();
+      } catch (_) {}
+      try {
+        await stderrSub.cancel();
+      } catch (_) {}
+      if (!controller.isClosed) {
+        await controller.close();
+      }
+    }
+
+    return (events: controller.stream, stop: stop);
+  }
+
   /// Run a Redis HGETALL on the MDB and return all field/value pairs.
   /// Returns an empty map on error or if the hash is empty.
   Future<Map<String, String>> redisHgetall(String hash) async {

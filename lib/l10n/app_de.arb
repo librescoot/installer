@@ -340,6 +340,38 @@
   "@keycardStartLearningFailed": {
     "placeholders": { "error": { "type": "String" } }
   },
+
+  "keycardEntryAlreadyConfiguredHeading": "Schlüsselkarten sind bereits eingerichtet",
+  "keycardEntryAlreadyConfiguredBody": "{master, plural, =0{Es ist keine Masterkarte gesetzt} one{1 Masterkarte ist gesetzt} other{{master} Masterkarten sind gesetzt}} und {authorized, plural, =0{keine Schlüsselkarten sind angelernt} one{1 Schlüsselkarte ist angelernt} other{{authorized} Schlüsselkarten sind angelernt}}. Du kannst diesen Zustand behalten, oder alles zurücksetzen und neu beginnen.",
+  "@keycardEntryAlreadyConfiguredBody": {
+    "placeholders": {
+      "master": { "type": "int" },
+      "authorized": { "type": "int" }
+    }
+  },
+  "keycardEntryContinueButton": "Weiter",
+  "keycardStartOverButton": "Von vorn beginnen",
+  "keycardStartOverConfirmTitle": "Alle Schlüsselkarten löschen?",
+  "keycardStartOverConfirmBody": "Damit werden die Masterkarte und alle angelernten Schlüsselkarten auf dem Roller gelöscht. Du musst sie danach erneut anlernen. Fortfahren?",
+  "keycardStartOverConfirmYes": "Alles löschen",
+  "keycardStartOverConfirmNo": "Abbrechen",
+
+  "keycardCardsStageContinueButton": "Weiter",
+  "keycardCardsStageAddMasterButton": "Masterkarte hinzufügen (fortgeschritten)",
+
+  "keycardMasterStageHeading": "Masterkarte hinzufügen",
+  "keycardMasterStageWarningHeading": "ACHTUNG: Die Masterkarte entriegelt den Roller NICHT",
+  "keycardMasterStageWarningBody": "Die Masterkarte dient nur zur Verwaltung anderer Schlüsselkarten. Mit ihr kannst du den Roller NICHT entriegeln. Verwende KEINE der gerade angelernten Schlüsselkarten. Nimm eine separate, frische Karte.",
+  "keycardMasterStageHint": "Halte die Masterkarte an den Leser.",
+  "keycardMasterStageRejectedToast": "Diese Karte ist bereits als Schlüsselkarte registriert.",
+  "keycardMasterStageSaveFailedToast": "Masterkarte konnte nicht gespeichert werden: Schreibvorgang fehlgeschlagen.",
+  "keycardMasterStageLearnedToast": "Masterkarte wurde registriert.",
+  "keycardMasterStageSkipButton": "Überspringen",
+
+  "keycardSimulateTapButton": "[DRY RUN] Tap simulieren",
+  "keycardSimulateMasterTapButton": "[DRY RUN] Master-Tap simulieren",
+  "keycardSimulateRejectedTapButton": "[DRY RUN] Bereits-angelernt-Ablehnung simulieren",
+
   "willAskForElevation": "Installation starten (fragt nach Berechtigung)",
   "installationContinuesInNewWindow": "Die Installation wird im neuen Fenster fortgesetzt",
   "youCanCloseThisWindow": "Du kannst dieses Fenster schließen.",

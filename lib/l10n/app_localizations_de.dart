@@ -677,7 +677,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Flash-Fortschritt: dauerhaft an = fertig, pulsierend = läuft';
 
   @override
-  String get ledBootGreen => 'Boot-LED blinkt grün';
+  String get ledBootGreen => 'Tacho-LED blinkt grün';
 
   @override
   String get ledBootGreenMeaning => 'Erfolgreich. Laptop wieder verbinden';
@@ -1128,6 +1128,94 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get keycardEntryAlreadyConfiguredHeading =>
+      'Schlüsselkarten sind bereits eingerichtet';
+
+  @override
+  String keycardEntryAlreadyConfiguredBody(int master, int authorized) {
+    String _temp0 = intl.Intl.pluralLogic(
+      master,
+      locale: localeName,
+      other: '$master Masterkarten sind gesetzt',
+      one: '1 Masterkarte ist gesetzt',
+      zero: 'Es ist keine Masterkarte gesetzt',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      authorized,
+      locale: localeName,
+      other: '$authorized Schlüsselkarten sind angelernt',
+      one: '1 Schlüsselkarte ist angelernt',
+      zero: 'keine Schlüsselkarten sind angelernt',
+    );
+    return '$_temp0 und $_temp1. Du kannst diesen Zustand behalten, oder alles zurücksetzen und neu beginnen.';
+  }
+
+  @override
+  String get keycardEntryContinueButton => 'Weiter';
+
+  @override
+  String get keycardStartOverButton => 'Von vorn beginnen';
+
+  @override
+  String get keycardStartOverConfirmTitle => 'Alle Schlüsselkarten löschen?';
+
+  @override
+  String get keycardStartOverConfirmBody =>
+      'Damit werden die Masterkarte und alle angelernten Schlüsselkarten auf dem Roller gelöscht. Du musst sie danach erneut anlernen. Fortfahren?';
+
+  @override
+  String get keycardStartOverConfirmYes => 'Alles löschen';
+
+  @override
+  String get keycardStartOverConfirmNo => 'Abbrechen';
+
+  @override
+  String get keycardCardsStageContinueButton => 'Weiter';
+
+  @override
+  String get keycardCardsStageAddMasterButton =>
+      'Masterkarte hinzufügen (fortgeschritten)';
+
+  @override
+  String get keycardMasterStageHeading => 'Masterkarte hinzufügen';
+
+  @override
+  String get keycardMasterStageWarningHeading =>
+      'ACHTUNG: Die Masterkarte entriegelt den Roller NICHT';
+
+  @override
+  String get keycardMasterStageWarningBody =>
+      'Die Masterkarte dient nur zur Verwaltung anderer Schlüsselkarten. Mit ihr kannst du den Roller NICHT entriegeln. Verwende KEINE der gerade angelernten Schlüsselkarten. Nimm eine separate, frische Karte.';
+
+  @override
+  String get keycardMasterStageHint => 'Halte die Masterkarte an den Leser.';
+
+  @override
+  String get keycardMasterStageRejectedToast =>
+      'Diese Karte ist bereits als Schlüsselkarte registriert.';
+
+  @override
+  String get keycardMasterStageSaveFailedToast =>
+      'Masterkarte konnte nicht gespeichert werden: Schreibvorgang fehlgeschlagen.';
+
+  @override
+  String get keycardMasterStageLearnedToast => 'Masterkarte wurde registriert.';
+
+  @override
+  String get keycardMasterStageSkipButton => 'Überspringen';
+
+  @override
+  String get keycardSimulateTapButton => '[DRY RUN] Tap simulieren';
+
+  @override
+  String get keycardSimulateMasterTapButton =>
+      '[DRY RUN] Master-Tap simulieren';
+
+  @override
+  String get keycardSimulateRejectedTapButton =>
+      '[DRY RUN] Bereits-angelernt-Ablehnung simulieren';
+
+  @override
   String get willAskForElevation =>
       'Installation starten (fragt nach Berechtigung)';
 
@@ -1239,13 +1327,13 @@ class AppLocalizationsDe extends AppLocalizations {
       'Das DBC wird während dieses Vorgangs mehrmals ein- und ausgeschaltet. Trenne das USB-Kabel zwischen MDB und DBC nicht.';
 
   @override
-  String get ledBootAmber => 'Boot-LED gelb-orange';
+  String get ledBootAmber => 'Tacho-LED gelb-orange';
 
   @override
   String get ledBootAmberMeaning => 'Flash läuft';
 
   @override
-  String get ledBootRedError => 'Boot-LED blinkt rot';
+  String get ledBootRedError => 'Tacho-LED blinkt rot';
 
   @override
   String get ledBootRedMeaning =>
@@ -1253,7 +1341,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get flashingTakesAbout10Min =>
-      'Das Flashen dauert etwa 10 Minuten. Erst wenn die Boot-LED blinkt (grün oder rot), und auch wirklich erst dann, das Laptop-USB-Kabel wieder anschließen.';
+      'Das Flashen dauert etwa 10 Minuten. Erst wenn die Tacho-LED blinkt (grün oder rot), und auch wirklich erst dann, das Laptop-USB-Kabel wieder anschließen.';
 
   @override
   String get waitingForMdbToReconnect => 'Warte auf MDB-Wiederverbindung...';
@@ -1266,7 +1354,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get ledAmberWaitNotice =>
-      'Wichtig: USB und Strom NICHT trennen, solange das hier läuft. Solange die Boot-LED gelb-orange leuchtet, läuft der Flash noch. Finger weg, nichts anklicken. Wenn der Flash durch ist, fängt die LED an zu blinken: grün = Erfolg, rot = Fehler. Erst weitermachen, wenn sie blinkt.';
+      'Wichtig: USB und Strom NICHT trennen, solange das hier läuft. Solange die Tacho-LED gelb-orange leuchtet, läuft der Flash noch. Finger weg, nichts anklicken. Wenn der Flash durch ist, fängt die LED an zu blinken: grün = Erfolg, rot = Fehler. Erst weitermachen, wenn sie blinkt.';
 
   @override
   String get phaseKeycardSetupTitle => 'Schlüsselkarten einrichten';

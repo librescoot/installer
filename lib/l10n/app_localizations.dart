@@ -1295,7 +1295,7 @@ abstract class AppLocalizations {
   /// No description provided for @ledBootGreen.
   ///
   /// In en, this message translates to:
-  /// **'Boot LED blinking green'**
+  /// **'Dashboard LED blinking green'**
   String get ledBootGreen;
 
   /// No description provided for @ledBootGreenMeaning.
@@ -2060,6 +2060,132 @@ abstract class AppLocalizations {
   /// **'Could not start keycard learning: {error}'**
   String keycardStartLearningFailed(String error);
 
+  /// No description provided for @keycardEntryAlreadyConfiguredHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Keycards already configured'**
+  String get keycardEntryAlreadyConfiguredHeading;
+
+  /// No description provided for @keycardEntryAlreadyConfiguredBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{master, plural, =0{No master card is set} one{1 master card is set} other{{master} master cards are set}} and {authorized, plural, =0{no unlock cards are registered} one{1 unlock card is registered} other{{authorized} unlock cards are registered}}. You can keep this state, or wipe everything and start over.'**
+  String keycardEntryAlreadyConfiguredBody(int master, int authorized);
+
+  /// No description provided for @keycardEntryContinueButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get keycardEntryContinueButton;
+
+  /// No description provided for @keycardStartOverButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Start over'**
+  String get keycardStartOverButton;
+
+  /// No description provided for @keycardStartOverConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Wipe all keycards?'**
+  String get keycardStartOverConfirmTitle;
+
+  /// No description provided for @keycardStartOverConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This deletes the master card and every registered unlock card on the scooter. You\'ll need to re-register them. Continue?'**
+  String get keycardStartOverConfirmBody;
+
+  /// No description provided for @keycardStartOverConfirmYes.
+  ///
+  /// In en, this message translates to:
+  /// **'Wipe everything'**
+  String get keycardStartOverConfirmYes;
+
+  /// No description provided for @keycardStartOverConfirmNo.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get keycardStartOverConfirmNo;
+
+  /// No description provided for @keycardCardsStageContinueButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get keycardCardsStageContinueButton;
+
+  /// No description provided for @keycardCardsStageAddMasterButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Add master card (advanced)'**
+  String get keycardCardsStageAddMasterButton;
+
+  /// No description provided for @keycardMasterStageHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Add master card'**
+  String get keycardMasterStageHeading;
+
+  /// No description provided for @keycardMasterStageWarningHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'WARNING: master card is NOT for unlocking'**
+  String get keycardMasterStageWarningHeading;
+
+  /// No description provided for @keycardMasterStageWarningBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The master card is used to manage other keycards. It CANNOT unlock the scooter. Do NOT use any of the cards you just registered as unlock cards. Use a separate, fresh card.'**
+  String get keycardMasterStageWarningBody;
+
+  /// No description provided for @keycardMasterStageHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold the master card to the reader.'**
+  String get keycardMasterStageHint;
+
+  /// No description provided for @keycardMasterStageRejectedToast.
+  ///
+  /// In en, this message translates to:
+  /// **'This card is already registered as an unlock card.'**
+  String get keycardMasterStageRejectedToast;
+
+  /// No description provided for @keycardMasterStageSaveFailedToast.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save master card: write failed.'**
+  String get keycardMasterStageSaveFailedToast;
+
+  /// No description provided for @keycardMasterStageLearnedToast.
+  ///
+  /// In en, this message translates to:
+  /// **'Master card registered.'**
+  String get keycardMasterStageLearnedToast;
+
+  /// No description provided for @keycardMasterStageSkipButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip'**
+  String get keycardMasterStageSkipButton;
+
+  /// No description provided for @keycardSimulateTapButton.
+  ///
+  /// In en, this message translates to:
+  /// **'[DRY RUN] Simulate tap'**
+  String get keycardSimulateTapButton;
+
+  /// No description provided for @keycardSimulateMasterTapButton.
+  ///
+  /// In en, this message translates to:
+  /// **'[DRY RUN] Simulate master tap'**
+  String get keycardSimulateMasterTapButton;
+
+  /// No description provided for @keycardSimulateRejectedTapButton.
+  ///
+  /// In en, this message translates to:
+  /// **'[DRY RUN] Simulate already-authorized rejection'**
+  String get keycardSimulateRejectedTapButton;
+
   /// No description provided for @willAskForElevation.
   ///
   /// In en, this message translates to:
@@ -2267,7 +2393,7 @@ abstract class AppLocalizations {
   /// No description provided for @ledBootAmber.
   ///
   /// In en, this message translates to:
-  /// **'Boot LED amber'**
+  /// **'Dashboard LED amber'**
   String get ledBootAmber;
 
   /// No description provided for @ledBootAmberMeaning.
@@ -2279,7 +2405,7 @@ abstract class AppLocalizations {
   /// No description provided for @ledBootRedError.
   ///
   /// In en, this message translates to:
-  /// **'Boot LED blinking red'**
+  /// **'Dashboard LED blinking red'**
   String get ledBootRedError;
 
   /// No description provided for @ledBootRedMeaning.
@@ -2291,7 +2417,7 @@ abstract class AppLocalizations {
   /// No description provided for @flashingTakesAbout10Min.
   ///
   /// In en, this message translates to:
-  /// **'Flashing takes about 10 minutes. Once the boot LED is blinking (green or red), and only then, reconnect the laptop USB cable.'**
+  /// **'Flashing takes about 10 minutes. Once the dashboard LED is blinking (green or red), and only then, reconnect the laptop USB cable.'**
   String get flashingTakesAbout10Min;
 
   /// No description provided for @waitingForMdbToReconnect.
@@ -2315,7 +2441,7 @@ abstract class AppLocalizations {
   /// No description provided for @ledAmberWaitNotice.
   ///
   /// In en, this message translates to:
-  /// **'Most important: do NOT disconnect USB or power while this is running. While the boot LED is amber/orange, flashing is still in progress. Hands off, don\'t click anything. The LED will start blinking once it\'s done: green = success, red = error. Only continue once it\'s blinking.'**
+  /// **'Most important: do NOT disconnect USB or power while this is running. While the dashboard LED is amber/orange, flashing is still in progress. Hands off, don\'t click anything. The LED will start blinking once it\'s done: green = success, red = error. Only continue once it\'s blinking.'**
   String get ledAmberWaitNotice;
 
   /// No description provided for @phaseKeycardSetupTitle.
