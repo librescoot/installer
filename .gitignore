@@ -57,6 +57,9 @@ build/
 # Flasher binaries — fetched at build time by scripts/update-flasher.sh
 # (see assets/tools/FLASHER_VERSION for the pinned tag)
 /assets/tools/librescoot-flasher-linux-amd64
+/assets/tools/librescoot-flasher-linux-arm64
 /assets/tools/librescoot-flasher-linux-arm
+/assets/tools/librescoot-flasher-darwin-amd64
 /assets/tools/librescoot-flasher-darwin-arm64
 /assets/tools/librescoot-flasher-windows-amd64.exe
+/assets/tools/librescoot-flasher-windows-arm64.exe

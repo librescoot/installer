@@ -24,12 +24,16 @@ else
 fi
 
 # Platform-arch binaries we ship with the installer. Linux-arm is uploaded to
-# the MDB during trampoline provisioning; the others are host flashers.
+# the MDB during trampoline provisioning; the others are host flashers
+# (one per (OS, CPU) combination supported as a host).
 ASSETS=(
   "librescoot-flasher-linux-amd64"
+  "librescoot-flasher-linux-arm64"
   "librescoot-flasher-linux-arm"
+  "librescoot-flasher-darwin-amd64"
   "librescoot-flasher-darwin-arm64"
   "librescoot-flasher-windows-amd64.exe"
+  "librescoot-flasher-windows-arm64.exe"
 )
 
 if ! command -v gh >/dev/null 2>&1; then

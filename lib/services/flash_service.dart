@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:ffi' show Abi;
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
@@ -552,11 +554,6 @@ class FlashService {
     if (Platform.isWindows) {
       await _writeWindowsViaGoFlasher(imagePath, devicePath, isCompressed, onProgress, bmapPath: bmapPath);
     } else if (Platform.isMacOS) {
-      final flasherPath = await _getFlasherPath();
-      if (flasherPath == null) {
-        throw Exception('librescoot-flasher binary not found in app bundle');
-      }
-
       final rawDevice = !devicePath.contains('rdisk')
           ? devicePath.replaceFirst('/dev/disk', '/dev/rdisk')
           : devicePath;
@@ -566,8 +563,18 @@ class FlashService {
       debugPrint('Flash: unmounting $diskName');
       await Process.run('diskutil', ['unmountDisk', diskName]);
 
-      // Go flasher handles macOS authorization internally via Security.framework
-      await _writeWithGoFlasher(flasherPath, imagePath, rawDevice, bmapPath, true, onProgress);
+      final flasherPath = await _getFlasherPath();
+      if (flasherPath != null) {
+        // Go flasher handles macOS authorization internally via Security.framework
+        await _writeWithGoFlasher(flasherPath, imagePath, rawDevice, bmapPath, true, onProgress);
+      } else {
+        // No flasher binary for this arch (e.g. older bundle without
+        // darwin-amd64). Fall back to a plain dd write — slower, no
+        // bmap fast path, no two-phase, but it gets the bits onto the
+        // device. We're already running as root via self-elevation.
+        debugPrint('Flash: no Go flasher for ${Abi.current()}, falling back to dd');
+        await _writeMacOSDdFallback(imagePath, rawDevice, onProgress);
+      }
     } else {
       // Linux: single pkexec elevation for both dd phases + verify
       await _writeTwoPhaseLinux(imagePath, devicePath, isCompressed, onProgress, bmapPath: bmapPath);
@@ -778,18 +785,91 @@ class FlashService {
   /// On macOS and Linux the binary is installed with +x by the build system
   /// (Xcode build phase / CMake install), so no chmod is needed at runtime.
   /// Windows bundles it via Flutter assets (no execute bit needed).
+  /// macOS dd fallback for hosts without a matching librescoot-flasher
+  /// binary in the bundle. Single-phase, no bmap, no two-phase safety —
+  /// strictly a "get the bits there" path. We're root via self-elevation,
+  /// so writing to /dev/rdiskN works without authopen.
+  Future<void> _writeMacOSDdFallback(
+    String imagePath,
+    String rawDevice,
+    void Function(double progress, String message)? onProgress,
+  ) async {
+    final isCompressed = imagePath.endsWith('.gz');
+    final totalBytes = await _estimateImageSizeBytes(imagePath, isCompressed) ?? 0;
+    final totalMb = totalBytes / (1024 * 1024);
+    onProgress?.call(0.0, 'dd fallback (no Go flasher for this CPU)...');
+
+    final cmd = isCompressed
+        ? 'gunzip -c "$imagePath" | dd of=$rawDevice bs=4m'
+        : 'dd if="$imagePath" of=$rawDevice bs=4m';
+
+    final process = await Process.start('/bin/sh', ['-c', cmd]);
+
+    // macOS dd prints status only on SIGINFO. Poke it every 2s so the
+    // user sees something move.
+    final ticker = Timer.periodic(const Duration(seconds: 2), (_) async {
+      try {
+        final r = await Process.run('pgrep', ['-P', '${process.pid}', 'dd']);
+        final ddPid = int.tryParse(r.stdout.toString().trim());
+        if (ddPid != null) {
+          await Process.run('kill', ['-INFO', '$ddPid']);
+        }
+      } catch (_) {}
+    });
+
+    final stderrBuf = StringBuffer();
+    process.stdout.listen((_) {});
+    await for (final chunk in process.stderr.transform(utf8.decoder)) {
+      stderrBuf.write(chunk);
+      // dd status lines look like: "12345678 bytes transferred in 4.2 secs"
+      final m = RegExp(r'(\d+) bytes').firstMatch(chunk);
+      if (m != null) {
+        final bytes = int.tryParse(m.group(1)!) ?? 0;
+        final mb = bytes / (1024 * 1024);
+        if (totalBytes > 0) {
+          final fraction = (bytes / totalBytes).clamp(0.0, 0.95);
+          onProgress?.call(fraction,
+              'dd: ${mb.toStringAsFixed(0)} / ${totalMb.toStringAsFixed(0)} MB');
+        } else {
+          onProgress?.call(0.0, 'dd: ${mb.toStringAsFixed(0)} MB written');
+        }
+      }
+    }
+    ticker.cancel();
+
+    final exit = await process.exitCode;
+    if (exit != 0) {
+      throw Exception('dd fallback failed: ${stderrBuf.toString().trim()}');
+    }
+    await Process.run('sync', []);
+    onProgress?.call(1.0, 'dd: complete');
+  }
+
+  /// Pick the librescoot-flasher binary that matches the current host
+  /// CPU. Returns null on an unsupported (OS, arch) combo — the caller
+  /// must then either fall back (macOS) or surface an error.
+  String? _flasherBinaryName() {
+    final abi = Abi.current();
+    if (Platform.isWindows) {
+      if (abi == Abi.windowsArm64) return 'librescoot-flasher-windows-arm64.exe';
+      return 'librescoot-flasher-windows-amd64.exe';
+    }
+    if (Platform.isMacOS) {
+      if (abi == Abi.macosX64) return 'librescoot-flasher-darwin-amd64';
+      return 'librescoot-flasher-darwin-arm64';
+    }
+    if (Platform.isLinux) {
+      if (abi == Abi.linuxArm64) return 'librescoot-flasher-linux-arm64';
+      if (abi == Abi.linuxArm) return 'librescoot-flasher-linux-arm';
+      return 'librescoot-flasher-linux-amd64';
+    }
+    return null;
+  }
+
   Future<String?> _getFlasherPath() async {
     final execDir = path.dirname(Platform.resolvedExecutable);
-    final String binaryName;
-    if (Platform.isWindows) {
-      binaryName = 'librescoot-flasher-windows-amd64.exe';
-    } else if (Platform.isMacOS) {
-      binaryName = 'librescoot-flasher-darwin-arm64';
-    } else if (Platform.isLinux) {
-      binaryName = 'librescoot-flasher-linux-amd64';
-    } else {
-      return null;
-    }
+    final binaryName = _flasherBinaryName();
+    if (binaryName == null) return null;
     final candidates = <String>[
       if (Platform.isMacOS)
         // Xcode build phase copies it here with +x
@@ -803,11 +883,11 @@ class FlashService {
     ];
     for (final candidate in candidates) {
       if (await File(candidate).exists()) {
-        debugPrint('Flash: found Go flasher at $candidate');
+        debugPrint('Flash: found Go flasher at $candidate (${Abi.current()})');
         return candidate;
       }
     }
-    debugPrint('Flash: Go flasher not found in: $candidates');
+    debugPrint('Flash: Go flasher $binaryName (${Abi.current()}) not found in: $candidates');
     return null;
   }
 
