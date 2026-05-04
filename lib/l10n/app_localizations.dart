@@ -380,6 +380,24 @@ abstract class AppLocalizations {
   /// **'The flash takes several minutes and any USB drop or laptop sleep mid-flash leaves the MDB in an inconsistent state. Please check:\n• A known-good USB cable, plugged in firmly at both ends — flaky cables are the #1 cause of failed installs\n• Laptop on power, or fully charged — battery saver / sleep can break the flash\n• Use a direct USB port, not a USB hub if possible\n• Don\'t unplug or move things around once the flash starts'**
   String get reliabilityWarningBody;
 
+  /// No description provided for @elevationRequiredTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Administrator privileges required'**
+  String get elevationRequiredTitle;
+
+  /// No description provided for @elevationRequiredBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Librescoot Installer needs administrator privileges to write to the scooter\'s storage and configure the network interface. The elevation prompt was declined or failed.\n\nClose this window and re-launch the installer, then approve the elevation prompt.'**
+  String get elevationRequiredBody;
+
+  /// No description provided for @quitButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Quit'**
+  String get quitButton;
+
   /// No description provided for @firmwareChannel.
   ///
   /// In en, this message translates to:
@@ -1217,13 +1235,13 @@ abstract class AppLocalizations {
   /// No description provided for @ledRearLightSolid.
   ///
   /// In en, this message translates to:
-  /// **'Rear light glows briefly'**
+  /// **'All four blinkers (hazards) flashing'**
   String get ledRearLightSolid;
 
   /// No description provided for @ledRearLightSolidMeaning.
   ///
   /// In en, this message translates to:
-  /// **'Error — reconnect laptop to see log'**
+  /// **'Error — reconnect laptop to see log; the indicators stop once you reconnect'**
   String get ledRearLightSolidMeaning;
 
   /// No description provided for @bootLedGreenReconnect.
@@ -1235,7 +1253,7 @@ abstract class AppLocalizations {
   /// No description provided for @rearLightCheckError.
   ///
   /// In en, this message translates to:
-  /// **'Rear light on — Check Error'**
+  /// **'Hazards flashing — Check Error'**
   String get rearLightCheckError;
 
   /// No description provided for @verifyingDbcInstallation.
@@ -2189,13 +2207,13 @@ abstract class AppLocalizations {
   /// No description provided for @ledBootRedError.
   ///
   /// In en, this message translates to:
-  /// **'Boot LED red'**
+  /// **'Boot LED blinking red'**
   String get ledBootRedError;
 
   /// No description provided for @ledBootRedMeaning.
   ///
   /// In en, this message translates to:
-  /// **'Error — reconnect laptop to check log'**
+  /// **'Error — reconnect laptop to check log; the indicators stop once you reconnect'**
   String get ledBootRedMeaning;
 
   /// No description provided for @flashingTakesAbout10Min.

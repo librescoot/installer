@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'l10n/app_localizations.dart';
 import 'screens/installer_screen.dart';
+import 'services/elevation_service.dart';
 import 'theme.dart';
 
 /// Global log buffer accessible from anywhere.
@@ -78,6 +79,30 @@ void main(List<String> args) async {
 
   debugPrint('Librescoot Installer $appVersion starting (lang=${appLocale.value.languageCode}, platform=${Platform.operatingSystem})');
 
+  // Self-elevate on Windows / macOS so privileged operations later (raw
+  // disk write, network config) don't fail mid-flow. If the user declines
+  // the UAC / sudo prompt we put up an explanatory dialog and exit on Quit
+  // — running unprivileged would just dead-end at the flash step. Linux
+  // has its own pkexec story already; skip there.
+  var elevationDeclined = false;
+  if (!launchArgs.autoStart && (Platform.isWindows || Platform.isMacOS)) {
+    final elevated = await ElevationService.isElevated();
+    if (!elevated) {
+      debugPrint('Elevation: not elevated, attempting self-elevate');
+      final relaunched = await ElevationService.elevateIfNeeded(
+        extraArgs: launchArgs.toArgs(),
+      );
+      if (relaunched) {
+        debugPrint('Elevation: relaunched as elevated process, exiting parent');
+        exit(0);
+      }
+      debugPrint('Elevation: user declined or relaunch failed; showing dialog');
+      elevationDeclined = true;
+    } else {
+      debugPrint('Elevation: already elevated');
+    }
+  }
+
   // On fresh Windows installs, the CA certificate store may be incomplete.
   // Windows lazily downloads missing CA certs when SChannel-based apps (like
   // curl.exe) connect to HTTPS endpoints, but Dart's HTTP client only reads
@@ -102,11 +127,13 @@ void main(List<String> args) async {
     });
   }
 
-  runApp(const LibrescootInstaller());
+  runApp(LibrescootInstaller(elevationDeclined: elevationDeclined));
 }
 
 class LibrescootInstaller extends StatelessWidget {
-  const LibrescootInstaller({super.key});
+  const LibrescootInstaller({super.key, this.elevationDeclined = false});
+
+  final bool elevationDeclined;
 
   @override
   Widget build(BuildContext context) {
@@ -133,7 +160,56 @@ class LibrescootInstaller extends StatelessWidget {
           scaffoldBackgroundColor: kBgPrimary,
           useMaterial3: true,
         ),
-        home: const InstallerScreen(),
+        home: elevationDeclined
+            ? const ElevationRequiredScreen()
+            : const InstallerScreen(),
+      ),
+    );
+  }
+}
+
+class ElevationRequiredScreen extends StatelessWidget {
+  const ElevationRequiredScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Scaffold(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.lock_outline, color: Colors.amber, size: 48),
+                const SizedBox(height: 16),
+                Text(
+                  l10n.elevationRequiredTitle,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  l10n.elevationRequiredBody,
+                  style: TextStyle(color: Colors.grey.shade300),
+                ),
+                const SizedBox(height: 24),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton(
+                    onPressed: () => exit(1),
+                    child: Text(l10n.quitButton),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -159,6 +159,16 @@ class AppLocalizationsDe extends AppLocalizations {
       'Das Flashen dauert mehrere Minuten, und jeder USB-Wackler oder Laptop-Standby mittendrin hinterlässt das MDB in einem inkonsistenten Zustand. Bitte prüfen:\n• Ein zuverlässiges USB-Kabel, an beiden Enden fest eingesteckt — Wackelkontakte sind die häufigste Ursache für gescheiterte Installationen\n• Laptop am Netzteil oder vollgeladen — Energiesparmodus / Standby unterbricht den Flash\n• Möglichst direkter USB-Port, kein USB-Hub\n• Während des Flashens nichts umstecken oder bewegen';
 
   @override
+  String get elevationRequiredTitle => 'Administratorrechte erforderlich';
+
+  @override
+  String get elevationRequiredBody =>
+      'Der Librescoot Installer benötigt Administratorrechte, um auf den Speicher des Rollers zu schreiben und das Netzwerk-Interface zu konfigurieren. Die Berechtigungsanfrage wurde abgelehnt oder ist fehlgeschlagen.\n\nSchließe dieses Fenster und starte den Installer neu, und bestätige dann die Berechtigungsanfrage.';
+
+  @override
+  String get quitButton => 'Beenden';
+
+  @override
   String get firmwareChannel => 'Firmware-Kanal';
 
   @override
@@ -631,16 +641,17 @@ class AppLocalizationsDe extends AppLocalizations {
   String get ledBootGreenMeaning => 'Erfolgreich — Laptop wieder verbinden';
 
   @override
-  String get ledRearLightSolid => 'Rücklicht leuchtet kurz';
+  String get ledRearLightSolid => 'Alle vier Blinker (Warnblinker) blinken';
 
   @override
-  String get ledRearLightSolidMeaning => 'Fehler — Laptop verbinden für Log';
+  String get ledRearLightSolidMeaning =>
+      'Fehler — Laptop verbinden für Log; Blinker und LED gehen aus, sobald du verbunden bist';
 
   @override
   String get bootLedGreenReconnect => 'Boot-LED blinkt grün — Laptop verbinden';
 
   @override
-  String get rearLightCheckError => 'Rücklicht an — Fehler prüfen';
+  String get rearLightCheckError => 'Warnblinker an — Fehler prüfen';
 
   @override
   String get verifyingDbcInstallation => 'DBC-Installation wird geprüft';
@@ -1176,10 +1187,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get ledBootAmberMeaning => 'Flash läuft';
 
   @override
-  String get ledBootRedError => 'Boot-LED rot';
+  String get ledBootRedError => 'Boot-LED blinkt rot';
 
   @override
-  String get ledBootRedMeaning => 'Fehler — Laptop verbinden und Log prüfen';
+  String get ledBootRedMeaning =>
+      'Fehler — Laptop verbinden und Log prüfen; Blinker und LED gehen aus, sobald du verbunden bist';
 
   @override
   String get flashingTakesAbout10Min =>

@@ -156,6 +156,16 @@ class AppLocalizationsEn extends AppLocalizations {
       'The flash takes several minutes and any USB drop or laptop sleep mid-flash leaves the MDB in an inconsistent state. Please check:\n• A known-good USB cable, plugged in firmly at both ends — flaky cables are the #1 cause of failed installs\n• Laptop on power, or fully charged — battery saver / sleep can break the flash\n• Use a direct USB port, not a USB hub if possible\n• Don\'t unplug or move things around once the flash starts';
 
   @override
+  String get elevationRequiredTitle => 'Administrator privileges required';
+
+  @override
+  String get elevationRequiredBody =>
+      'Librescoot Installer needs administrator privileges to write to the scooter\'s storage and configure the network interface. The elevation prompt was declined or failed.\n\nClose this window and re-launch the installer, then approve the elevation prompt.';
+
+  @override
+  String get quitButton => 'Quit';
+
+  @override
   String get firmwareChannel => 'Firmware Channel';
 
   @override
@@ -624,17 +634,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ledBootGreenMeaning => 'Success — reconnect laptop';
 
   @override
-  String get ledRearLightSolid => 'Rear light glows briefly';
+  String get ledRearLightSolid => 'All four blinkers (hazards) flashing';
 
   @override
-  String get ledRearLightSolidMeaning => 'Error — reconnect laptop to see log';
+  String get ledRearLightSolidMeaning =>
+      'Error — reconnect laptop to see log; the indicators stop once you reconnect';
 
   @override
   String get bootLedGreenReconnect =>
       'Boot LED is blinking green — Reconnect Laptop';
 
   @override
-  String get rearLightCheckError => 'Rear light on — Check Error';
+  String get rearLightCheckError => 'Hazards flashing — Check Error';
 
   @override
   String get verifyingDbcInstallation => 'Verifying DBC Installation';
@@ -1167,10 +1178,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ledBootAmberMeaning => 'Flashing in progress';
 
   @override
-  String get ledBootRedError => 'Boot LED red';
+  String get ledBootRedError => 'Boot LED blinking red';
 
   @override
-  String get ledBootRedMeaning => 'Error — reconnect laptop to check log';
+  String get ledBootRedMeaning =>
+      'Error — reconnect laptop to check log; the indicators stop once you reconnect';
 
   @override
   String get flashingTakesAbout10Min =>
