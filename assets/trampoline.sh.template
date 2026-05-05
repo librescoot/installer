@@ -279,6 +279,31 @@ wait_dbc_ssh() {
   return 1
 }
 
+# Switch MDB to USB host and probe what the DBC is showing on the bus.
+# Sets DBC_ALREADY_UMS=yes if u-boot is already in `ums 0 mmc 2`.
+# Calls fail() (does not return) if the DBC is in i.MX BootROM/SDP recovery
+# (VID 15a2) — that's a hard-brick that requires imx_usb_loader to rescue
+# and is out of scope for this installer.
+# Calls fail() if neither UMS nor SDP is on the bus.
+probe_dbc_or_fail() {
+  rmmod g_ether 2>/dev/null || true
+  sleep 1
+  echo host > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null || true
+  sleep 3
+  PROBE_LSUSB=$(lsusb 2>/dev/null)
+  if echo "$PROBE_LSUSB" | grep -q "0525:a4a5"; then
+    DBC_ALREADY_UMS="yes"
+    log "  DBC is in UMS mode — skipping to flash"
+    return 0
+  fi
+  log "  lsusb output:"
+  echo "$PROBE_LSUSB" | sed 's/^/    /' >> "$LOG_FILE"
+  if echo "$PROBE_LSUSB" | grep -qi "15a2:"; then
+    fail "DBC is in BootROM (SDP) recovery mode — this installer cannot fix that. Manual rescue required (imx_usb_loader)."
+  fi
+  fail "DBC not reachable and not in UMS mode"
+}
+
 find_dbc_block_device() {
   for syspath in /sys/block/sd*; do
     [ -d "$syspath" ] || continue
@@ -371,48 +396,15 @@ DBC_ALREADY_UMS=""
 
 lsc --redis-addr localhost:6379 dbc on-wait >> "$LOG_FILE" 2>&1
 if [ $? -ne 0 ]; then
-  # DBC didn't come up — maybe it's already in UMS mode
-  log "  DBC on-wait failed, checking for UMS mode..."
-  rmmod g_ether 2>/dev/null || true
-  sleep 1
-  echo host > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null || true
-  sleep 3
-  if lsusb 2>/dev/null | grep -q "0525:a4a5"; then
-    DBC_ALREADY_UMS="yes"
-    log "  DBC is in UMS mode — skipping to flash"
-  else
-    log "  DBC not reachable and not in UMS — rebooting MDB"
-    log "  lsusb output:"
-    lsusb 2>&1 | sed 's/^/    /' >> "$LOG_FILE" || log "    (lsusb unavailable)"
-    echo "error: DBC not reachable and not in UMS mode" > "$STATUS_FILE"
-    cat "$LOG_FILE" >> "$STATUS_FILE"
-    bootled red
-    sync
-    reboot
-  fi
+  log "  DBC on-wait failed, checking USB state..."
+  probe_dbc_or_fail
 fi
 
 if [ "$DBC_ALREADY_UMS" != "yes" ]; then
   # Quick ping check — if DBC isn't even pingable, don't waste time on SSH
   if ! ping -c 1 -W 3 $DBC_IP >/dev/null 2>&1; then
-    log "  DBC not pingable after on-wait, checking UMS..."
-    rmmod g_ether 2>/dev/null || true
-    sleep 1
-    echo host > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null || true
-    sleep 3
-    if lsusb 2>/dev/null | grep -q "0525:a4a5"; then
-      DBC_ALREADY_UMS="yes"
-      log "  DBC is in UMS mode — skipping to flash"
-    else
-      log "  DBC not reachable and not in UMS — rebooting MDB"
-      log "  lsusb output:"
-      lsusb 2>&1 | sed 's/^/    /' >> "$LOG_FILE" || log "    (lsusb unavailable)"
-      echo "error: DBC not reachable" > "$STATUS_FILE"
-      cat "$LOG_FILE" >> "$STATUS_FILE"
-      bootled red
-      sync
-      reboot
-    fi
+    log "  DBC not pingable after on-wait, checking USB state..."
+    probe_dbc_or_fail
   fi
 fi
 
@@ -727,8 +719,8 @@ while [ $ELAPSED -lt 60 ]; do
   sleep 5
 done
 
-if [ $ELAPSED -ge 120 ]; then
-  log "WARNING: DBC not reachable after 120s — skipping tiles"
+if [ $ELAPSED -ge 60 ]; then
+  log "WARNING: DBC not reachable after 60s — skipping tiles"
   echo "success" > "$STATUS_FILE"
   cat "$LOG" >> "$STATUS_FILE"
   exit 0
