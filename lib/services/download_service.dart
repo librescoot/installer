@@ -19,11 +19,6 @@ class DownloadService {
 
   final http.Client _client;
   Map<String, dynamic>? _cachedLatest;
-  /// Per-release-tag cache of basename → lower-case hex sha256, parsed
-  /// from the release's SHA256SUMS asset. Empty map means "checked, no
-  /// SHA256SUMS for this release" (legacy / pre-feature) and signals
-  /// "skip verification" to callers.
-  final Map<String, Map<String, String>> _sumsByTag = {};
 
   DownloadService({http.Client? client}) : _client = client ?? http.Client();
 
@@ -140,59 +135,6 @@ class DownloadService {
     return (tag: tag, assets: assets);
   }
 
-  /// Fetch + parse the SHA256SUMS asset of a librescoot release. Returns a
-  /// map of basename → lower-case hex sha256, or an empty map if the
-  /// release doesn't ship SHA256SUMS yet (legacy releases pre-CI feature).
-  /// Cached per tag for the session.
-  Future<Map<String, String>> _resolveSums(
-    ({String tag, List<Map<String, dynamic>> assets}) release,
-  ) async {
-    final cached = _sumsByTag[release.tag];
-    if (cached != null) return cached;
-
-    Map<String, dynamic>? sumsAsset;
-    for (final a in release.assets) {
-      if (a['name'] == 'SHA256SUMS') {
-        sumsAsset = a;
-        break;
-      }
-    }
-    if (sumsAsset == null) {
-      debugPrint('SHA256SUMS not in release ${release.tag} — verification skipped');
-      _sumsByTag[release.tag] = const {};
-      return const {};
-    }
-
-    try {
-      final response = await _client
-          .get(Uri.parse(sumsAsset['url'] as String))
-          .timeout(const Duration(seconds: 15));
-      if (response.statusCode != 200) {
-        debugPrint('SHA256SUMS fetch HTTP ${response.statusCode} — skipping verification');
-        _sumsByTag[release.tag] = const {};
-        return const {};
-      }
-      final map = <String, String>{};
-      for (final raw in response.body.split('\n')) {
-        final line = raw.trimRight();
-        if (line.isEmpty) continue;
-        // sha256sum format: "<64-hex>  <name>" (two spaces). Tolerate any
-        // whitespace and a leading "*" mode marker.
-        final parts = line.split(RegExp(r'\s+'));
-        if (parts.length < 2 || parts[0].length != 64) continue;
-        var name = parts.sublist(1).join(' ');
-        if (name.startsWith('*')) name = name.substring(1);
-        map[name] = parts[0].toLowerCase();
-      }
-      _sumsByTag[release.tag] = map;
-      return map;
-    } catch (e) {
-      debugPrint('SHA256SUMS fetch failed: $e — skipping verification');
-      _sumsByTag[release.tag] = const {};
-      return const {};
-    }
-  }
-
   /// Stream-hash a file's sha256, returning lower-case hex.
   Future<String> _sha256OfFile(File file) async {
     final digest = await sha256.bind(file.openRead()).first;
@@ -254,7 +196,6 @@ class DownloadService {
 
     // Firmware images and bmap files
     final release = await resolveRelease(channel);
-    final sums = await _resolveSums(release);
     for (final asset in release.assets) {
       final name = asset['name'] as String;
       if (!name.contains('unu-')) continue;
@@ -280,7 +221,10 @@ class DownloadService {
         url: asset['url'] as String,
         filename: name,
         expectedSize: expectedSize,
-        expectedSha256: sums[name],
+        // sha256 is provided per-asset by downloads.librescoot.org's
+        // generator (filled in from GitHub's server-computed digest).
+        // Null on legacy manifests pre-feature → verification skipped.
+        expectedSha256: asset['sha256'] as String?,
       );
 
       if (await cached.exists() && await cached.length() == expectedSize) {
