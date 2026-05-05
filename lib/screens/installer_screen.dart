@@ -263,6 +263,24 @@ class _InstallerScreenState extends State<InstallerScreen> {
     if (phase == InstallerPhase.keycardSetup) {
       _onEnterKeycardSetup();
     }
+    if (phase == InstallerPhase.finish) {
+      _onEnterFinish();
+    }
+  }
+
+  /// Persist the user's installer-UI language as the dashboard's default
+  /// language. Best-effort — failure here is harmless, the dashboard ships
+  /// with `en` by default and the user can change it themselves.
+  Future<void> _onEnterFinish() async {
+    if (_isDryRun || !_sshService.isConnected) return;
+    final lang = Localizations.localeOf(context).languageCode;
+    if (lang != 'en' && lang != 'de') return;
+    try {
+      await _sshService.runCommand("lsc set dashboard.language '$lang'");
+      debugPrint('UI: persisted dashboard.language=$lang');
+    } catch (e) {
+      debugPrint('UI: failed to persist dashboard.language: $e');
+    }
   }
 
   void _setStatus(String message, {double? progress}) {
