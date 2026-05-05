@@ -3345,16 +3345,21 @@ class _InstallerScreenState extends State<InstallerScreen> {
       } catch (e) {
         debugPrint('UI: failed to stop keycard learning: $e');
       }
-      await Future.delayed(const Duration(milliseconds: 300));
-      try {
-        final raw = await _sshService.redisHget('system', 'keycard-authorized-count');
-        final after = int.tryParse(raw ?? '') ?? 0;
-        sessionDelta = after - _keycardAuthorizedCountBefore;
-        registered = sessionDelta != 0;
-        _keycardAuthorizedCount = after;
-      } catch (e) {
-        debugPrint('UI: failed to read authorized count after learn: $e');
+      // keycard-service publishes the new count only after exitLearnMode
+      // fsyncs the UID file, which can take 2+ seconds on a freshly flashed
+      // eMMC. Poll for up to ~5 s instead of guessing a fixed delay.
+      int after = _keycardAuthorizedCountBefore;
+      for (var i = 0; i < 25; i++) {
+        try {
+          final raw = await _sshService.redisHget('system', 'keycard-authorized-count');
+          after = int.tryParse(raw ?? '') ?? after;
+        } catch (_) {}
+        if (after != _keycardAuthorizedCountBefore) break;
+        await Future.delayed(const Duration(milliseconds: 200));
       }
+      sessionDelta = after - _keycardAuthorizedCountBefore;
+      registered = sessionDelta != 0;
+      _keycardAuthorizedCount = after;
     }
     debugPrint('UI: keycard learning stopped (registered=$registered, sessionDelta=$sessionDelta)');
     if (!mounted) return;

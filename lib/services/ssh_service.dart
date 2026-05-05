@@ -805,13 +805,11 @@ class SshService {
   /// invoke [stop] on the returned subscription to terminate the session and
   /// release the SSH channel.
   ///
-  /// redis-cli prints each delivered message as three lines of array-encoded
-  /// output:
-  ///   1\) `"message"`
-  ///   2\) `"channel"`
-  ///   3\) `"payload"`
-  /// awk strips the index prefix and surrounding quotes from line 3, and
-  /// fflush() defeats line-buffering so events arrive promptly.
+  /// SSH execute sessions never have a TTY, so redis-cli emits three plain
+  /// lines per message: `message`, `<channel>`, `<payload>`. The bracketed
+  /// `1) "message"` form only appears in interactive/TTY mode; the awk
+  /// filter accepts both for safety. fflush() defeats line buffering so
+  /// events arrive promptly.
   Future<({Stream<String> events, Future<void> Function() stop})>
       subscribeRedisChannel(String channel) async {
     if (_client == null) throw Exception('Not connected');
@@ -819,7 +817,7 @@ class SshService {
     final cmd =
         'redis-cli SUBSCRIBE $escapedChannel 2>&1 | '
         "awk '"
-        '/^[0-9]+\\) "message"/ { state=1; next } '
+        '/^(message|[0-9]+\\) "message")\$/ { state=1; next } '
         'state==1 { state=2; next } '
         'state==2 { sub(/^[0-9]+\\) "/, ""); sub(/"\$/, ""); print; fflush(); state=0; next }'
         "'";
