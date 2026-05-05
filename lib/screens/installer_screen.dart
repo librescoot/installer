@@ -2280,6 +2280,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
       await Future.delayed(const Duration(seconds: 1));
       return true;
     }
+    // Force the nRF52 to re-emit every cached field on the next 1s tick,
+    // so any stale `present=true` latched in its old_* cache (e.g. from a
+    // disconnect that happened while the data stream was off) gets cleared
+    // before the user reconnects the cable. Best-effort; ignore errors.
+    try {
+      await _sshService.redisLpush('scooter:bluetooth', 'data-stream-sync');
+    } catch (e) {
+      debugPrint('CBB: data-stream-sync failed (non-fatal): $e');
+    }
     debugPrint('CBB: waiting for insert on cb-battery');
     for (var i = 0; i < _cbbPollIterations; i++) {
       if (!mounted) return false;
