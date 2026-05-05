@@ -266,6 +266,11 @@ jobs:
       contents: write
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
       - name: Download all artifacts
         uses: actions/download-artifact@v8
         with:
@@ -277,11 +282,17 @@ jobs:
           find artifacts/ -type f \( -name '*.dmg' -o -name '*.tar.gz' -o -name '*.zip' -o -name '*.exe' \) -exec cp {} dist/ \;
           ls -la dist/
 
+      - name: Generate release notes
+        run: |
+          chmod +x scripts/changelog.sh
+          scripts/changelog.sh --to "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" \
+            | tee release-notes.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           files: dist/*
-          generate_release_notes: true
+          body_path: release-notes.md
 
       - name: Generate app token for site rebuilds
         id: app-token
