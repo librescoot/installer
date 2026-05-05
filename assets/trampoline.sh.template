@@ -14,7 +14,7 @@ VALHALLA_TILES_FILE="{{VALHALLA_TILES_FILE}}"
 
 log() { echo "$(date '+%H:%M:%S') $1" >> "$LOG_FILE"; }
 
-# --- Boot LED (LP5662 i2c bus 2 addr 0x30) ---
+# --- Boot LED (LP5562 i2c bus 2 addr 0x30) ---
 bootled_init() {
   i2cset -f -y 2 0x30 0x0D 0xFF
   i2cset -f -y 2 0x30 0x01 0x3F

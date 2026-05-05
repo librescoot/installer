@@ -2296,7 +2296,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   // success / red on failure, both written to /data/bootled-blink.pid).
   // stop-error-signals.sh already kills it on the dbcFlash reconnect path;
   // this is a defensive belt-and-braces call right before librescoot-keycard
-  // starts at keycardSetup, since both drive the LP5662 over the same i2c bus.
+  // starts at keycardSetup, since both drive the LP5562 over the same i2c bus.
   Future<void> _stopBootLedBlink() async {
     if (_isDryRun) return;
     try {
@@ -3192,7 +3192,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
 
     // Stop our manual green LED blinker before keycard-service starts; both
-    // drive the LP5662 via i2c and would otherwise race.
+    // drive the LP5562 via i2c and would otherwise race.
     await _stopBootLedBlink();
 
     // Bring librescoot-keycard back up. We stopped it post-flash to prevent
