@@ -58,6 +58,9 @@ dependencies:
 
   # HTTP client for GitHub API and firmware downloads
   http: ^1.2.0
+
+  # SHA256 verification of downloaded firmware against release SHA256SUMS
+  crypto: ^3.0.0
   flutter_svg: ^2.2.4
   url_launcher: ^6.3.0
 

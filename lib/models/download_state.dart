@@ -11,12 +11,17 @@ class DownloadItem {
     required this.url,
     required this.filename,
     required this.expectedSize,
+    this.expectedSha256,
   });
 
   final DownloadItemType type;
   final String url;
   final String filename;
   final int expectedSize;
+  /// Lower-case hex sha256 from the release's SHA256SUMS, when published.
+  /// Null on legacy releases (pre-SHA256SUMS) or for assets the manifest
+  /// doesn't list — verification is skipped in those cases.
+  final String? expectedSha256;
   int bytesDownloaded = 0;
   String? localPath;
   bool get isComplete => localPath != null;
