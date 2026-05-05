@@ -1466,7 +1466,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get gettingStartedDriveMenuDesc =>
-      'Sitzbank-Schalter gedrückt halten, um das Kurzmenü zu öffnen und die Einträge durchzugehen. Loslassen springt zum nächsten Eintrag, ein kurzer Druck bestätigt den ausgewählten Eintrag.';
+      'Sitzbank-Schalter gedrückt halten, um das Kurzmenü zu öffnen; solange du hältst, wechseln die Einträge automatisch weiter. Loslassen, um auf dem hervorgehobenen Eintrag zu stoppen, dann innerhalb etwa einer Sekunde noch einmal kurz drücken, um zu bestätigen.';
 
   @override
   String get gettingStartedUpdateModeTitle =>

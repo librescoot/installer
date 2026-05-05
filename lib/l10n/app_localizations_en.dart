@@ -1452,7 +1452,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get gettingStartedDriveMenuDesc =>
-      'Hold the seatbox button to open the on-screen quick menu and cycle through options. Release to highlight the next option, then press once briefly to confirm.';
+      'Hold the seatbox button to open the on-screen quick menu; the entries cycle automatically while you keep holding. Release to stop on the highlighted entry, then press once briefly within about a second to confirm.';
 
   @override
   String get gettingStartedUpdateModeTitle => 'Open Update Mode again later';

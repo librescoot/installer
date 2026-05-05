@@ -2627,7 +2627,7 @@ abstract class AppLocalizations {
   /// No description provided for @gettingStartedDriveMenuDesc.
   ///
   /// In en, this message translates to:
-  /// **'Hold the seatbox button to open the on-screen quick menu and cycle through options. Release to highlight the next option, then press once briefly to confirm.'**
+  /// **'Hold the seatbox button to open the on-screen quick menu; the entries cycle automatically while you keep holding. Release to stop on the highlighted entry, then press once briefly within about a second to confirm.'**
   String get gettingStartedDriveMenuDesc;
 
   /// No description provided for @gettingStartedUpdateModeTitle.

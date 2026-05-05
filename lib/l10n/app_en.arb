@@ -586,7 +586,7 @@
   "gettingStartedOpenMenuTitle": "Open the menu",
   "gettingStartedOpenMenuDesc": "While parked, give two short pulls in a row on the left brake lever. Use the brake levers to scroll and select; the on-screen hints show what each lever does.",
   "gettingStartedDriveMenuTitle": "Quick menu while riding",
-  "gettingStartedDriveMenuDesc": "Hold the seatbox button to open the on-screen quick menu and cycle through options. Release to highlight the next option, then press once briefly to confirm.",
+  "gettingStartedDriveMenuDesc": "Hold the seatbox button to open the on-screen quick menu; the entries cycle automatically while you keep holding. Release to stop on the highlighted entry, then press once briefly within about a second to confirm.",
   "gettingStartedUpdateModeTitle": "Open Update Mode again later",
   "gettingStartedUpdateModeDesc": "To install map or routing updates, change settings, or copy other files: turn the scooter on, open the menu, go to Settings → System → Update Mode…, then connect a computer via USB.",
   "gettingStartedNavigationTitle": "Navigate to a destination",

@@ -448,7 +448,7 @@
   "gettingStartedOpenMenuTitle": "Menü öffnen",
   "gettingStartedOpenMenuDesc": "Im Parkmodus zweimal kurz hintereinander am linken Bremshebel ziehen. Innerhalb des Menüs scrollst und wählst du mit den Bremshebeln; was die jeweilige Bremse gerade tut, steht unten am Bildschirmrand.",
   "gettingStartedDriveMenuTitle": "Kurzmenü während der Fahrt",
-  "gettingStartedDriveMenuDesc": "Sitzbank-Schalter gedrückt halten, um das Kurzmenü zu öffnen und die Einträge durchzugehen. Loslassen springt zum nächsten Eintrag, ein kurzer Druck bestätigt den ausgewählten Eintrag.",
+  "gettingStartedDriveMenuDesc": "Sitzbank-Schalter gedrückt halten, um das Kurzmenü zu öffnen; solange du hältst, wechseln die Einträge automatisch weiter. Loslassen, um auf dem hervorgehobenen Eintrag zu stoppen, dann innerhalb etwa einer Sekunde noch einmal kurz drücken, um zu bestätigen.",
   "gettingStartedUpdateModeTitle": "Update-Modus später erneut öffnen",
   "gettingStartedUpdateModeDesc": "Für Karten- oder Routing-Updates, Einstellungen oder weitere Dateiübertragungen: Roller einschalten, Menü öffnen, dann Einstellungen → System → Update-Modus… aufrufen und einen Rechner per USB anschließen.",
   "gettingStartedNavigationTitle": "Zu einem Ziel navigieren",
