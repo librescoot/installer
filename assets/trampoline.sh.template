@@ -869,13 +869,20 @@ else
   log "=========================================="
   echo "success" > "$STATUS_FILE"
   cat "$LOG" >> "$STATUS_FILE"
-  # Restart keycard service as the FINAL step — it will re-init the LP5662
-  # (full enable+clock+PWM frame, recovering from any earlier bus state) and,
-  # since master_uids.txt doesn't exist on a fresh image, blink the dashboard
-  # LED green to signal "ready, present master card / waiting for setup".
-  # Use restart, not start: start is a no-op if the unit happens to be active
-  # and skips LP5662.init() — which is exactly what we need to fire here.
-  systemctl restart librescoot-keycard 2>/dev/null || systemctl restart keycard-service 2>/dev/null || true
+  # Boot LED: blink green until installer reconnects and stops it. Mirror of
+  # the red blink in the failure branch above. We deliberately do NOT start
+  # librescoot-keycard here — its boot-time auto-master-learn would teach in
+  # whatever card the user taps before they reach the explicit keycard-setup
+  # phase. The installer brings the service up at that phase instead.
+  setsid sh -c '
+    while true; do
+      i2cset -f -y 2 0x30 0x02 0x00; i2cset -f -y 2 0x30 0x03 0xFF; i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
+      sleep 0.4
+      i2cset -f -y 2 0x30 0x02 0x00; i2cset -f -y 2 0x30 0x03 0x00; i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
+      sleep 0.4
+    done
+  ' </dev/null >/dev/null 2>&1 &
+  echo \$! > /data/bootled-blink.pid
 fi
 ONBOOT_END
 chmod +x /data/onboot.sh

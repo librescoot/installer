@@ -2233,6 +2233,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
     try {
       await _sshService.connectToMdb();
 
+      // Disable keycard-service for the rest of the install. A freshly flashed
+      // MDB boots into auto-master-learn mode; any tap before the explicit
+      // keycard-setup phase would silently teach in a master card. We re-start
+      // the service on entry to that phase, after disengaging master mode.
+      try {
+        await _sshService.runCommand('systemctl stop librescoot-keycard 2>/dev/null; true');
+        debugPrint('SSH: stopped librescoot-keycard to prevent accidental master teach-in');
+      } catch (_) {}
+
       // Restore radio-gaga config if we backed it up
       if (_radioGagaBackupPath != null) {
         _setStatus(l10n.restoringConfig);
@@ -2263,6 +2272,21 @@ class _InstallerScreenState extends State<InstallerScreen> {
     } catch (_) {
       return false;
     }
+  }
+
+  // Stop the boot-LED blinker started on MDB by /data/onboot.sh (green on
+  // success / red on failure, both written to /data/bootled-blink.pid).
+  // stop-error-signals.sh already kills it on the dbcFlash reconnect path;
+  // this is a defensive belt-and-braces call right before librescoot-keycard
+  // starts at keycardSetup, since both drive the LP5662 over the same i2c bus.
+  Future<void> _stopBootLedBlink() async {
+    if (_isDryRun) return;
+    try {
+      await _sshService.runCommand(
+        r'''[ -f /data/bootled-blink.pid ] && kill "$(cat /data/bootled-blink.pid)" 2>/dev/null; rm -f /data/bootled-blink.pid; i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null; i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null; i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null; true''',
+      );
+      debugPrint('SSH: stopped boot LED blink');
+    } catch (_) {}
   }
   bool _cbbAutoCheckStarted = false;
   bool _cbbDetected = false;
@@ -2917,12 +2941,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // TODO: re-enable after dev
     // await _cleanupMdb();
 
-    // Restart keycard service as the final MDB-side step. Using restart (not
-    // start) guarantees LP5662.init() runs and the LED returns to a known
-    // state, even if onboot.sh already started the service or the helper
-    // above clobbered the PWM regs.
+    // Re-stop librescoot-keycard in case onboot.sh on the DBC-side flash
+    // brought it back up. We deliberately keep it stopped through bluetooth
+    // pairing so a stray tap can't silently teach in a master card. The
+    // keycard-setup phase starts it again after disengaging auto-master-learn.
     try {
-      await _sshService.runCommand('systemctl restart librescoot-keycard 2>/dev/null || systemctl restart keycard-service 2>/dev/null || true');
+      await _sshService.runCommand('systemctl stop librescoot-keycard 2>/dev/null; true');
     } catch (_) {}
 
     if (status.result == TrampolineResult.success) {
@@ -3148,6 +3172,23 @@ class _InstallerScreenState extends State<InstallerScreen> {
       });
       return;
     }
+
+    // Stop our manual green LED blinker before keycard-service starts; both
+    // drive the LP5662 via i2c and would otherwise race.
+    await _stopBootLedBlink();
+
+    // Bring librescoot-keycard back up. We stopped it post-flash to prevent
+    // accidental master teach-in during the install; this is the first phase
+    // that actually needs it. Use start (not restart) so this no-ops if the
+    // service is already running (e.g. on a re-entry to this phase).
+    try {
+      await _sshService.runCommand('systemctl start librescoot-keycard 2>/dev/null || true');
+      debugPrint('UI: started librescoot-keycard for keycard setup phase');
+    } catch (e) {
+      debugPrint('UI: failed to start librescoot-keycard: $e');
+    }
+    // Brief settle so the service is consuming the queue before we push.
+    await Future.delayed(const Duration(milliseconds: 500));
 
     // Disengage boot-time auto-master-learning before any tap can land.
     try {
