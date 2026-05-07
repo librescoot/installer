@@ -35,26 +35,58 @@ bootled() {
   esac
 } 2>/dev/null
 
-# Blink red on the boot LED for failure indication. Detached so it survives
-# the trampoline script exiting; the installer kills it via the PID file
-# when it reconnects to MDB after a failure.
+# Blink the boot LED red/green for failure/success indication. Detached so
+# it survives the script exiting; killed via the PID file by the installer
+# (or onboot.sh switching from green→red on tile-install failure).
+#
+# The blink-loop's own sh writes its own PID into the file via $$ so the
+# file always points at the session leader we want to kill — outer-shell
+# $! is unreliable across the heredoc'd onboot.sh path, where single-quoted
+# heredocs preserve the dollar-bang literally.
 BOOTLED_BLINK_PIDFILE="/data/bootled-blink.pid"
 bootled_blink_red() {
   bootled_blink_stop
   bootled red
   setsid sh -c '
+    echo $$ > /data/bootled-blink.pid
     while true; do
       sleep 0.4
-      i2cset -f -y 2 0x30 0x02 0x00; i2cset -f -y 2 0x30 0x03 0x00; i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
+      i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
+      i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
+      i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
       sleep 0.4
-      i2cset -f -y 2 0x30 0x02 0x00; i2cset -f -y 2 0x30 0x03 0x00; i2cset -f -y 2 0x30 0x04 0xFF 2>/dev/null
+      i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
+      i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
+      i2cset -f -y 2 0x30 0x04 0xFF 2>/dev/null
     done
   ' </dev/null >/dev/null 2>&1 &
-  echo $! > "$BOOTLED_BLINK_PIDFILE"
+}
+bootled_blink_green() {
+  bootled_blink_stop
+  bootled green
+  setsid sh -c '
+    echo $$ > /data/bootled-blink.pid
+    while true; do
+      i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
+      i2cset -f -y 2 0x30 0x03 0xFF 2>/dev/null
+      i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
+      sleep 0.4
+      i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
+      i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
+      i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
+      sleep 0.4
+    done
+  ' </dev/null >/dev/null 2>&1 &
 }
 bootled_blink_stop() {
-  [ -f "$BOOTLED_BLINK_PIDFILE" ] && kill "$(cat "$BOOTLED_BLINK_PIDFILE")" 2>/dev/null
-  rm -f "$BOOTLED_BLINK_PIDFILE"
+  if [ -f "$BOOTLED_BLINK_PIDFILE" ]; then
+    pid="$(cat "$BOOTLED_BLINK_PIDFILE" 2>/dev/null)"
+    if [ -n "$pid" ]; then
+      kill -- -"$pid" 2>/dev/null
+      kill "$pid" 2>/dev/null
+    fi
+    rm -f "$BOOTLED_BLINK_PIDFILE"
+  fi
 }
 
 # --- PWM LED control via ioctl ---
@@ -156,7 +188,7 @@ signal_success() {
 # the brake light alone, especially since the user might not be at the
 # dash when the flash dies. Detached so it survives the script exiting;
 # stopped early by the installer when it reconnects to MDB, or by the
-# 60s self-timeout (we don't want to drain the battery on an abandoned
+# 30s self-timeout (we don't want to drain the battery on an abandoned
 # error scenario).
 HAZARDS_PIDFILE="/data/error-hazards.pid"
 signal_error() {
@@ -168,7 +200,7 @@ signal_error() {
     for ch in 3 4 6 7; do
       /usr/bin/ioctl /dev/pwm_led$ch 0x00007549 -v 1 2>/dev/null
     done
-    end=$(( $(date +%s) + 60 ))
+    end=$(( $(date +%s) + 30 ))
     while [ "$(date +%s)" -lt "$end" ]; do
       for ch in 3 4 6 7; do
         /usr/bin/ioctl /dev/pwm_led$ch 0x0000754A -v $DIM 2>/dev/null
@@ -327,13 +359,26 @@ find_dbc_block_device() {
 
 # =========================================================================
 # Drop a small helper the installer can invoke via SSH after a failure to
-# stop the boot-LED blink and the hazard flash and reset the LED state.
+# stop the boot-LED blink and the hazard flash, reset the LED state, and
+# unmask keycard-service so a later boot has a working keycard reader.
 cat > /data/stop-error-signals.sh << 'STOP_HELPER'
 #!/bin/sh
-[ -f /data/bootled-blink.pid ] && kill "$(cat /data/bootled-blink.pid)" 2>/dev/null
-rm -f /data/bootled-blink.pid
-[ -f /data/error-hazards.pid ] && kill "$(cat /data/error-hazards.pid)" 2>/dev/null
-rm -f /data/error-hazards.pid
+if [ -f /data/bootled-blink.pid ]; then
+  pid="$(cat /data/bootled-blink.pid 2>/dev/null)"
+  if [ -n "$pid" ]; then
+    kill -- -"$pid" 2>/dev/null
+    kill "$pid" 2>/dev/null
+  fi
+  rm -f /data/bootled-blink.pid
+fi
+if [ -f /data/error-hazards.pid ]; then
+  pid="$(cat /data/error-hazards.pid 2>/dev/null)"
+  if [ -n "$pid" ]; then
+    kill -- -"$pid" 2>/dev/null
+    kill "$pid" 2>/dev/null
+  fi
+  rm -f /data/error-hazards.pid
+fi
 # LED off
 i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
 i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
@@ -343,6 +388,11 @@ for ch in 3 4 6 7; do
   /usr/bin/ioctl /dev/pwm_led$ch 0x0000754A -v 0 2>/dev/null
   /usr/bin/ioctl /dev/pwm_led$ch 0x00007549 -v 0 2>/dev/null
 done
+# Unmask keycard-service: the trampoline masked it pre-flash so it couldn't
+# race us on the LED. The installer's keycardSetup phase will start it
+# explicitly; until then it stays inactive but unmasked, so a power cycle
+# during a failed install doesn't leave the user with a dead keycard reader.
+systemctl unmask librescoot-keycard keycard-service 2>/dev/null || true
 exit 0
 STOP_HELPER
 chmod +x /data/stop-error-signals.sh
@@ -356,9 +406,15 @@ log "  OSM=$OSM_TILES_FILE"
 log "  VALHALLA=$VALHALLA_TILES_FILE"
 log "=========================================="
 
-# Stop services that interfere
+# Stop services that interfere. Mask the keycard service for the duration
+# of the flash + onboot tile install so it can't race us on /dev/i2c-2 (we
+# both drive the LP5562/LP5662 via i2cset). Persistent mask survives the
+# MDB reboot we do after writing onboot.sh; onboot.sh unmasks at the end of
+# its success branch, and stop-error-signals.sh unmasks on the failure
+# path when the installer reconnects.
 log "Stopping services..."
 systemctl stop librescoot-keycard keycard-service 2>/dev/null || true
+systemctl mask librescoot-keycard keycard-service 2>/dev/null || true
 systemctl stop librescoot-ums 2>/dev/null || true
 systemctl stop librescoot-pm 2>/dev/null || true
 
@@ -653,10 +709,14 @@ dbc_scp() { local t=0; while [ $t -lt 3 ]; do scp "$@" && return 0; t=$((t+1)); 
 
 log "Onboot: post-reboot DBC tile installation"
 
-# Stop keycard service for LED control
+# Stop+mask keycard service so it can't race us on the LP5562 i2c bus.
+# The trampoline already masked it before the flash, but re-asserting here
+# is cheap insurance against weird boot orderings.
 systemctl stop librescoot-keycard keycard-service 2>/dev/null || true
+systemctl mask librescoot-keycard keycard-service 2>/dev/null || true
 
-# Set boot LED to amber (working)
+# Initialize the LP5562 (RAG boot LED on i2c-2 @ 0x30) for direct PWM
+# control. After this, registers 0x02/0x03/0x04 are amber/green/red PWM.
 i2cset -f -y 2 0x30 0x0D 0xFF 2>/dev/null
 i2cset -f -y 2 0x30 0x01 0x3F 2>/dev/null
 i2cset -f -y 2 0x30 0x70 0x00 2>/dev/null
@@ -665,7 +725,83 @@ i2cset -f -y 2 0x30 0x00 0xC0 2>/dev/null
 i2cset -f -y 2 0x30 0x05 0xAF 2>/dev/null
 i2cset -f -y 2 0x30 0x06 0xAF 2>/dev/null
 i2cset -f -y 2 0x30 0x07 0xAF 2>/dev/null
-i2cset -f -y 2 0x30 0x02 0xFF; i2cset -f -y 2 0x30 0x03 0x00; i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
+
+# Boot LED helpers. The blink loops self-publish their PID via $$ inside
+# the inner sh — outer-shell $! is unreliable here because the heredoc was
+# single-quoted and \$! would have been written literally to disk.
+bootled_blink_stop() {
+  if [ -f /data/bootled-blink.pid ]; then
+    pid="$(cat /data/bootled-blink.pid 2>/dev/null)"
+    if [ -n "$pid" ]; then
+      kill -- -"$pid" 2>/dev/null
+      kill "$pid" 2>/dev/null
+    fi
+    rm -f /data/bootled-blink.pid
+  fi
+}
+bootled_blink_green() {
+  bootled_blink_stop
+  setsid sh -c '
+    echo $$ > /data/bootled-blink.pid
+    while true; do
+      i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
+      i2cset -f -y 2 0x30 0x03 0xFF 2>/dev/null
+      i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
+      sleep 0.4
+      i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
+      i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
+      i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
+      sleep 0.4
+    done
+  ' </dev/null >/dev/null 2>&1 &
+}
+bootled_blink_red() {
+  bootled_blink_stop
+  setsid sh -c '
+    echo $$ > /data/bootled-blink.pid
+    while true; do
+      i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
+      i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
+      i2cset -f -y 2 0x30 0x04 0xFF 2>/dev/null
+      sleep 0.4
+      i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
+      i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
+      i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
+      sleep 0.4
+    done
+  ' </dev/null >/dev/null 2>&1 &
+}
+hazards_30s() {
+  setsid sh -c '
+    echo $$ > /data/error-hazards.pid
+    DIM=2000
+    for ch in 3 4 6 7; do
+      /usr/bin/ioctl /dev/pwm_led$ch 0x00007549 -v 1 2>/dev/null
+    done
+    end=$(( $(date +%s) + 30 ))
+    while [ "$(date +%s)" -lt "$end" ]; do
+      for ch in 3 4 6 7; do
+        /usr/bin/ioctl /dev/pwm_led$ch 0x0000754A -v $DIM 2>/dev/null
+      done
+      sleep 0.5
+      for ch in 3 4 6 7; do
+        /usr/bin/ioctl /dev/pwm_led$ch 0x0000754A -v 0 2>/dev/null
+      done
+      sleep 0.5
+    done
+    for ch in 3 4 6 7; do
+      /usr/bin/ioctl /dev/pwm_led$ch 0x00007549 -v 0 2>/dev/null
+    done
+    rm -f /data/error-hazards.pid
+  ' </dev/null >/dev/null 2>&1 &
+}
+
+# Reaching this script means the DBC flash itself succeeded — start the
+# success indicator (blinking green) immediately so the user sees flash
+# success regardless of how long the post-flash tile install takes. The
+# failure branch in ONBOOT_END switches us to red + hazards if a tile
+# upload fails after this point.
+bootled_blink_green
 
 # Restore original onboot.sh if backed up, otherwise delete ourselves
 if [ -f /data/onboot.sh.bak ]; then
@@ -822,59 +958,25 @@ if [ "${TILE_ERRORS:-0}" -gt 0 ]; then
   log "=========================================="
   echo "error: $TILE_ERRORS tile upload(s) failed" > "$STATUS_FILE"
   cat "$LOG" >> "$STATUS_FILE"
-  # Boot LED: blink red until installer reconnects and stops it
-  setsid sh -c '
-    while true; do
-      i2cset -f -y 2 0x30 0x02 0x00; i2cset -f -y 2 0x30 0x03 0x00; i2cset -f -y 2 0x30 0x04 0xFF 2>/dev/null
-      sleep 0.4
-      i2cset -f -y 2 0x30 0x02 0x00; i2cset -f -y 2 0x30 0x03 0x00; i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
-      sleep 0.4
-    done
-  ' </dev/null >/dev/null 2>&1 &
-  echo \$! > /data/bootled-blink.pid
-  # Hazards (all four blinkers) flashing in unison; 60s cap so an
-  # abandoned error doesn't drain the battery.
-  setsid sh -c '
-    DIM=2000
-    for ch in 3 4 6 7; do
-      /usr/bin/ioctl /dev/pwm_led\$ch 0x00007549 -v 1 2>/dev/null
-    done
-    end=\$(( \$(date +%s) + 60 ))
-    while [ "\$(date +%s)" -lt "\$end" ]; do
-      for ch in 3 4 6 7; do
-        /usr/bin/ioctl /dev/pwm_led\$ch 0x0000754A -v \$DIM 2>/dev/null
-      done
-      sleep 0.5
-      for ch in 3 4 6 7; do
-        /usr/bin/ioctl /dev/pwm_led\$ch 0x0000754A -v 0 2>/dev/null
-      done
-      sleep 0.5
-    done
-    for ch in 3 4 6 7; do
-      /usr/bin/ioctl /dev/pwm_led\$ch 0x00007549 -v 0 2>/dev/null
-    done
-  ' </dev/null >/dev/null 2>&1 &
-  echo \$! > /data/error-hazards.pid
+  # Stop the green blink we started at the top of onboot.sh, switch to red,
+  # and add hazards (capped at 30s so an abandoned error doesn't drain the
+  # battery). Both indicators stop on installer reconnect via
+  # /data/stop-error-signals.sh.
+  bootled_blink_red
+  hazards_30s
 else
   log "=========================================="
   log "Installation complete - SUCCESS"
   log "=========================================="
   echo "success" > "$STATUS_FILE"
   cat "$LOG" >> "$STATUS_FILE"
-  # Boot LED: blink green until installer reconnects and stops it. Mirror of
-  # the red blink in the failure branch above. We deliberately do NOT start
-  # librescoot-keycard here — its boot-time auto-master-learn would teach in
-  # whatever card the user taps before they reach the explicit keycard-setup
-  # phase. The installer brings the service up at that phase instead.
-  setsid sh -c '
-    while true; do
-      i2cset -f -y 2 0x30 0x02 0x00; i2cset -f -y 2 0x30 0x03 0xFF; i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
-      sleep 0.4
-      i2cset -f -y 2 0x30 0x02 0x00; i2cset -f -y 2 0x30 0x03 0x00; i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
-      sleep 0.4
-    done
-  ' </dev/null >/dev/null 2>&1 &
-  echo \$! > /data/bootled-blink.pid
+  # Green blink already running (started at the top of onboot.sh) — leave
+  # it alone. Unmask keycard-service: the installer's keycardSetup phase
+  # will start it explicitly. We deliberately do NOT start it now: a
+  # freshly flashed device with no master would auto-enter master-learning
+  # and silently teach in whatever card the user taps before they reach
+  # the explicit setup phase.
+  systemctl unmask librescoot-keycard keycard-service 2>/dev/null || true
 fi
 ONBOOT_END
 chmod +x /data/onboot.sh
@@ -884,7 +986,12 @@ log "  onboot.sh written"
 echo "rebooting" > "$STATUS_FILE"
 cat "$LOG_FILE" >> "$STATUS_FILE"
 
-bootled green
+# Start the green blink before the reboot so the user sees the success
+# indicator immediately. The reboot kills it, but onboot.sh re-starts the
+# same blink right after re-initializing the LED chip — net effect is a
+# brief LED-off gap during the reboot itself, then continuous green blink
+# until the user reconnects USB.
+bootled_blink_green
 signal_success
 [ -n "$JOURNAL_PID" ] && kill $JOURNAL_PID 2>/dev/null
 log "  rebooting MDB..."
