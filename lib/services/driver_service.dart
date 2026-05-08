@@ -426,10 +426,12 @@ if ($ok) {
 
   /// Poll [diagnoseBinding] until it returns a non-transient state
   /// (`correct`, `wrongDriver`, or `notPresent`) or [timeout] elapses.
-  /// Returns the most recent diagnosis.
+  /// Returns the most recent diagnosis. The interval is generous because
+  /// each tick spawns a powershell.exe to run Get-PnpDevice, and the PnP
+  /// rebind we're waiting on completes within a few seconds anyway.
   static Future<DriverDiagnosis> _waitForCorrectBinding(
     Duration timeout, {
-    Duration interval = const Duration(seconds: 1),
+    Duration interval = const Duration(seconds: 5),
   }) async {
     final deadline = DateTime.now().add(timeout);
     DriverDiagnosis last = await diagnoseBinding();
