@@ -1,12 +1,57 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'l10n/app_localizations.dart';
 import 'screens/installer_screen.dart';
 import 'theme.dart';
 
 /// Global log buffer accessible from anywhere.
 final List<String> installerLog = [];
+
+/// Used by the global error handlers to surface a SnackBar from anywhere.
+final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
+
+/// Append an unhandled error to the installer log and show a non-blocking
+/// SnackBar so the user knows something went wrong but the app keeps running.
+/// Native crashes (FFI, signals) can't be caught here — only Dart errors.
+void reportUnhandledError(Object error, StackTrace? stack, {String? from}) {
+  final ts = DateTime.now().toIso8601String().substring(11, 19);
+  final origin = from != null ? ' [$from]' : '';
+  installerLog.add('$ts ERROR$origin: $error');
+  if (stack != null) {
+    for (final line in stack.toString().split('\n')) {
+      if (line.isNotEmpty) installerLog.add('  $line');
+    }
+  }
+  // Mirror to stderr/console so a terminal-launched run sees it too.
+  FlutterError.dumpErrorToConsole(
+    FlutterErrorDetails(exception: error, stack: stack, library: 'installer'),
+  );
+
+  final messenger = rootScaffoldMessengerKey.currentState;
+  if (messenger == null) return;
+  messenger.hideCurrentSnackBar();
+  messenger.showSnackBar(
+    SnackBar(
+      backgroundColor: Colors.red.shade900,
+      duration: const Duration(seconds: 8),
+      content: Text(
+        'Interner Fehler: $error',
+        style: const TextStyle(color: Colors.white),
+      ),
+      action: SnackBarAction(
+        label: 'Log kopieren',
+        textColor: Colors.white,
+        onPressed: () {
+          Clipboard.setData(ClipboardData(text: installerLog.join('\n')));
+        },
+      ),
+    ),
+  );
+}
 
 /// CLI args passed from unelevated → elevated process.
 class LaunchArgs {
@@ -99,56 +144,75 @@ final ValueNotifier<Locale> appLocale = ValueNotifier(const Locale('de'));
 const String appVersion = String.fromEnvironment('APP_VERSION', defaultValue: 'dev');
 
 void main(List<String> args) async {
-  WidgetsFlutterBinding.ensureInitialized();
-  launchArgs = LaunchArgs.fromArgs(args);
-  if (launchArgs.lang != null) {
-    appLocale.value = Locale(launchArgs.lang!);
-  }
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  // Capture all debugPrint output into the global log
-  final originalDebugPrint = debugPrint;
-  debugPrint = (String? message, {int? wrapWidth}) {
-    if (message != null) {
-      final ts = DateTime.now().toIso8601String().substring(11, 19);
-      installerLog.add('$ts $message');
+    // Flutter framework errors (build/layout/paint exceptions). Without this,
+    // a release build can end up in an unrecoverable state.
+    FlutterError.onError = (details) {
+      reportUnhandledError(details.exception, details.stack, from: 'flutter');
+    };
+
+    // Async errors that escape the framework (microtasks, untriaged Futures).
+    // Returning true tells the engine we handled it — keep the app alive.
+    PlatformDispatcher.instance.onError = (error, stack) {
+      reportUnhandledError(error, stack, from: 'platform');
+      return true;
+    };
+
+    launchArgs = LaunchArgs.fromArgs(args);
+    if (launchArgs.lang != null) {
+      appLocale.value = Locale(launchArgs.lang!);
     }
-    originalDebugPrint(message, wrapWidth: wrapWidth);
-  };
 
-  debugPrint('Librescoot Installer $appVersion starting (lang=${appLocale.value.languageCode}, platform=${Platform.operatingSystem})');
+    // Capture all debugPrint output into the global log
+    final originalDebugPrint = debugPrint;
+    debugPrint = (String? message, {int? wrapWidth}) {
+      if (message != null) {
+        final ts = DateTime.now().toIso8601String().substring(11, 19);
+        installerLog.add('$ts $message');
+      }
+      originalDebugPrint(message, wrapWidth: wrapWidth);
+    };
 
-  // Self-elevation no longer happens here; it's deferred until the user
-  // actually clicks Start Installation. That way the user can browse the
-  // welcome screen, pick a channel/region etc. without the UAC/sudo
-  // prompt firing in their face on every launch, AND a --dry-run launch
-  // doesn't get auto-clicked through to the next phase before the user
-  // sees anything. See _startDownloadsAndContinue in installer_screen.dart.
+    debugPrint('Librescoot Installer $appVersion starting (lang=${appLocale.value.languageCode}, platform=${Platform.operatingSystem})');
 
-  // On fresh Windows installs, the CA certificate store may be incomplete.
-  // Windows lazily downloads missing CA certs when SChannel-based apps (like
-  // curl.exe) connect to HTTPS endpoints, but Dart's HTTP client only reads
-  // what's already in the store. Warm up the store by hitting the endpoints
-  // we'll need.
-  if (Platform.isWindows) {
-    Future.wait([
-      Process.run('curl.exe', ['-s', '-o', 'NUL', 'https://api.github.com/']),
-      Process.run('curl.exe', ['-s', '-o', 'NUL', 'https://github.com/']),
-      Process.run('curl.exe', ['-s', '-o', 'NUL', 'https://release-assets.githubusercontent.com/']),
-    ]).catchError((_) => <ProcessResult>[]);
-  }
+    // Self-elevation no longer happens here; it's deferred until the user
+    // actually clicks Start Installation. That way the user can browse the
+    // welcome screen, pick a channel/region etc. without the UAC/sudo
+    // prompt firing in their face on every launch, AND a --dry-run launch
+    // doesn't get auto-clicked through to the next phase before the user
+    // sees anything. See _startDownloadsAndContinue in installer_screen.dart.
 
-  // If we were launched as the elevated process, bring ourselves to front
-  if (launchArgs.autoStart && Platform.isMacOS) {
-    Future.delayed(const Duration(seconds: 1), () {
-      // Activate by bundle ID: no Accessibility permissions needed
-      Process.run('osascript', [
-        '-e',
-        'tell application id "org.librescoot.installer" to activate',
-      ]);
-    });
-  }
+    // On fresh Windows installs, the CA certificate store may be incomplete.
+    // Windows lazily downloads missing CA certs when SChannel-based apps (like
+    // curl.exe) connect to HTTPS endpoints, but Dart's HTTP client only reads
+    // what's already in the store. Warm up the store by hitting the endpoints
+    // we'll need.
+    if (Platform.isWindows) {
+      Future.wait([
+        Process.run('curl.exe', ['-s', '-o', 'NUL', 'https://api.github.com/']),
+        Process.run('curl.exe', ['-s', '-o', 'NUL', 'https://github.com/']),
+        Process.run('curl.exe', ['-s', '-o', 'NUL', 'https://release-assets.githubusercontent.com/']),
+      ]).catchError((_) => <ProcessResult>[]);
+    }
 
-  runApp(const LibrescootInstaller());
+    // If we were launched as the elevated process, bring ourselves to front
+    if (launchArgs.autoStart && Platform.isMacOS) {
+      Future.delayed(const Duration(seconds: 1), () {
+        // Activate by bundle ID: no Accessibility permissions needed
+        Process.run('osascript', [
+          '-e',
+          'tell application id "org.librescoot.installer" to activate',
+        ]);
+      });
+    }
+
+    runApp(const LibrescootInstaller());
+  }, (error, stack) {
+    // Last-resort catch for anything that escaped both error handlers above.
+    reportUnhandledError(error, stack, from: 'zone');
+  });
 }
 
 class LibrescootInstaller extends StatelessWidget {
@@ -161,6 +225,7 @@ class LibrescootInstaller extends StatelessWidget {
       builder: (context, locale, _) => MaterialApp(
         title: 'Librescoot Installer',
         debugShowCheckedModeBanner: false,
+        scaffoldMessengerKey: rootScaffoldMessengerKey,
         locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
