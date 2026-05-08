@@ -35,37 +35,32 @@ bootled() {
   esac
 } 2>/dev/null
 
-# Blink the boot LED red/green for failure/success indication. Detached so
-# it survives the script exiting; killed via the PID file by the installer
-# (or onboot.sh switching from green→red on tile-install failure).
-#
-# The blink-loop's own sh writes its own PID into the file via $$ so the
-# file always points at the session leader we want to kill — outer-shell
-# $! is unreliable across the heredoc'd onboot.sh path, where single-quoted
-# heredocs preserve the dollar-bang literally.
-BOOTLED_BLINK_PIDFILE="/data/bootled-blink.pid"
+# Blink the boot LED red/green for failure/success indication. Spawned via
+# systemd-run so the loop ends up in its own transient unit under
+# system.slice — independent of whatever cgroup launched us. setsid alone
+# isn't enough: when this script runs from a Type=oneshot service (e.g.
+# onboot.sh under librescoot-onboot.service), default KillMode=control-group
+# kills every descendant when the script exits, leaving the LED stuck on
+# whatever was last written. Stopped via `systemctl stop`.
+BOOTLED_BLINK_UNIT="librescoot-bootled-blink"
 bootled_blink_red() {
   bootled_blink_stop
-  bootled red
-  setsid sh -c '
-    echo $$ > /data/bootled-blink.pid
+  systemd-run --unit="$BOOTLED_BLINK_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
     while true; do
+      i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
+      i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
+      i2cset -f -y 2 0x30 0x04 0xFF 2>/dev/null
       sleep 0.4
       i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
       i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
       i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
       sleep 0.4
-      i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
-      i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
-      i2cset -f -y 2 0x30 0x04 0xFF 2>/dev/null
     done
-  ' </dev/null >/dev/null 2>&1 &
+  '
 }
 bootled_blink_green() {
   bootled_blink_stop
-  bootled green
-  setsid sh -c '
-    echo $$ > /data/bootled-blink.pid
+  systemd-run --unit="$BOOTLED_BLINK_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
     while true; do
       i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
       i2cset -f -y 2 0x30 0x03 0xFF 2>/dev/null
@@ -76,16 +71,19 @@ bootled_blink_green() {
       i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
       sleep 0.4
     done
-  ' </dev/null >/dev/null 2>&1 &
+  '
 }
 bootled_blink_stop() {
-  if [ -f "$BOOTLED_BLINK_PIDFILE" ]; then
-    pid="$(cat "$BOOTLED_BLINK_PIDFILE" 2>/dev/null)"
+  systemctl stop "${BOOTLED_BLINK_UNIT}.service" 2>/dev/null
+  # Best-effort cleanup of any leftover PID-file blink loop from older
+  # builds, in case stop-error-signals.sh wasn't updated alongside us.
+  if [ -f /data/bootled-blink.pid ]; then
+    pid="$(cat /data/bootled-blink.pid 2>/dev/null)"
     if [ -n "$pid" ]; then
       kill -- -"$pid" 2>/dev/null
       kill "$pid" 2>/dev/null
     fi
-    rm -f "$BOOTLED_BLINK_PIDFILE"
+    rm -f /data/bootled-blink.pid
   fi
 }
 
@@ -186,16 +184,16 @@ signal_success() {
 # Hazards (all four blinkers — FL=3, FR=4, RL=6, RR=7) flashing in unison
 # is the universal "vehicle in trouble" signal — much more visible than
 # the brake light alone, especially since the user might not be at the
-# dash when the flash dies. Detached so it survives the script exiting;
-# stopped early by the installer when it reconnects to MDB, or by the
-# 30s self-timeout (we don't want to drain the battery on an abandoned
-# error scenario).
-HAZARDS_PIDFILE="/data/error-hazards.pid"
+# dash when the flash dies. Spawned via systemd-run for the same reason
+# as bootled_blink_*: setsid alone doesn't escape the parent service's
+# cgroup. Capped at 30s so an abandoned error doesn't drain the battery,
+# and stopped early by the installer when it reconnects.
+HAZARDS_UNIT="librescoot-bootled-hazards"
 signal_error() {
   breathe_stop
   signal_progress_off
   signal_error_stop
-  setsid sh -c '
+  systemd-run --unit="$HAZARDS_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
     DIM=2000
     for ch in 3 4 6 7; do
       /usr/bin/ioctl /dev/pwm_led$ch 0x00007549 -v 1 2>/dev/null
@@ -214,12 +212,12 @@ signal_error() {
     for ch in 3 4 6 7; do
       /usr/bin/ioctl /dev/pwm_led$ch 0x00007549 -v 0 2>/dev/null
     done
-  ' </dev/null >/dev/null 2>&1 &
-  echo $! > "$HAZARDS_PIDFILE"
+  '
 }
 signal_error_stop() {
-  [ -f "$HAZARDS_PIDFILE" ] && kill "$(cat "$HAZARDS_PIDFILE")" 2>/dev/null
-  rm -f "$HAZARDS_PIDFILE"
+  systemctl stop "${HAZARDS_UNIT}.service" 2>/dev/null
+  [ -f /data/error-hazards.pid ] && kill "$(cat /data/error-hazards.pid)" 2>/dev/null
+  rm -f /data/error-hazards.pid
   for ch in 3 4 6 7; do
     /usr/bin/ioctl /dev/pwm_led$ch 0x0000754A -v 0 2>/dev/null
     /usr/bin/ioctl /dev/pwm_led$ch 0x00007549 -v 0 2>/dev/null
@@ -363,6 +361,11 @@ find_dbc_block_device() {
 # unmask keycard-service so a later boot has a working keycard reader.
 cat > /data/stop-error-signals.sh << 'STOP_HELPER'
 #!/bin/sh
+# Stop the systemd-run transient units the trampoline/onboot launched for
+# the boot-LED blink and the hazards flash. systemctl stop is the primary
+# path; the PID-file cleanup below is for older builds.
+systemctl stop librescoot-bootled-blink.service 2>/dev/null
+systemctl stop librescoot-bootled-hazards.service 2>/dev/null
 if [ -f /data/bootled-blink.pid ]; then
   pid="$(cat /data/bootled-blink.pid 2>/dev/null)"
   if [ -n "$pid" ]; then
@@ -726,10 +729,15 @@ i2cset -f -y 2 0x30 0x05 0xAF 2>/dev/null
 i2cset -f -y 2 0x30 0x06 0xAF 2>/dev/null
 i2cset -f -y 2 0x30 0x07 0xAF 2>/dev/null
 
-# Boot LED helpers. The blink loops self-publish their PID via $$ inside
-# the inner sh — outer-shell $! is unreliable here because the heredoc was
-# single-quoted and \$! would have been written literally to disk.
+# Boot LED + hazards helpers. Spawned via systemd-run so they run in their
+# own transient unit under system.slice — librescoot-onboot.service is
+# Type=oneshot with KillMode=control-group, so once /data/onboot.sh exits,
+# anything still in its cgroup gets killed. setsid alone doesn't escape
+# that. Stopped via systemctl stop.
+BOOTLED_BLINK_UNIT="librescoot-bootled-blink"
+HAZARDS_UNIT="librescoot-bootled-hazards"
 bootled_blink_stop() {
+  systemctl stop "${BOOTLED_BLINK_UNIT}.service" 2>/dev/null
   if [ -f /data/bootled-blink.pid ]; then
     pid="$(cat /data/bootled-blink.pid 2>/dev/null)"
     if [ -n "$pid" ]; then
@@ -741,8 +749,7 @@ bootled_blink_stop() {
 }
 bootled_blink_green() {
   bootled_blink_stop
-  setsid sh -c '
-    echo $$ > /data/bootled-blink.pid
+  systemd-run --unit="$BOOTLED_BLINK_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
     while true; do
       i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
       i2cset -f -y 2 0x30 0x03 0xFF 2>/dev/null
@@ -753,12 +760,11 @@ bootled_blink_green() {
       i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
       sleep 0.4
     done
-  ' </dev/null >/dev/null 2>&1 &
+  '
 }
 bootled_blink_red() {
   bootled_blink_stop
-  setsid sh -c '
-    echo $$ > /data/bootled-blink.pid
+  systemd-run --unit="$BOOTLED_BLINK_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
     while true; do
       i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
       i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
@@ -769,11 +775,11 @@ bootled_blink_red() {
       i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
       sleep 0.4
     done
-  ' </dev/null >/dev/null 2>&1 &
+  '
 }
 hazards_30s() {
-  setsid sh -c '
-    echo $$ > /data/error-hazards.pid
+  systemctl stop "${HAZARDS_UNIT}.service" 2>/dev/null
+  systemd-run --unit="$HAZARDS_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
     DIM=2000
     for ch in 3 4 6 7; do
       /usr/bin/ioctl /dev/pwm_led$ch 0x00007549 -v 1 2>/dev/null
@@ -792,8 +798,7 @@ hazards_30s() {
     for ch in 3 4 6 7; do
       /usr/bin/ioctl /dev/pwm_led$ch 0x00007549 -v 0 2>/dev/null
     done
-    rm -f /data/error-hazards.pid
-  ' </dev/null >/dev/null 2>&1 &
+  '
 }
 
 # Image write succeeded but we're not done — tile uploads to the DBC still
