@@ -351,7 +351,7 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
       iface = await _findLinuxInterfaceOnce();
       if (iface != null) return iface;
       if (!DateTime.now().isBefore(deadline)) return null;
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future.delayed(const Duration(seconds: 1));
     }
   }
 

@@ -429,7 +429,7 @@ if ($ok) {
   /// Returns the most recent diagnosis.
   static Future<DriverDiagnosis> _waitForCorrectBinding(
     Duration timeout, {
-    Duration interval = const Duration(milliseconds: 500),
+    Duration interval = const Duration(seconds: 1),
   }) async {
     final deadline = DateTime.now().add(timeout);
     DriverDiagnosis last = await diagnoseBinding();
