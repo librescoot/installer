@@ -3210,22 +3210,37 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // accidental master teach-in during the install; this is the first phase
     // that actually needs it.
     //
-    // The trampoline masks the unit for the duration of the flash, and
-    // onboot.sh only unmasks at the very end of the success branch (after
-    // tile uploads finish, ~2-3 min after MDB reboot). The user can reach
-    // this phase before then — `systemctl start` on a still-masked unit
-    // exits non-zero, which `|| true` would swallow silently. Explicitly
-    // unmask first; unmask is a no-op when already unmasked.
+    // By the time the user reaches this phase, the laptop has been
+    // reconnected to the MDB — which only happens after onboot.sh has run
+    // to completion and unmasked the unit. So is-enabled should never be
+    // "masked" here. If it is, an upstream path skipped its unmask: log
+    // loudly so we can fix the offending path, then unmask here as a
+    // recovery so this install can still finish.
+    String enabledState = 'unknown';
     try {
-      await _sshService.runCommand(
-        'systemctl unmask librescoot-keycard 2>/dev/null; '
-        'systemctl start librescoot-keycard 2>/dev/null; '
-        'true',
+      enabledState = (await _sshService.runCommand(
+        'systemctl is-enabled librescoot-keycard 2>&1',
+      )).trim();
+    } catch (_) {}
+    if (enabledState == 'masked') {
+      debugPrint(
+        'UI: librescoot-keycard is still masked at keycardSetup entry — '
+        'an upstream unmask was skipped; recovering',
       );
-      debugPrint('UI: unmasked + started librescoot-keycard for keycard setup phase');
-    } catch (e) {
-      debugPrint('UI: failed to unmask/start librescoot-keycard: $e');
+      try {
+        await _sshService.runCommand('systemctl unmask librescoot-keycard');
+      } catch (e) {
+        debugPrint('UI: unmask of librescoot-keycard failed: $e');
+      }
     }
+
+    try {
+      await _sshService.runCommand('systemctl start librescoot-keycard 2>/dev/null; true');
+      debugPrint('UI: started librescoot-keycard for keycard setup phase');
+    } catch (e) {
+      debugPrint('UI: failed to start librescoot-keycard: $e');
+    }
+
     // Wait up to ~3s for the unit to actually be active. If it isn't, log
     // loudly so the (otherwise silent) downstream "capability probe timed
     // out" / "no taps register" failure is at least diagnosable.
