@@ -40,7 +40,7 @@ class TrampolineService {
   /// Check if a remote file exists and matches the local file's md5.
   Future<bool> _remoteFileMatches(String localPath, String remotePath) async {
     try {
-      // Get local md5: use PowerShell on Windows, md5sum on Unix
+      // Get local md5: PowerShell on Windows, `md5 -q` on macOS (no md5sum), md5sum on Linux.
       String localMd5;
       if (Platform.isWindows) {
         final localResult = await Process.run('powershell', [
@@ -49,10 +49,14 @@ class TrampolineService {
         ]);
         if (localResult.exitCode != 0) return false;
         localMd5 = localResult.stdout.toString().trim().toLowerCase();
+      } else if (Platform.isMacOS) {
+        final localResult = await Process.run('md5', ['-q', localPath]);
+        if (localResult.exitCode != 0) return false;
+        localMd5 = localResult.stdout.toString().trim().toLowerCase();
       } else {
         final localResult = await Process.run('md5sum', [localPath]);
         if (localResult.exitCode != 0) return false;
-        localMd5 = localResult.stdout.toString().split(' ').first.trim();
+        localMd5 = localResult.stdout.toString().split(' ').first.trim().toLowerCase();
       }
 
       // Get remote md5 (large files can take a while)
