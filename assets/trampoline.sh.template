@@ -796,12 +796,12 @@ hazards_30s() {
   ' </dev/null >/dev/null 2>&1 &
 }
 
-# Reaching this script means the DBC flash itself succeeded — start the
-# success indicator (blinking green) immediately so the user sees flash
-# success regardless of how long the post-flash tile install takes. The
-# failure branch in ONBOOT_END switches us to red + hazards if a tile
-# upload fails after this point.
-bootled_blink_green
+# Image write succeeded but we're not done — tile uploads to the DBC still
+# need to happen over the same USB link. Stay amber so the user knows the
+# MDB is still talking to the DBC and does NOT yank the cable. Green blink
+# (= "safe to disconnect USB from DBC and reconnect laptop") is started in
+# the success branch at the bottom of this script, after DBC power-off.
+bootled amber
 
 # Restore original onboot.sh if backed up, otherwise delete ourselves
 if [ -f /data/onboot.sh.bak ]; then
@@ -859,6 +859,9 @@ if [ $ELAPSED -ge 60 ]; then
   log "WARNING: DBC not reachable after 60s — skipping tiles"
   echo "success" > "$STATUS_FILE"
   cat "$LOG" >> "$STATUS_FILE"
+  lsc --redis-addr localhost:6379 dbc off 2>/dev/null || true
+  bootled_blink_green
+  systemctl unmask librescoot-keycard keycard-service 2>/dev/null || true
   exit 0
 fi
 log "  DBC reachable"
@@ -958,10 +961,10 @@ if [ "${TILE_ERRORS:-0}" -gt 0 ]; then
   log "=========================================="
   echo "error: $TILE_ERRORS tile upload(s) failed" > "$STATUS_FILE"
   cat "$LOG" >> "$STATUS_FILE"
-  # Stop the green blink we started at the top of onboot.sh, switch to red,
-  # and add hazards (capped at 30s so an abandoned error doesn't drain the
-  # battery). Both indicators stop on installer reconnect via
-  # /data/stop-error-signals.sh.
+  # Switch the boot LED from solid amber (set at the top of onboot.sh) to
+  # blinking red, and add hazards (capped at 30s so an abandoned error
+  # doesn't drain the battery). Both indicators stop on installer reconnect
+  # via /data/stop-error-signals.sh.
   bootled_blink_red
   hazards_30s
 else
@@ -970,12 +973,14 @@ else
   log "=========================================="
   echo "success" > "$STATUS_FILE"
   cat "$LOG" >> "$STATUS_FILE"
-  # Green blink already running (started at the top of onboot.sh) — leave
-  # it alone. Unmask keycard-service: the installer's keycardSetup phase
-  # will start it explicitly. We deliberately do NOT start it now: a
-  # freshly flashed device with no master would auto-enter master-learning
-  # and silently teach in whatever card the user taps before they reach
-  # the explicit setup phase.
+  # All MDB<->DBC work is done (image flashed, tiles uploaded, DBC powered
+  # off). Now and only now signal the user it's safe to swap the MDB's
+  # single USB port back to the laptop. Unmask keycard-service: the
+  # installer's keycardSetup phase will start it explicitly. We deliberately
+  # do NOT start it now: a freshly flashed device with no master would
+  # auto-enter master-learning and silently teach in whatever card the user
+  # taps before they reach the explicit setup phase.
+  bootled_blink_green
   systemctl unmask librescoot-keycard keycard-service 2>/dev/null || true
 fi
 ONBOOT_END
@@ -986,12 +991,10 @@ log "  onboot.sh written"
 echo "rebooting" > "$STATUS_FILE"
 cat "$LOG_FILE" >> "$STATUS_FILE"
 
-# Start the green blink before the reboot so the user sees the success
-# indicator immediately. The reboot kills it, but onboot.sh re-starts the
-# same blink right after re-initializing the LED chip — net effect is a
-# brief LED-off gap during the reboot itself, then continuous green blink
-# until the user reconnects USB.
-bootled_blink_green
+# Front-ring solid for 10s as a "image write done, MDB rebooting" cue. Do
+# NOT start the green boot-LED blink here: tile uploads still run after the
+# MDB comes back, and green is reserved for "safe to disconnect USB from
+# DBC" — set only in the success branch of onboot.sh after DBC power-off.
 signal_success
 [ -n "$JOURNAL_PID" ] && kill $JOURNAL_PID 2>/dev/null
 log "  rebooting MDB..."
