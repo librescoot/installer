@@ -3208,16 +3208,40 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     // Bring librescoot-keycard back up. We stopped it post-flash to prevent
     // accidental master teach-in during the install; this is the first phase
-    // that actually needs it. Use start (not restart) so this no-ops if the
-    // service is already running (e.g. on a re-entry to this phase).
+    // that actually needs it.
+    //
+    // The trampoline masks the unit for the duration of the flash, and
+    // onboot.sh only unmasks at the very end of the success branch (after
+    // tile uploads finish, ~2-3 min after MDB reboot). The user can reach
+    // this phase before then — `systemctl start` on a still-masked unit
+    // exits non-zero, which `|| true` would swallow silently. Explicitly
+    // unmask first; unmask is a no-op when already unmasked.
     try {
-      await _sshService.runCommand('systemctl start librescoot-keycard 2>/dev/null || true');
-      debugPrint('UI: started librescoot-keycard for keycard setup phase');
+      await _sshService.runCommand(
+        'systemctl unmask librescoot-keycard 2>/dev/null; '
+        'systemctl start librescoot-keycard 2>/dev/null; '
+        'true',
+      );
+      debugPrint('UI: unmasked + started librescoot-keycard for keycard setup phase');
     } catch (e) {
-      debugPrint('UI: failed to start librescoot-keycard: $e');
+      debugPrint('UI: failed to unmask/start librescoot-keycard: $e');
     }
-    // Brief settle so the service is consuming the queue before we push.
-    await Future.delayed(const Duration(milliseconds: 500));
+    // Wait up to ~3s for the unit to actually be active. If it isn't, log
+    // loudly so the (otherwise silent) downstream "capability probe timed
+    // out" / "no taps register" failure is at least diagnosable.
+    String activeState = 'unknown';
+    for (var i = 0; i < 10; i++) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      try {
+        activeState = (await _sshService.runCommand(
+          'systemctl is-active librescoot-keycard 2>&1',
+        )).trim();
+      } catch (_) {}
+      if (activeState == 'active') break;
+    }
+    if (activeState != 'active') {
+      debugPrint('UI: librescoot-keycard not active after start (state=$activeState)');
+    }
 
     // Disengage boot-time auto-master-learning before any tap can land.
     try {
