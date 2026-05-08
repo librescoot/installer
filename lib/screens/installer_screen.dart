@@ -268,18 +268,29 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
   }
 
-  /// Persist the user's installer-UI language as the dashboard's default
-  /// language. Best-effort — failure here is harmless, the dashboard ships
-  /// with `en` by default and the user can change it themselves.
+  /// Persist the user's installer choices on the MDB: dashboard language
+  /// (so the UI matches what they used here) and OTA channel (so future
+  /// updates pull from the same track they just installed). Both are
+  /// best-effort — failure is harmless, the user can fix from the dashboard.
   Future<void> _onEnterFinish() async {
     if (_isDryRun || !_sshService.isConnected) return;
+
     final lang = Localizations.localeOf(context).languageCode;
-    if (lang != 'en' && lang != 'de') return;
+    if (lang == 'en' || lang == 'de') {
+      try {
+        await _sshService.runCommand("lsc set dashboard.language '$lang'");
+        debugPrint('UI: persisted dashboard.language=$lang');
+      } catch (e) {
+        debugPrint('UI: failed to persist dashboard.language: $e');
+      }
+    }
+
+    final channel = _downloadState.channel.name;
     try {
-      await _sshService.runCommand("lsc set dashboard.language '$lang'");
-      debugPrint('UI: persisted dashboard.language=$lang');
+      await _sshService.runCommand('lsc ota channel $channel');
+      debugPrint('UI: persisted ota channel=$channel');
     } catch (e) {
-      debugPrint('UI: failed to persist dashboard.language: $e');
+      debugPrint('UI: failed to persist ota channel: $e');
     }
   }
 
