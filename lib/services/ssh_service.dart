@@ -286,7 +286,8 @@ class SshService {
     // Get serial number
     String? serial;
     try {
-      final result = await runCommand('cat /sys/fsl_otp/HW_OCOTP_CFG0 /sys/fsl_otp/HW_OCOTP_CFG1 2>/dev/null');
+      // OCOTP UID is (CFG1 << 32) | CFG0 — high word first when concatenated.
+      final result = await runCommand('cat /sys/fsl_otp/HW_OCOTP_CFG1 /sys/fsl_otp/HW_OCOTP_CFG0 2>/dev/null');
       serial = _parseSerial(result);
       if (serial != null) {
         debugPrint('SSH: parsed serial $serial');
