@@ -369,6 +369,7 @@
   "keycardMasterStageWarningHeading": "ACHTUNG: Die Masterkarte entriegelt den Roller NICHT",
   "keycardMasterStageWarningBody": "Die Masterkarte dient nur zur Verwaltung anderer Schlüsselkarten. Mit ihr kannst du den Roller NICHT entriegeln. Verwende KEINE der gerade angelernten Schlüsselkarten. Nimm eine separate, frische Karte.",
   "keycardMasterStageHint": "Halte die Masterkarte an den Leser.",
+  "keycardCardDuplicateToast": "Diese Karte ist bereits angelernt.",
   "keycardMasterStageRejectedToast": "Diese Karte ist bereits als Schlüsselkarte registriert.",
   "keycardMasterStageSaveFailedToast": "Masterkarte konnte nicht gespeichert werden: Schreibvorgang fehlgeschlagen.",
   "keycardMasterStageLearnedToast": "Masterkarte wurde registriert.",

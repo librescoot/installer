@@ -1202,6 +1202,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get keycardMasterStageHint => 'Hold the master card to the reader.';
 
   @override
+  String get keycardCardDuplicateToast => 'This card is already registered.';
+
+  @override
   String get keycardMasterStageRejectedToast =>
       'This card is already registered as an unlock card.';
 

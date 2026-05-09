@@ -74,8 +74,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   final ScrollController _phaseScrollController = ScrollController();
   bool _keycardLearning = false;
   int _keycardAuthorizedCountBefore = 0; // captured at Start, compared at Done
-  int _keycardSessionTapCount = 0; // delta = current - before, polled live
-  Timer? _keycardCountPollTimer;
+  int _keycardSessionTapCount = 0; // driven by card-learned events
   // Substage of the keycardSetup phase. The phase is rendered as a small
   // state machine so we can branch between the cards-only legacy flow and
   // the new master-teach-in flow without splitting it into separate phases.
@@ -184,7 +183,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
     _deviceSub?.cancel();
     _usbDetector.stopMonitoring();
     _blePinPollTimer?.cancel();
-    _keycardCountPollTimer?.cancel();
     _keycardToastTimer?.cancel();
     final stop = _keycardEventsStop;
     if (stop != null) {
@@ -3258,6 +3256,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
       debugPrint('UI: librescoot-keycard not active after start (state=$activeState)');
     }
 
+    // Subscribe to keycard:events early so we don't miss any tap during the
+    // capability probe or initial state read. Both the regular learn flow
+    // (card-learned, card-duplicate) and the master teach-in flow emit on
+    // this channel; legacy services don't publish here, which is harmless.
+    try {
+      await _keycardSubscribeEvents();
+    } catch (e) {
+      debugPrint('UI: failed to subscribe to keycard events: $e');
+    }
+
     // Disengage boot-time auto-master-learning before any tap can land.
     try {
       await _sshService.redisLpush('scooter:keycard', 'set-master:NONE');
@@ -3343,8 +3351,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _keycardTearDown() async {
-    _keycardCountPollTimer?.cancel();
-    _keycardCountPollTimer = null;
     _keycardToastTimer?.cancel();
     _keycardToastTimer = null;
     final stop = _keycardEventsStop;
@@ -3359,7 +3365,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _startKeycardLearning() async {
-    if (!_isDryRun) {
+    if (_isDryRun) {
+      // Carry the previous session's count forward so "Add more" simulates
+      // the additive semantics of the real service.
+      _keycardAuthorizedCountBefore = _keycardAuthorizedCount;
+    } else {
       try {
         final raw = await _sshService.redisHget('system', 'keycard-authorized-count');
         _keycardAuthorizedCountBefore = int.tryParse(raw ?? '') ?? 0;
@@ -3378,34 +3388,19 @@ class _InstallerScreenState extends State<InstallerScreen> {
       }
     }
     debugPrint('UI: keycard learning started');
+    // Live tap progress is driven by card-learned events on keycard:events
+    // (subscribed at keycardSetup entry). The count hash on `system` is only
+    // updated after learn:stop fsyncs, so polling it during the session is
+    // pointless — the events are the source of truth.
     setState(() {
       _keycardLearning = true;
       _keycardSessionTapCount = 0;
+      _keycardAuthorizedCount = _keycardAuthorizedCountBefore;
     });
-    _keycardCountPollTimer?.cancel();
-    if (!_isDryRun) {
-      _keycardCountPollTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
-        if (!mounted || !_keycardLearning) return;
-        try {
-          final raw = await _sshService.redisHget('system', 'keycard-authorized-count');
-          final cur = int.tryParse(raw ?? '') ?? _keycardAuthorizedCountBefore;
-          final delta = cur - _keycardAuthorizedCountBefore;
-          if (mounted && delta != _keycardSessionTapCount) {
-            setState(() {
-              _keycardSessionTapCount = delta;
-              _keycardAuthorizedCount = cur;
-            });
-          }
-        } catch (_) {}
-      });
-    }
   }
 
   Future<void> _stopKeycardLearning({bool advance = true}) async {
-    _keycardCountPollTimer?.cancel();
-    _keycardCountPollTimer = null;
-    bool registered = _isDryRun;
-    int sessionDelta = _isDryRun ? _keycardSessionTapCount : _keycardSessionTapCount;
+    int sessionDelta = _keycardSessionTapCount;
     if (_isDryRun && sessionDelta == 0) sessionDelta = 1;
     if (!_isDryRun) {
       try {
@@ -3413,27 +3408,33 @@ class _InstallerScreenState extends State<InstallerScreen> {
       } catch (e) {
         debugPrint('UI: failed to stop keycard learning: $e');
       }
-      // keycard-service publishes the new count only after exitLearnMode
-      // fsyncs the UID file, which can take 2+ seconds on a freshly flashed
-      // eMMC. Poll for up to ~5 s instead of guessing a fixed delay.
-      int after = _keycardAuthorizedCountBefore;
+      // Wait for the count hash to settle to the value events already told
+      // us about. fsync after learn:stop can take 2+ seconds on a freshly
+      // flashed eMMC, so poll for up to ~5 s. Trust the event-derived count
+      // if the hash never catches up — we've seen each tap directly.
+      final expected = _keycardAuthorizedCountBefore + sessionDelta;
+      int polled = _keycardAuthorizedCountBefore;
       for (var i = 0; i < 25; i++) {
         try {
           final raw = await _sshService.redisHget('system', 'keycard-authorized-count');
-          after = int.tryParse(raw ?? '') ?? after;
+          polled = int.tryParse(raw ?? '') ?? polled;
         } catch (_) {}
-        if (after != _keycardAuthorizedCountBefore) break;
+        if (polled >= expected) break;
         await Future.delayed(const Duration(milliseconds: 200));
       }
-      sessionDelta = after - _keycardAuthorizedCountBefore;
-      registered = sessionDelta != 0;
-      _keycardAuthorizedCount = after;
+      if (polled != expected) {
+        debugPrint('UI: count after learn:stop ($polled) != expected ($expected); '
+            'trusting events (sessionDelta=$sessionDelta)');
+      }
+      _keycardAuthorizedCount =
+          polled >= _keycardAuthorizedCountBefore ? polled : expected;
     }
+    final registered = sessionDelta > 0;
     debugPrint('UI: keycard learning stopped (registered=$registered, sessionDelta=$sessionDelta)');
     if (!mounted) return;
     setState(() {
       _keycardLearning = false;
-      _keycardSessionTapCount = sessionDelta < 0 ? 0 : sessionDelta;
+      _keycardSessionTapCount = sessionDelta;
       if (advance) {
         _keycardStage = registered
             ? _KeycardStage.cardsReview
@@ -3484,7 +3485,20 @@ class _InstallerScreenState extends State<InstallerScreen> {
     debugPrint('UI: keycard event: $payload');
     if (!mounted) return;
     final l10n = AppLocalizations.of(context)!;
-    if (payload.startsWith('master-learned:')) {
+    if (payload.startsWith('card-learned:')) {
+      // Per-tap event during regular learn mode. The count hash isn't
+      // updated until learn:stop fsyncs, so events are the only live signal.
+      if (_keycardLearning) {
+        setState(() {
+          _keycardSessionTapCount += 1;
+          _keycardAuthorizedCount += 1;
+        });
+      }
+    } else if (payload.startsWith('card-duplicate:')) {
+      if (_keycardLearning) {
+        _keycardShowToast(l10n.keycardCardDuplicateToast, Colors.orangeAccent);
+      }
+    } else if (payload.startsWith('master-learned:')) {
       _keycardShowToast(l10n.keycardMasterStageLearnedToast, Colors.green);
       _keycardRefreshCounts();
       // Auto-advance: master successfully registered.
@@ -3556,8 +3570,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
     if (confirm != true || !mounted) return;
     if (_keycardLearning) {
       // Don't bother advancing — we're going to wipe anyway.
-      _keycardCountPollTimer?.cancel();
-      _keycardCountPollTimer = null;
       _keycardLearning = false;
     }
     if (!_isDryRun) {

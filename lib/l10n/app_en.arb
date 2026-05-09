@@ -489,6 +489,7 @@
   "keycardMasterStageWarningHeading": "WARNING: master card is NOT for unlocking",
   "keycardMasterStageWarningBody": "The master card is used to manage other keycards. It CANNOT unlock the scooter. Do NOT use any of the cards you just registered as unlock cards. Use a separate, fresh card.",
   "keycardMasterStageHint": "Hold the master card to the reader.",
+  "keycardCardDuplicateToast": "This card is already registered.",
   "keycardMasterStageRejectedToast": "This card is already registered as an unlock card.",
   "keycardMasterStageSaveFailedToast": "Could not save master card: write failed.",
   "keycardMasterStageLearnedToast": "Master card registered.",

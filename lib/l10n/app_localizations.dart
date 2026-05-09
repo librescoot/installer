@@ -2168,6 +2168,12 @@ abstract class AppLocalizations {
   /// **'Hold the master card to the reader.'**
   String get keycardMasterStageHint;
 
+  /// No description provided for @keycardCardDuplicateToast.
+  ///
+  /// In en, this message translates to:
+  /// **'This card is already registered.'**
+  String get keycardCardDuplicateToast;
+
   /// No description provided for @keycardMasterStageRejectedToast.
   ///
   /// In en, this message translates to:
