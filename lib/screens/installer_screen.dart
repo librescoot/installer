@@ -290,6 +290,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
     } catch (e) {
       debugPrint('UI: failed to persist ota channel: $e');
     }
+
+    // Re-enable the power manager we stopped at SSH connect time so the
+    // scooter behaves normally once the user unplugs USB.
+    try {
+      await _sshService.runCommand('systemctl start librescoot-pm');
+      debugPrint('UI: started librescoot-pm');
+    } catch (e) {
+      debugPrint('UI: failed to start librescoot-pm: $e');
+    }
   }
 
   void _setStatus(String message, {double? progress}) {
