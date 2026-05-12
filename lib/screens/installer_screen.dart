@@ -291,13 +291,22 @@ class _InstallerScreenState extends State<InstallerScreen> {
       debugPrint('UI: failed to persist ota channel: $e');
     }
 
-    // Re-enable the power manager we stopped at SSH connect time so the
-    // scooter behaves normally once the user unplugs USB.
+    // Reboot the MDB. The install path leaves several services stopped
+    // (librescoot-pm) and the PWM LED channels for the four blinkers
+    // deactivated (the trampoline drives them as a progress bar and clears
+    // activate=1 on cleanup), so the running system can't flash blinkers
+    // until a fresh boot re-initializes everything. A reboot here also picks
+    // up the lsc settings we just persisted. Timing is fine: the user is
+    // about to disconnect USB and physically reassemble the scooter, which
+    // takes longer than the MDB needs to come back up.
     try {
-      await _sshService.runCommand('systemctl start librescoot-pm');
-      debugPrint('UI: started librescoot-pm');
+      await _sshService.runCommand('sync');
+    } catch (_) {}
+    try {
+      await _sshService.reboot();
+      debugPrint('UI: triggered MDB reboot on finish');
     } catch (e) {
-      debugPrint('UI: failed to start librescoot-pm: $e');
+      debugPrint('UI: failed to reboot MDB on finish: $e');
     }
   }
 
