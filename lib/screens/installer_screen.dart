@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -291,6 +292,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
       debugPrint('UI: failed to persist ota channel: $e');
     }
 
+    // Wipe installer staging from /data before we kick off the reboot, so
+    // the user doesn't carry a few hundred MB of leftover image/tile files
+    // around forever. Skipped in non-release builds so devs can poke at
+    // the trampoline state after a failed run.
+    if (kReleaseMode) {
+      await _cleanupMdb();
+    } else {
+      debugPrint('UI: skipping MDB cleanup (non-release build)');
+    }
+
     // Reboot the MDB. The install path leaves several services stopped
     // (librescoot-pm) and the PWM LED channels for the four blinkers
     // deactivated (the trampoline drives them as a progress bar and clears
@@ -299,23 +310,22 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // up the lsc settings we just persisted. Timing is fine: the user is
     // about to disconnect USB and physically reassemble the scooter, which
     // takes longer than the MDB needs to come back up.
-    // Restore the default USB gadget policy we flipped to always-on before
-    // locking. Best-effort: missing on older images.
+    //
+    // Restoring usb0-policy=auto and rebooting have to happen in the same
+    // detached MDB-side shell. vehicle-service applies the policy change
+    // synchronously: with the DBC powered off (it is, by the end of
+    // onboot.sh) and keycards paired (the common path), usb0AutoEffective()
+    // returns true and SetUsb0Enabled(false) tears down the USB gadget —
+    // which is the SSH transport we're sitting on. Running it via nohup
+    // lets the shell outlive the disconnect long enough to sync and reboot.
     try {
-      await _sshService.runCommand('lsc set scooter.usb0-policy auto');
-      debugPrint('UI: scooter.usb0-policy=auto');
+      await _sshService.runCommand(
+        "nohup sh -c 'lsc set scooter.usb0-policy auto; sync; reboot' "
+        '>/dev/null 2>&1 </dev/null &',
+      );
+      debugPrint('UI: queued policy reset + reboot on MDB');
     } catch (e) {
-      debugPrint('UI: failed to restore scooter.usb0-policy=auto (ok): $e');
-    }
-
-    try {
-      await _sshService.runCommand('sync');
-    } catch (_) {}
-    try {
-      await _sshService.reboot();
-      debugPrint('UI: triggered MDB reboot on finish');
-    } catch (e) {
-      debugPrint('UI: failed to reboot MDB on finish: $e');
+      debugPrint('UI: failed to queue reboot on finish: $e');
     }
   }
 
@@ -2979,11 +2989,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
 
     // Stop the failure indicators (blinking boot LED, hazards) if any are
-    // running. The trampoline drops /data/stop-error-signals.sh for exactly
-    // this. Best-effort: if the script isn't there or there's nothing to
-    // stop, the helper just no-ops.
+    // running. The trampoline drops stop-error-signals.sh for exactly this.
+    // Best-effort: if the script isn't there or there's nothing to stop,
+    // the helper just no-ops. Check the old /data/ path too so an upgrade
+    // mid-install still cleans up after a prior failure.
     try {
       await _sshService.runCommand(
+        '[ -x /data/installer/stop-error-signals.sh ] && /data/installer/stop-error-signals.sh; '
         '[ -x /data/stop-error-signals.sh ] && /data/stop-error-signals.sh; true',
       );
     } catch (_) {}
@@ -3001,9 +3013,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
       await Future.delayed(const Duration(seconds: 5));
       if (!mounted) return;
     }
-
-    // TODO: re-enable after dev
-    // await _cleanupMdb();
 
     // Re-stop librescoot-keycard in case onboot.sh on the DBC-side flash
     // brought it back up. We deliberately keep it stopped through bluetooth
@@ -4152,14 +4161,22 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _cleanupMdb() async {
     if (!_sshService.isConnected) return;
     try {
+      // /data/installer/ holds everything this installer stages. The
+      // legacy rm -f list below covers leftovers from installers that
+      // wrote directly to /data/ — harmless once those versions are gone,
+      // but cheap to keep for now so upgraders don't accumulate orphans.
       await _sshService.runCommand(
+        'rm -rf /data/installer; '
         'rm -f /data/librescoot-unu-*.sdimg.gz /data/librescoot-unu-*.sdimg.bmap '
         '/data/tiles_*.mbtiles /data/valhalla_tiles_*.tar '
         '/data/trampoline.sh /data/trampoline.log /data/trampoline-status '
-        '/data/trampoline-stdout.log /data/test-trampoline-*.sh /data/test-step*.log; '
+        '/data/trampoline-stdout.log /data/trampoline-journal.log '
+        '/data/stop-error-signals.sh /data/librescoot-flasher '
+        '/data/onboot.sh.bak '
+        '/data/test-trampoline-*.sh /data/test-step*.log; '
         'rm -rf /data/fwtools',
       );
-      debugPrint('Cleanup: removed trampoline and image files from MDB');
+      debugPrint('Cleanup: removed installer staging from MDB');
     } catch (e) {
       debugPrint('Cleanup: MDB cleanup failed: $e');
     }
@@ -4168,8 +4185,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _offerCleanup() async {
     final l10n = AppLocalizations.of(context)!;
     final freed = await _downloadService.deleteCache(_downloadState.items);
-    // TODO: re-enable after dev
-    // await _cleanupMdb();
     if (mounted) {
       _setStatus(l10n.deletedCache((freed / 1024 / 1024).toStringAsFixed(0)));
     }

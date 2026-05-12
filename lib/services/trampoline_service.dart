@@ -27,11 +27,15 @@ class TrampolineService {
         .replaceAll('{{INSTALL_TILES}}', installTiles ? 'true' : 'false')
         .replaceAll(
           '{{OSM_TILES_FILE}}',
-          installTiles && region != null ? '/data/${region.osmTilesFilename}' : '',
+          installTiles && region != null
+              ? '/data/installer/${region.osmTilesFilename}'
+              : '',
         )
         .replaceAll(
           '{{VALHALLA_TILES_FILE}}',
-          installTiles && region != null ? '/data/${region.valhallaTilesFilename}' : '',
+          installTiles && region != null
+              ? '/data/installer/${region.valhallaTilesFilename}'
+              : '',
         );
 
     return template;
@@ -239,6 +243,12 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
   }
 
   /// Upload DBC image, tiles, and trampoline script to MDB.
+  ///
+  /// Everything we stage lives under /data/installer/ so cleanup at finish
+  /// is a single rm -rf. The only exception is /data/onboot.sh, which is
+  /// the path librescoot-onboot.service watches via ConditionPathExists —
+  /// the trampoline writes that one itself, and it self-deletes after it
+  /// runs on the next boot.
   Future<void> uploadAll({
     required String dbcImageLocalPath,
     String? dbcBmapLocalPath,
@@ -247,21 +257,26 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     Region? region,
     void Function(String status, double progress)? onProgress,
   }) async {
+    // Ensure the staging dir exists before any SFTP/HTTP upload — SFTP open
+    // won't create parents, and the HTTP fallback's os.makedirs is cheap
+    // but only kicks in on the first PUT.
+    await _ssh.runCommand('mkdir -p /data/installer');
+
     final filesToUpload = <MapEntry<String, String>>[];
 
     final dbcFilename = File(dbcImageLocalPath).uri.pathSegments.last;
-    filesToUpload.add(MapEntry(dbcImageLocalPath, '/data/$dbcFilename'));
+    filesToUpload.add(MapEntry(dbcImageLocalPath, '/data/installer/$dbcFilename'));
 
     if (dbcBmapLocalPath != null) {
       final bmapFilename = File(dbcBmapLocalPath).uri.pathSegments.last;
-      filesToUpload.add(MapEntry(dbcBmapLocalPath, '/data/$bmapFilename'));
+      filesToUpload.add(MapEntry(dbcBmapLocalPath, '/data/installer/$bmapFilename'));
     }
 
     if (osmTilesLocalPath != null && region != null) {
-      filesToUpload.add(MapEntry(osmTilesLocalPath, '/data/${region.osmTilesFilename}'));
+      filesToUpload.add(MapEntry(osmTilesLocalPath, '/data/installer/${region.osmTilesFilename}'));
     }
     if (valhallaTilesLocalPath != null && region != null) {
-      filesToUpload.add(MapEntry(valhallaTilesLocalPath, '/data/${region.valhallaTilesFilename}'));
+      filesToUpload.add(MapEntry(valhallaTilesLocalPath, '/data/installer/${region.valhallaTilesFilename}'));
     }
 
     // Start HTTP upload server early: MDB may be busy creating UMS disk image on first boot
@@ -337,9 +352,9 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       debugPrint('Trampoline: loaded flasher-linux-arm (${flasherAsset.lengthInBytes} bytes)');
       await _ssh.uploadFile(
         flasherAsset.buffer.asUint8List(),
-        '/data/librescoot-flasher',
+        '/data/installer/librescoot-flasher',
       );
-      await _ssh.runCommand('chmod +x /data/librescoot-flasher');
+      await _ssh.runCommand('chmod +x /data/installer/librescoot-flasher');
     } catch (e) {
       debugPrint('Trampoline: failed to upload ARM flasher: $e');
     }
@@ -347,21 +362,21 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     // Upload stock DBC fw_setenv binary + DBC-specific fw_env config
     onProgress?.call('Uploading DBC tools...', 0.96);
     try {
-      await _ssh.runCommand('mkdir -p /data/fwtools/stock-dbc');
+      await _ssh.runCommand('mkdir -p /data/installer/fwtools/stock-dbc');
 
       final stockFwSetenv = await rootBundle.load('assets/tools/fw_setenv-dbc');
       debugPrint('Trampoline: loaded fw_setenv-dbc (${stockFwSetenv.lengthInBytes} bytes)');
       await _ssh.uploadFile(
         stockFwSetenv.buffer.asUint8List(),
-        '/data/fwtools/stock-dbc/fw_setenv',
+        '/data/installer/fwtools/stock-dbc/fw_setenv',
       );
       // Make executable
-      await _ssh.runCommand('chmod +x /data/fwtools/stock-dbc/fw_setenv');
+      await _ssh.runCommand('chmod +x /data/installer/fwtools/stock-dbc/fw_setenv');
 
       final dbcFwEnvConfig = await rootBundle.load('assets/tools/fw_env-dbc.config');
       await _ssh.uploadFile(
         dbcFwEnvConfig.buffer.asUint8List(),
-        '/data/fwtools/stock-dbc/fw_env.config',
+        '/data/installer/fwtools/stock-dbc/fw_env.config',
       );
     } catch (e) {
       debugPrint('Trampoline: failed to upload DBC tools: $e');
@@ -370,7 +385,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     // Always regenerate the trampoline script (small, config may have changed)
     debugPrint('Trampoline: generating and uploading trampoline script...');
     onProgress?.call('Uploading trampoline script...', 0.98);
-    final dbcRemotePath = '/data/$dbcFilename';
+    final dbcRemotePath = '/data/installer/$dbcFilename';
 
     final script = await generateScript(
       dbcImagePath: dbcRemotePath,
@@ -383,7 +398,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     debugPrint('Trampoline: script generated (${cleanScript.length} chars)');
     await _ssh.uploadFile(
       Uint8List.fromList(utf8.encode(cleanScript)),
-      '/data/trampoline.sh',
+      '/data/installer/trampoline.sh',
     );
     debugPrint('Trampoline: script uploaded');
 
@@ -393,7 +408,9 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
 
   /// Start the trampoline script on MDB in background.
   Future<void> start() async {
-    await _ssh.runCommand('nohup /data/trampoline.sh > /data/trampoline-stdout.log 2>&1 &');
+    await _ssh.runCommand(
+      'nohup /data/installer/trampoline.sh > /data/installer/trampoline-stdout.log 2>&1 &',
+    );
   }
 
   /// Read trampoline status (call after reconnecting to MDB).

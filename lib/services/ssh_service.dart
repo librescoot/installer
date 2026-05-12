@@ -1207,7 +1207,7 @@ class SshService {
   /// Read the trampoline status file from MDB.
   Future<TrampolineStatus> readTrampolineStatus() async {
     try {
-      final content = await runCommand('cat /data/trampoline-status 2>/dev/null');
+      final content = await runCommand('cat /data/installer/trampoline-status 2>/dev/null');
       if (content.trim().isEmpty) {
         return TrampolineStatus(result: TrampolineResult.unknown);
       }
