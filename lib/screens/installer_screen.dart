@@ -3237,6 +3237,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
       return;
     }
 
+    // Re-apply always-on USB gadget policy: the MDB has been re-flashed since
+    // we first set it, so the freshly-installed image is back to the default.
+    // We restore it to auto on finish. Best-effort: missing on older images.
+    try {
+      await _sshService.runCommand('lsc set scooter.usb0-policy always-on');
+      debugPrint('UI: scooter.usb0-policy=always-on (keycardSetup)');
+    } catch (e) {
+      debugPrint('UI: failed to set scooter.usb0-policy=always-on at keycardSetup (ok): $e');
+    }
+
     // Stop our manual green LED blinker before keycard-service starts; both
     // drive the LP5562 via i2c and would otherwise race.
     await _stopBootLedBlink();
