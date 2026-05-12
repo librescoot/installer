@@ -299,6 +299,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // up the lsc settings we just persisted. Timing is fine: the user is
     // about to disconnect USB and physically reassemble the scooter, which
     // takes longer than the MDB needs to come back up.
+    // Restore the default USB gadget policy we flipped to always-on before
+    // locking. Best-effort: missing on older images.
+    try {
+      await _sshService.runCommand('lsc set scooter.usb0-policy auto');
+      debugPrint('UI: scooter.usb0-policy=auto');
+    } catch (e) {
+      debugPrint('UI: failed to restore scooter.usb0-policy=auto (ok): $e');
+    }
+
     try {
       await _sshService.runCommand('sync');
     } catch (_) {}
@@ -1420,6 +1429,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
         return;
       }
       debugPrint('SSH: scooter is parked (or overridden), locking...');
+
+      // Keep MDB USB gadget powered while the scooter is locked so we don't
+      // lose RNDIS mid-flash. Best-effort: the key may not exist on older
+      // images and `lsc set` returns non-zero in that case.
+      try {
+        await _sshService.runCommand('lsc set scooter.usb0-policy always-on');
+        debugPrint('UI: scooter.usb0-policy=always-on');
+      } catch (e) {
+        debugPrint('UI: failed to set scooter.usb0-policy=always-on (ok): $e');
+      }
 
       // Lock the scooter for safe flashing
       _setStatus(l10n.lockingScooter);
