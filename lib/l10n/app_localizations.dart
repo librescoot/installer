@@ -1238,6 +1238,12 @@ abstract class AppLocalizations {
   /// **'DBC Flash in Progress'**
   String get dbcFlashInProgress;
 
+  /// No description provided for @dbcFlashSwapCablesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Swap USB to the DBC'**
+  String get dbcFlashSwapCablesTitle;
+
   /// No description provided for @disconnectUsbFromLaptop.
   ///
   /// In en, this message translates to:
@@ -1375,6 +1381,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reading trampoline status...'**
   String get readingTrampolineStatus;
+
+  /// No description provided for @readingTrampolineStatusElapsed.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading trampoline status… ({elapsed}s)'**
+  String readingTrampolineStatusElapsed(int elapsed);
 
   /// No description provided for @dbcFlashSuccessful.
   ///
@@ -2447,8 +2459,38 @@ abstract class AppLocalizations {
   /// No description provided for @flashingTakesAbout10Min.
   ///
   /// In en, this message translates to:
-  /// **'Flashing takes about 10 minutes. Once the dashboard LED is blinking (green or red), and only then, reconnect the laptop USB cable.'**
+  /// **'Once the dashboard LED is blinking (green or red), and only then, reconnect the laptop USB cable.'**
   String get flashingTakesAbout10Min;
+
+  /// No description provided for @dbcFlashDurationHeadline.
+  ///
+  /// In en, this message translates to:
+  /// **'The DBC flash can take 10–20 minutes.'**
+  String get dbcFlashDurationHeadline;
+
+  /// No description provided for @dbcFlashDurationDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'The DBC will turn on and off several times during this process — that is normal. Do not unplug anything until the dashboard LED is blinking green or red.'**
+  String get dbcFlashDurationDetail;
+
+  /// No description provided for @finishRebootingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Rebooting scooter…'**
+  String get finishRebootingTitle;
+
+  /// No description provided for @finishRebootingBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the MDB to drop the USB link before completing the install.'**
+  String get finishRebootingBody;
+
+  /// No description provided for @networkConfigNeedsPermission.
+  ///
+  /// In en, this message translates to:
+  /// **'macOS is asking for permission to change network settings. Click Allow in the system dialog, then hit Retry.'**
+  String get networkConfigNeedsPermission;
 
   /// No description provided for @waitingForMdbToReconnect.
   ///

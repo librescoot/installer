@@ -652,6 +652,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get dbcFlashInProgress => 'DBC wird geflasht';
 
   @override
+  String get dbcFlashSwapCablesTitle => 'USB auf das DBC umstecken';
+
+  @override
   String get disconnectUsbFromLaptop => 'USB vom Laptop trennen';
 
   @override
@@ -726,6 +729,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get readingTrampolineStatus => 'Trampoline-Status wird gelesen...';
+
+  @override
+  String readingTrampolineStatusElapsed(int elapsed) {
+    return 'Trampoline-Status wird gelesen… (${elapsed}s)';
+  }
 
   @override
   String get dbcFlashSuccessful => 'DBC-Flash erfolgreich!';
@@ -1364,7 +1372,26 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get flashingTakesAbout10Min =>
-      'Das Flashen dauert etwa 10 Minuten. Erst wenn die Tacho-LED blinkt (grün oder rot), und auch wirklich erst dann, das Laptop-USB-Kabel wieder anschließen.';
+      'Erst wenn die Tacho-LED blinkt (grün oder rot), und auch wirklich erst dann, das Laptop-USB-Kabel wieder anschließen.';
+
+  @override
+  String get dbcFlashDurationHeadline =>
+      'Das DBC-Flashen kann 10–20 Minuten dauern.';
+
+  @override
+  String get dbcFlashDurationDetail =>
+      'Das DBC wird dabei mehrmals ein- und ausgeschaltet — das ist normal. Nichts abziehen, bis die Tacho-LED grün oder rot blinkt.';
+
+  @override
+  String get finishRebootingTitle => 'Roller startet neu…';
+
+  @override
+  String get finishRebootingBody =>
+      'Warte auf die USB-Trennung, dann ist der Installer fertig.';
+
+  @override
+  String get networkConfigNeedsPermission =>
+      'macOS fragt nach Erlaubnis, die Netzwerk-Einstellungen zu ändern. Im Systemdialog auf \'Erlauben\' klicken, dann \'Erneut versuchen\' drücken.';
 
   @override
   String get waitingForMdbToReconnect => 'Warte auf MDB-Wiederverbindung...';

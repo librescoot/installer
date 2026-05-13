@@ -155,11 +155,13 @@ signal_progress() {
       led_activate $l
       led_duty $l $DIM_DUTY
     elif [ $i -eq $segment ] && [ $segment -lt 4 ]; then
-      # Active: breathing
+      # Active: breathing on the brake-dim curve (fade4 on / fade9 off).
+      # Dim enough that the filled-segment dim glow stays distinguishable
+      # next to it in daylight.
       led_activate $l
       (while true; do
-        led_fade $l 0; sleep 3
-        led_fade $l 1; sleep 3
+        led_fade $l 4; sleep 3
+        led_fade $l 9; sleep 3
       done) &
       PROGRESS_BREATHE_PID=$!
     else

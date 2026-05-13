@@ -95,6 +95,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Completer<bool>? _unlockCompleter;
   bool _keepCache = false;
   bool _isCriticalOperation = false; // prevent quit during flash/upload
+  bool _awaitingFinishReboot = false;
   Process? _caffeinateProcess; // macOS sleep prevention
 
   StreamSubscription<UsbDevice?>? _deviceSub;
@@ -265,6 +266,62 @@ class _InstallerScreenState extends State<InstallerScreen> {
     if (phase == InstallerPhase.finish) {
       _onEnterFinish();
     }
+    if (phase == InstallerPhase.dbcFlash) {
+      _dbcFlashWatchStarted = false;
+      _dbcUsbDisconnected = false;
+    }
+  }
+
+  /// Park the two settings that interfere with a long-running install:
+  /// auto-standby (would suspend the MDB mid-install) and the alarm (would
+  /// trip on motion while we're working). Both are persisted by
+  /// settings-service, so they get explicitly wiped in [_onEnterFinish]
+  /// before we reapply the user's actual choices. Best-effort: older images
+  /// may not know these keys.
+  Future<void> _disableInstallerHazards({required String label}) async {
+    if (_isDryRun || !_sshService.isConnected) return;
+    try {
+      await _sshService.runCommand('lsc set scooter.auto-standby-seconds 0');
+      debugPrint('UI: scooter.auto-standby-seconds=0 ($label)');
+    } catch (e) {
+      debugPrint('UI: failed to set scooter.auto-standby-seconds=0 at $label (ok): $e');
+    }
+    try {
+      await _sshService.runCommand('lsc set alarm.enabled false');
+      debugPrint('UI: alarm.enabled=false ($label)');
+    } catch (e) {
+      debugPrint('UI: failed to set alarm.enabled=false at $label (ok): $e');
+    }
+    // The settings change propagates via a publish — if alarm-service is
+    // mid-restart, was already armed when we set the flag, or the publish
+    // gets dropped, the FSM can stay in an armed state. Belt-and-suspenders:
+    // also push a runtime disarm onto the alarm command queue so the FSM
+    // drops to Disarmed regardless of how alarm.enabled propagated.
+    try {
+      await _sshService.redisLpush('scooter:alarm', 'disarm');
+      debugPrint('UI: scooter:alarm disarm ($label)');
+    } catch (e) {
+      debugPrint('UI: failed to push scooter:alarm disarm at $label (ok): $e');
+    }
+  }
+
+  /// Wipe the persisted settings file and bounce settings-service so the
+  /// installer-only overrides (auto-standby=0, alarm.enabled=false, etc.)
+  /// don't leak into the user's daily-driver state. Called before we
+  /// re-apply the user's actual choices in [_onEnterFinish].
+  Future<void> _resetPersistedSettings() async {
+    if (_isDryRun || !_sshService.isConnected) return;
+    try {
+      await _sshService.runCommand(
+        'rm -f /data/settings.toml && systemctl restart librescoot-settings',
+      );
+      debugPrint('UI: wiped /data/settings.toml + restarted librescoot-settings');
+      // Give settings-service a moment to come back and re-publish defaults
+      // before we HSET into the settings hash again.
+      await Future.delayed(const Duration(seconds: 2));
+    } catch (e) {
+      debugPrint('UI: failed to reset persisted settings (ok): $e');
+    }
   }
 
   /// Persist the user's installer choices on the MDB: dashboard language
@@ -272,7 +329,19 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// updates pull from the same track they just installed). Both are
   /// best-effort — failure is harmless, the user can fix from the dashboard.
   Future<void> _onEnterFinish() async {
-    if (_isDryRun || !_sshService.isConnected) return;
+    if (_isDryRun || !_sshService.isConnected) {
+      // Dry-run / no SSH: nothing to reboot, render the success screen
+      // immediately.
+      if (mounted) setState(() => _awaitingFinishReboot = false);
+      return;
+    }
+
+    if (mounted) setState(() => _awaitingFinishReboot = true);
+
+    // Wipe first, then re-apply the user's choices: this drops our
+    // installer-only overrides (auto-standby=0, alarm.enabled=false) so the
+    // scooter behaves normally on next boot.
+    await _resetPersistedSettings();
 
     final lang = Localizations.localeOf(context).languageCode;
     if (lang == 'en' || lang == 'de') {
@@ -327,6 +396,30 @@ class _InstallerScreenState extends State<InstallerScreen> {
     } catch (e) {
       debugPrint('UI: failed to queue reboot on finish: $e');
     }
+
+    // Poll the SSH transport until it dies — that's the signal the reboot
+    // command actually took effect. The detached shell sets usb0-policy=auto
+    // first; with the DBC off + keycards paired, vehicle-service tears down
+    // the USB gadget synchronously, so SSH drops well before the reboot
+    // itself completes. We do NOT wait for the MDB to come back: after
+    // reboot the scooter is in stand-by with policy=auto, so usb0 stays
+    // down until the user unlocks. The SSH drop is the only signal we get.
+    // 60s cap so a stuck reboot doesn't trap the user on the waiting screen.
+    final deadline = DateTime.now().add(const Duration(seconds: 60));
+    while (DateTime.now().isBefore(deadline)) {
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return;
+      try {
+        await _sshService.runCommand('echo ok').timeout(const Duration(seconds: 2));
+      } catch (_) {
+        debugPrint('UI: MDB SSH dropped — reboot confirmed');
+        _sshService.disconnect();
+        if (mounted) setState(() => _awaitingFinishReboot = false);
+        return;
+      }
+    }
+    debugPrint('UI: timed out waiting for MDB reboot, showing finish anyway');
+    if (mounted) setState(() => _awaitingFinishReboot = false);
   }
 
   void _setStatus(String message, {double? progress}) {
@@ -1413,10 +1506,20 @@ class _InstallerScreenState extends State<InstallerScreen> {
     final iface = await networkService.findLibrescootInterface();
     if (iface != null) {
       try {
-        await networkService.configureInterface(iface);
+        final configured = await networkService.configureInterface(iface);
+        if (!configured && !await networkService.isMdbReachable()) {
+          // macOS path: configureInterface returns false (no exception) when
+          // `networksetup -setmanual` fails for lack of admin. The macOS
+          // auth dialog is asynchronous — auto-retrying here just churns the
+          // UI through configuring/ssh-fail/retry cycles until the user
+          // clicks Allow. Stop and let them hit the retry button when ready.
+          _setStatus(l10n.networkConfigNeedsPermission);
+          setState(() => _isProcessing = false);
+          return;
+        }
       } on NetworkPrivilegeException catch (e) {
         _setStatus(l10n.errorPrefix(e.toString()));
-        setState(() { _isProcessing = false; _mdbConnectStarted = false; });
+        setState(() => _isProcessing = false);
         return;
       }
     }
@@ -1450,6 +1553,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
         debugPrint('UI: failed to set scooter.usb0-policy=always-on (ok): $e');
       }
 
+      // Don't let the old image fall into auto-standby or trip its alarm
+      // during the install. We get reset on the new image (see keycardSetup
+      // entry) and explicitly cleaned up at finish. Best-effort.
+      await _disableInstallerHazards(label: 'pre-flash');
+
       // Lock the scooter for safe flashing
       _setStatus(l10n.lockingScooter);
       await _sshService.redisLpush('scooter:state', 'lock');
@@ -1464,7 +1572,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _setPhase(InstallerPhase.healthCheck);
     } catch (e) {
       _setStatus(l10n.sshConnectionFailed(e.toString()));
-      setState(() { _isProcessing = false; _mdbConnectStarted = false; });
+      // No auto-retry here: SSH failure means the previous network config
+      // didn't actually deliver a reachable MDB. Repeating the same dance
+      // every second flickers the UI. The retry button below explicitly
+      // re-arms _mdbConnectStarted and re-invokes us.
+      setState(() => _isProcessing = false);
     }
   }
 
@@ -2316,6 +2428,20 @@ class _InstallerScreenState extends State<InstallerScreen> {
         debugPrint('SSH: stopped librescoot-keycard to prevent accidental master teach-in');
       } catch (_) {}
 
+      // Reapply the install-time scooter config on the freshly-flashed image:
+      // usb0 must stay up while the scooter is locked (so we keep RNDIS for
+      // the rest of the install), auto-standby and the alarm must be off so
+      // the next 10–20 minutes of DBC flash + BT pairing + keycard setup
+      // don't put the MDB into suspend or honk the alarm at the workshop.
+      // All three get reset at finish — see _resetPersistedSettings.
+      try {
+        await _sshService.runCommand('lsc set scooter.usb0-policy always-on');
+        debugPrint('UI: scooter.usb0-policy=always-on (mdb-boot)');
+      } catch (e) {
+        debugPrint('UI: failed to set scooter.usb0-policy=always-on at mdb-boot (ok): $e');
+      }
+      await _disableInstallerHazards(label: 'mdb-boot');
+
       // Restore radio-gaga config if we backed it up
       if (_radioGagaBackupPath != null) {
         _setStatus(l10n.restoringConfig);
@@ -2715,7 +2841,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(l10n.dbcFlashInProgress,
+            Text(l10n.dbcFlashSwapCablesTitle,
                 style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             const SizedBox(height: 24),
             InstructionStep(
@@ -2747,6 +2873,45 @@ class _InstallerScreenState extends State<InstallerScreen> {
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
           Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.14),
+              border: Border.all(color: Colors.orange.shade700, width: 2),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.schedule, color: Colors.orange.shade300, size: 28),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        l10n.dbcFlashDurationHeadline,
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange.shade100,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  l10n.dbcFlashDurationDetail,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Colors.orange.shade100,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: const Color(0xFF222222),
@@ -2757,9 +2922,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
               children: [
                 Text(l10n.mdbFlashingDbcAutonomously,
                     style: const TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Text(l10n.dbcWillCyclePower,
-                    style: TextStyle(color: Colors.orange.shade300, fontSize: 13)),
                 const SizedBox(height: 12),
                 Text(l10n.watchLightsForProgress,
                     style: TextStyle(color: Colors.grey.shade400)),
@@ -2833,7 +2995,19 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _watchDbcFlash() async {
-    // Wait for USB disconnect
+    // Detect the connected → disconnected transition, not the static null
+    // state. If `_device` happens to be momentarily null when this watcher
+    // starts (USB detector poll lag, brief enumeration glitch right after
+    // trampoline upload), we'd otherwise skip the prep screen entirely and
+    // go straight to the autonomous flash view — leaving the user without
+    // the disconnect-USB-and-plug-into-DBC instructions.
+    //
+    // Wait for the device to be present first (10s grace), then wait for
+    // it to actually go away.
+    final presentDeadline = DateTime.now().add(const Duration(seconds: 10));
+    while (mounted && _device == null && DateTime.now().isBefore(presentDeadline)) {
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
     while (mounted && _device != null) {
       await Future.delayed(const Duration(seconds: 1));
     }
@@ -2988,30 +3162,31 @@ class _InstallerScreenState extends State<InstallerScreen> {
       return;
     }
 
-    // Stop the failure indicators (blinking boot LED, hazards) if any are
-    // running. The trampoline drops stop-error-signals.sh for exactly this.
-    // Best-effort: if the script isn't there or there's nothing to stop,
-    // the helper just no-ops. Check the old /data/ path too so an upgrade
-    // mid-install still cleans up after a prior failure.
-    try {
-      await _sshService.runCommand(
-        '[ -x /data/installer/stop-error-signals.sh ] && /data/installer/stop-error-signals.sh; '
-        '[ -x /data/stop-error-signals.sh ] && /data/stop-error-signals.sh; true',
-      );
-    } catch (_) {}
+    // Freshly-flashed image boots with default settings (alarm.enabled=true,
+    // auto-standby=900s). With the scooter locked + stood up on the lift in
+    // the workshop, alarm-service will arm and trip on any vibration during
+    // bluetooth pairing or keycard setup. Disable both before either phase.
+    await _disableInstallerHazards(label: 'reconnect');
 
     // Poll for trampoline status: the script may still be running when MDB
-    // reconnects to RNDIS. Wait up to 5 minutes for a definitive result.
+    // reconnects to RNDIS. Poll indefinitely — a slow DBC first-boot
+    // (resize2fs on a fresh filesystem) can easily eat the better part of
+    // 10–15 minutes, and silently giving up with "status unknown" leaves
+    // the user stranded. The user can always bail by yanking USB and
+    // re-plugging — _watchDbcFlash will pick that up and put them back on
+    // the prep screen.
     _setStatus(l10n.readingTrampolineStatus);
     TrampolineStatus status;
-    final deadline = DateTime.now().add(const Duration(minutes: 5));
+    final pollStart = DateTime.now();
     while (true) {
       status = await _sshService.readTrampolineStatus();
       if (status.result != TrampolineResult.unknown) break;
-      if (DateTime.now().isAfter(deadline)) break;
-      debugPrint('Trampoline: status still unknown, waiting...');
+      final elapsed = DateTime.now().difference(pollStart).inSeconds;
+      debugPrint('Trampoline: status still unknown after ${elapsed}s, waiting...');
+      _setStatus(l10n.readingTrampolineStatusElapsed(elapsed));
       await Future.delayed(const Duration(seconds: 5));
       if (!mounted) return;
+      if (_currentPhase != InstallerPhase.reconnect) return;
     }
 
     // Re-stop librescoot-keycard in case onboot.sh on the DBC-side flash
@@ -3027,6 +3202,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
       await Future.delayed(const Duration(seconds: 2));
       _setPhase(InstallerPhase.bluetoothPairing);
     } else if (status.result == TrampolineResult.error) {
+      // Quiet the failure indicators (red blink + hazards) now that we're
+      // about to surface the actual error to the user. The helper also
+      // unmasks librescoot-keycard so a later reboot has a working reader.
+      try {
+        await _sshService.runCommand(
+          '[ -x /data/installer/stop-error-signals.sh ] && /data/installer/stop-error-signals.sh; '
+          '[ -x /data/stop-error-signals.sh ] && /data/stop-error-signals.sh; true',
+        );
+      } catch (_) {}
       _setStatus(l10n.dbcFlashFailed(status.message ?? ''));
       if (mounted && status.errorLog != null) {
         showDialog(
@@ -3255,6 +3439,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
     } catch (e) {
       debugPrint('UI: failed to set scooter.usb0-policy=always-on at keycardSetup (ok): $e');
     }
+
+    // Same hazards on the freshly-installed image: keycard learning can sit
+    // here for a while, and the parked-but-locked scooter is fair game for
+    // both the auto-standby timer and the alarm. Cleared at finish.
+    await _disableInstallerHazards(label: 'keycardSetup');
 
     // Stop our manual green LED blinker before keycard-service starts; both
     // drive the LP5562 via i2c and would otherwise race.
@@ -3992,6 +4181,33 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Widget _buildFinish(AppLocalizations l10n) {
+    if (_awaitingFinishReboot) {
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.restart_alt, size: 56, color: kAccent),
+              const SizedBox(height: 20),
+              Text(
+                l10n.finishRebootingTitle,
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                l10n.finishRebootingBody,
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              const CircularProgressIndicator(),
+            ],
+          ),
+        ),
+      );
+    }
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 720),

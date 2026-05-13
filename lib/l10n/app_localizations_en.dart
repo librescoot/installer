@@ -646,6 +646,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dbcFlashInProgress => 'DBC Flash in Progress';
 
   @override
+  String get dbcFlashSwapCablesTitle => 'Swap USB to the DBC';
+
+  @override
   String get disconnectUsbFromLaptop => 'Disconnect USB from laptop';
 
   @override
@@ -720,6 +723,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get readingTrampolineStatus => 'Reading trampoline status...';
+
+  @override
+  String readingTrampolineStatusElapsed(int elapsed) {
+    return 'Reading trampoline status… (${elapsed}s)';
+  }
 
   @override
   String get dbcFlashSuccessful => 'DBC flash successful!';
@@ -1353,7 +1361,26 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flashingTakesAbout10Min =>
-      'Flashing takes about 10 minutes. Once the dashboard LED is blinking (green or red), and only then, reconnect the laptop USB cable.';
+      'Once the dashboard LED is blinking (green or red), and only then, reconnect the laptop USB cable.';
+
+  @override
+  String get dbcFlashDurationHeadline =>
+      'The DBC flash can take 10–20 minutes.';
+
+  @override
+  String get dbcFlashDurationDetail =>
+      'The DBC will turn on and off several times during this process — that is normal. Do not unplug anything until the dashboard LED is blinking green or red.';
+
+  @override
+  String get finishRebootingTitle => 'Rebooting scooter…';
+
+  @override
+  String get finishRebootingBody =>
+      'Waiting for the MDB to drop the USB link before completing the install.';
+
+  @override
+  String get networkConfigNeedsPermission =>
+      'macOS is asking for permission to change network settings. Click Allow in the system dialog, then hit Retry.';
 
   @override
   String get waitingForMdbToReconnect => 'Waiting for MDB to reconnect...';

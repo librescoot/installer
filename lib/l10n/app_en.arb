@@ -253,6 +253,7 @@
   },
 
   "dbcFlashInProgress": "DBC Flash in Progress",
+  "dbcFlashSwapCablesTitle": "Swap USB to the DBC",
   "disconnectUsbFromLaptop": "Disconnect USB from laptop",
   "disconnectUsbFromLaptopDesc": "Unplug the USB cable from your laptop.",
   "reconnectDbcUsbToMdb": "Reconnect DBC USB cable to MDB",
@@ -277,6 +278,12 @@
   "reconnectUsbToLaptop": "Reconnect USB to laptop...",
   "waitingForRndisDevice": "Waiting for RNDIS device...",
   "readingTrampolineStatus": "Reading trampoline status...",
+  "readingTrampolineStatusElapsed": "Reading trampoline status… ({elapsed}s)",
+  "@readingTrampolineStatusElapsed": {
+    "placeholders": {
+      "elapsed": { "type": "int" }
+    }
+  },
   "dbcFlashSuccessful": "DBC flash successful!",
   "dbcFlashFailed": "DBC flash failed: {message}",
   "@dbcFlashFailed": {
@@ -547,7 +554,12 @@
   "ledBootAmberMeaning": "Flashing in progress",
   "ledBootRedError": "Dashboard LED blinking red",
   "ledBootRedMeaning": "Error. Reconnect laptop to check log; the indicators stop once you reconnect",
-  "flashingTakesAbout10Min": "Flashing takes about 10 minutes. Once the dashboard LED is blinking (green or red), and only then, reconnect the laptop USB cable.",
+  "flashingTakesAbout10Min": "Once the dashboard LED is blinking (green or red), and only then, reconnect the laptop USB cable.",
+  "dbcFlashDurationHeadline": "The DBC flash can take 10–20 minutes.",
+  "dbcFlashDurationDetail": "The DBC will turn on and off several times during this process — that is normal. Do not unplug anything until the dashboard LED is blinking green or red.",
+  "finishRebootingTitle": "Rebooting scooter…",
+  "finishRebootingBody": "Waiting for the MDB to drop the USB link before completing the install.",
+  "networkConfigNeedsPermission": "macOS is asking for permission to change network settings. Click Allow in the system dialog, then hit Retry.",
   "waitingForMdbToReconnect": "Waiting for MDB to reconnect...",
   "ledIsGreen": "LED blinking green",
   "ledIsRed": "LED blinking red",

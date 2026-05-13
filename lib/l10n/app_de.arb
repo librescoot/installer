@@ -195,6 +195,7 @@
   "startingTrampoline": "Trampoline-Skript wird gestartet...",
   "uploadError": "Upload-Fehler: {error}",
   "dbcFlashInProgress": "DBC wird geflasht",
+  "dbcFlashSwapCablesTitle": "USB auf das DBC umstecken",
   "disconnectUsbFromLaptop": "USB vom Laptop trennen",
   "disconnectUsbFromLaptopDesc": "Ziehe das USB-Kabel von deinem Laptop ab.",
   "reconnectDbcUsbToMdb": "DBC-USB-Kabel mit MDB verbinden",
@@ -218,6 +219,12 @@
   "reconnectUsbToLaptop": "USB wieder mit Laptop verbinden...",
   "waitingForRndisDevice": "Warte auf RNDIS-Gerät...",
   "readingTrampolineStatus": "Trampoline-Status wird gelesen...",
+  "readingTrampolineStatusElapsed": "Trampoline-Status wird gelesen… ({elapsed}s)",
+  "@readingTrampolineStatusElapsed": {
+    "placeholders": {
+      "elapsed": { "type": "int" }
+    }
+  },
   "dbcFlashSuccessful": "DBC-Flash erfolgreich!",
   "dbcFlashFailed": "DBC-Flash fehlgeschlagen: {message}",
   "dbcFlashError": "DBC-Flash-Fehler",
@@ -417,7 +424,12 @@
   "ledBootAmberMeaning": "Flash läuft",
   "ledBootRedError": "Tacho-LED blinkt rot",
   "ledBootRedMeaning": "Fehler. Laptop verbinden und Log prüfen; Blinker und LED gehen aus, sobald du verbunden bist",
-  "flashingTakesAbout10Min": "Das Flashen dauert etwa 10 Minuten. Erst wenn die Tacho-LED blinkt (grün oder rot), und auch wirklich erst dann, das Laptop-USB-Kabel wieder anschließen.",
+  "flashingTakesAbout10Min": "Erst wenn die Tacho-LED blinkt (grün oder rot), und auch wirklich erst dann, das Laptop-USB-Kabel wieder anschließen.",
+  "dbcFlashDurationHeadline": "Das DBC-Flashen kann 10–20 Minuten dauern.",
+  "dbcFlashDurationDetail": "Das DBC wird dabei mehrmals ein- und ausgeschaltet — das ist normal. Nichts abziehen, bis die Tacho-LED grün oder rot blinkt.",
+  "finishRebootingTitle": "Roller startet neu…",
+  "finishRebootingBody": "Warte auf die USB-Trennung, dann ist der Installer fertig.",
+  "networkConfigNeedsPermission": "macOS fragt nach Erlaubnis, die Netzwerk-Einstellungen zu ändern. Im Systemdialog auf 'Erlauben' klicken, dann 'Erneut versuchen' drücken.",
   "waitingForMdbToReconnect": "Warte auf MDB-Wiederverbindung...",
   "ledIsGreen": "LED blinkt grün",
   "ledIsRed": "LED blinkt rot",
