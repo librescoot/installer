@@ -1637,7 +1637,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   bool get _isLibrescootFirmware {
     // /etc/os-release ID= is the authoritative discriminator. Stable
-    // LibreScoot ships VERSION_ID=1.0.1, indistinguishable from stock by
+    // Librescoot ships VERSION_ID=1.0.1, indistinguishable from stock by
     // version alone: the channel-tag heuristic only catches nightly /
     // testing builds. Fall back to the heuristic if osId wasn't readable.
     final id = _mdbInfo?.osId ?? '';

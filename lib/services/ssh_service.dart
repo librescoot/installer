@@ -16,7 +16,7 @@ class DeviceInfo {
   final String firmwareVersion;
   final String? serialNumber;
   /// Value of ID= in /etc/os-release if known (e.g. 'librescoot-mdb').
-  /// Used to distinguish LibreScoot from stock when version numbers collide.
+  /// Used to distinguish Librescoot from stock when version numbers collide.
   final String? osId;
 
   DeviceInfo({
