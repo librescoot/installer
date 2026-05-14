@@ -416,7 +416,7 @@ log "=========================================="
 
 # Stop services that interfere. Mask the keycard service for the duration
 # of the flash + onboot tile install so it can't race us on /dev/i2c-2 (we
-# both drive the LP5562/LP5662 via i2cset). Persistent mask survives the
+# both drive the LP5562/LP5562 via i2cset). Persistent mask survives the
 # MDB reboot we do after writing onboot.sh; onboot.sh unmasks at the end of
 # its success branch, and stop-error-signals.sh unmasks on the failure
 # path when the installer reconnects.
