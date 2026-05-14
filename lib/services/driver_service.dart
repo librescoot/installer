@@ -31,7 +31,7 @@ class DriverInstallResult {
 
 /// Service for managing Windows RNDIS driver installation.
 ///
-/// On Windows, the LibreScoot MDB uses USB RNDIS (Ethernet over USB).
+/// On Windows, the Librescoot MDB uses USB RNDIS (Ethernet over USB).
 /// This service checks if the driver is installed and installs it if needed.
 class DriverService {
   static const String _driverInfAsset = 'assets/drivers/RNDIS.inf';
@@ -39,7 +39,7 @@ class DriverService {
   static const String _driverInfName = 'RNDIS.inf';
   static const String _driverCatName = 'rndis.cat';
 
-  /// Check if the LibreScoot RNDIS driver is already installed.
+  /// Check if the Librescoot RNDIS driver is already installed.
   ///
   /// Uses `pnputil /enum-drivers` and searches for "librescoot" in the output.
   static Future<bool> isDriverInstalled() async {
@@ -66,7 +66,7 @@ class DriverService {
     }
   }
 
-  /// Install the LibreScoot RNDIS driver from bundled assets.
+  /// Install the Librescoot RNDIS driver from bundled assets.
   ///
   /// Extracts the INF file to a temp directory and runs:
   /// `pnputil /add-driver <path> /install`

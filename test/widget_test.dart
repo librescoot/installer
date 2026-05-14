@@ -3,7 +3,7 @@ import 'package:librescoot_installer/main.dart';
 
 void main() {
   testWidgets('Installer app smoke test', (WidgetTester tester) async {
-    await tester.pumpWidget(const LibreScootInstaller());
-    expect(find.text('LibreScoot Installer'), findsOneWidget);
+    await tester.pumpWidget(const LibrescootInstaller());
+    expect(find.text('Librescoot Installer'), findsOneWidget);
   });
 }

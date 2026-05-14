@@ -168,7 +168,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('LibreScoot Installer'),
+        title: const Text('Librescoot Installer'),
         actions: [
           if (!_isElevated)
             Padding(
@@ -638,7 +638,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       setState(() => _statusMessage = 'Finding network interface...');
 
-      final iface = await _networkService.findLibreScootInterface();
+      final iface = await _networkService.findLibrescootInterface();
       if (iface == null) {
         throw Exception('Could not find USB network interface');
       }

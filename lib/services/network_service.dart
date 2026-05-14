@@ -24,8 +24,8 @@ class NetworkService {
   static const String subnetMask = '255.255.255.0';
   static const String mdbIp = '192.168.7.1';
 
-  /// Find the network interface for the LibreScoot USB ethernet device
-  Future<NetworkInterface?> findLibreScootInterface() async {
+  /// Find the network interface for the Librescoot USB ethernet device
+  Future<NetworkInterface?> findLibrescootInterface() async {
     if (Platform.isWindows) {
       return _findWindowsInterface();
     } else if (Platform.isMacOS) {

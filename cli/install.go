@@ -115,14 +115,14 @@ func (inst *Installer) Run() error {
 		}
 	}
 
-	logStep("Flash complete. Power cycle the MDB to boot into LibreScoot.")
+	logStep("Flash complete. Power cycle the MDB to boot into Librescoot.")
 	logInfo("Press Enter after the MDB has been power cycled and USB reconnected.")
 	if !inst.dryRun {
 		fmt.Print("\nPress Enter to continue...")
 		fmt.Scanln()
 	}
 
-	logStep("Waiting for MDB to boot into LibreScoot...")
+	logStep("Waiting for MDB to boot into Librescoot...")
 	if inst.dryRun {
 		logInfo("[dry-run] would wait for RNDIS + stable ping")
 	} else {
@@ -142,7 +142,7 @@ func (inst *Installer) Run() error {
 		}
 	}
 
-	logStep("Done! LibreScoot has been installed.")
+	logStep("Done! Librescoot has been installed.")
 	return nil
 }
 
@@ -280,7 +280,7 @@ func (inst *Installer) getMDBInfo() (map[string]string, error) {
 }
 
 func (inst *Installer) configureBootloader() error {
-	// Check if the MDB has its own fw_setenv (LibreScoot has one at /usr/bin/fw_setenv
+	// Check if the MDB has its own fw_setenv (Librescoot has one at /usr/bin/fw_setenv
 	// with /etc/fw_env.config pointing to the correct U-Boot env offsets)
 	var fwSetenvCmd string
 	if out, err := inst.mdbSSH("which fw_setenv 2>/dev/null && test -f /etc/fw_env.config && echo OK"); err == nil && strings.Contains(out, "OK") {
@@ -480,7 +480,7 @@ func (inst *Installer) flashImage(devicePath string) error {
 	return nil
 }
 
-// waitForBoot waits for the MDB to boot into LibreScoot after flashing.
+// waitForBoot waits for the MDB to boot into Librescoot after flashing.
 // First waits for the RNDIS USB device to reappear, configures the network
 // interface, then waits for stable ping (10 consecutive successes).
 func (inst *Installer) waitForBoot(timeout time.Duration) error {

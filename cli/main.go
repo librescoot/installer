@@ -20,7 +20,7 @@ func main() {
 	showVersion := flag.Bool("v", false, "Show version")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "librescoot-install %s — install LibreScoot on a connected MDB\n\n", version)
+		fmt.Fprintf(os.Stderr, "librescoot-install %s — install Librescoot on a connected MDB\n\n", version)
 		fmt.Fprintf(os.Stderr, "Usage:\n")
 		fmt.Fprintf(os.Stderr, "  librescoot-install --channel testing --password PASSWORD\n")
 		fmt.Fprintf(os.Stderr, "  librescoot-install --image firmware.sdimg.gz --password PASSWORD\n\n")
