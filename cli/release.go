@@ -144,6 +144,94 @@ func downloadMDBImage(tag, cacheDir string) (string, error) {
 	return destPath, nil
 }
 
+// downloadDBCImage downloads the DBC sdimg.gz for a given release tag.
+func downloadDBCImage(tag, cacheDir string) (string, error) {
+	return downloadReleaseAsset(tag, cacheDir, func(name string) bool {
+		return strings.Contains(name, "unu-dbc") && strings.HasSuffix(name, ".sdimg.gz")
+	})
+}
+
+// downloadDBCBmap downloads the DBC .sdimg.bmap if present.
+func downloadDBCBmap(tag, cacheDir string) string {
+	p, _ := downloadReleaseAsset(tag, cacheDir, func(name string) bool {
+		return strings.Contains(name, "unu-dbc") && strings.HasSuffix(name, ".sdimg.bmap")
+	})
+	return p
+}
+
+// downloadReleaseAsset is a generic GitHub release asset downloader.
+// Returns local path, or "" + error if no asset matches the predicate.
+func downloadReleaseAsset(tag, cacheDir string, match func(string) bool) (string, error) {
+	url := fmt.Sprintf("%s/repos/%s/releases/tags/%s", apiBase, githubRepo, tag)
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("release %s not found (HTTP %d)", tag, resp.StatusCode)
+	}
+
+	var release ghRelease
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return "", err
+	}
+
+	var asset *ghAsset
+	for i := range release.Assets {
+		a := &release.Assets[i]
+		if match(a.Name) {
+			asset = a
+			break
+		}
+	}
+	if asset == nil {
+		return "", fmt.Errorf("no matching asset in release %s", tag)
+	}
+
+	destDir := filepath.Join(cacheDir, tag)
+	destPath := filepath.Join(destDir, asset.Name)
+	if info, err := os.Stat(destPath); err == nil && info.Size() == asset.Size {
+		logInfo("Using cached: %s (%s)", asset.Name, formatBytes(info.Size()))
+		return destPath, nil
+	}
+
+	logInfo("Downloading: %s (%s)", asset.Name, formatBytes(asset.Size))
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return "", err
+	}
+	dlResp, err := http.Get(asset.BrowserDownloadURL)
+	if err != nil {
+		return "", err
+	}
+	defer dlResp.Body.Close()
+	if dlResp.StatusCode != 200 {
+		return "", fmt.Errorf("download returned HTTP %d", dlResp.StatusCode)
+	}
+
+	tmpPath := destPath + ".part"
+	f, err := os.Create(tmpPath)
+	if err != nil {
+		return "", err
+	}
+	written, err := io.Copy(f, &progressReader{reader: dlResp.Body, total: asset.Size})
+	f.Close()
+	if err != nil {
+		os.Remove(tmpPath)
+		return "", err
+	}
+	if written != asset.Size {
+		os.Remove(tmpPath)
+		return "", fmt.Errorf("incomplete download: got %d of %d bytes", written, asset.Size)
+	}
+	if err := os.Rename(tmpPath, destPath); err != nil {
+		return "", err
+	}
+	fmt.Println()
+	logInfo("Saved to: %s", destPath)
+	return destPath, nil
+}
+
 // downloadMDBBmap downloads the MDB .sdimg.bmap for a given release tag.
 // Returns the local file path, or "" if no bmap is available.
 func downloadMDBBmap(tag, cacheDir string) string {
