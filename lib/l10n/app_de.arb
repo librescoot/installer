@@ -207,8 +207,8 @@
   "ledFrontRingSolid": "Frontring leuchtet kurz",
   "ledFrontRingSolidMeaning": "Flash abgeschlossen. Erfolg!",
   "disconnectCbbImage": "[Foto: CBB-Stecker im Fußraum]",
-  "ledBlinkerProgress": "Blinker leuchten nacheinander",
-  "ledBlinkerProgressMeaning": "Flash-Fortschritt: dauerhaft an = fertig, pulsierend = läuft",
+  "ledBlinkerProgress": "Blinker füllen sich von links nach rechts auf",
+  "ledBlinkerProgressMeaning": "Gesamt-Fortschritt: Vorbereitung → Flash → Neustart → Karten",
   "ledBootGreen": "Tacho-LED blinkt grün",
   "ledBootGreenMeaning": "Erfolgreich. Laptop wieder verbinden",
   "ledRearLightSolid": "Alle vier Blinker (Warnblinker) blinken",
@@ -468,5 +468,29 @@
   "gettingStartedNavigationDesc": "Menü → Navigation → Adresse eingeben…, Letzte Ziele oder Gespeicherte Orte. Mit Aktuellen Standort speichern hältst du die aktuelle Position für später fest; In Favoriten speichern bei einem letzten Ziel hält es dauerhaft.",
   "gettingStartedFooter": "Mehr auf librescoot.org und im Handbuch.",
   "gettingStartedLinkWebsite": "librescoot.org",
-  "gettingStartedLinkHandbook": "Handbuch"
+  "gettingStartedLinkHandbook": "Handbuch",
+
+  "substepWaitRndis": "Warte auf MDB (RNDIS) am USB",
+  "substepConfigureNetwork": "Netzwerkkonfiguration",
+  "substepConnectSsh": "SSH-Verbindung herstellen",
+  "substepDisableHazards": "Alarm und Auto-Standby deaktivieren",
+  "substepReadStatus": "Trampoline-Status auslesen",
+  "elapsedSeconds": "{seconds}s vergangen",
+  "@elapsedSeconds": {
+    "placeholders": {
+      "seconds": { "type": "int" }
+    }
+  },
+  "reconnectTimeoutHeading": "Dauert ungewöhnlich lange",
+  "reconnectTimeoutBody": "Es sind {minutes} Min vergangen, ohne dass das MDB als RNDIS-Gerät aufgetaucht ist. Das DBC braucht beim ersten Boot manchmal länger (Partitions-Resize, Karten-Installation). Du kannst weiter warten, oder unten neu starten / überspringen.",
+  "@reconnectTimeoutBody": {
+    "placeholders": {
+      "minutes": { "type": "int" }
+    }
+  },
+  "usbDeviceCurrentlyDetected": "Aktuell erkanntes USB-Gerät",
+  "usbDeviceNone": "keines",
+  "collectingUsbInfo": "USB-Geräteinfos werden gesammelt…",
+  "usbInfoUnsupportedPlatform": "USB-Geräteinfos werden auf dieser Plattform nicht unterstützt.",
+  "usbInfoCollectFailed": "USB-Geräteinfos konnten nicht gesammelt werden"
 }

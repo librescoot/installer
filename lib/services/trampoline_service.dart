@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 import '../models/region.dart';
+import '../models/substep.dart';
 import '../models/trampoline_status.dart';
 import 'ssh_service.dart';
 
@@ -249,6 +250,10 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
   /// the path librescoot-onboot.service watches via ConditionPathExists —
   /// the trampoline writes that one itself, and it self-deletes after it
   /// runs on the next boot.
+  ///
+  /// [onProgress] is the legacy free-form status string + overall progress.
+  /// [onSubsteps] is the structured form used by the UI to render a
+  /// checklist (✓/⟳/○ per step). Both are called; passing only one is fine.
   Future<void> uploadAll({
     required String dbcImageLocalPath,
     String? dbcBmapLocalPath,
@@ -256,6 +261,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     String? valhallaTilesLocalPath,
     Region? region,
     void Function(String status, double progress)? onProgress,
+    void Function(List<Substep> steps)? onSubsteps,
   }) async {
     // Ensure the staging dir exists before any SFTP/HTTP upload — SFTP open
     // won't create parents, and the HTTP fallback's os.makedirs is cheap
@@ -279,11 +285,30 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       filesToUpload.add(MapEntry(valhallaTilesLocalPath, '/data/installer/${region.valhallaTilesFilename}'));
     }
 
+    final substeps = <Substep>[
+      Substep(id: 'check', label: 'Check existing files'),
+      for (final e in filesToUpload)
+        Substep(id: 'up:${e.value}', label: 'Upload ${File(e.key).uri.pathSegments.last}'),
+      Substep(id: 'flasher', label: 'Upload flasher tool'),
+      Substep(id: 'fwtools', label: 'Upload DBC bootloader tools'),
+      Substep(id: 'script', label: 'Upload trampoline script'),
+      Substep(id: 'start', label: 'Start trampoline'),
+    ];
+    void setStep(String id, SubstepState state, {String? detail}) {
+      final idx = substeps.indexWhere((s) => s.id == id);
+      if (idx < 0) return;
+      substeps[idx] = substeps[idx].copyWith(state: state, detail: detail);
+      onSubsteps?.call(List.unmodifiable(substeps));
+    }
+
+    onSubsteps?.call(List.unmodifiable(substeps));
+
     // Start HTTP upload server early: MDB may be busy creating UMS disk image on first boot
     onProgress?.call('Starting upload server...', 0.0);
     await _startUploadServer();
 
     // Check which files need uploading (server starts in background while we check)
+    setStep('check', SubstepState.active);
     onProgress?.call('Checking existing files...', 0.0);
     final needsUpload = <bool>[];
     final fileSizes = <int>[];
@@ -292,14 +317,19 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       final size = await File(entry.key).length();
       fileSizes.add(size);
       final filename = File(entry.key).uri.pathSegments.last;
+      setStep('check', SubstepState.active, detail: 'verifying $filename');
       onProgress?.call('Checking $filename...', 0.0);
       final matches = await _remoteFileMatches(entry.key, entry.value);
       needsUpload.add(!matches);
       if (!matches) totalBytes += size;
     }
+    setStep('check', SubstepState.done);
 
     if (totalBytes == 0) {
       onProgress?.call('All files already on device', 0.95);
+      for (final e in filesToUpload) {
+        setStep('up:${e.value}', SubstepState.done, detail: 'already on device');
+      }
       await _stopUploadServer();
     } else {
       final skipped = needsUpload.where((n) => !n).length;
@@ -311,10 +341,16 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       final stopwatch = Stopwatch()..start();
       try {
         for (var i = 0; i < filesToUpload.length; i++) {
-          if (!needsUpload[i]) continue;
-
           final entry = filesToUpload[i];
           final filename = File(entry.key).uri.pathSegments.last;
+          final stepId = 'up:${entry.value}';
+
+          if (!needsUpload[i]) {
+            setStep(stepId, SubstepState.done, detail: 'already on device');
+            continue;
+          }
+
+          setStep(stepId, SubstepState.active);
           onProgress?.call('Uploading $filename...', bytesSoFar / totalBytes);
           final baseBytes = bytesSoFar;
           await _uploadViaHttp(
@@ -330,14 +366,18 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
                 final remaining = (elapsed / overall) * (1.0 - overall);
                 final mins = remaining ~/ 60;
                 final secs = (remaining % 60).floor();
-                eta = ': ${mins}m ${secs}s remaining';
+                eta = ', ${mins}m ${secs}s remaining';
               }
+              final detail =
+                  '${mb.toStringAsFixed(0)} / ${totalMb.toStringAsFixed(0)} MB$eta';
+              setStep(stepId, SubstepState.active, detail: detail);
               onProgress?.call(
-                'Uploading $filename... ${mb.toStringAsFixed(0)}/${totalMb.toStringAsFixed(0)} MB$eta',
+                'Uploading $filename... $detail',
                 overall,
               );
             },
           );
+          setStep(stepId, SubstepState.done);
           bytesSoFar += fileSizes[i];
         }
       } finally {
@@ -346,6 +386,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     }
 
     // Upload ARM flasher binary for DBC flash (has bmap + progress support)
+    setStep('flasher', SubstepState.active);
     onProgress?.call('Uploading flasher...', 0.94);
     try {
       final flasherAsset = await rootBundle.load('assets/tools/librescoot-flasher-linux-arm');
@@ -355,11 +396,14 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
         '/data/installer/librescoot-flasher',
       );
       await _ssh.runCommand('chmod +x /data/installer/librescoot-flasher');
+      setStep('flasher', SubstepState.done);
     } catch (e) {
       debugPrint('Trampoline: failed to upload ARM flasher: $e');
+      setStep('flasher', SubstepState.failed, detail: e.toString());
     }
 
     // Upload stock DBC fw_setenv binary + DBC-specific fw_env config
+    setStep('fwtools', SubstepState.active);
     onProgress?.call('Uploading DBC tools...', 0.96);
     try {
       await _ssh.runCommand('mkdir -p /data/installer/fwtools/stock-dbc');
@@ -370,7 +414,6 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
         stockFwSetenv.buffer.asUint8List(),
         '/data/installer/fwtools/stock-dbc/fw_setenv',
       );
-      // Make executable
       await _ssh.runCommand('chmod +x /data/installer/fwtools/stock-dbc/fw_setenv');
 
       final dbcFwEnvConfig = await rootBundle.load('assets/tools/fw_env-dbc.config');
@@ -378,11 +421,14 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
         dbcFwEnvConfig.buffer.asUint8List(),
         '/data/installer/fwtools/stock-dbc/fw_env.config',
       );
+      setStep('fwtools', SubstepState.done);
     } catch (e) {
       debugPrint('Trampoline: failed to upload DBC tools: $e');
+      setStep('fwtools', SubstepState.failed, detail: e.toString());
     }
 
     // Always regenerate the trampoline script (small, config may have changed)
+    setStep('script', SubstepState.active);
     debugPrint('Trampoline: generating and uploading trampoline script...');
     onProgress?.call('Uploading trampoline script...', 0.98);
     final dbcRemotePath = '/data/installer/$dbcFilename';
@@ -401,6 +447,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       '/data/installer/trampoline.sh',
     );
     debugPrint('Trampoline: script uploaded');
+    setStep('script', SubstepState.done);
 
     onProgress?.call('Upload complete', 1.0);
     debugPrint('Trampoline: uploadAll complete');

@@ -265,8 +265,8 @@
   "ledFrontRingSolid": "Front ring glows briefly",
   "ledFrontRingSolidMeaning": "Flash complete. Success!",
   "disconnectCbbImage": "[Photo: CBB connector location in footwell]",
-  "ledBlinkerProgress": "Blinkers glow progressively",
-  "ledBlinkerProgressMeaning": "Flash progress: glowing constantly = done, pulsing = in progress",
+  "ledBlinkerProgress": "Blinkers fill left to right",
+  "ledBlinkerProgressMeaning": "Overall progress: Prep → Flash → Reboot → Maps",
   "ledBootGreen": "Dashboard LED blinking green",
   "ledBootGreenMeaning": "Success. Reconnect laptop",
   "ledRearLightSolid": "All four blinkers (hazards) flashing",
@@ -606,5 +606,29 @@
   "gettingStartedNavigationDesc": "Open the menu → Navigation → Enter Address…, Recent Destinations or Saved Locations. Use Save Current Location to keep the spot you're at for later, and Save to Favorites on a recent entry to keep it long-term.",
   "gettingStartedFooter": "More on librescoot.org and in the handbook.",
   "gettingStartedLinkWebsite": "librescoot.org",
-  "gettingStartedLinkHandbook": "Handbook"
+  "gettingStartedLinkHandbook": "Handbook",
+
+  "substepWaitRndis": "Wait for MDB (RNDIS) on USB",
+  "substepConfigureNetwork": "Configure network",
+  "substepConnectSsh": "Connect SSH",
+  "substepDisableHazards": "Disable alarm and auto-standby",
+  "substepReadStatus": "Read trampoline status",
+  "elapsedSeconds": "{seconds}s elapsed",
+  "@elapsedSeconds": {
+    "placeholders": {
+      "seconds": { "type": "int" }
+    }
+  },
+  "reconnectTimeoutHeading": "Taking longer than usual",
+  "reconnectTimeoutBody": "It has been {minutes} min without the MDB coming back as an RNDIS device. The DBC's first boot can take a while (partition resize, map install). You can keep waiting, or restart / skip below.",
+  "@reconnectTimeoutBody": {
+    "placeholders": {
+      "minutes": { "type": "int" }
+    }
+  },
+  "usbDeviceCurrentlyDetected": "Currently detected USB device",
+  "usbDeviceNone": "none",
+  "collectingUsbInfo": "Collecting USB device info…",
+  "usbInfoUnsupportedPlatform": "USB info collection not supported on this platform.",
+  "usbInfoCollectFailed": "Failed to collect USB info"
 }

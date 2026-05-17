@@ -693,11 +693,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get disconnectCbbImage => '[Foto: CBB-Stecker im Fußraum]';
 
   @override
-  String get ledBlinkerProgress => 'Blinker leuchten nacheinander';
+  String get ledBlinkerProgress =>
+      'Blinker füllen sich von links nach rechts auf';
 
   @override
   String get ledBlinkerProgressMeaning =>
-      'Flash-Fortschritt: dauerhaft an = fertig, pulsierend = läuft';
+      'Gesamt-Fortschritt: Vorbereitung → Flash → Neustart → Karten';
 
   @override
   String get ledBootGreen => 'Tacho-LED blinkt grün';
@@ -1521,4 +1522,49 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get gettingStartedLinkHandbook => 'Handbuch';
+
+  @override
+  String get substepWaitRndis => 'Warte auf MDB (RNDIS) am USB';
+
+  @override
+  String get substepConfigureNetwork => 'Netzwerkkonfiguration';
+
+  @override
+  String get substepConnectSsh => 'SSH-Verbindung herstellen';
+
+  @override
+  String get substepDisableHazards => 'Alarm und Auto-Standby deaktivieren';
+
+  @override
+  String get substepReadStatus => 'Trampoline-Status auslesen';
+
+  @override
+  String elapsedSeconds(int seconds) {
+    return '${seconds}s vergangen';
+  }
+
+  @override
+  String get reconnectTimeoutHeading => 'Dauert ungewöhnlich lange';
+
+  @override
+  String reconnectTimeoutBody(int minutes) {
+    return 'Es sind $minutes Min vergangen, ohne dass das MDB als RNDIS-Gerät aufgetaucht ist. Das DBC braucht beim ersten Boot manchmal länger (Partitions-Resize, Karten-Installation). Du kannst weiter warten, oder unten neu starten / überspringen.';
+  }
+
+  @override
+  String get usbDeviceCurrentlyDetected => 'Aktuell erkanntes USB-Gerät';
+
+  @override
+  String get usbDeviceNone => 'keines';
+
+  @override
+  String get collectingUsbInfo => 'USB-Geräteinfos werden gesammelt…';
+
+  @override
+  String get usbInfoUnsupportedPlatform =>
+      'USB-Geräteinfos werden auf dieser Plattform nicht unterstützt.';
+
+  @override
+  String get usbInfoCollectFailed =>
+      'USB-Geräteinfos konnten nicht gesammelt werden';
 }

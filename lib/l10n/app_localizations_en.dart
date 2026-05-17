@@ -687,11 +687,11 @@ class AppLocalizationsEn extends AppLocalizations {
       '[Photo: CBB connector location in footwell]';
 
   @override
-  String get ledBlinkerProgress => 'Blinkers glow progressively';
+  String get ledBlinkerProgress => 'Blinkers fill left to right';
 
   @override
   String get ledBlinkerProgressMeaning =>
-      'Flash progress: glowing constantly = done, pulsing = in progress';
+      'Overall progress: Prep → Flash → Reboot → Maps';
 
   @override
   String get ledBootGreen => 'Dashboard LED blinking green';
@@ -1507,4 +1507,48 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get gettingStartedLinkHandbook => 'Handbook';
+
+  @override
+  String get substepWaitRndis => 'Wait for MDB (RNDIS) on USB';
+
+  @override
+  String get substepConfigureNetwork => 'Configure network';
+
+  @override
+  String get substepConnectSsh => 'Connect SSH';
+
+  @override
+  String get substepDisableHazards => 'Disable alarm and auto-standby';
+
+  @override
+  String get substepReadStatus => 'Read trampoline status';
+
+  @override
+  String elapsedSeconds(int seconds) {
+    return '${seconds}s elapsed';
+  }
+
+  @override
+  String get reconnectTimeoutHeading => 'Taking longer than usual';
+
+  @override
+  String reconnectTimeoutBody(int minutes) {
+    return 'It has been $minutes min without the MDB coming back as an RNDIS device. The DBC\'s first boot can take a while (partition resize, map install). You can keep waiting, or restart / skip below.';
+  }
+
+  @override
+  String get usbDeviceCurrentlyDetected => 'Currently detected USB device';
+
+  @override
+  String get usbDeviceNone => 'none';
+
+  @override
+  String get collectingUsbInfo => 'Collecting USB device info…';
+
+  @override
+  String get usbInfoUnsupportedPlatform =>
+      'USB info collection not supported on this platform.';
+
+  @override
+  String get usbInfoCollectFailed => 'Failed to collect USB info';
 }

@@ -5,6 +5,7 @@
 INSTALLER_DIR="/data/installer"
 STATUS_FILE="$INSTALLER_DIR/trampoline-status"
 LOG_FILE="$INSTALLER_DIR/trampoline.log"
+PHASE_FILE="$INSTALLER_DIR/trampoline-phase"
 DBC_IMAGE="{{DBC_IMAGE_PATH}}"
 DBC_BMAP="${DBC_IMAGE%.sdimg.gz}.sdimg.bmap"
 DBC_IP="192.168.7.2"
@@ -16,6 +17,23 @@ VALHALLA_TILES_FILE="{{VALHALLA_TILES_FILE}}"
 mkdir -p "$INSTALLER_DIR"
 
 log() { echo "$(date '+%H:%M:%S') $1" >> "$LOG_FILE"; }
+
+# Per-step elapsed-time bookkeeping. SCRIPT_T0 is the wall-clock start;
+# step_begin/step_end log "<label> took Ns" so post-mortem time accounting
+# is one grep away. SECONDS resets per-step.
+SCRIPT_T0=$(date +%s)
+STEP_LABEL=""
+STEP_T0=0
+step_begin() {
+  STEP_LABEL="$1"
+  STEP_T0=$(date +%s)
+  log ">>> $STEP_LABEL (T+$((STEP_T0 - SCRIPT_T0))s)"
+}
+step_end() {
+  local now=$(date +%s)
+  [ -n "$STEP_LABEL" ] && log "<<< $STEP_LABEL took $((now - STEP_T0))s"
+  STEP_LABEL=""
+}
 
 # --- Boot LED (LP5562 i2c bus 2 addr 0x30) ---
 bootled_init() {
@@ -116,48 +134,42 @@ breathe_stop() {
   [ -n "$BREATHE_PID" ] && kill $BREATHE_PID 2>/dev/null; BREATHE_PID=""
 }
 
-# --- Blinker progress bar (4 blinkers = 4 segments) ---
+# --- Blinker progress bar (4 blinkers = 4 phases) ---
 # Order: FL(3) -> FR(4) -> RR(7) -> RL(6)
-# Filled segments: dim glow (duty 2000/12000 ~17%)
-# Active segment: breathing (fade0/fade1 loop)
-# Unfilled: off
+# Phase semantics: each segment represents one overall trampoline phase.
+#   phase 0 = entering Prep        (FL breathing)
+#   phase 1 = Prep done, Flash     (FL filled, FR breathing)
+#   phase 2 = Flash done, 1st-boot (FL/FR filled, RR breathing)
+#   phase 3 = 1st-boot done, Tiles (FL/FR/RR filled, RL breathing)
+#   phase 4 = all done             (all four solid dim)
+# The phase number is persisted to $PHASE_FILE so onboot.sh can re-light
+# the right segments after the MDB reboot between Flash and 1st-boot.
+# Filled segments: dim glow (DIM_DUTY). Active segment: breathing on
+# fade4/fade9 (dim brake curve) so it stays distinguishable from filled.
 BLINKER_LEDS="3 7 4 6"
 DIM_DUTY=2000
 PROGRESS_BREATHE_PID=""
-PROGRESS_LAST_SEGMENT=-1
+PROGRESS_LAST_PHASE=-1
 
-signal_progress() {
-  local pct="$1"
+# Light the segments for a given phase (0-4). Idempotent.
+set_progress_phase() {
+  local phase="$1"
+  [ "$phase" -lt 0 ] && phase=0
+  [ "$phase" -gt 4 ] && phase=4
 
-  # Determine which segment is active (0-3, or 4=all done)
-  local segment=0
-  if [ "$pct" -ge 100 ]; then
-    segment=4
-  elif [ "$pct" -ge 75 ]; then
-    segment=3
-  elif [ "$pct" -ge 50 ]; then
-    segment=2
-  elif [ "$pct" -ge 25 ]; then
-    segment=1
-  fi
+  echo "$phase" > "$PHASE_FILE" 2>/dev/null
 
-  # Only update LEDs if segment changed
-  [ "$segment" -eq "$PROGRESS_LAST_SEGMENT" ] && return
-  PROGRESS_LAST_SEGMENT=$segment
+  [ "$phase" -eq "$PROGRESS_LAST_PHASE" ] && return
+  PROGRESS_LAST_PHASE=$phase
 
-  # Kill old breathing
   [ -n "$PROGRESS_BREATHE_PID" ] && kill $PROGRESS_BREATHE_PID 2>/dev/null; PROGRESS_BREATHE_PID=""
 
   local i=0
   for l in $BLINKER_LEDS; do
-    if [ $i -lt $segment ]; then
-      # Filled: dim glow
+    if [ $i -lt $phase ]; then
       led_activate $l
       led_duty $l $DIM_DUTY
-    elif [ $i -eq $segment ] && [ $segment -lt 4 ]; then
-      # Active: breathing on the brake-dim curve (fade4 on / fade9 off).
-      # Dim enough that the filled-segment dim glow stays distinguishable
-      # next to it in daylight.
+    elif [ $i -eq $phase ] && [ $phase -lt 4 ]; then
       led_activate $l
       (while true; do
         led_fade $l 4; sleep 3
@@ -165,7 +177,6 @@ signal_progress() {
       done) &
       PROGRESS_BREATHE_PID=$!
     else
-      # Unfilled: off
       led_off $l
     fi
     i=$((i + 1))
@@ -175,15 +186,38 @@ signal_progress() {
 signal_progress_off() {
   [ -n "$PROGRESS_BREATHE_PID" ] && kill $PROGRESS_BREATHE_PID 2>/dev/null; PROGRESS_BREATHE_PID=""
   for l in $BLINKER_LEDS; do led_off $l; done
+  rm -f "$PHASE_FILE"
+  PROGRESS_LAST_PHASE=-1
 }
 
-# --- Success/error indicators ---
-signal_success() {
-  breathe_stop
-  signal_progress_off
-  # Front ring solid on for 10s
-  led_activate 1; led_duty 1 $DIM_DUTY
-  (sleep 10; led_off 1) &
+# --- DBC boot-LED defender ---
+# vehicle-service also drives the LP5562 (i2c-2 @ 0x30) for blinker
+# brightness via VehicleSystem.runBlinker (vehicle-service: dbc_led.go +
+# core/system.go:runBlinker). If anything fires a blinker (handlebar
+# switch, alarm hazards, etc.) while the trampoline runs, that loop
+# stomps the amber we set with random brightness/colour.
+#
+# We can't mask vehicle-service — we need it to handle `dashboard:on/off`
+# for the DBC power dance. So instead: a tiny background loop that
+# re-asserts amber every 2s. Cheap insurance against any LED stomp from
+# vehicle-service, app-triggered blinkers, or anything else that touches
+# the LP5562. Spawned via systemd-run so it survives this script exiting
+# (KillMode=control-group on librescoot-onboot.service would otherwise
+# clip it). Stopped via `systemctl stop`.
+BOOTLED_GUARD_UNIT="librescoot-bootled-guard"
+bootled_guard_start() {
+  systemctl stop "${BOOTLED_GUARD_UNIT}.service" 2>/dev/null
+  systemd-run --unit="$BOOTLED_GUARD_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
+    while true; do
+      i2cset -f -y 2 0x30 0x02 0xFF 2>/dev/null
+      i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
+      i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
+      sleep 2
+    done
+  '
+}
+bootled_guard_stop() {
+  systemctl stop "${BOOTLED_GUARD_UNIT}.service" 2>/dev/null
 }
 
 # Hazards (all four blinkers — FL=3, FR=4, RL=6, RR=7) flashing in unison
@@ -197,6 +231,7 @@ HAZARDS_UNIT="librescoot-bootled-hazards"
 signal_error() {
   breathe_stop
   signal_progress_off
+  bootled_guard_stop
   signal_error_stop
   systemd-run --unit="$HAZARDS_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
     DIM=2000
@@ -229,26 +264,6 @@ signal_error_stop() {
   done
 }
 
-# Monitor dd progress output and update blinker progress.
-# dd writes progress updates with \r (not \n), so we convert \r to \n
-# with tr before reading lines.
-monitor_progress() {
-  local total="$1" last_pct=-1
-  tr '\r' '\n' | while IFS= read -r line; do
-    [ -z "$line" ] && continue
-    echo "$line" >> "$LOG_FILE"
-    bytes=$(echo "$line" | grep -o '[0-9]* bytes' | grep -o '[0-9]*')
-    if [ -n "$bytes" ] && [ "$total" -gt 0 ]; then
-      pct=$((bytes * 100 / total))
-      [ "$pct" -gt 100 ] && pct=100
-      if [ "$pct" -ne "$last_pct" ]; then
-        signal_progress "$pct"
-        last_pct=$pct
-      fi
-    fi
-  done
-}
-
 restore_gadget() {
   log "Restoring gadget mode..."
   echo gadget > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null || true
@@ -257,6 +272,46 @@ restore_gadget() {
   ifconfig usb0 192.168.7.1 netmask 255.255.255.0 up 2>/dev/null || true
   log "  role: $(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)"
   log "  UDC: $(cat /sys/class/udc/ci_hdrc.0/state 2>/dev/null)"
+}
+
+# "Did the user yank the DBC cable and replace it with the laptop?"
+# probe. We can't passively detect VBUS / PHY-connect from userspace on
+# this i.MX6 driver, so we briefly flip to gadget mode and check the
+# UDC state: if a laptop is on the other end it'll enumerate us and the
+# UDC reaches "configured" within ~2 s. If yes → fail() with a clear
+# disconnect message (fail() leaves us in gadget so the installer's
+# RNDIS waiter picks the device up and reads the status). If no →
+# switch back to host.
+#
+# SAFETY: this is disruptive — switching to gadget while DBC is mid-
+# reboot from Linux back into u-boot UMS races the enumeration and can
+# cost us the install. ONLY call this when we've otherwise given up
+# (step 6 final timeout / step 7 retry exhaustion). Never on a periodic
+# tick inside an active wait. Total wall-clock cost per call: ~8 s.
+probe_for_laptop_then_restore_host() {
+  log "  probing gadget mode for laptop reconnect..."
+  rmmod g_ether 2>/dev/null || true
+  sleep 1
+  echo gadget > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null || true
+  modprobe g_ether 2>/dev/null || true
+  sleep 1
+  ifconfig usb0 192.168.7.1 netmask 255.255.255.0 up 2>/dev/null || true
+
+  local elapsed=0
+  while [ $elapsed -lt 3 ]; do
+    if cat /sys/class/udc/ci_hdrc.0/state 2>/dev/null | grep -q configured; then
+      log "  laptop UDC=configured — DBC was disconnected, aborting"
+      fail "DBC USB disconnected during flash. Reconnect the DBC cable to the MDB and retry the install from the start."
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+
+  log "  no laptop on UDC; switching back to host"
+  rmmod g_ether 2>/dev/null || true
+  sleep 1
+  echo host > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null || true
+  sleep 2
 }
 
 fail() {
@@ -367,9 +422,10 @@ find_dbc_block_device() {
 cat > "$INSTALLER_DIR/stop-error-signals.sh" << 'STOP_HELPER'
 #!/bin/sh
 # Stop the systemd-run transient units the trampoline/onboot launched for
-# the boot-LED blink and the hazards flash. systemctl stop is the primary
-# path; the PID-file cleanup below is for older builds.
+# the boot-LED blink, the LED guard loop, and the hazards flash. systemctl
+# stop is the primary path; the PID-file cleanup below is for older builds.
 systemctl stop librescoot-bootled-blink.service 2>/dev/null
+systemctl stop librescoot-bootled-guard.service 2>/dev/null
 systemctl stop librescoot-bootled-hazards.service 2>/dev/null
 if [ -f /data/bootled-blink.pid ]; then
   pid="$(cat /data/bootled-blink.pid 2>/dev/null)"
@@ -401,6 +457,12 @@ done
 # explicitly; until then it stays inactive but unmasked, so a power cycle
 # during a failed install doesn't leave the user with a dead keycard reader.
 systemctl unmask librescoot-keycard keycard-service 2>/dev/null || true
+# Re-enable BLE — the trampoline masked librescoot-bluetooth so a paired
+# phone couldn't send unlock/lock commands via the nRF52 mid-flash. The
+# installer's bluetoothPairing phase needs the service running, so start
+# it now (unlike keycard, we have no reason to keep it stopped).
+systemctl unmask librescoot-bluetooth 2>/dev/null || true
+systemctl start librescoot-bluetooth 2>/dev/null || true
 exit 0
 STOP_HELPER
 chmod +x "$INSTALLER_DIR/stop-error-signals.sh"
@@ -414,26 +476,40 @@ log "  OSM=$OSM_TILES_FILE"
 log "  VALHALLA=$VALHALLA_TILES_FILE"
 log "=========================================="
 
-# Stop services that interfere. Mask the keycard service for the duration
-# of the flash + onboot tile install so it can't race us on /dev/i2c-2 (we
-# both drive the LP5562/LP5562 via i2cset). Persistent mask survives the
-# MDB reboot we do after writing onboot.sh; onboot.sh unmasks at the end of
-# its success branch, and stop-error-signals.sh unmasks on the failure
-# path when the installer reconnects.
+# Stop services that interfere. Persistent mask survives the MDB reboot
+# we do after writing onboot.sh; onboot.sh unmasks at the end of its
+# success branch, and stop-error-signals.sh unmasks on the failure path
+# when the installer reconnects.
+#
+# librescoot-keycard / keycard-service: both drive the LP5562 via i2cset
+#   on /dev/i2c-2 @ 0x30. If they fire mid-flash they stomp our amber.
+# librescoot-bluetooth: bridges nRF52 BLE ↔ Redis. A paired phone could
+#   LPUSH unlock/lock onto scooter:state via this service. The laptop is
+#   physically disconnected during the autonomous flash, so the user
+#   can't catch a stray BLE-triggered unlock until they reconnect.
+#   Stopping the service severs the BLE → Redis path for the duration.
+# librescoot-ums / librescoot-pm: standard "get out of the way" stops.
 log "Stopping services..."
 systemctl stop librescoot-keycard keycard-service 2>/dev/null || true
 systemctl mask librescoot-keycard keycard-service 2>/dev/null || true
+systemctl stop librescoot-bluetooth 2>/dev/null || true
+systemctl mask librescoot-bluetooth 2>/dev/null || true
 systemctl stop librescoot-ums 2>/dev/null || true
 systemctl stop librescoot-pm 2>/dev/null || true
 
 bootled_init
 bootled amber
+# vehicle-service also drives the LP5562 (for blinker brightness) and we
+# can't mask it — we need it for `lsc dbc on-wait`. Start the guard loop
+# that re-asserts amber every 2s so any stray write loses within a tick.
+bootled_guard_start
 
 # Capture system journal in background for debugging
 journalctl -f --no-pager >> "$INSTALLER_DIR/trampoline-journal.log" 2>&1 &
 JOURNAL_PID=$!
 
-# Start front ring breathing during prep
+# Phase 0 — Prep: front ring breathes, FL blinker breathes.
+set_progress_phase 0
 breathe_start 1
 
 # Verify image
@@ -441,21 +517,23 @@ breathe_start 1
 log "Image: $(ls -lh "$DBC_IMAGE" | awk '{print $5}')"
 
 # Step 1: Wait for laptop disconnect
-log "Step 1: Waiting for laptop disconnect..."
+step_begin "Step 1: wait for laptop disconnect"
 while cat /sys/class/udc/ci_hdrc.0/state 2>/dev/null | grep -q configured; do sleep 1; done
 log "Laptop disconnected"
+step_end
 
 # Step 2: Re-init g_ether for DBC
-log "Step 2: Re-init g_ether..."
+step_begin "Step 2: re-init g_ether"
 rmmod g_ether 2>/dev/null || true
 sleep 1
 modprobe g_ether 2>/dev/null || true
 sleep 2
 ifconfig usb0 192.168.7.1 netmask 255.255.255.0 up 2>/dev/null || true
 log "  usb0 ready"
+step_end
 
 # Step 3: Power on DBC
-log "Step 3: Powering on DBC..."
+step_begin "Step 3: power on DBC"
 DBC_ALREADY_UMS=""
 
 lsc --redis-addr localhost:6379 dbc on-wait >> "$LOG_FILE" 2>&1
@@ -471,14 +549,16 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
     probe_dbc_or_fail
   fi
 fi
+step_end
 
 if [ "$DBC_ALREADY_UMS" != "yes" ]; then
-  log "  waiting for DBC SSH..."
+  step_begin "Step 3b: wait for DBC SSH"
   wait_dbc_ssh 30 || fail "DBC SSH not reachable"
   log "DBC reachable"
+  step_end
 
   # Step 4: Configure DBC for UMS (retry up to 3x if DBC shuts down)
-  log "Step 4: Setting DBC bootloader to UMS mode..."
+  step_begin "Step 4: configure DBC bootloader for UMS"
   STEP4_OK=""
   for STEP4_ATTEMPT in 1 2 3; do
     log "  step 4 attempt $STEP4_ATTEMPT/3..."
@@ -533,19 +613,24 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
     log "  syncing DBC..."
     dbc_ssh 'sync' >> "$LOG_FILE" 2>&1 || log "  sync failed"
 
+    # Trigger the reboot. We deliberately use `reboot &` so the SSH
+    # connection drops as systemd-shutdown runs — historically we slept
+    # 30s here as a "let it reboot" buffer, but step 6 already polls up
+    # to 60s for the UMS block device to appear. Skip the dead time and
+    # let step 6's poll absorb DBC reboot variance instead.
     log "  rebooting DBC..."
-    dbc_ssh 'systemctl reboot' >> "$LOG_FILE" 2>&1 || log "  reboot failed"
-    log "  waiting 30s..."
-    sleep 30
+    dbc_ssh 'reboot &' >> "$LOG_FILE" 2>&1 || log "  reboot failed"
+    sleep 3
 
     STEP4_OK="yes"
     break
   done
   [ "$STEP4_OK" != "yes" ] && fail "Failed to configure DBC after 3 attempts"
+  step_end
 fi  # end of DBC_ALREADY_UMS != yes
 
 # Step 5: Switch MDB to USB host (may already be in host mode if DBC was in UMS)
-log "Step 5: Switching to USB host mode..."
+step_begin "Step 5: switch MDB to USB host mode"
 CURRENT_ROLE=$(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)
 if [ "$CURRENT_ROLE" != "host" ]; then
   rmmod g_ether 2>/dev/null || true
@@ -557,34 +642,50 @@ else
 fi
 log "  role: $(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)"
 log "  lsusb: $(lsusb 2>/dev/null | grep 0525 || echo 'no 0525')"
+step_end
 
-# Step 6: Find DBC block device
-log "Step 6: Waiting for DBC UMS device..."
-TIMEOUT=60
+# Step 6: Find DBC block device (DBC may still be rebooting from step 4).
+# We don't peek at gadget mode during the wait — flipping roles can
+# race the DBC enumeration. Only after the full timeout, if there's
+# really nothing on the bus, do a single gadget probe to disambiguate
+# "DBC absent" vs "laptop reconnected"; that gives the user a clear
+# error message instead of a generic "UMS not found".
+step_begin "Step 6: wait for DBC UMS device"
+TIMEOUT=90
 ELAPSED=0
 DBC_DEV=""
 while [ $ELAPSED -lt $TIMEOUT ]; do
   DBC_DEV="$(find_dbc_block_device 2>/dev/null)" && break
   ELAPSED=$((ELAPSED + 2))
-  [ $((ELAPSED % 10)) -eq 0 ] && log "  ${ELAPSED}s... $(lsusb 2>/dev/null | grep 0525 || echo 'no USB')"
+  if [ $((ELAPSED % 10)) -eq 0 ]; then
+    log "  ${ELAPSED}s... $(lsusb 2>/dev/null | grep 0525 || echo 'no USB')"
+  fi
   sleep 2
 done
-[ -z "$DBC_DEV" ] && fail "DBC UMS not found in ${TIMEOUT}s"
+if [ -z "$DBC_DEV" ]; then
+  # Last-ditch: see if the user yanked the DBC and connected the laptop.
+  # If so, probe_for_laptop_then_restore_host calls fail() with a clear
+  # message and never returns. If not, fall through to the generic fail.
+  probe_for_laptop_then_restore_host
+  fail "DBC UMS not found in ${TIMEOUT}s"
+fi
 log "DBC device: $DBC_DEV ($(cat /sys/block/$(basename $DBC_DEV)/size 2>/dev/null || echo '?') sectors)"
+step_end
 
 # Safety
 echo "$DBC_DEV" | grep -q "mmcblk" && fail "SAFETY: $DBC_DEV is mmcblk — refusing!"
 
-# Step 7: Flash DBC (single-phase, oflag=direct)
-log "Step 7: Flashing DBC..."
+# Prep complete — advance to phase 1 (FL filled, FR breathing).
+set_progress_phase 1
+
+# Step 7: Flash DBC
+step_begin "Step 7: flash DBC"
 breathe_stop
 led_off 1  # front ring off during flash
-bootled amber
 
 # Read uncompressed size from gzip footer (last 4 bytes, little-endian uint32)
 FLASH_TOTAL=$(python3 -c "import struct; f=open('$DBC_IMAGE','rb'); f.seek(-4,2); print(struct.unpack('<I',f.read(4))[0])" 2>/dev/null || echo 2500000000)
 log "  image uncompressed size: $FLASH_TOTAL"
-log "  image size: $IMAGE_SIZE bytes"
 
 FLASH_OK=""
 ATTEMPT=0
@@ -592,49 +693,20 @@ while [ $ATTEMPT -lt 3 ]; do
   ATTEMPT=$((ATTEMPT + 1))
   log "  flash attempt $ATTEMPT/3..."
 
-  signal_progress 0
   FLASHER="$INSTALLER_DIR/librescoot-flasher"
   USING_DD=""
   if [ -x "$FLASHER" ] && [ -f "$DBC_BMAP" ]; then
-    # Go flasher with bmap support + per-second progress
     log "  using librescoot-flasher (bmap: $DBC_BMAP)"
-    $FLASHER --image "$DBC_IMAGE" --bmap "$DBC_BMAP" --device "$DBC_DEV" 2>&1 \
-      | while IFS= read -r line; do
-          echo "$line" >> "$LOG_FILE"
-          # Parse PROGRESS:<bytes> for blinker progress bar
-          case "$line" in
-            TOTAL:*)
-              FLASH_TOTAL=${line#TOTAL:}
-              log "  flash total bytes: $FLASH_TOTAL"
-              ;;
-            PROGRESS:*)
-              bytes=${line#PROGRESS:}
-              if [ "$FLASH_TOTAL" -gt 0 ]; then
-                pct=$((bytes * 100 / FLASH_TOTAL))
-                [ "$pct" -gt 100 ] && pct=100
-                signal_progress "$pct"
-              fi
-              ;;
-          esac
-        done
-    FLASH_RC=${PIPESTATUS[0]:-0}
+    $FLASHER --image "$DBC_IMAGE" --bmap "$DBC_BMAP" --device "$DBC_DEV" >> "$LOG_FILE" 2>&1
+    FLASH_RC=$?
   elif [ -x "$FLASHER" ]; then
-    # Go flasher sequential (no bmap)
     log "  using librescoot-flasher (sequential)"
-    $FLASHER --image "$DBC_IMAGE" --device "$DBC_DEV" 2>&1 \
-      | while IFS= read -r line; do
-          echo "$line" >> "$LOG_FILE"
-          case "$line" in
-            TOTAL:*) FLASH_TOTAL=${line#TOTAL:};;
-            PROGRESS:*) bytes=${line#PROGRESS:}; [ "$FLASH_TOTAL" -gt 0 ] && signal_progress $((bytes * 100 / FLASH_TOTAL));;
-          esac
-        done
-    FLASH_RC=${PIPESTATUS[0]:-0}
+    $FLASHER --image "$DBC_IMAGE" --device "$DBC_DEV" >> "$LOG_FILE" 2>&1
+    FLASH_RC=$?
   else
     USING_DD="yes"
     log "  using dd (oflag=direct), image size: $FLASH_TOTAL"
-    gunzip -c "$DBC_IMAGE" | dd bs=4M iflag=fullblock of=$DBC_DEV oflag=direct status=progress 2>&1 \
-      | monitor_progress "$FLASH_TOTAL"
+    gunzip -c "$DBC_IMAGE" | dd bs=4M iflag=fullblock of=$DBC_DEV oflag=direct 2>> "$LOG_FILE"
     FLASH_RC=${PIPESTATUS[1]:-0}
   fi
 
@@ -677,22 +749,26 @@ done
 
 [ "$FLASH_OK" != "yes" ] && fail "DBC flash failed after 3 attempts"
 log "DBC flash complete"
+step_end
 
-# Step 8: Power cycle DBC, write onboot script, reboot MDB
-log "Step 8: Post-flash cleanup..."
-signal_progress_off
+# Flash done — advance to phase 2 (FL/FR filled, RR breathing). onboot.sh
+# reads PHASE_FILE after the MDB reboot and re-lights the same segments
+# before continuing to phase 3.
+set_progress_phase 2
 
-# Power cycle DBC to let it do first boot / partition resize
+# Step 8: Sync, power off DBC, write onboot script, reboot MDB
+step_begin "Step 8: post-flash cleanup"
+
+# Power off the DBC cleanly. Historically we did off-wait → on-wait →
+# off-wait here to "let the DBC do its first boot / partition resize"
+# while the MDB was still up — but onboot.sh re-powers the DBC and
+# already has a stable-wait loop that absorbs the resize-induced reboot,
+# so doing it twice was just ~60–90 s of wall-clock time the user spent
+# staring at empty blinkers. Skip the on-wait; let onboot.sh's loop
+# handle first-boot.
 log "  syncing..."
 sync
 log "  turning off DBC..."
-lsc --redis-addr localhost:6379 dbc off-wait 2>/dev/null || true
-sleep 1
-log "  turning on DBC (first boot)..."
-lsc --redis-addr localhost:6379 dbc on-wait >> "$LOG_FILE" 2>&1 || true
-sleep 1
-log "  syncing and turning off DBC..."
-sync
 lsc --redis-addr localhost:6379 dbc off-wait 2>/dev/null || true
 
 # Write /data/onboot.sh on MDB — runs automatically on next boot via
@@ -712,6 +788,7 @@ INSTALLER_DIR="/data/installer"
 LOG="$INSTALLER_DIR/trampoline.log"
 DBC_IP="192.168.7.2"
 STATUS_FILE="$INSTALLER_DIR/trampoline-status"
+PHASE_FILE="$INSTALLER_DIR/trampoline-phase"
 mkdir -p "$INSTALLER_DIR"
 
 log() { echo "$(date '+%H:%M:%S') $1" >> "$LOG"; }
@@ -720,11 +797,14 @@ dbc_scp() { local t=0; while [ $t -lt 3 ]; do scp "$@" && return 0; t=$((t+1)); 
 
 log "Onboot: post-reboot DBC tile installation"
 
-# Stop+mask keycard service so it can't race us on the LP5562 i2c bus.
-# The trampoline already masked it before the flash, but re-asserting here
-# is cheap insurance against weird boot orderings.
+# Stop+mask keycard / bluetooth services so they can't race us on the
+# LP5562 i2c bus (keycard) or fire a phone-triggered unlock through the
+# nRF52 (bluetooth). The trampoline already masked them before the flash,
+# but re-asserting here is cheap insurance against weird boot orderings.
 systemctl stop librescoot-keycard keycard-service 2>/dev/null || true
 systemctl mask librescoot-keycard keycard-service 2>/dev/null || true
+systemctl stop librescoot-bluetooth 2>/dev/null || true
+systemctl mask librescoot-bluetooth 2>/dev/null || true
 
 # Initialize the LP5562 (RAG boot LED on i2c-2 @ 0x30) for direct PWM
 # control. After this, registers 0x02/0x03/0x04 are amber/green/red PWM.
@@ -736,6 +816,46 @@ i2cset -f -y 2 0x30 0x00 0xC0 2>/dev/null
 i2cset -f -y 2 0x30 0x05 0xAF 2>/dev/null
 i2cset -f -y 2 0x30 0x06 0xAF 2>/dev/null
 i2cset -f -y 2 0x30 0x07 0xAF 2>/dev/null
+
+# Re-light the blinker progress bar to the phase the trampoline left off
+# at (typically phase 2 = FL/FR filled, RR breathing). The pre-reboot
+# half of the script writes the phase to $PHASE_FILE; this is what makes
+# the progress bar look continuous across the MDB reboot rather than
+# resetting to "all off" until tiles finish. Phase 4 = all-done is set
+# only at success below.
+PHASE="$(cat "$PHASE_FILE" 2>/dev/null || echo 2)"
+case "$PHASE" in 0|1|2|3|4) :;; *) PHASE=2 ;; esac
+BLINKER_LEDS="3 7 4 6"
+DIM_DUTY=2000
+PROGRESS_BREATHE_PID=""
+relight_progress() {
+  local phase="$1"
+  [ "$phase" -lt 0 ] && phase=0
+  [ "$phase" -gt 4 ] && phase=4
+  echo "$phase" > "$PHASE_FILE" 2>/dev/null
+  [ -n "$PROGRESS_BREATHE_PID" ] && kill $PROGRESS_BREATHE_PID 2>/dev/null
+  PROGRESS_BREATHE_PID=""
+  local i=0
+  for l in $BLINKER_LEDS; do
+    if [ $i -lt $phase ]; then
+      /usr/bin/ioctl /dev/pwm_led$l 0x00007549 -v 1 2>/dev/null
+      /usr/bin/ioctl /dev/pwm_led$l 0x0000754A -v $DIM_DUTY 2>/dev/null
+    elif [ $i -eq $phase ] && [ $phase -lt 4 ]; then
+      /usr/bin/ioctl /dev/pwm_led$l 0x00007549 -v 1 2>/dev/null
+      (while true; do
+        /usr/bin/ioctl /dev/pwm_led$l 0x00007545 -v 4 2>/dev/null; sleep 3
+        /usr/bin/ioctl /dev/pwm_led$l 0x00007545 -v 9 2>/dev/null; sleep 3
+      done) &
+      PROGRESS_BREATHE_PID=$!
+    else
+      /usr/bin/ioctl /dev/pwm_led$l 0x0000754A -v 0 2>/dev/null
+      /usr/bin/ioctl /dev/pwm_led$l 0x00007549 -v 0 2>/dev/null
+    fi
+    i=$((i + 1))
+  done
+}
+log "  relighting progress phase=$PHASE"
+relight_progress "$PHASE"
 
 # Boot LED + hazards helpers. Spawned via systemd-run so they run in their
 # own transient unit under system.slice — librescoot-onboot.service is
@@ -809,12 +929,32 @@ hazards_30s() {
   '
 }
 
+# Re-arm the boot-LED guard. vehicle-service can stomp the LP5562 when
+# it drives blinker brightness; the guard re-asserts amber every 2s.
+# Stopped explicitly before bootled_blink_{green,red} at the end.
+BOOTLED_GUARD_UNIT="librescoot-bootled-guard"
+bootled_guard_start() {
+  systemctl stop "${BOOTLED_GUARD_UNIT}.service" 2>/dev/null
+  systemd-run --unit="$BOOTLED_GUARD_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
+    while true; do
+      i2cset -f -y 2 0x30 0x02 0xFF 2>/dev/null
+      i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
+      i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
+      sleep 2
+    done
+  '
+}
+bootled_guard_stop() {
+  systemctl stop "${BOOTLED_GUARD_UNIT}.service" 2>/dev/null
+}
+
 # Image write succeeded but we're not done — tile uploads to the DBC still
 # need to happen over the same USB link. Stay amber so the user knows the
 # MDB is still talking to the DBC and does NOT yank the cable. Green blink
 # (= "safe to disconnect USB from DBC and reconnect laptop") is started in
 # the success branch at the bottom of this script, after DBC power-off.
 bootled amber
+bootled_guard_start
 
 # Restore original onboot.sh if backed up, otherwise delete ourselves
 if [ -f "$INSTALLER_DIR/onboot.sh.bak" ]; then
@@ -823,9 +963,17 @@ else
   rm -f /data/onboot.sh
 fi
 
-# Wait before powering on DBC — let MDB services settle
-log "  waiting 20s before powering on DBC..."
-sleep 20
+# Brief wait for MDB services to settle — historically 20 s. Most of that
+# was just defensive; redis is ready within a few seconds of MDB boot.
+# Poll redis directly so we wait exactly as long as we have to.
+log "  waiting for MDB redis..."
+WAITED=0
+while [ $WAITED -lt 30 ]; do
+  redis-cli -h localhost ping >/dev/null 2>&1 && break
+  WAITED=$((WAITED + 1))
+  sleep 1
+done
+log "  redis ready after ${WAITED}s"
 
 # Keep trying dbc on-wait until it succeeds — DBC may restart several times
 log "  powering on DBC (may take multiple attempts)..."
@@ -838,14 +986,16 @@ while [ $ATTEMPTS -lt 5 ]; do
   sleep 5
 done
 
-# Wait for DBC to be stable (20s consecutive ping — DBC may reboot for resize)
-log "  waiting for DBC to be stable (20s consecutive ping)..."
+# Wait for DBC to be stable. Requires 10s of consecutive ping success.
+# Was 20s — the resize-induced reboot is the only thing that breaks the
+# ping stream, and the in-loop handler below already covers that. 10s of
+# stable pings is plenty to confirm we're past the resize.
+log "  waiting for DBC to be stable (10s consecutive ping)..."
 STABLE=0
 ELAPSED=0
-while [ $STABLE -lt 20 ] && [ $ELAPSED -lt 300 ]; do
+while [ $STABLE -lt 10 ] && [ $ELAPSED -lt 300 ]; do
   if ping -c 1 -W 2 $DBC_IP >/dev/null 2>&1; then
     STABLE=$((STABLE + 1))
-    DOWN_COUNT=0
   else
     if [ $STABLE -gt 0 ]; then
       log "  ping dropped after ${STABLE}s stable — DBC rebooting, waiting 5s then turning on..."
@@ -858,6 +1008,9 @@ while [ $STABLE -lt 20 ] && [ $ELAPSED -lt 300 ]; do
   sleep 1
 done
 log "  DBC stable after ${ELAPSED}s (stable_count=$STABLE)"
+
+# DBC first-boot done — advance to phase 3 (FL/FR/RR filled, RL breathing).
+relight_progress 3
 
 # Wait for SSH
 log "  waiting for DBC SSH..."
@@ -873,8 +1026,13 @@ if [ $ELAPSED -ge 60 ]; then
   echo "success" > "$STATUS_FILE"
   cat "$LOG" >> "$STATUS_FILE"
   lsc --redis-addr localhost:6379 dbc off 2>/dev/null || true
+  # No tiles to do, jump straight to all-done.
+  relight_progress 4
+  bootled_guard_stop
   bootled_blink_green
   systemctl unmask librescoot-keycard keycard-service 2>/dev/null || true
+  systemctl unmask librescoot-bluetooth 2>/dev/null || true
+  systemctl start librescoot-bluetooth 2>/dev/null || true
   exit 0
 fi
 log "  DBC reachable"
@@ -977,7 +1135,9 @@ if [ "${TILE_ERRORS:-0}" -gt 0 ]; then
   # Switch the boot LED from solid amber (set at the top of onboot.sh) to
   # blinking red, and add hazards (capped at 30s so an abandoned error
   # doesn't drain the battery). Both indicators stop on installer reconnect
-  # via /data/installer/stop-error-signals.sh.
+  # via /data/installer/stop-error-signals.sh. The guard loop must stop
+  # first or it'll fight the red blink every 2s.
+  bootled_guard_stop
   bootled_blink_red
   hazards_30s
 else
@@ -988,13 +1148,22 @@ else
   cat "$LOG" >> "$STATUS_FILE"
   # All MDB<->DBC work is done (image flashed, tiles uploaded, DBC powered
   # off). Now and only now signal the user it's safe to swap the MDB's
-  # single USB port back to the laptop. Unmask keycard-service: the
-  # installer's keycardSetup phase will start it explicitly. We deliberately
-  # do NOT start it now: a freshly flashed device with no master would
-  # auto-enter master-learning and silently teach in whatever card the user
-  # taps before they reach the explicit setup phase.
+  # single USB port back to the laptop.
+  # Phase 4: all four segments filled, no active breathing.
+  relight_progress 4
+  # Stop the LED guard before starting the green blink, otherwise the
+  # guard re-asserts amber every 2s and we get an ugly amber/green flicker.
+  bootled_guard_stop
   bootled_blink_green
+  # Unmask keycard-service. The installer's keycardSetup phase will start
+  # it explicitly. We deliberately do NOT start it now: a freshly flashed
+  # device with no master would auto-enter master-learning and silently
+  # teach in whatever card the user taps before they reach explicit setup.
   systemctl unmask librescoot-keycard keycard-service 2>/dev/null || true
+  # Unmask + start bluetooth — the installer's bluetoothPairing phase
+  # needs it running. No equivalent "wait for explicit start" concern.
+  systemctl unmask librescoot-bluetooth 2>/dev/null || true
+  systemctl start librescoot-bluetooth 2>/dev/null || true
 fi
 ONBOOT_END
 chmod +x /data/onboot.sh
@@ -1004,11 +1173,15 @@ log "  onboot.sh written"
 echo "rebooting" > "$STATUS_FILE"
 cat "$LOG_FILE" >> "$STATUS_FILE"
 
-# Front-ring solid for 10s as a "image write done, MDB rebooting" cue. Do
-# NOT start the green boot-LED blink here: tile uploads still run after the
-# MDB comes back, and green is reserved for "safe to disconnect USB from
-# DBC" — set only in the success branch of onboot.sh after DBC power-off.
-signal_success
+step_end  # close step 8
+log "Total trampoline wall-clock: $(($(date +%s) - SCRIPT_T0))s"
+
+# Phase 2 (FL/FR filled, RR breathing) is now the user-visible "flash
+# done, MDB rebooting" cue — onboot.sh reads PHASE_FILE and re-lights
+# the same state after the reboot, so the progress bar looks continuous
+# across MDB reboot. bootled_guard is left running so amber stays solid
+# right up until systemd-shutdown tears down our cgroup.
+breathe_stop
 [ -n "$JOURNAL_PID" ] && kill $JOURNAL_PID 2>/dev/null
 log "  rebooting MDB..."
 reboot

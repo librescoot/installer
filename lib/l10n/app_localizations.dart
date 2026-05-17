@@ -1313,13 +1313,13 @@ abstract class AppLocalizations {
   /// No description provided for @ledBlinkerProgress.
   ///
   /// In en, this message translates to:
-  /// **'Blinkers glow progressively'**
+  /// **'Blinkers fill left to right'**
   String get ledBlinkerProgress;
 
   /// No description provided for @ledBlinkerProgressMeaning.
   ///
   /// In en, this message translates to:
-  /// **'Flash progress: glowing constantly = done, pulsing = in progress'**
+  /// **'Overall progress: Prep → Flash → Reboot → Maps'**
   String get ledBlinkerProgressMeaning;
 
   /// No description provided for @ledBootGreen.
@@ -2719,6 +2719,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Handbook'**
   String get gettingStartedLinkHandbook;
+
+  /// No description provided for @substepWaitRndis.
+  ///
+  /// In en, this message translates to:
+  /// **'Wait for MDB (RNDIS) on USB'**
+  String get substepWaitRndis;
+
+  /// No description provided for @substepConfigureNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure network'**
+  String get substepConfigureNetwork;
+
+  /// No description provided for @substepConnectSsh.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect SSH'**
+  String get substepConnectSsh;
+
+  /// No description provided for @substepDisableHazards.
+  ///
+  /// In en, this message translates to:
+  /// **'Disable alarm and auto-standby'**
+  String get substepDisableHazards;
+
+  /// No description provided for @substepReadStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Read trampoline status'**
+  String get substepReadStatus;
+
+  /// No description provided for @elapsedSeconds.
+  ///
+  /// In en, this message translates to:
+  /// **'{seconds}s elapsed'**
+  String elapsedSeconds(int seconds);
+
+  /// No description provided for @reconnectTimeoutHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Taking longer than usual'**
+  String get reconnectTimeoutHeading;
+
+  /// No description provided for @reconnectTimeoutBody.
+  ///
+  /// In en, this message translates to:
+  /// **'It has been {minutes} min without the MDB coming back as an RNDIS device. The DBC\'s first boot can take a while (partition resize, map install). You can keep waiting, or restart / skip below.'**
+  String reconnectTimeoutBody(int minutes);
+
+  /// No description provided for @usbDeviceCurrentlyDetected.
+  ///
+  /// In en, this message translates to:
+  /// **'Currently detected USB device'**
+  String get usbDeviceCurrentlyDetected;
+
+  /// No description provided for @usbDeviceNone.
+  ///
+  /// In en, this message translates to:
+  /// **'none'**
+  String get usbDeviceNone;
+
+  /// No description provided for @collectingUsbInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Collecting USB device info…'**
+  String get collectingUsbInfo;
+
+  /// No description provided for @usbInfoUnsupportedPlatform.
+  ///
+  /// In en, this message translates to:
+  /// **'USB info collection not supported on this platform.'**
+  String get usbInfoUnsupportedPlatform;
+
+  /// No description provided for @usbInfoCollectFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to collect USB info'**
+  String get usbInfoCollectFailed;
 }
 
 class _AppLocalizationsDelegate

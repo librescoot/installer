@@ -12,12 +12,14 @@ import '../models/download_state.dart';
 import '../models/installer_phase.dart';
 import '../models/region.dart';
 import '../models/scooter_health.dart';
+import '../models/substep.dart';
 import '../models/trampoline_status.dart';
 import '../services/services.dart';
 import '../widgets/download_progress.dart';
 import '../widgets/health_check_panel.dart';
 import '../widgets/instruction_step.dart';
 import '../widgets/phase_sidebar.dart';
+import '../widgets/substep_list.dart';
 import '../theme.dart';
 
 class InstallerScreen extends StatefulWidget {
@@ -1635,6 +1637,75 @@ class _InstallerScreenState extends State<InstallerScreen> {
     return true;
   }
 
+  /// Like _waitForDevice(DeviceMode.ethernet), but with a 5-minute soft
+  /// deadline that surfaces the reconnect diagnostic panel without giving
+  /// up. Returns true once the device shows up, false if the user navigated
+  /// away or cancelled mid-wait. Updates the [setStep] callback's detail
+  /// with elapsed time so the substep row shows a live counter.
+  Future<bool> _waitForRndisWithTimeout(
+    AppLocalizations l10n,
+    void Function(String, SubstepState, {String? detail}) setStep,
+  ) async {
+    if (_isDryRun) {
+      await Future.delayed(const Duration(seconds: 1));
+      return true;
+    }
+    final start = DateTime.now();
+    while (_device?.mode != DeviceMode.ethernet) {
+      if (!mounted) return false;
+      if (_currentPhase != InstallerPhase.reconnect) return false;
+      final elapsed = DateTime.now().difference(start).inSeconds;
+      setStep(
+        'rndis',
+        SubstepState.active,
+        detail: l10n.elapsedSeconds(elapsed),
+      );
+      if (elapsed >= 300 && !_reconnectShowDiagnostics) {
+        await _surfaceReconnectDiagnostics(l10n);
+      }
+      await Future.delayed(const Duration(seconds: 1));
+    }
+    return true;
+  }
+
+  /// Show the orange diagnostic panel after a long-running wait. Probes
+  /// the OS for the current USB device list (lsusb / system_profiler /
+  /// PowerShell) and dumps it into [_reconnectDiagnostics]. The panel
+  /// stays visible until the user clicks one of the action buttons.
+  Future<void> _surfaceReconnectDiagnostics(AppLocalizations l10n) async {
+    if (!mounted) return;
+    setState(() {
+      _reconnectShowDiagnostics = true;
+      _reconnectDiagnostics = l10n.collectingUsbInfo;
+    });
+    String snapshot;
+    try {
+      if (Platform.isMacOS) {
+        final r = await Process.run(
+          '/usr/sbin/system_profiler',
+          ['SPUSBDataType'],
+        ).timeout(const Duration(seconds: 8));
+        snapshot = r.stdout.toString();
+      } else if (Platform.isLinux) {
+        final r = await Process.run('lsusb', []).timeout(const Duration(seconds: 5));
+        snapshot = r.stdout.toString();
+      } else if (Platform.isWindows) {
+        final r = await Process.run(
+          'powershell',
+          ['-NoProfile', '-Command',
+           "Get-PnpDevice -PresentOnly | Where-Object { \$_.InstanceId -like '*VID_0525*' -or \$_.InstanceId -like '*VID_15A2*' } | Format-List Name,Status,Class,InstanceId"],
+        ).timeout(const Duration(seconds: 8));
+        snapshot = r.stdout.toString();
+      } else {
+        snapshot = l10n.usbInfoUnsupportedPlatform;
+      }
+    } catch (e) {
+      snapshot = '${l10n.usbInfoCollectFailed}: $e';
+    }
+    if (!mounted) return;
+    setState(() => _reconnectDiagnostics = snapshot.trim());
+  }
+
   bool get _isLibrescootFirmware {
     // /etc/os-release ID= is the authoritative discriminator. Stable
     // Librescoot ships VERSION_ID=1.0.1, indistinguishable from stock by
@@ -2728,45 +2799,72 @@ class _InstallerScreenState extends State<InstallerScreen> {
     });
   }
 
+  void _markStartSubstep({required bool active, bool done = false}) {
+    if (!mounted) return;
+    final newState = done
+        ? SubstepState.done
+        : (active ? SubstepState.active : SubstepState.pending);
+    setState(() {
+      _dbcPrepSubsteps = [
+        for (final s in _dbcPrepSubsteps)
+          if (s.id == 'start') s.copyWith(state: newState) else s,
+      ];
+    });
+  }
+
   Widget _buildDbcPrep(AppLocalizations l10n) {
     if (!_dbcPrepStarted && !_isProcessing) {
       _dbcPrepStarted = true;
       Future.microtask(_uploadDbcFiles);
     }
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(l10n.preparingDbcFlash,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: 500,
-            child: Column(
-              children: [
-                LinearProgressIndicator(value: _progress, minHeight: 8),
-                const SizedBox(height: 8),
-                Text(_statusMessage,
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-                    textAlign: TextAlign.center),
-              ],
-            ),
-          ),
-          if (!_isProcessing) ...[
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(l10n.preparingDbcFlash,
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center),
             const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () {
-                setState(() { _dbcPrepStarted = false; });
-                Future.microtask(() {
-                  setState(() => _dbcPrepStarted = true);
-                  _uploadDbcFiles();
-                });
-              },
-              icon: const Icon(Icons.refresh),
-              label: Text(l10n.retryDbcPrep),
-            ),
+            LinearProgressIndicator(value: _progress, minHeight: 6),
+            const SizedBox(height: 16),
+            if (_dbcPrepSubsteps.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A1A1A),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade800),
+                ),
+                child: SubstepList(substeps: _dbcPrepSubsteps),
+              )
+            else
+              Text(_statusMessage,
+                  style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                  textAlign: TextAlign.center),
+            if (!_isProcessing) ...[
+              const SizedBox(height: 16),
+              Center(
+                child: FilledButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _dbcPrepStarted = false;
+                      _dbcPrepSubsteps = const [];
+                    });
+                    Future.microtask(() {
+                      setState(() => _dbcPrepStarted = true);
+                      _uploadDbcFiles();
+                    });
+                  },
+                  icon: const Icon(Icons.refresh),
+                  label: Text(l10n.retryDbcPrep),
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -2809,10 +2907,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
         onProgress: (status, progress) {
           _setStatus(status, progress: progress);
         },
+        onSubsteps: (steps) {
+          if (mounted) setState(() => _dbcPrepSubsteps = steps);
+        },
       );
 
+      _markStartSubstep(active: true);
       _setStatus(l10n.startingTrampoline);
       await trampolineService.start();
+      _markStartSubstep(active: false, done: true);
       _setCritical(false);
       await Future.delayed(const Duration(seconds: 1));
       _setPhase(InstallerPhase.dbcFlash);
@@ -2827,6 +2930,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   bool _dbcFlashWatchStarted = false;
   bool _dbcUsbDisconnected = false;
+  List<Substep> _dbcPrepSubsteps = const [];
+  List<Substep> _reconnectSubsteps = const [];
+  DateTime? _reconnectRndisWaitStart;
+  DateTime? _reconnectStatusWaitStart;
+  bool _reconnectShowDiagnostics = false;
+  String? _reconnectDiagnostics;
 
   Widget _buildDbcFlash(AppLocalizations l10n) {
     // Start watching for USB disconnect and MDB reconnect
@@ -2864,132 +2973,129 @@ class _InstallerScreenState extends State<InstallerScreen> {
       );
     }
 
-    // Step 2: USB disconnected: MDB is flashing autonomously
+    // Step 2: USB disconnected: MDB is flashing autonomously.
+    //
+    // Once the cable is unplugged we have NO link to the MDB until it
+    // comes back as RNDIS. So this screen is purely informational:
+    // it tells the user what's happening on the scooter lights and
+    // gives them a "I see X" button to advance when the boot LED
+    // settles on green or red.
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(l10n.dbcFlashInProgress,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.orange.withValues(alpha: 0.14),
-              border: Border.all(color: Colors.orange.shade700, width: 2),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.schedule, color: Colors.orange.shade300, size: 28),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        l10n.dbcFlashDurationHeadline,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.orange.shade100,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 620),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(l10n.dbcFlashInProgress,
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.14),
+                border: Border.all(color: Colors.orange.shade700, width: 2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.schedule, color: Colors.orange.shade300, size: 24),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          l10n.dbcFlashDurationHeadline,
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange.shade100,
+                          ),
                         ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.ledAmberWaitNotice,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.orange.shade100,
+                      height: 1.4,
                     ),
-                  ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade800),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.watchLightsForProgress,
+                      style: TextStyle(color: Colors.grey.shade300, fontSize: 13)),
+                  const SizedBox(height: 8),
+                  _ledSignal(l10n.ledBlinkerProgress, l10n.ledBlinkerProgressMeaning),
+                  _ledSignal(l10n.ledBootAmber, l10n.ledBootAmberMeaning),
+                  _ledSignal(l10n.ledBootGreen, l10n.ledBootGreenMeaning),
+                  _ledSignal(l10n.ledBootRedError, l10n.ledBootRedMeaning),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  l10n.dbcFlashDurationDetail,
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: Colors.orange.shade100,
-                    height: 1.4,
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    _statusMessage.isEmpty
+                        ? l10n.waitingForMdbToReconnect
+                        : _statusMessage,
+                    style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                   ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF222222),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
               children: [
-                Text(l10n.mdbFlashingDbcAutonomously,
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
-                Text(l10n.watchLightsForProgress,
-                    style: TextStyle(color: Colors.grey.shade400)),
-                const SizedBox(height: 8),
-                _ledSignal(l10n.ledFrontRingPulse, l10n.ledFrontRingPulseMeaning),
-                _ledSignal(l10n.ledBlinkerProgress, l10n.ledBlinkerProgressMeaning),
-                _ledSignal(l10n.ledBootAmber, l10n.ledBootAmberMeaning),
-                _ledSignal(l10n.ledBootGreen, l10n.ledBootGreenMeaning),
-                _ledSignal(l10n.ledBootRedError, l10n.ledBootRedMeaning),
-                _ledSignal(l10n.ledRearLightSolid, l10n.ledRearLightSolidMeaning),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          const SizedBox(height: 8),
-          Text(l10n.flashingTakesAbout10Min,
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
-          const SizedBox(height: 16),
-          Text(_statusMessage.isEmpty
-              ? l10n.waitingForMdbToReconnect
-              : _statusMessage,
-              style: TextStyle(color: Colors.grey.shade400)),
-          const SizedBox(height: 8),
-          const CircularProgressIndicator(),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.orange.withValues(alpha: 0.12),
-              border: Border.all(color: Colors.orange.shade700),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.hourglass_top, color: Colors.orange.shade300, size: 20),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(l10n.ledAmberWaitNotice,
-                      style: TextStyle(color: Colors.orange.shade100, fontSize: 13)),
+                FilledButton.icon(
+                  onPressed: () {
+                    _dbcFlashSimulateError = false;
+                    _setPhase(InstallerPhase.reconnect);
+                  },
+                  icon: const Icon(Icons.check_circle, color: Colors.green),
+                  label: Text(l10n.ledIsGreen),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    _dbcFlashSimulateError = true;
+                    _setPhase(InstallerPhase.reconnect);
+                  },
+                  icon: const Icon(Icons.error, color: Colors.red),
+                  label: Text(l10n.ledIsRed),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FilledButton.icon(
-                onPressed: () {
-                  _dbcFlashSimulateError = false;
-                  _setPhase(InstallerPhase.reconnect);
-                },
-                icon: const Icon(Icons.check_circle, color: Colors.green),
-                label: Text(l10n.ledIsGreen),
-              ),
-              const SizedBox(width: 12),
-              OutlinedButton.icon(
-                onPressed: () {
-                  _dbcFlashSimulateError = true;
-                  _setPhase(InstallerPhase.reconnect);
-                },
-                icon: const Icon(Icons.error, color: Colors.red),
-                label: Text(l10n.ledIsRed),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -3052,43 +3158,141 @@ class _InstallerScreenState extends State<InstallerScreen> {
       Future.microtask(_verifyDbcFlash);
     }
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(l10n.verifyingDbcInstallation,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          if (_isProcessing)
-            const SizedBox(width: 48, height: 48, child: CircularProgressIndicator()),
-          const SizedBox(height: 8),
-          Text(_statusMessage.isEmpty ? l10n.reconnectUsbToLaptop : _statusMessage,
-              style: TextStyle(color: Colors.grey.shade400)),
-          if (!_isProcessing) ...[
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 620),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(l10n.verifyingDbcInstallation,
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center),
             const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () {
-                setState(() => _reconnectStarted = true);
-                Future.microtask(_verifyDbcFlash);
-              },
-              icon: const Icon(Icons.refresh),
-              label: Text(l10n.retryVerification),
-            ),
+            if (_reconnectSubsteps.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A1A1A),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade800),
+                ),
+                child: SubstepList(substeps: _reconnectSubsteps),
+              )
+            else
+              Center(
+                child: Text(
+                  _statusMessage.isEmpty ? l10n.reconnectUsbToLaptop : _statusMessage,
+                  style: TextStyle(color: Colors.grey.shade400),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            if (_reconnectShowDiagnostics) ...[
+              const SizedBox(height: 16),
+              _buildReconnectDiagnosticsPanel(l10n),
+            ],
+            if (!_isProcessing) ...[
+              const SizedBox(height: 16),
+              Center(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _reconnectStarted = true;
+                          _reconnectShowDiagnostics = false;
+                          _reconnectDiagnostics = null;
+                        });
+                        Future.microtask(_verifyDbcFlash);
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: Text(l10n.retryVerification),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _dbcPrepStarted = false;
+                          _reconnectStarted = false;
+                          _reconnectShowDiagnostics = false;
+                          _reconnectDiagnostics = null;
+                          _reconnectSubsteps = const [];
+                        });
+                        _setPhase(InstallerPhase.dbcPrep);
+                      },
+                      icon: const Icon(Icons.replay),
+                      label: Text(l10n.retryDbcFlash),
+                    ),
+                    TextButton(
+                      onPressed: () => _setPhase(InstallerPhase.bluetoothPairing),
+                      child: Text(l10n.skipToFinish),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReconnectDiagnosticsPanel(AppLocalizations l10n) {
+    final waitedSecs = _reconnectRndisWaitStart != null
+        ? DateTime.now().difference(_reconnectRndisWaitStart!).inSeconds
+        : (_reconnectStatusWaitStart != null
+            ? DateTime.now().difference(_reconnectStatusWaitStart!).inSeconds
+            : 0);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.10),
+        border: Border.all(color: Colors.orange.shade700),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.warning_amber, color: Colors.orange.shade300, size: 22),
+              const SizedBox(width: 8),
+              Text(l10n.reconnectTimeoutHeading,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange.shade100,
+                    fontSize: 15,
+                  )),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(l10n.reconnectTimeoutBody(waitedSecs ~/ 60),
+              style: TextStyle(color: Colors.orange.shade100, fontSize: 13)),
+          const SizedBox(height: 10),
+          Text(
+            '${l10n.usbDeviceCurrentlyDetected}: '
+            '${_device?.name ?? l10n.usbDeviceNone}',
+            style: TextStyle(color: Colors.grey.shade300, fontSize: 12),
+          ),
+          if (_reconnectDiagnostics != null) ...[
             const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () {
-                setState(() {
-                  _dbcPrepStarted = false;
-                  _reconnectStarted = false;
-                });
-                _setPhase(InstallerPhase.dbcPrep);
-              },
-              icon: const Icon(Icons.replay),
-              label: Text(l10n.retryDbcFlash),
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: () => _setPhase(InstallerPhase.bluetoothPairing),
-              child: Text(l10n.skipToFinish),
+            Container(
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(maxHeight: 160),
+              decoration: BoxDecoration(
+                color: const Color(0xFF111111),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  _reconnectDiagnostics!,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                  ),
+                ),
+              ),
             ),
           ],
         ],
@@ -3098,7 +3302,30 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   Future<void> _verifyDbcFlash() async {
     final l10n = AppLocalizations.of(context)!;
-    setState(() => _isProcessing = true);
+    setState(() {
+      _isProcessing = true;
+      _reconnectShowDiagnostics = false;
+      _reconnectDiagnostics = null;
+      _reconnectSubsteps = [
+        Substep(id: 'rndis', label: l10n.substepWaitRndis),
+        Substep(id: 'net', label: l10n.substepConfigureNetwork),
+        Substep(id: 'ssh', label: l10n.substepConnectSsh),
+        Substep(id: 'hazards', label: l10n.substepDisableHazards),
+        Substep(id: 'status', label: l10n.substepReadStatus),
+      ];
+    });
+    void setStep(String id, SubstepState state, {String? detail}) {
+      if (!mounted) return;
+      setState(() {
+        final idx = _reconnectSubsteps.indexWhere((s) => s.id == id);
+        if (idx < 0) return;
+        _reconnectSubsteps = [
+          for (var i = 0; i < _reconnectSubsteps.length; i++)
+            if (i == idx) _reconnectSubsteps[i].copyWith(state: state, detail: detail)
+            else _reconnectSubsteps[i],
+        ];
+      });
+    }
 
     if (_isDryRun) {
       await Future.delayed(const Duration(seconds: 1));
@@ -3138,44 +3365,64 @@ class _InstallerScreenState extends State<InstallerScreen> {
       return;
     }
 
+    setStep('rndis', SubstepState.active);
     _setStatus(l10n.waitingForRndisDevice);
-    await _waitForDevice(DeviceMode.ethernet);
+    _reconnectRndisWaitStart = DateTime.now();
+    final rndisOk = await _waitForRndisWithTimeout(l10n, setStep);
+    _reconnectRndisWaitStart = null;
+    if (!rndisOk) return;
+    setStep('rndis', SubstepState.done);
+    // RNDIS came back: pop the timeout panel even if it was showing.
+    if (_reconnectShowDiagnostics) {
+      setState(() {
+        _reconnectShowDiagnostics = false;
+        _reconnectDiagnostics = null;
+      });
+    }
 
+    setStep('net', SubstepState.active);
     _setStatus(l10n.configuringNetwork);
     final iface = await NetworkService().findLibrescootInterface();
     if (iface != null) {
       try {
         await NetworkService().configureInterface(iface);
       } on NetworkPrivilegeException catch (e) {
+        setStep('net', SubstepState.failed, detail: e.toString());
         _setStatus(l10n.errorPrefix(e.toString()));
         setState(() { _isProcessing = false; _reconnectStarted = false; });
         return;
       }
     }
+    setStep('net', SubstepState.done);
 
+    setStep('ssh', SubstepState.active);
     _setStatus(l10n.connectingSsh);
     try {
       await _sshService.connectToMdb();
     } catch (e) {
+      setStep('ssh', SubstepState.failed, detail: e.toString());
       _setStatus(l10n.sshConnectionFailed(e.toString()));
       setState(() { _isProcessing = false; _reconnectStarted = false; });
       return;
     }
+    setStep('ssh', SubstepState.done);
 
+    setStep('hazards', SubstepState.active);
     // Freshly-flashed image boots with default settings (alarm.enabled=true,
     // auto-standby=900s). With the scooter locked + stood up on the lift in
     // the workshop, alarm-service will arm and trip on any vibration during
     // bluetooth pairing or keycard setup. Disable both before either phase.
     await _disableInstallerHazards(label: 'reconnect');
+    setStep('hazards', SubstepState.done);
 
-    // Poll for trampoline status: the script may still be running when MDB
-    // reconnects to RNDIS. Poll indefinitely — a slow DBC first-boot
-    // (resize2fs on a fresh filesystem) can easily eat the better part of
-    // 10–15 minutes, and silently giving up with "status unknown" leaves
-    // the user stranded. The user can always bail by yanking USB and
-    // re-plugging — _watchDbcFlash will pick that up and put them back on
-    // the prep screen.
+    setStep('status', SubstepState.active);
+    // Poll for trampoline status. A slow DBC first-boot (resize2fs on a
+    // fresh filesystem) can take 5–10 minutes. Give it 5 minutes of quiet
+    // polling, then surface the diagnostic panel — user can keep waiting,
+    // retry, or skip. The user can also bail by yanking USB and re-plugging;
+    // _watchDbcFlash picks that up and puts them back on the prep screen.
     _setStatus(l10n.readingTrampolineStatus);
+    _reconnectStatusWaitStart = DateTime.now();
     TrampolineStatus status;
     final pollStart = DateTime.now();
     while (true) {
@@ -3184,10 +3431,17 @@ class _InstallerScreenState extends State<InstallerScreen> {
       final elapsed = DateTime.now().difference(pollStart).inSeconds;
       debugPrint('Trampoline: status still unknown after ${elapsed}s, waiting...');
       _setStatus(l10n.readingTrampolineStatusElapsed(elapsed));
+      setStep('status', SubstepState.active,
+          detail: l10n.readingTrampolineStatusElapsed(elapsed));
+      if (elapsed >= 300 && !_reconnectShowDiagnostics) {
+        await _surfaceReconnectDiagnostics(l10n);
+      }
       await Future.delayed(const Duration(seconds: 5));
       if (!mounted) return;
       if (_currentPhase != InstallerPhase.reconnect) return;
     }
+    _reconnectStatusWaitStart = null;
+    setStep('status', SubstepState.done);
 
     // Re-stop librescoot-keycard in case onboot.sh on the DBC-side flash
     // brought it back up. We deliberately keep it stopped through bluetooth
