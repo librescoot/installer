@@ -340,6 +340,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     if (mounted) setState(() => _awaitingFinishReboot = true);
 
+    // Kill the green success-blink (and the amber guard) before anything
+    // else. The reboot below should tear down the transient systemd-run
+    // units anyway, but if it doesn't fire (or doesn't fire promptly) this
+    // is what keeps the scooter from sitting in standby with the LP5562
+    // blinking green until someone power-cycles it.
+    await _stopBootLedBlink();
+
     // Wipe first, then re-apply the user's choices: this drops our
     // installer-only overrides (auto-standby=0, alarm.enabled=false) so the
     // scooter behaves normally on next boot.
@@ -2546,15 +2553,20 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   // Stop the boot-LED blinker started on MDB by /data/onboot.sh (green on
-  // success / red on failure, both written to /data/bootled-blink.pid).
-  // stop-error-signals.sh already kills it on the dbcFlash reconnect path;
-  // this is a defensive belt-and-braces call right before librescoot-keycard
-  // starts at keycardSetup, since both drive the LP5562 over the same i2c bus.
+  // success / red on failure). onboot.sh runs the loop as a transient
+  // systemd-run unit (librescoot-bootled-blink) in its own cgroup so it
+  // survives onboot.sh exiting, which means `systemctl stop` is the only
+  // thing that actually ends it. The PID-file kill below is legacy cleanup
+  // for older images that drove the blink via /data/bootled-blink.pid; the
+  // i2cset calls are the final LED-off once the loop is gone (do them last,
+  // after the loop is stopped, or it just re-asserts the colour 400ms
+  // later). The boot-LED guard re-asserts amber every 2s, so stop it too.
+  // Both drive the LP5562 over the same i2c bus the keycard reader uses.
   Future<void> _stopBootLedBlink() async {
     if (_isDryRun) return;
     try {
       await _sshService.runCommand(
-        r'''[ -f /data/bootled-blink.pid ] && kill "$(cat /data/bootled-blink.pid)" 2>/dev/null; rm -f /data/bootled-blink.pid; i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null; i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null; i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null; true''',
+        r'''systemctl stop librescoot-bootled-blink.service 2>/dev/null; systemctl stop librescoot-bootled-guard.service 2>/dev/null; [ -f /data/bootled-blink.pid ] && kill "$(cat /data/bootled-blink.pid)" 2>/dev/null; rm -f /data/bootled-blink.pid; i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null; i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null; i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null; true''',
       );
       debugPrint('SSH: stopped boot LED blink');
     } catch (_) {}
@@ -3452,6 +3464,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
     } catch (_) {}
 
     if (status.result == TrampolineResult.success) {
+      // The green success-blink onboot.sh started means "safe to swap the
+      // MDB's USB port back to the laptop". We only get here because the
+      // laptop is already back on USB (that's how we read the status), so
+      // the cue has done its job — stop it now instead of letting it run
+      // decoratively through pairing + keycard setup.
+      await _stopBootLedBlink();
       _setStatus(l10n.dbcFlashSuccessful);
       await Future.delayed(const Duration(seconds: 2));
       _setPhase(InstallerPhase.bluetoothPairing);
