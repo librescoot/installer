@@ -46,8 +46,11 @@ fetch() {
 # linuxdeploy publishes only a rolling "continuous" release.
 fetch "$TOOLS_DIR/linuxdeploy" \
   https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+# The GTK plugin has no releases; its script lives on master. Pin to a
+# commit so the build is reproducible instead of tracking the branch tip.
+GTK_PLUGIN_REF=3b67a1d1c1b0c8268f57f2bce40fe2d33d409cea
 fetch "$TOOLS_DIR/linuxdeploy-plugin-gtk.sh" \
-  https://github.com/linuxdeploy/linuxdeploy-plugin-gtk/releases/download/continuous/linuxdeploy-plugin-gtk.sh
+  "https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/${GTK_PLUGIN_REF}/linuxdeploy-plugin-gtk.sh"
 
 # linuxdeploy discovers plugins by name on PATH.
 export PATH="$PWD/$TOOLS_DIR:$PATH"
