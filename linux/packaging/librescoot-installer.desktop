@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Librescoot Installer
+Comment=Firmware installer for Librescoot MDB and DBC boards
+Exec=librescoot_installer
+Icon=librescoot-installer
+Categories=Utility;System;
+Terminal=false
