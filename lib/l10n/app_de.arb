@@ -207,7 +207,7 @@
   "ledFrontRingSolid": "Frontring leuchtet kurz",
   "ledFrontRingSolidMeaning": "Flash abgeschlossen. Erfolg!",
   "disconnectCbbImage": "[Foto: CBB-Stecker im Fußraum]",
-  "ledBlinkerProgress": "Blinker füllen sich von links nach rechts auf",
+  "ledBlinkerProgress": "Blinker leuchten reihum auf",
   "ledBlinkerProgressMeaning": "Gesamt-Fortschritt: Vorbereitung → Flash → Neustart → Karten",
   "ledBootGreen": "Tacho-LED blinkt grün",
   "ledBootGreenMeaning": "Erfolgreich. Laptop wieder verbinden",

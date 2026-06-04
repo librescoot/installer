@@ -265,7 +265,7 @@
   "ledFrontRingSolid": "Front ring glows briefly",
   "ledFrontRingSolidMeaning": "Flash complete. Success!",
   "disconnectCbbImage": "[Photo: CBB connector location in footwell]",
-  "ledBlinkerProgress": "Blinkers fill left to right",
+  "ledBlinkerProgress": "Blinkers light up in turn",
   "ledBlinkerProgressMeaning": "Overall progress: Prep → Flash → Reboot → Maps",
   "ledBootGreen": "Dashboard LED blinking green",
   "ledBootGreenMeaning": "Success. Reconnect laptop",

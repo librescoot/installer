@@ -687,7 +687,7 @@ class AppLocalizationsEn extends AppLocalizations {
       '[Photo: CBB connector location in footwell]';
 
   @override
-  String get ledBlinkerProgress => 'Blinkers fill left to right';
+  String get ledBlinkerProgress => 'Blinkers light up in turn';
 
   @override
   String get ledBlinkerProgressMeaning =>

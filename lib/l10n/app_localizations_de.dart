@@ -693,8 +693,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get disconnectCbbImage => '[Foto: CBB-Stecker im Fußraum]';
 
   @override
-  String get ledBlinkerProgress =>
-      'Blinker füllen sich von links nach rechts auf';
+  String get ledBlinkerProgress => 'Blinker leuchten reihum auf';
 
   @override
   String get ledBlinkerProgressMeaning =>
