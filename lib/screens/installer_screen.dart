@@ -3153,12 +3153,24 @@ class _InstallerScreenState extends State<InstallerScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(width: 8),
-          const Icon(Icons.circle, size: 8, color: kAccent),
+          const Padding(
+            padding: EdgeInsets.only(top: 3),
+            child: Icon(Icons.circle, size: 8, color: kAccent),
+          ),
           const SizedBox(width: 8),
-          Expanded(child: Text(signal, style: const TextStyle(fontSize: 13))),
-          Text(meaning, style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+          Expanded(flex: 3, child: Text(signal, style: const TextStyle(fontSize: 13))),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: Text(
+              meaning,
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+              textAlign: TextAlign.right,
+            ),
+          ),
         ],
       ),
     );
