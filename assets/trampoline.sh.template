@@ -1073,12 +1073,16 @@ while [ $STABLE -lt 10 ] && [ $ELAPSED -lt 300 ]; do
 done
 log "  DBC stable after ${ELAPSED}s (stable_count=$STABLE)"
 
-# DBC first-boot done — advance to phase 3 (FL/FR/RR filled, RL breathing).
-relight_progress 3
-
-# Wait for SSH. The DBC is already ping-stable (loop above), so this is just
-# waiting for dropbear to come up on the freshly-booted image. Give it a
-# generous window — skipping tiles here means no offline maps.
+# Stay on phase 2 (BR breathing = "MDB & DBC restart") through the SSH wait.
+# Re-establishing the DBC connection is part of the restart, not the copy, so
+# advancing to phase 3 (BL = "maps") happens only once the actual upload
+# starts. That keeps the two distinguishable: a BR blinker stuck breathing
+# means the DBC never came back (USB/boot issue), a stuck BL means the data
+# copy itself is slow.
+# Wait for SSH. This is a poll, not a blind wait — it breaks the instant the
+# DBC answers; the 180s is only the give-up bound. The DBC is already
+# ping-stable (loop above), so this is just dropbear coming up on the fresh
+# image. Skipping tiles here means no offline maps.
 log "  waiting for DBC SSH..."
 ELAPSED=0
 while [ $ELAPSED -lt 180 ]; do
@@ -1112,6 +1116,10 @@ ONBOOT
 # Append tile installation commands with actual paths
 if [ "$INSTALL_TILES" = "true" ]; then
   cat >> /data/onboot.sh << TILES
+# DBC connection is up — now advance to phase 3 (BL breathing = "maps"). From
+# here a slow BL blinker means the tile copy itself is slow, not a connection
+# problem.
+relight_progress 3
 dbc_ssh "mkdir -p /data/maps /data/valhalla" || log "WARNING: mkdir failed"
 
 # Detect whether DBC has data-server running (new firmware) or needs the
