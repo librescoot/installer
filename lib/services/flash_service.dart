@@ -953,6 +953,12 @@ class FlashService {
       else ...['--two-phase', '--boot-blocks', '$bootAreaBlocks'],
     ];
 
+    // When we run from an AppImage, the bundled flasher lives inside a per-user
+    // FUSE mount (/tmp/.mount_*) that root can't read — so `pkexec <flasher>`
+    // fails with "Error accessing ...: Permission denied" (exit 127). Copy it
+    // out to a normal path root can exec.
+    flasherPath = await _ensureFlasherRunnableAsRoot(flasherPath);
+
     debugPrint('Flash: running: $flasherPath ${flasherArgs.join(' ')}');
 
     // Total bytes will be updated by TOTAL: output from flasher
@@ -971,9 +977,24 @@ class FlashService {
       // Unix: already root, run directly
       process = await Process.start(flasherPath, flasherArgs);
     } else {
-      // Unix: need elevation via pkexec
-      final command = 'pkexec $flasherPath ${flasherArgs.join(' ')}';
-      process = await Process.start('/bin/sh', ['-c', command]);
+      // Unix, not root: elevate. Prefer pkexec (graphical polkit prompt), fall
+      // back to sudo (+ a graphical askpass if one exists). argv is passed
+      // directly so paths never need shell quoting.
+      final elev = await _elevationArgv();
+      if (elev == null) {
+        throw Exception(
+            'Root is required to flash, but neither pkexec nor sudo was found. '
+            'Start the installer as root, e.g. `sudo ./Librescoot-Installer.AppImage`.');
+      }
+      final env = <String, String>{};
+      if (elev.length >= 2 && elev[1] == '-A') {
+        final askpass = await _findAskpass();
+        if (askpass != null) env['SUDO_ASKPASS'] = askpass;
+      }
+      final argv = [...elev, flasherPath, ...flasherArgs];
+      debugPrint('Flash: elevating via ${elev.join(' ')}');
+      process = await Process.start(argv.first, argv.sublist(1),
+          environment: env.isEmpty ? null : env);
     }
     final output = StringBuffer();
 
@@ -1035,6 +1056,69 @@ class FlashService {
     onProgress?.call(1.0, 'Flash complete');
   }
 
+  /// Copy the flasher out of an AppImage's per-user FUSE mount (which a
+  /// pkexec/sudo-elevated root can't read) to a normal temp path. No-op
+  /// outside an AppImage or off Linux.
+  Future<String> _ensureFlasherRunnableAsRoot(String flasherPath) async {
+    final inAppImage = Platform.environment.containsKey('APPIMAGE') ||
+        flasherPath.contains('/.mount_');
+    if (!Platform.isLinux || !inAppImage) return flasherPath;
+    try {
+      final dir = await Directory.systemTemp.createTemp('librescoot-flasher-');
+      await Process.run('chmod', ['0755', dir.path]);
+      final dest = path.join(dir.path, path.basename(flasherPath));
+      await File(flasherPath).copy(dest);
+      await Process.run('chmod', ['0755', dest]);
+      debugPrint('Flash: copied flasher out of AppImage mount to $dest');
+      return dest;
+    } catch (e) {
+      debugPrint('Flash: could not copy flasher out of AppImage ($e); using original');
+      return flasherPath;
+    }
+  }
+
+  /// Argv prefix to run a command as root, or null if neither pkexec nor sudo
+  /// is available. Prefers pkexec's graphical prompt; sudo gets `-A` when a
+  /// graphical askpass exists so it can prompt without a terminal.
+  Future<List<String>?> _elevationArgv() async {
+    if (await _hasCommand('pkexec')) return ['pkexec'];
+    if (await _hasCommand('sudo')) {
+      return (await _findAskpass()) != null ? ['sudo', '-A'] : ['sudo'];
+    }
+    return null;
+  }
+
+  /// True if [name] is found on PATH (avoids depending on `which` existing).
+  Future<bool> _hasCommand(String name) async {
+    final pathEnv = Platform.environment['PATH'] ??
+        '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin';
+    for (final dir in pathEnv.split(':')) {
+      if (dir.isEmpty) continue;
+      if (await File(path.join(dir, name)).exists()) return true;
+    }
+    return false;
+  }
+
+  /// A graphical SSH-askpass helper for `sudo -A`, or null if none is found.
+  Future<String?> _findAskpass() async {
+    final fromEnv = Platform.environment['SUDO_ASKPASS'];
+    if (fromEnv != null && fromEnv.isNotEmpty && await File(fromEnv).exists()) {
+      return fromEnv;
+    }
+    const candidates = [
+      '/usr/bin/ssh-askpass',
+      '/usr/bin/ksshaskpass',
+      '/usr/bin/lxqt-openssh-askpass',
+      '/usr/bin/x11-ssh-askpass',
+      '/usr/libexec/openssh/ssh-askpass',
+      '/usr/lib/ssh/x11-ssh-askpass',
+    ];
+    for (final c in candidates) {
+      if (await File(c).exists()) return c;
+    }
+    return null;
+  }
+
   /// Linux two-phase flash: single pkexec auth, both phases + verify in one script.
   Future<void> _writeTwoPhaseLinux(
     String imagePath,
@@ -1091,9 +1175,21 @@ echo "VERIFY:OK"
     await scriptFile.writeAsString(script);
     await Process.run('chmod', ['+x', scriptFile.path]);
 
-    final command = isRoot
-        ? '/bin/sh ${scriptFile.path}'
-        : 'pkexec /bin/sh ${scriptFile.path}';
+    var argv = <String>['/bin/sh', scriptFile.path];
+    Map<String, String>? env;
+    if (!isRoot) {
+      final elev = await _elevationArgv();
+      if (elev == null) {
+        throw Exception(
+            'Root is required to flash, but neither pkexec nor sudo was found. '
+            'Start the installer as root, e.g. `sudo ./Librescoot-Installer.AppImage`.');
+      }
+      if (elev.length >= 2 && elev[1] == '-A') {
+        final askpass = await _findAskpass();
+        if (askpass != null) env = {'SUDO_ASKPASS': askpass};
+      }
+      argv = [...elev, ...argv];
+    }
 
     // Estimate total image size for progress calculation
     final imageSize = await _estimateImageSizeBytes(imagePath, isCompressed);
@@ -1102,11 +1198,11 @@ echo "VERIFY:OK"
     // Progress: Phase A = 0.0-0.9, Phase B = 0.9-0.95, Sync = 0.95, Verify = 0.97
     final phaseABytes = totalBytes > bootAreaBytes ? totalBytes - bootAreaBytes : totalBytes;
 
-    debugPrint('Flash: running two-phase script via ${isRoot ? "sh" : "pkexec"}');
+    debugPrint('Flash: running two-phase script via ${argv.first}');
     debugPrint('Flash: estimated image size: $totalBytes bytes, phase A: $phaseABytes bytes');
     onProgress?.call(0.0, 'Phase A: Writing partitions...');
 
-    final process = await Process.start('/bin/sh', ['-c', command]);
+    final process = await Process.start(argv.first, argv.sublist(1), environment: env);
 
     var currentPhase = 'A';
     final output = StringBuffer();
