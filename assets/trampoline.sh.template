@@ -144,10 +144,12 @@ breathe_stop() {
 #   phase 4 = all done             (all four solid dim)
 # The phase number is persisted to $PHASE_FILE so onboot.sh can re-light
 # the right segments after the MDB reboot between Flash and 1st-boot.
-# Filled segments: dim glow (DIM_DUTY). Active segment: breathing on
-# fade4/fade9 (dim brake curve) so it stays distinguishable from filled.
+# Filled segments: static dim glow (DIM_DUTY). Active segment: breathing on
+# fade4/fade9 (brake-dim-on/off, duty ~48..180 of 12000) so it stays
+# distinguishable from filled. DIM_DUTY sits just under fade4's peak (156)
+# so the breathing segment reads brighter at its peak than the filled trail.
 BLINKER_LEDS="3 7 4 6"
-DIM_DUTY=2000
+DIM_DUTY=150
 PROGRESS_BREATHE_PID=""
 PROGRESS_LAST_PHASE=-1
 
