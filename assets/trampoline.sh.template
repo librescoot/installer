@@ -465,6 +465,10 @@ systemctl unmask librescoot-keycard keycard-service 2>/dev/null || true
 # it now (unlike keycard, we have no reason to keep it stopped).
 systemctl unmask librescoot-bluetooth 2>/dev/null || true
 systemctl start librescoot-bluetooth 2>/dev/null || true
+# Re-enable UMS — masked pre-flash so it couldn't grab the OTG UDC. A failed
+# install must not leave the user with mass-storage permanently masked.
+systemctl unmask librescoot-ums 2>/dev/null || true
+systemctl start librescoot-ums 2>/dev/null || true
 exit 0
 STOP_HELPER
 chmod +x "$INSTALLER_DIR/stop-error-signals.sh"
@@ -490,13 +494,21 @@ log "=========================================="
 #   physically disconnected during the autonomous flash, so the user
 #   can't catch a stray BLE-triggered unlock until they reconnect.
 #   Stopping the service severs the BLE → Redis path for the duration.
-# librescoot-ums / librescoot-pm: standard "get out of the way" stops.
+# librescoot-ums: binds a USB mass-storage gadget on the same OTG UDC
+#   (ci_hdrc.0) the trampoline drives for g_ether and the gadget<->host
+#   role switch. It's enabled + Restart=always, so a plain stop comes back
+#   on the post-flash MDB reboot and can grab the UDC out from under us,
+#   stalling the DBC UMS handoff (step 6). Mask it like keycard/bluetooth;
+#   re-enabled at the end of onboot.sh's success branch and on the failure
+#   path via stop-error-signals.sh.
+# librescoot-pm: standard "get out of the way" stop (no UDC conflict).
 log "Stopping services..."
 systemctl stop librescoot-keycard keycard-service 2>/dev/null || true
 systemctl mask librescoot-keycard keycard-service 2>/dev/null || true
 systemctl stop librescoot-bluetooth 2>/dev/null || true
 systemctl mask librescoot-bluetooth 2>/dev/null || true
 systemctl stop librescoot-ums 2>/dev/null || true
+systemctl mask librescoot-ums 2>/dev/null || true
 systemctl stop librescoot-pm 2>/dev/null || true
 
 bootled_init
@@ -617,9 +629,9 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
 
     # Trigger the reboot. We deliberately use `reboot &` so the SSH
     # connection drops as systemd-shutdown runs — historically we slept
-    # 30s here as a "let it reboot" buffer, but step 6 already polls up
-    # to 60s for the UMS block device to appear. Skip the dead time and
-    # let step 6's poll absorb DBC reboot variance instead.
+    # 30s here as a "let it reboot" buffer, but step 6 already polls for
+    # several minutes for the UMS block device to appear. Skip the dead
+    # time and let step 6's poll absorb DBC reboot variance instead.
     log "  rebooting DBC..."
     dbc_ssh 'reboot &' >> "$LOG_FILE" 2>&1 || log "  reboot failed"
     sleep 3
@@ -647,13 +659,20 @@ log "  lsusb: $(lsusb 2>/dev/null | grep 0525 || echo 'no 0525')"
 step_end
 
 # Step 6: Find DBC block device (DBC may still be rebooting from step 4).
+# This window absorbs two variable delays: the DBC reboot into u-boot UMS,
+# AND the human swapping the single USB cable from the laptop over to the
+# DBC. A slow swap is the common case, and timing out here is expensive to
+# recover from — step 4 already armed the DBC bootcmd to `ums 0 mmc 2` with
+# bootdelay=0, so a DBC that never got flashed will keep booting straight
+# into UMS until it's reflashed. Give the user real time (5 min) before
+# giving up.
 # We don't peek at gadget mode during the wait — flipping roles can
 # race the DBC enumeration. Only after the full timeout, if there's
 # really nothing on the bus, do a single gadget probe to disambiguate
 # "DBC absent" vs "laptop reconnected"; that gives the user a clear
 # error message instead of a generic "UMS not found".
 step_begin "Step 6: wait for DBC UMS device"
-TIMEOUT=90
+TIMEOUT=300
 ELAPSED=0
 DBC_DEV=""
 while [ $ELAPSED -lt $TIMEOUT ]; do
@@ -799,14 +818,17 @@ dbc_scp() { local t=0; while [ $t -lt 3 ]; do scp "$@" && return 0; t=$((t+1)); 
 
 log "Onboot: post-reboot DBC tile installation"
 
-# Stop+mask keycard / bluetooth services so they can't race us on the
-# LP5562 i2c bus (keycard) or fire a phone-triggered unlock through the
-# nRF52 (bluetooth). The trampoline already masked them before the flash,
-# but re-asserting here is cheap insurance against weird boot orderings.
+# Stop+mask keycard / bluetooth / ums services so they can't race us on the
+# LP5562 i2c bus (keycard), fire a phone-triggered unlock through the nRF52
+# (bluetooth), or grab the OTG UDC (ums). The trampoline already masked them
+# before the flash, but re-asserting here is cheap insurance against weird
+# boot orderings.
 systemctl stop librescoot-keycard keycard-service 2>/dev/null || true
 systemctl mask librescoot-keycard keycard-service 2>/dev/null || true
 systemctl stop librescoot-bluetooth 2>/dev/null || true
 systemctl mask librescoot-bluetooth 2>/dev/null || true
+systemctl stop librescoot-ums 2>/dev/null || true
+systemctl mask librescoot-ums 2>/dev/null || true
 
 # Initialize the LP5562 (RAG boot LED on i2c-2 @ 0x30) for direct PWM
 # control. After this, registers 0x02/0x03/0x04 are amber/green/red PWM.
@@ -828,7 +850,7 @@ i2cset -f -y 2 0x30 0x07 0xAF 2>/dev/null
 PHASE="$(cat "$PHASE_FILE" 2>/dev/null || echo 2)"
 case "$PHASE" in 0|1|2|3|4) :;; *) PHASE=2 ;; esac
 BLINKER_LEDS="3 7 4 6"
-DIM_DUTY=2000
+DIM_DUTY=150
 PROGRESS_BREATHE_PID=""
 relight_progress() {
   local phase="$1"
@@ -854,6 +876,25 @@ relight_progress() {
       /usr/bin/ioctl /dev/pwm_led$l 0x00007549 -v 0 2>/dev/null
     fi
     i=$((i + 1))
+  done
+}
+# Smoothly fade the whole progress bar out. Used once at all-done so the
+# blinkers release with a soft ramp instead of sitting lit. Ramp starts at
+# DIM_DUTY (150) and steps down to 0 over ~1s, then deactivates each channel.
+fade_progress_off() {
+  [ -n "$PROGRESS_BREATHE_PID" ] && kill $PROGRESS_BREATHE_PID 2>/dev/null
+  PROGRESS_BREATHE_PID=""
+  for l in $BLINKER_LEDS; do
+    /usr/bin/ioctl /dev/pwm_led$l 0x00007549 -v 1 2>/dev/null
+  done
+  for d in 150 110 75 48 28 14 6 0; do
+    for l in $BLINKER_LEDS; do
+      /usr/bin/ioctl /dev/pwm_led$l 0x0000754A -v $d 2>/dev/null
+    done
+    sleep 0.12
+  done
+  for l in $BLINKER_LEDS; do
+    /usr/bin/ioctl /dev/pwm_led$l 0x00007549 -v 0 2>/dev/null
   done
 }
 log "  relighting progress phase=$PHASE"
@@ -1032,9 +1073,14 @@ if [ $ELAPSED -ge 60 ]; then
   relight_progress 4
   bootled_guard_stop
   bootled_blink_green
+  # Let the completed bar register, then fade it out so it doesn't sit lit.
+  sleep 1
+  fade_progress_off
   systemctl unmask librescoot-keycard keycard-service 2>/dev/null || true
   systemctl unmask librescoot-bluetooth 2>/dev/null || true
   systemctl start librescoot-bluetooth 2>/dev/null || true
+  systemctl unmask librescoot-ums 2>/dev/null || true
+  systemctl start librescoot-ums 2>/dev/null || true
   exit 0
 fi
 log "  DBC reachable"
@@ -1157,6 +1203,9 @@ else
   # guard re-asserts amber every 2s and we get an ugly amber/green flicker.
   bootled_guard_stop
   bootled_blink_green
+  # Let the completed bar register, then fade it out so it doesn't sit lit.
+  sleep 1
+  fade_progress_off
   # Unmask keycard-service. The installer's keycardSetup phase will start
   # it explicitly. We deliberately do NOT start it now: a freshly flashed
   # device with no master would auto-enter master-learning and silently
@@ -1166,6 +1215,9 @@ else
   # needs it running. No equivalent "wait for explicit start" concern.
   systemctl unmask librescoot-bluetooth 2>/dev/null || true
   systemctl start librescoot-bluetooth 2>/dev/null || true
+  # Re-enable UMS now that all USB-host work on the OTG UDC is done.
+  systemctl unmask librescoot-ums 2>/dev/null || true
+  systemctl start librescoot-ums 2>/dev/null || true
 fi
 ONBOOT_END
 chmod +x /data/onboot.sh
