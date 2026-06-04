@@ -816,37 +816,11 @@ log() { echo "$(date '+%H:%M:%S') $1" >> "$LOG"; }
 dbc_ssh() { local t=0; while [ $t -lt 3 ]; do ssh root@$DBC_IP "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
 dbc_scp() { local t=0; while [ $t -lt 3 ]; do scp "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
 
-log "Onboot: post-reboot DBC tile installation"
-
-# Stop+mask keycard / bluetooth / ums services so they can't race us on the
-# LP5562 i2c bus (keycard), fire a phone-triggered unlock through the nRF52
-# (bluetooth), or grab the OTG UDC (ums). The trampoline already masked them
-# before the flash, but re-asserting here is cheap insurance against weird
-# boot orderings.
-systemctl stop librescoot-keycard keycard-service 2>/dev/null || true
-systemctl mask librescoot-keycard keycard-service 2>/dev/null || true
-systemctl stop librescoot-bluetooth 2>/dev/null || true
-systemctl mask librescoot-bluetooth 2>/dev/null || true
-systemctl stop librescoot-ums 2>/dev/null || true
-systemctl mask librescoot-ums 2>/dev/null || true
-
-# Initialize the LP5562 (RAG boot LED on i2c-2 @ 0x30) for direct PWM
-# control. After this, registers 0x02/0x03/0x04 are amber/green/red PWM.
-i2cset -f -y 2 0x30 0x0D 0xFF 2>/dev/null
-i2cset -f -y 2 0x30 0x01 0x3F 2>/dev/null
-i2cset -f -y 2 0x30 0x70 0x00 2>/dev/null
-i2cset -f -y 2 0x30 0x08 0x61 2>/dev/null
-i2cset -f -y 2 0x30 0x00 0xC0 2>/dev/null
-i2cset -f -y 2 0x30 0x05 0xAF 2>/dev/null
-i2cset -f -y 2 0x30 0x06 0xAF 2>/dev/null
-i2cset -f -y 2 0x30 0x07 0xAF 2>/dev/null
-
-# Re-light the blinker progress bar to the phase the trampoline left off
-# at (typically phase 2 = FL/FR filled, RR breathing). The pre-reboot
-# half of the script writes the phase to $PHASE_FILE; this is what makes
-# the progress bar look continuous across the MDB reboot rather than
-# resetting to "all off" until tiles finish. Phase 4 = all-done is set
-# only at success below.
+# Re-light the blinker progress bar FIRST, before the slower service stops
+# and LP5562 init below, so the bar returns as early as possible after the
+# MDB reboot instead of staying dark until the tail of onboot. Phase is
+# whatever the pre-reboot half persisted to $PHASE_FILE (typically 2 =
+# FL/FR filled, RR breathing); phase 4 = all-done is set at success below.
 PHASE="$(cat "$PHASE_FILE" 2>/dev/null || echo 2)"
 case "$PHASE" in 0|1|2|3|4) :;; *) PHASE=2 ;; esac
 BLINKER_LEDS="3 7 4 6"
@@ -878,6 +852,34 @@ relight_progress() {
     i=$((i + 1))
   done
 }
+log "Onboot: relighting progress phase=$PHASE"
+relight_progress "$PHASE"
+
+log "Onboot: post-reboot DBC tile installation"
+
+# Stop+mask keycard / bluetooth / ums services so they can't race us on the
+# LP5562 i2c bus (keycard), fire a phone-triggered unlock through the nRF52
+# (bluetooth), or grab the OTG UDC (ums). The trampoline already masked them
+# before the flash, but re-asserting here is cheap insurance against weird
+# boot orderings.
+systemctl stop librescoot-keycard keycard-service 2>/dev/null || true
+systemctl mask librescoot-keycard keycard-service 2>/dev/null || true
+systemctl stop librescoot-bluetooth 2>/dev/null || true
+systemctl mask librescoot-bluetooth 2>/dev/null || true
+systemctl stop librescoot-ums 2>/dev/null || true
+systemctl mask librescoot-ums 2>/dev/null || true
+
+# Initialize the LP5562 (RAG boot LED on i2c-2 @ 0x30) for direct PWM
+# control. After this, registers 0x02/0x03/0x04 are amber/green/red PWM.
+i2cset -f -y 2 0x30 0x0D 0xFF 2>/dev/null
+i2cset -f -y 2 0x30 0x01 0x3F 2>/dev/null
+i2cset -f -y 2 0x30 0x70 0x00 2>/dev/null
+i2cset -f -y 2 0x30 0x08 0x61 2>/dev/null
+i2cset -f -y 2 0x30 0x00 0xC0 2>/dev/null
+i2cset -f -y 2 0x30 0x05 0xAF 2>/dev/null
+i2cset -f -y 2 0x30 0x06 0xAF 2>/dev/null
+i2cset -f -y 2 0x30 0x07 0xAF 2>/dev/null
+
 # Smoothly fade the whole progress bar out. Used once at all-done so the
 # blinkers release with a soft ramp instead of sitting lit. Ramp starts at
 # DIM_DUTY (150) and steps down to 0 over ~1s, then deactivates each channel.
@@ -897,8 +899,6 @@ fade_progress_off() {
     /usr/bin/ioctl /dev/pwm_led$l 0x00007549 -v 0 2>/dev/null
   done
 }
-log "  relighting progress phase=$PHASE"
-relight_progress "$PHASE"
 
 # Boot LED + hazards helpers. Spawned via systemd-run so they run in their
 # own transient unit under system.slice — librescoot-onboot.service is
