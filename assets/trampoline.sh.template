@@ -356,12 +356,12 @@ wait_dbc_ssh() {
   local timeout="${1:-90}" elapsed=0
   log "  waiting for DBC SSH (timeout ${timeout}s)..."
   while [ $elapsed -lt $timeout ]; do
-    if ssh -y root@$DBC_IP 'echo ok' >/dev/null 2>&1; then
+    if ssh -y root@$DBC_IP 'echo ok' >/dev/null; then
       local stable=1
       sleep 1
-      ssh -y root@$DBC_IP 'echo ok' >/dev/null 2>&1 && stable=$((stable+1))
+      ssh -y root@$DBC_IP 'echo ok' >/dev/null && stable=$((stable+1))
       sleep 1
-      ssh -y root@$DBC_IP 'echo ok' >/dev/null 2>&1 && stable=$((stable+1))
+      ssh -y root@$DBC_IP 'echo ok' >/dev/null && stable=$((stable+1))
       if [ $stable -ge 3 ]; then
         log "  DBC SSH stable after ${elapsed}s"
         return 0
@@ -483,6 +483,12 @@ log "  INSTALL_TILES=$INSTALL_TILES"
 log "  OSM=$OSM_TILES_FILE"
 log "  VALHALLA=$VALHALLA_TILES_FILE"
 log "=========================================="
+
+# Log all errors, always: route every command's stderr into the log so no
+# failure is ever silent (this is how the post-flash DBC SSH host-key
+# rejection went unseen). Commands still opt out with 2>/dev/null only where
+# a failure is expected and handled (LED writes, ping polling, || true).
+exec 2>>"$LOG_FILE"
 
 # Stop services that interfere. Persistent mask survives the MDB reboot
 # we do after writing onboot.sh; onboot.sh unmasks at the end of its
@@ -815,6 +821,8 @@ PHASE_FILE="$INSTALLER_DIR/trampoline-phase"
 mkdir -p "$INSTALLER_DIR"
 
 log() { echo "$(date '+%H:%M:%S') $1" >> "$LOG"; }
+# Log all errors, always: every command's stderr appends to the log.
+exec 2>>"$LOG"
 dbc_ssh() { local t=0; while [ $t -lt 3 ]; do ssh -y root@$DBC_IP "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
 dbc_scp() { local t=0; while [ $t -lt 3 ]; do scp "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
 
@@ -1066,7 +1074,7 @@ relight_progress 3
 log "  waiting for DBC SSH..."
 ELAPSED=0
 while [ $ELAPSED -lt 180 ]; do
-  ssh -y root@$DBC_IP 'echo ok' >/dev/null 2>&1 && break
+  ssh -y root@$DBC_IP 'echo ok' >/dev/null && break
   ELAPSED=$((ELAPSED + 5))
   sleep 5
 done
