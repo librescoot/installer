@@ -328,11 +328,13 @@ fail() {
   exit 1
 }
 
-# SSH/SCP to DBC with retries (dropbear, no options needed)
+# SSH/SCP to DBC with retries. -y makes dropbear's dbclient accept the DBC
+# host key non-interactively — required after a flash, when the new image
+# presents a host key the MDB has never seen (and would otherwise refuse).
 dbc_ssh() {
   local tries=0
   while [ $tries -lt 3 ]; do
-    ssh root@$DBC_IP "$@" && return 0
+    ssh -y root@$DBC_IP "$@" && return 0
     tries=$((tries + 1))
     log "  ssh retry $tries/3..."
     sleep 3
@@ -354,12 +356,12 @@ wait_dbc_ssh() {
   local timeout="${1:-90}" elapsed=0
   log "  waiting for DBC SSH (timeout ${timeout}s)..."
   while [ $elapsed -lt $timeout ]; do
-    if ssh root@$DBC_IP 'echo ok' >/dev/null 2>&1; then
+    if ssh -y root@$DBC_IP 'echo ok' >/dev/null 2>&1; then
       local stable=1
       sleep 1
-      ssh root@$DBC_IP 'echo ok' >/dev/null 2>&1 && stable=$((stable+1))
+      ssh -y root@$DBC_IP 'echo ok' >/dev/null 2>&1 && stable=$((stable+1))
       sleep 1
-      ssh root@$DBC_IP 'echo ok' >/dev/null 2>&1 && stable=$((stable+1))
+      ssh -y root@$DBC_IP 'echo ok' >/dev/null 2>&1 && stable=$((stable+1))
       if [ $stable -ge 3 ]; then
         log "  DBC SSH stable after ${elapsed}s"
         return 0
@@ -585,7 +587,7 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
     fi
 
     # Check native fw_setenv (Librescoot DBC) vs stock
-    HAS_NATIVE=$(ssh root@$DBC_IP 'test -x /usr/bin/fw_setenv && test -f /etc/fw_env.config && echo yes' 2>/dev/null || echo no)
+    HAS_NATIVE=$(ssh -y root@$DBC_IP 'test -x /usr/bin/fw_setenv && test -f /etc/fw_env.config && echo yes' 2>/dev/null || echo no)
     log "  native fw_setenv: $HAS_NATIVE"
 
     if [ "$HAS_NATIVE" = "yes" ]; then
@@ -813,7 +815,7 @@ PHASE_FILE="$INSTALLER_DIR/trampoline-phase"
 mkdir -p "$INSTALLER_DIR"
 
 log() { echo "$(date '+%H:%M:%S') $1" >> "$LOG"; }
-dbc_ssh() { local t=0; while [ $t -lt 3 ]; do ssh root@$DBC_IP "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
+dbc_ssh() { local t=0; while [ $t -lt 3 ]; do ssh -y root@$DBC_IP "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
 dbc_scp() { local t=0; while [ $t -lt 3 ]; do scp "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
 
 # Re-light the blinker progress bar FIRST, before the slower service stops
@@ -996,7 +998,10 @@ bootled_guard_stop() {
 # MDB is still talking to the DBC and does NOT yank the cable. Green blink
 # (= "safe to disconnect USB from DBC and reconnect laptop") is started in
 # the success branch at the bottom of this script, after DBC power-off.
-bootled amber
+# Set amber directly — onboot.sh has no bootled() helper, only the guard.
+i2cset -f -y 2 0x30 0x02 0xFF 2>/dev/null
+i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
+i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
 bootled_guard_start
 
 # Restore original onboot.sh if backed up, otherwise delete ourselves
@@ -1055,17 +1060,19 @@ log "  DBC stable after ${ELAPSED}s (stable_count=$STABLE)"
 # DBC first-boot done — advance to phase 3 (FL/FR/RR filled, RL breathing).
 relight_progress 3
 
-# Wait for SSH
+# Wait for SSH. The DBC is already ping-stable (loop above), so this is just
+# waiting for dropbear to come up on the freshly-booted image. Give it a
+# generous window — skipping tiles here means no offline maps.
 log "  waiting for DBC SSH..."
 ELAPSED=0
-while [ $ELAPSED -lt 60 ]; do
-  ssh root@$DBC_IP 'echo ok' >/dev/null 2>&1 && break
+while [ $ELAPSED -lt 180 ]; do
+  ssh -y root@$DBC_IP 'echo ok' >/dev/null 2>&1 && break
   ELAPSED=$((ELAPSED + 5))
   sleep 5
 done
 
-if [ $ELAPSED -ge 60 ]; then
-  log "WARNING: DBC not reachable after 60s — skipping tiles"
+if [ $ELAPSED -ge 180 ]; then
+  log "WARNING: DBC not reachable after 180s — skipping tiles"
   echo "success" > "$STATUS_FILE"
   cat "$LOG" >> "$STATUS_FILE"
   lsc --redis-addr localhost:6379 dbc off 2>/dev/null || true
