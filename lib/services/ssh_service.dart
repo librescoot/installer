@@ -142,7 +142,58 @@ class SshService {
 
   /// Connect to MDB and detect firmware version
   Future<DeviceInfo> connectToMdb() async {
-    return _connect(mdbHost);
+    final info = await _connect(mdbHost);
+    // The MDB has no reliable RTC, so its clock (and every log timestamp)
+    // drifts to nonsense across power cycles. Push the host's wall-clock time
+    // and timezone in now that we have a shell. Best-effort, never fatal.
+    await syncDeviceTime();
+    return info;
+  }
+
+  /// Set the connected device's clock + timezone from this host. Best-effort:
+  /// failures are logged and swallowed so a missing `hwclock`/`timedatectl`
+  /// never blocks the install.
+  Future<void> syncDeviceTime() async {
+    if (_client == null) return;
+    try {
+      final utc = DateTime.now().toUtc();
+      String two(int v) => v.toString().padLeft(2, '0');
+      final stamp =
+          '${utc.year.toString().padLeft(4, '0')}-${two(utc.month)}-${two(utc.day)} '
+          '${two(utc.hour)}:${two(utc.minute)}:${two(utc.second)}';
+      final tz = _hostTimezone();
+      final cmds = <String>[];
+      if (tz != null) {
+        cmds.add(
+            'timedatectl set-timezone $tz 2>/dev/null || ln -sf /usr/share/zoneinfo/$tz /etc/localtime 2>/dev/null || true');
+      }
+      // -u: interpret the stamp as UTC, independent of the device's timezone.
+      cmds.add('date -u -s "$stamp" >/dev/null 2>&1 || true');
+      cmds.add('hwclock -w -u 2>/dev/null || true');
+      await runCommand(cmds.join('; '), timeout: const Duration(seconds: 15));
+      debugPrint('SSH: synced device time to ${stamp}Z, tz=${tz ?? '(unknown)'}');
+    } catch (e) {
+      debugPrint('SSH: device time sync failed (non-fatal): $e');
+    }
+  }
+
+  /// Best-effort IANA timezone of this host (e.g. "Europe/Berlin"), read from
+  /// the /etc/localtime symlink. Returns null on Windows or if undeterminable.
+  String? _hostTimezone() {
+    try {
+      if (Platform.isWindows) return null;
+      final link = Link('/etc/localtime');
+      if (link.existsSync()) {
+        final target = link.targetSync();
+        const marker = 'zoneinfo/';
+        final i = target.indexOf(marker);
+        if (i >= 0) {
+          final tz = target.substring(i + marker.length);
+          if (tz.isNotEmpty && !tz.contains(' ')) return tz;
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 
   /// Connect to DBC via MDB jump host
