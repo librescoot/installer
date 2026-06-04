@@ -637,13 +637,19 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
     log "  syncing DBC..."
     dbc_ssh 'sync' >> "$LOG_FILE" 2>&1 || log "  sync failed"
 
-    # Trigger the reboot. We deliberately use `reboot &` so the SSH
-    # connection drops as systemd-shutdown runs — historically we slept
-    # 30s here as a "let it reboot" buffer, but step 6 already polls for
-    # several minutes for the UMS block device to appear. Skip the dead
-    # time and let step 6's poll absorb DBC reboot variance instead.
-    log "  rebooting DBC..."
+    # Reboot the DBC into u-boot UMS. Soft-reboot first so the DBC syncs and
+    # shuts down its filesystem cleanly, then after 10s force a hard power
+    # cycle. The force (dashboard:off:force) is required: a plain dashboard:off
+    # is rejected while a DBC update is flagged, and otherwise runs a graceful
+    # `dbc:command poweroff` + 4s wait that the seatbox-open / awake vehicle
+    # state interferes with, so the DBC never actually cycles. bootcmd is armed
+    # to `ums 0 mmc 2` with bootdelay=0, so powering back on drops straight
+    # into UMS; step 6 polls for the resulting block device.
+    log "  rebooting DBC (soft reboot, then forced power cycle)..."
     dbc_ssh 'reboot &' >> "$LOG_FILE" 2>&1 || log "  reboot failed"
+    sleep 10
+    lsc --redis-addr localhost:6379 dbc off-wait --force >> "$LOG_FILE" 2>&1 || log "  forced DBC off failed"
+    lsc --redis-addr localhost:6379 dbc on >> "$LOG_FILE" 2>&1 || log "  DBC power-on failed"
     sleep 3
 
     STEP4_OK="yes"
