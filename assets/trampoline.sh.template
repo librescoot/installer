@@ -328,13 +328,15 @@ fail() {
   exit 1
 }
 
-# SSH/SCP to DBC with retries. -y makes dropbear's dbclient accept the DBC
-# host key non-interactively — required after a flash, when the new image
-# presents a host key the MDB has never seen (and would otherwise refuse).
+# SSH/SCP to DBC with retries. -y -y makes dropbear skip host-key checking
+# entirely. A flash gives the DBC a brand-new host key; the MDB still has the
+# previous one in known_hosts, so a single -y (accept unknown, but ABORT on
+# mismatch) still fails on a re-flash. -y -y is required to reach a freshly
+# flashed DBC.
 dbc_ssh() {
   local tries=0
   while [ $tries -lt 3 ]; do
-    ssh -y root@$DBC_IP "$@" && return 0
+    ssh -y -y root@$DBC_IP "$@" && return 0
     tries=$((tries + 1))
     log "  ssh retry $tries/3..."
     sleep 3
@@ -356,12 +358,12 @@ wait_dbc_ssh() {
   local timeout="${1:-90}" elapsed=0
   log "  waiting for DBC SSH (timeout ${timeout}s)..."
   while [ $elapsed -lt $timeout ]; do
-    if ssh -y root@$DBC_IP 'echo ok' >/dev/null; then
+    if ssh -y -y root@$DBC_IP 'echo ok' >/dev/null; then
       local stable=1
       sleep 1
-      ssh -y root@$DBC_IP 'echo ok' >/dev/null && stable=$((stable+1))
+      ssh -y -y root@$DBC_IP 'echo ok' >/dev/null && stable=$((stable+1))
       sleep 1
-      ssh -y root@$DBC_IP 'echo ok' >/dev/null && stable=$((stable+1))
+      ssh -y -y root@$DBC_IP 'echo ok' >/dev/null && stable=$((stable+1))
       if [ $stable -ge 3 ]; then
         log "  DBC SSH stable after ${elapsed}s"
         return 0
@@ -593,7 +595,7 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
     fi
 
     # Check native fw_setenv (Librescoot DBC) vs stock
-    HAS_NATIVE=$(ssh -y root@$DBC_IP 'test -x /usr/bin/fw_setenv && test -f /etc/fw_env.config && echo yes' 2>/dev/null || echo no)
+    HAS_NATIVE=$(ssh -y -y root@$DBC_IP 'test -x /usr/bin/fw_setenv && test -f /etc/fw_env.config && echo yes' 2>/dev/null || echo no)
     log "  native fw_setenv: $HAS_NATIVE"
 
     if [ "$HAS_NATIVE" = "yes" ]; then
@@ -823,7 +825,7 @@ mkdir -p "$INSTALLER_DIR"
 log() { echo "$(date '+%H:%M:%S') $1" >> "$LOG"; }
 # Log all errors, always: every command's stderr appends to the log.
 exec 2>>"$LOG"
-dbc_ssh() { local t=0; while [ $t -lt 3 ]; do ssh -y root@$DBC_IP "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
+dbc_ssh() { local t=0; while [ $t -lt 3 ]; do ssh -y -y root@$DBC_IP "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
 dbc_scp() { local t=0; while [ $t -lt 3 ]; do scp "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
 
 # Re-light the blinker progress bar FIRST, before the slower service stops
@@ -1074,7 +1076,7 @@ relight_progress 3
 log "  waiting for DBC SSH..."
 ELAPSED=0
 while [ $ELAPSED -lt 180 ]; do
-  ssh -y root@$DBC_IP 'echo ok' >/dev/null && break
+  ssh -y -y root@$DBC_IP 'echo ok' >/dev/null && break
   ELAPSED=$((ELAPSED + 5))
   sleep 5
 done
