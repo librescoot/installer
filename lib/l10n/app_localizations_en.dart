@@ -694,6 +694,30 @@ class AppLocalizationsEn extends AppLocalizations {
       'Overall progress: Prep → Flash → Reboot → Maps';
 
   @override
+  String get blinkerPosFL => 'front left';
+
+  @override
+  String get blinkerPosFR => 'front right';
+
+  @override
+  String get blinkerPosBR => 'rear right';
+
+  @override
+  String get blinkerPosBL => 'rear left';
+
+  @override
+  String get blinkerStepPrep => 'Prepare DBC';
+
+  @override
+  String get blinkerStepFlash => 'Flash DBC';
+
+  @override
+  String get blinkerStepRestart => 'Restart MDB & DBC';
+
+  @override
+  String get blinkerStepMaps => 'Upload maps';
+
+  @override
   String get ledBootGreen => 'Dashboard LED blinking green';
 
   @override

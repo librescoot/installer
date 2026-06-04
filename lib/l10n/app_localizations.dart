@@ -1313,7 +1313,7 @@ abstract class AppLocalizations {
   /// No description provided for @ledBlinkerProgress.
   ///
   /// In en, this message translates to:
-  /// **'Blinkers fill left to right'**
+  /// **'Blinkers light up in turn'**
   String get ledBlinkerProgress;
 
   /// No description provided for @ledBlinkerProgressMeaning.
@@ -1321,6 +1321,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Overall progress: Prep → Flash → Reboot → Maps'**
   String get ledBlinkerProgressMeaning;
+
+  /// No description provided for @blinkerPosFL.
+  ///
+  /// In en, this message translates to:
+  /// **'front left'**
+  String get blinkerPosFL;
+
+  /// No description provided for @blinkerPosFR.
+  ///
+  /// In en, this message translates to:
+  /// **'front right'**
+  String get blinkerPosFR;
+
+  /// No description provided for @blinkerPosBR.
+  ///
+  /// In en, this message translates to:
+  /// **'rear right'**
+  String get blinkerPosBR;
+
+  /// No description provided for @blinkerPosBL.
+  ///
+  /// In en, this message translates to:
+  /// **'rear left'**
+  String get blinkerPosBL;
+
+  /// No description provided for @blinkerStepPrep.
+  ///
+  /// In en, this message translates to:
+  /// **'Prepare DBC'**
+  String get blinkerStepPrep;
+
+  /// No description provided for @blinkerStepFlash.
+  ///
+  /// In en, this message translates to:
+  /// **'Flash DBC'**
+  String get blinkerStepFlash;
+
+  /// No description provided for @blinkerStepRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'Restart MDB & DBC'**
+  String get blinkerStepRestart;
+
+  /// No description provided for @blinkerStepMaps.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload maps'**
+  String get blinkerStepMaps;
 
   /// No description provided for @ledBootGreen.
   ///

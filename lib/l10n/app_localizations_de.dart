@@ -700,6 +700,30 @@ class AppLocalizationsDe extends AppLocalizations {
       'Gesamt-Fortschritt: Vorbereitung → Flash → Neustart → Karten';
 
   @override
+  String get blinkerPosFL => 'vorne links';
+
+  @override
+  String get blinkerPosFR => 'vorne rechts';
+
+  @override
+  String get blinkerPosBR => 'hinten rechts';
+
+  @override
+  String get blinkerPosBL => 'hinten links';
+
+  @override
+  String get blinkerStepPrep => 'DBC vorbereiten';
+
+  @override
+  String get blinkerStepFlash => 'DBC flashen';
+
+  @override
+  String get blinkerStepRestart => 'MDB & DBC neu starten';
+
+  @override
+  String get blinkerStepMaps => 'Karten laden';
+
+  @override
   String get ledBootGreen => 'Tacho-LED blinkt grün';
 
   @override

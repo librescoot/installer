@@ -3055,7 +3055,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                   Text(l10n.watchLightsForProgress,
                       style: TextStyle(color: Colors.grey.shade300, fontSize: 13)),
                   const SizedBox(height: 8),
-                  _ledSignal(l10n.ledBlinkerProgress, l10n.ledBlinkerProgressMeaning),
+                  _blinkerPhases(l10n),
                   _ledSignal(l10n.ledBootAmber, l10n.ledBootAmberMeaning),
                   _ledSignal(l10n.ledBootGreen, l10n.ledBootGreenMeaning),
                   _ledSignal(l10n.ledBootRedError, l10n.ledBootRedMeaning),
@@ -3171,6 +3171,66 @@ class _InstallerScreenState extends State<InstallerScreen> {
               textAlign: TextAlign.right,
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  // The four turn-signal LEDs fill in sequence (FL -> FR -> BR -> BL), one per
+  // trampoline phase. Label each position with the step it represents so the
+  // user can read progress off the scooter itself.
+  Widget _blinkerPhases(AppLocalizations l10n) {
+    Widget phase(int n, String pos, String step) {
+      return Padding(
+        padding: const EdgeInsets.only(left: 24, bottom: 3),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 14,
+              child: Text('$n',
+                  style: const TextStyle(
+                      fontSize: 12, color: kAccent, fontWeight: FontWeight.w600)),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 2,
+              child: Text(pos,
+                  style: TextStyle(fontSize: 12.5, color: Colors.grey.shade500)),
+            ),
+            const SizedBox(width: 8),
+            Expanded(flex: 3, child: Text(step, style: const TextStyle(fontSize: 12.5))),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(width: 8),
+                const Padding(
+                  padding: EdgeInsets.only(top: 3),
+                  child: Icon(Icons.circle, size: 8, color: kAccent),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                    child: Text(l10n.ledBlinkerProgress,
+                        style: const TextStyle(fontSize: 13))),
+              ],
+            ),
+          ),
+          phase(1, l10n.blinkerPosFL, l10n.blinkerStepPrep),
+          phase(2, l10n.blinkerPosFR, l10n.blinkerStepFlash),
+          phase(3, l10n.blinkerPosBR, l10n.blinkerStepRestart),
+          phase(4, l10n.blinkerPosBL, l10n.blinkerStepMaps),
         ],
       ),
     );
