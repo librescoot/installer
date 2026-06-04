@@ -1079,20 +1079,27 @@ log "  DBC stable after ${ELAPSED}s (stable_count=$STABLE)"
 # starts. That keeps the two distinguishable: a BR blinker stuck breathing
 # means the DBC never came back (USB/boot issue), a stuck BL means the data
 # copy itself is slow.
-# Wait for SSH. This is a poll, not a blind wait — it breaks the instant the
-# DBC answers; the 180s is only the give-up bound. The DBC is already
-# ping-stable (loop above), so this is just dropbear coming up on the fresh
-# image. Skipping tiles here means no offline maps.
+# Wait for SSH, re-asserting DBC power as we go. A freshly flashed DBC
+# reboots once on first boot to apply its boot-partition (u-boot) update,
+# and that update's `complete-dbc` makes vehicle-service power the DBC off
+# if the vehicle is in standby. Either way the DBC drops off the bus. So
+# whenever it's unpingable, force it back on (`lsc dbc on`) — the boot
+# update only fires once, so it comes up and stays up. Poll, not a blind
+# wait: breaks the instant the DBC answers. Skipping tiles = no offline maps.
 log "  waiting for DBC SSH..."
 ELAPSED=0
-while [ $ELAPSED -lt 180 ]; do
+while [ $ELAPSED -lt 300 ]; do
   ssh -y -y root@$DBC_IP 'echo ok' >/dev/null && break
+  if ! ping -c 1 -W 2 $DBC_IP >/dev/null 2>&1 && [ $((ELAPSED % 20)) -eq 0 ]; then
+    log "  DBC unreachable — re-asserting power (lsc dbc on)"
+    lsc --redis-addr localhost:6379 dbc on >/dev/null 2>&1 || true
+  fi
   ELAPSED=$((ELAPSED + 5))
   sleep 5
 done
 
-if [ $ELAPSED -ge 180 ]; then
-  log "WARNING: DBC not reachable after 180s — skipping tiles"
+if [ $ELAPSED -ge 300 ]; then
+  log "WARNING: DBC not reachable after 300s — skipping tiles"
   echo "success" > "$STATUS_FILE"
   cat "$LOG" >> "$STATUS_FILE"
   lsc --redis-addr localhost:6379 dbc off 2>/dev/null || true
