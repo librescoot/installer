@@ -180,15 +180,18 @@ class _MajorStepItem extends StatelessWidget {
       color: isActive ? kAccent.withValues(alpha: 0.06) : null,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           leading,
           const SizedBox(width: 10),
-          Text(
-            isSkipped ? '${step.localizedTitle(l10n)} (${l10n.majorStepSkippedSuffix})' : step.localizedTitle(l10n),
-            style: TextStyle(
-              color: textColor,
-              fontSize: 14,
-              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+          Expanded(
+            child: Text(
+              isSkipped ? '${step.localizedTitle(l10n)} (${l10n.majorStepSkippedSuffix})' : step.localizedTitle(l10n),
+              style: TextStyle(
+                color: textColor,
+                fontSize: 14,
+                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+              ),
             ),
           ),
         ],
