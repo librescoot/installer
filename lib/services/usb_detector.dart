@@ -814,21 +814,46 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
   }
 
   Future<String?> _findLinuxDiskPath() async {
+    // Match the block device to the MDB's USB VID:PID (0525:A4A5). The old
+    // "first block device with TRAN=usb" grabbed whatever else was plugged in
+    // — an SD-card reader at /dev/sda, a USB stick — and we'd target the wrong
+    // disk. Walk sysfs and accept only a device whose USB ancestor is the MDB
+    // gadget. No match -> null; never fall back to guessing /dev/sda.
     try {
-      // Find block device for USB mass storage
-      final result = await Process.run('lsblk', ['-o', 'NAME,TRAN', '-n']);
-      if (result.exitCode != 0) return null;
-
-      for (final line in result.stdout.toString().split('\n')) {
-        if (line.contains('usb')) {
-          final name = line.split(' ').first.trim();
-          if (name.isNotEmpty) {
-            return '/dev/$name';
-          }
-        }
+      final blockDir = Directory('/sys/block');
+      if (!blockDir.existsSync()) return null;
+      final names = blockDir
+          .listSync()
+          .map((e) => e.path.split('/').last)
+          .where((n) => n.startsWith('sd'))
+          .toList()
+        ..sort();
+      for (final name in names) {
+        if (_linuxBlockIsMdb(name)) return '/dev/$name';
       }
     } catch (_) {}
     return null;
+  }
+
+  /// True if /sys/block/<name> sits under the MDB USB gadget (idVendor 0525,
+  /// idProduct a4a5). Resolves the sysfs symlink and walks up to the first
+  /// ancestor exposing idVendor/idProduct (the USB device node).
+  bool _linuxBlockIsMdb(String name) {
+    try {
+      final real = Directory('/sys/block/$name').resolveSymbolicLinksSync();
+      var dir = Directory(real);
+      for (var i = 0; i < 12 && dir.path.length > 1; i++) {
+        final vid = File('${dir.path}/idVendor');
+        final pid = File('${dir.path}/idProduct');
+        if (vid.existsSync() && pid.existsSync()) {
+          final v = vid.readAsStringSync().trim().toLowerCase();
+          final p = pid.readAsStringSync().trim().toLowerCase();
+          return v == '0525' && p == 'a4a5';
+        }
+        dir = dir.parent;
+      }
+    } catch (_) {}
+    return false;
   }
 
   /// Sanitize WMIC output (remove null bytes and other artifacts)
