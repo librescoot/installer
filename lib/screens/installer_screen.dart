@@ -73,6 +73,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _btPairingActive = false;
   String? _blePinCode;
   bool _bleConnected = false;
+  String? _bleMac;
   Timer? _blePinPollTimer;
   final ScrollController _phaseScrollController = ScrollController();
   bool _keycardLearning = false;
@@ -271,6 +272,26 @@ class _InstallerScreenState extends State<InstallerScreen> {
     if (phase == InstallerPhase.dbcFlash) {
       _dbcFlashWatchStarted = false;
       _dbcUsbDisconnected = false;
+    }
+    if (phase == InstallerPhase.bluetoothPairing) {
+      _fetchBleMac();
+    }
+  }
+
+  /// Read the scooter's BLE MAC from the MDB so the user can match it against
+  /// the device they're pairing to. Best-effort; leaves _bleMac null on error.
+  Future<void> _fetchBleMac() async {
+    if (_isDryRun || !_sshService.isConnected) return;
+    try {
+      final out = (await _sshService
+              .runCommand('redis-cli hget ble mac-address')
+              .timeout(const Duration(seconds: 5)))
+          .trim();
+      if (mounted && out.isNotEmpty) {
+        setState(() => _bleMac = out.toUpperCase());
+      }
+    } catch (e) {
+      debugPrint('UI: BLE MAC fetch failed: $e');
     }
   }
 
@@ -3590,6 +3611,29 @@ class _InstallerScreenState extends State<InstallerScreen> {
           const SizedBox(height: 8),
           Text(l10n.bluetoothPairingHint,
               style: TextStyle(color: Colors.grey.shade400)),
+          if (_bleMac != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.blueAccent.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.25)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('${l10n.bleMacLabel}: ',
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+                  SelectableText(_bleMac!,
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'monospace')),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
 
           if (!_btPairingActive) ...[

@@ -2036,6 +2036,12 @@ abstract class AppLocalizations {
   /// **'Pair your phone or other Bluetooth devices with the scooter.'**
   String get bluetoothPairingHint;
 
+  /// No description provided for @bleMacLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'BLE address'**
+  String get bleMacLabel;
+
   /// No description provided for @startPairing.
   ///
   /// In en, this message translates to:

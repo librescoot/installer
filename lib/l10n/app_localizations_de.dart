@@ -1102,6 +1102,9 @@ class AppLocalizationsDe extends AppLocalizations {
       'Koppele dein Handy oder andere Bluetooth-Geräte mit dem Roller.';
 
   @override
+  String get bleMacLabel => 'BLE-Adresse';
+
+  @override
   String get startPairing => 'Entsperren und Kopplung starten';
 
   @override

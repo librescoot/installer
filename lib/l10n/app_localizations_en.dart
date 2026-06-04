@@ -1095,6 +1095,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Pair your phone or other Bluetooth devices with the scooter.';
 
   @override
+  String get bleMacLabel => 'BLE address';
+
+  @override
   String get startPairing => 'Unlock and start pairing';
 
   @override

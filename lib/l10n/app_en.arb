@@ -454,6 +454,7 @@
   "skipOfflineMapsHint": "You can install maps later by re-running the installer",
   "bluetoothPairingHeading": "Bluetooth Pairing",
   "bluetoothPairingHint": "Pair your phone or other Bluetooth devices with the scooter.",
+  "bleMacLabel": "BLE address",
   "startPairing": "Unlock and start pairing",
   "skipPairing": "Skip",
   "pairingActive": "Scooter unlocked",

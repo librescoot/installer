@@ -334,6 +334,7 @@
   "skipOfflineMapsHint": "Karten können später durch erneutes Ausführen des Installers installiert werden",
   "bluetoothPairingHeading": "Bluetooth-Kopplung",
   "bluetoothPairingHint": "Koppele dein Handy oder andere Bluetooth-Geräte mit dem Roller.",
+  "bleMacLabel": "BLE-Adresse",
   "startPairing": "Entsperren und Kopplung starten",
   "skipPairing": "Überspringen",
   "pairingActive": "Roller entsperrt",
