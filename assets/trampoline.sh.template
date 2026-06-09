@@ -266,14 +266,129 @@ signal_error_stop() {
   done
 }
 
+# Restore USB gadget (RNDIS) mode so the installer can reach us again.
+# The chipidea role write can fail (EBUSY) while a device still occupies
+# the host port, and the old single-shot version silenced that, leaving
+# the MDB stuck in host mode with the laptop unable to see it. So:
+# verify the role actually flipped and usb0 came up, retrying a few
+# times. Returns 0 only on confirmed gadget mode.
 restore_gadget() {
   log "Restoring gadget mode..."
-  echo gadget > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null || true
-  modprobe g_ether 2>/dev/null || true
-  sleep 2
-  ifconfig usb0 192.168.7.1 netmask 255.255.255.0 up 2>/dev/null || true
-  log "  role: $(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)"
-  log "  UDC: $(cat /sys/class/udc/ci_hdrc.0/state 2>/dev/null)"
+  if [ "$(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)" = "gadget" ] \
+      && ifconfig usb0 2>/dev/null | grep -q '192\.168\.7\.1'; then
+    log "  already in gadget mode with usb0 up"
+    return 0
+  fi
+  local attempt=0
+  while [ $attempt -lt 5 ]; do
+    attempt=$((attempt + 1))
+    rmmod g_ether 2>/dev/null || true
+    sleep 1
+    echo gadget > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null || true
+    sleep 1
+    modprobe g_ether 2>/dev/null || true
+    sleep 1
+    ifconfig usb0 192.168.7.1 netmask 255.255.255.0 up 2>/dev/null || true
+    sleep 1
+    local role="$(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)"
+    if [ "$role" = "gadget" ] && ifconfig usb0 2>/dev/null | grep -q '192\.168\.7\.1'; then
+      log "  gadget restored (attempt $attempt), UDC: $(cat /sys/class/udc/ci_hdrc.0/state 2>/dev/null)"
+      return 0
+    fi
+    log "  gadget restore attempt $attempt failed (role=$role), retrying..."
+    sleep 2
+  done
+  log "  gadget restore FAILED after $attempt attempts"
+  return 1
+}
+
+# Detached gadget-mode rescue, spawned from fail() when restore_gadget()
+# could not confirm gadget mode. Keeps re-attempting the role flip; the
+# write that fails while the DBC still occupies the host port succeeds
+# once the user swaps the cable. Once gadget mode + usb0 are up it only
+# watches, exiting when the laptop enumerates us. If gadget mode still
+# can't be established after 240s, it reboots the MDB: a normal boot
+# always comes back in gadget mode, so the reboot is guaranteed recovery.
+# Before rebooting it installs rescue-onboot.sh as /data/onboot.sh so the
+# red error blink comes back right after boot; the installer reads the
+# status file as soon as it reconnects, so the error surfaces either way.
+# systemd-run for the same cgroup-survival reason as the LED units;
+# stop-error-signals.sh stops it if it's still around on reconnect.
+GADGET_RESCUE_UNIT="librescoot-gadget-rescue"
+gadget_rescue_start() {
+  systemctl stop "${GADGET_RESCUE_UNIT}.service" 2>/dev/null
+  systemd-run --unit="$GADGET_RESCUE_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
+    LOG=/data/installer/trampoline.log
+    DEADLINE=$(( $(date +%s) + 240 ))
+    while :; do
+      ROLE="$(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)"
+      if [ "$ROLE" = "gadget" ] && ifconfig usb0 2>/dev/null | grep -q "192\.168\.7\.1"; then
+        if cat /sys/class/udc/ci_hdrc.0/state 2>/dev/null | grep -q configured; then
+          echo "$(date "+%H:%M:%S") gadget-rescue: laptop enumerated, done" >> "$LOG"
+          exit 0
+        fi
+        sleep 2
+      else
+        echo "$(date "+%H:%M:%S") gadget-rescue: role=$ROLE, retrying gadget restore" >> "$LOG"
+        rmmod g_ether 2>/dev/null
+        sleep 1
+        echo gadget > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null
+        sleep 1
+        modprobe g_ether 2>/dev/null
+        sleep 1
+        ifconfig usb0 192.168.7.1 netmask 255.255.255.0 up 2>/dev/null
+        sleep 2
+      fi
+      if [ "$(date +%s)" -ge "$DEADLINE" ]; then
+        ROLE="$(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)"
+        if [ "$ROLE" = "gadget" ]; then
+          echo "$(date "+%H:%M:%S") gadget-rescue: gadget up, laptop never enumerated, leaving as-is" >> "$LOG"
+          exit 0
+        fi
+        echo "$(date "+%H:%M:%S") gadget-rescue: gadget mode unrecoverable after 240s, rebooting MDB" >> "$LOG"
+        if [ -f /data/onboot.sh ]; then
+          cp /data/onboot.sh /data/installer/onboot.sh.rescue-bak
+        fi
+        cp /data/installer/rescue-onboot.sh /data/onboot.sh
+        chmod +x /data/onboot.sh
+        sync &
+        sleep 10
+        reboot &
+        sleep 30
+        reboot -f
+        exit 0
+      fi
+    done
+  '
+}
+
+# Last-ditch watchdog for a trampoline that dies in host mode WITHOUT
+# reaching fail(): OOM kill, script bug, or (most likely) the flasher
+# stuck in uninterruptible sleep on a USB device that died mid-write.
+# The trampoline logs constantly, so the log mtime is a free heartbeat:
+# if the role is still host and the log has been silent for 15 minutes,
+# the install is dead and nobody is coming to restore gadget mode.
+# 15 min is sized for the slowest legitimate quiet stretch (the dd
+# fallback flasher only writes to the log when it finishes). Recovery
+# itself lives in the staged watchdog-recover.sh; this unit only
+# detects the stall. Armed once at trampoline start (it never fires
+# while the role is gadget), gone on any reboot, stopped explicitly in
+# fail() so it can't race the gadget-rescue unit.
+TRAMPOLINE_WATCHDOG_UNIT="librescoot-trampoline-watchdog"
+trampoline_watchdog_start() {
+  systemctl stop "${TRAMPOLINE_WATCHDOG_UNIT}.service" 2>/dev/null
+  systemd-run --unit="$TRAMPOLINE_WATCHDOG_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
+    while :; do
+      sleep 60
+      [ "$(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)" = "host" ] || continue
+      [ -n "$(find /data/installer/trampoline.log -mmin +15 2>/dev/null)" ] || continue
+      /bin/sh /data/installer/watchdog-recover.sh
+      exit 0
+    done
+  '
+}
+trampoline_watchdog_stop() {
+  systemctl stop "${TRAMPOLINE_WATCHDOG_UNIT}.service" 2>/dev/null
 }
 
 # "Did the user yank the DBC cable and replace it with the laptop?"
@@ -320,9 +435,19 @@ fail() {
   log "ERROR: $1"
   echo "error: $1" > "$STATUS_FILE"
   cat "$LOG_FILE" >> "$STATUS_FILE"
+  # Status must survive a rescue reboot, so flush it early. Backgrounded:
+  # a wedged USB device can hang a full sync, and the LED signals and
+  # gadget restore below must still run regardless.
+  sync &
+  sleep 2
+  # The watchdog must not fire its own recovery while the rescue below
+  # owns the situation.
+  trampoline_watchdog_stop
   bootled_blink_red
   signal_error
-  restore_gadget
+  if ! restore_gadget; then
+    gadget_rescue_start
+  fi
   # Indicators are detached and run until the installer reconnects via SSH
   # and stops them. Just exit cleanly here.
   exit 1
@@ -433,6 +558,13 @@ cat > "$INSTALLER_DIR/stop-error-signals.sh" << 'STOP_HELPER'
 systemctl stop librescoot-bootled-blink.service 2>/dev/null
 systemctl stop librescoot-bootled-guard.service 2>/dev/null
 systemctl stop librescoot-bootled-hazards.service 2>/dev/null
+# Gadget-mode rescue loop from fail(): normally exits on its own once the
+# laptop enumerates, but stop it explicitly so it can never reboot the MDB
+# out from under a connected installer.
+systemctl stop librescoot-gadget-rescue.service 2>/dev/null
+# Host-mode stall watchdog: harmless once we're reachable again (it only
+# acts on host role + silent log), but stop it for the same reason.
+systemctl stop librescoot-trampoline-watchdog.service 2>/dev/null
 if [ -f /data/bootled-blink.pid ]; then
   pid="$(cat /data/bootled-blink.pid 2>/dev/null)"
   if [ -n "$pid" ]; then
@@ -476,6 +608,119 @@ systemctl start librescoot-ums 2>/dev/null || true
 exit 0
 STOP_HELPER
 chmod +x "$INSTALLER_DIR/stop-error-signals.sh"
+
+# =========================================================================
+# Staged for the emergency-reboot paths (gadget-rescue deadline, watchdog).
+# Installed as /data/onboot.sh just before an emergency MDB reboot so the
+# red error blink comes back right after boot instead of leaving the user
+# with a dark scooter. Restores any backed-up onboot.sh (or self-deletes)
+# without executing it, same as the step-8 onboot does. The blink unit is
+# stopped by stop-error-signals.sh when the installer reconnects.
+cat > "$INSTALLER_DIR/rescue-onboot.sh" << 'RESCUE_ONBOOT'
+#!/bin/sh
+# Written by the installer's emergency-reboot recovery. Re-arms the red
+# error blink after boot, then puts /data/onboot.sh back the way it was.
+INSTALLER_DIR="/data/installer"
+if [ -f "$INSTALLER_DIR/onboot.sh.rescue-bak" ]; then
+  mv "$INSTALLER_DIR/onboot.sh.rescue-bak" /data/onboot.sh
+else
+  rm -f /data/onboot.sh
+fi
+# LP5562 init (keycard-service is masked, so nobody else does this)
+i2cset -f -y 2 0x30 0x0D 0xFF 2>/dev/null
+i2cset -f -y 2 0x30 0x01 0x3F 2>/dev/null
+i2cset -f -y 2 0x30 0x70 0x00 2>/dev/null
+i2cset -f -y 2 0x30 0x08 0x61 2>/dev/null
+i2cset -f -y 2 0x30 0x00 0xC0 2>/dev/null
+i2cset -f -y 2 0x30 0x05 0xAF 2>/dev/null
+i2cset -f -y 2 0x30 0x06 0xAF 2>/dev/null
+i2cset -f -y 2 0x30 0x07 0xAF 2>/dev/null
+systemctl stop librescoot-bootled-blink.service 2>/dev/null
+systemd-run --unit=librescoot-bootled-blink --collect --quiet --slice=system.slice /bin/sh -c '
+  while true; do
+    i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
+    i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
+    i2cset -f -y 2 0x30 0x04 0xFF 2>/dev/null
+    sleep 0.4
+    i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
+    i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
+    i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
+    sleep 0.4
+  done
+'
+exit 0
+RESCUE_ONBOOT
+chmod +x "$INSTALLER_DIR/rescue-onboot.sh"
+
+# =========================================================================
+# Recovery action for the host-mode stall watchdog. Kept as a staged file
+# so it gets full quoting freedom (the watchdog unit itself is a single-
+# quoted systemd-run string). Tries an in-place gadget restore first: if
+# that works we keep the running system (and its LED signals) and just
+# blink red until the installer reconnects and reads the status. If the
+# role is wedged, fall back to the emergency reboot. A stalled flasher in
+# D-state can hang sync and even a graceful reboot, hence the timeouts
+# and the reboot -f fallback.
+cat > "$INSTALLER_DIR/watchdog-recover.sh" << 'WATCHDOG_RECOVER'
+#!/bin/sh
+INSTALLER_DIR="/data/installer"
+LOG="$INSTALLER_DIR/trampoline.log"
+STATUS="$INSTALLER_DIR/trampoline-status"
+log() { echo "$(date '+%H:%M:%S') watchdog: $1" >> "$LOG"; }
+
+log "trampoline stalled in host mode, attempting recovery"
+echo "error: installation stalled in USB host mode and was recovered by the watchdog. Please retry the install." > "$STATUS"
+cat "$LOG" >> "$STATUS"
+sync &
+sleep 5
+
+systemctl stop librescoot-bootled-guard.service 2>/dev/null
+
+attempt=0
+while [ $attempt -lt 3 ]; do
+  attempt=$((attempt + 1))
+  rmmod g_ether 2>/dev/null
+  sleep 1
+  echo gadget > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null
+  sleep 1
+  modprobe g_ether 2>/dev/null
+  sleep 1
+  ifconfig usb0 192.168.7.1 netmask 255.255.255.0 up 2>/dev/null
+  sleep 1
+  if [ "$(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)" = "gadget" ] \
+      && ifconfig usb0 2>/dev/null | grep -q '192\.168\.7\.1'; then
+    log "gadget restored in place (attempt $attempt)"
+    systemctl stop librescoot-bootled-blink.service 2>/dev/null
+    systemd-run --unit=librescoot-bootled-blink --collect --quiet --slice=system.slice /bin/sh -c '
+      while true; do
+        i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
+        i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
+        i2cset -f -y 2 0x30 0x04 0xFF 2>/dev/null
+        sleep 0.4
+        i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
+        i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
+        i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
+        sleep 0.4
+      done
+    '
+    exit 0
+  fi
+  sleep 2
+done
+
+log "gadget restore failed, rebooting MDB"
+if [ -f /data/onboot.sh ]; then
+  cp /data/onboot.sh "$INSTALLER_DIR/onboot.sh.rescue-bak"
+fi
+cp "$INSTALLER_DIR/rescue-onboot.sh" /data/onboot.sh
+chmod +x /data/onboot.sh
+sync &
+sleep 10
+reboot &
+sleep 30
+reboot -f
+WATCHDOG_RECOVER
+chmod +x "$INSTALLER_DIR/watchdog-recover.sh"
 
 echo "" > "$LOG_FILE"
 log "=========================================="
@@ -531,6 +776,10 @@ bootled_guard_start
 # Capture system journal in background for debugging
 journalctl -f --no-pager >> "$INSTALLER_DIR/trampoline-journal.log" 2>&1 &
 JOURNAL_PID=$!
+
+# Arm the host-mode stall watchdog. Inert while the role is gadget, so
+# arming this early is free; it covers every host-mode stint from here on.
+trampoline_watchdog_start
 
 # Phase 0 — Prep: front ring breathes, FL blinker breathes.
 set_progress_phase 0
@@ -691,19 +940,44 @@ step_begin "Step 6: wait for DBC UMS device"
 TIMEOUT=300
 ELAPSED=0
 DBC_DEV=""
+# Remember where the captured journal stood when the wait started, so the
+# timeout analysis below only looks at bus activity from THIS window.
+# Earlier host-mode stints (step 3 probe) would otherwise pollute it.
+STEP6_JNL_START=$(wc -l < "$INSTALLER_DIR/trampoline-journal.log" 2>/dev/null || echo 0)
+STEP6_REPOWERED=""
 while [ $ELAPSED -lt $TIMEOUT ]; do
   DBC_DEV="$(find_dbc_block_device 2>/dev/null)" && break
   ELAPSED=$((ELAPSED + 2))
   if [ $((ELAPSED % 10)) -eq 0 ]; then
     log "  ${ELAPSED}s... $(lsusb 2>/dev/null | grep 0525 || echo 'no USB')"
   fi
+  # Halfway nudge: re-power the DBC once. Recovers a DBC that hung before
+  # reaching UMS; bootcmd is armed with bootdelay=0, so a healthy DBC just
+  # lands back in UMS. Harmless if the cable simply isn't connected yet.
+  if [ $ELAPSED -ge $((TIMEOUT / 2)) ] && [ -z "$STEP6_REPOWERED" ]; then
+    STEP6_REPOWERED="yes"
+    log "  halfway through the wait, re-powering DBC once..."
+    lsc --redis-addr localhost:6379 dbc off-wait --force >> "$LOG_FILE" 2>&1 || log "  DBC off failed"
+    lsc --redis-addr localhost:6379 dbc on >> "$LOG_FILE" 2>&1 || log "  DBC on failed"
+  fi
   sleep 2
 done
 if [ -z "$DBC_DEV" ]; then
   # Last-ditch: see if the user yanked the DBC and connected the laptop.
   # If so, probe_for_laptop_then_restore_host calls fail() with a clear
-  # message and never returns. If not, fall through to the generic fail.
+  # message and never returns.
   probe_for_laptop_then_restore_host
+  # Classify what (if anything) the bus saw during the wait, from the
+  # journal we're already capturing. An unplugged cable and an unpowered
+  # device are electrically identical (no D+ pullup), so total silence
+  # means the cable most likely never reached the DBC; enumeration errors
+  # mean something is plugged but the link is bad.
+  STEP6_JNL=$(tail -n +$((STEP6_JNL_START + 1)) "$INSTALLER_DIR/trampoline-journal.log" 2>/dev/null | grep "usb 1-1")
+  if [ -z "$STEP6_JNL" ]; then
+    fail "No USB device was detected while waiting for the DBC. The USB cable is probably not plugged into the DBC. Connect the MDB's USB cable to the DBC and retry."
+  elif echo "$STEP6_JNL" | grep -qiE "device descriptor read|device not accepting|unable to enumerate|error"; then
+    fail "A USB device was detected but failed to enumerate. Reseat the USB cable between MDB and DBC and retry."
+  fi
   fail "DBC UMS not found in ${TIMEOUT}s"
 fi
 log "DBC device: $DBC_DEV ($(cat /sys/block/$(basename $DBC_DEV)/size 2>/dev/null || echo '?') sectors)"
