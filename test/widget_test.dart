@@ -2,8 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/models/installer_phase.dart';
 
 void main() {
-  test('InstallerPhase has 14 values', () {
-    expect(InstallerPhase.values.length, 14);
+  test('InstallerPhase has 18 values', () {
+    expect(InstallerPhase.values.length, 18);
   });
 
   test('InstallerPhase first is welcome, last is finish', () {

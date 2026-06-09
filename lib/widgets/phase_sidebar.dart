@@ -95,12 +95,13 @@ class PhaseSidebar extends StatelessWidget {
                   // Show substeps only for the active major step
                   if (major.isActive(currentPhase) && major.phases.length > 1)
                     for (final phase in major.phases)
-                      _SubStepItem(
-                        phase: phase,
-                        isCurrent: phase == currentPhase,
-                        isCompleted: completedPhases.contains(phase) || phase.index < currentPhase.index,
-                        l10n: l10n,
-                      ),
+                      if (!phase.hiddenUnlessActive || phase == currentPhase)
+                        _SubStepItem(
+                          phase: phase,
+                          isCurrent: phase == currentPhase,
+                          isCompleted: completedPhases.contains(phase) || phase.index < currentPhase.index,
+                          l10n: l10n,
+                        ),
                 ],
               ],
             ),

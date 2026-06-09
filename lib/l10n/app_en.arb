@@ -13,6 +13,8 @@
   "phasePhysicalPrepDescription": "Open footwell, connect USB",
   "phaseMdbConnectTitle": "MDB Connect",
   "phaseMdbConnectDescription": "Detect device and establish SSH",
+  "phaseResumeDetectedTitle": "Resume",
+  "phaseResumeDetectedDescription": "Interrupted installation found",
   "phaseHealthCheckTitle": "Health Check",
   "phaseHealthCheckDescription": "Verify scooter readiness",
   "phaseBatteryRemovalTitle": "Remove Battery",
@@ -102,6 +104,11 @@
   "configuringNetwork": "Configuring network...",
   "connectingSsh": "Connecting via SSH...",
   "waitingForUnlock": "Unlock the scooter to continue...",
+  "unfinishedInstallDetected": "Unfinished installation detected, continuing without unlock...",
+  "waitingForBatteryData": "Waiting for AUX/CBB battery data...",
+  "resumeFoundHeading": "Interrupted installation found",
+  "resumeFoundBody": "A previous installation on this scooter did not finish. The unlock step has been skipped and disabled services were re-enabled. Continuing will run the installation again from the beginning.",
+  "resumeFoundLastError": "Last recorded error:",
   "unlockTimeout": "Timed out waiting for scooter to be unlocked. Unlock and retry.",
   "awaitingUnlockHeading": "Unlock your scooter",
   "awaitingUnlockDetail": "Please unlock your scooter to continue. Use your keycard or paired phone.",
@@ -251,6 +258,8 @@
       "error": { "type": "String" }
     }
   },
+
+  "dbcReadyButton": "Begin flashing DBC",
 
   "dbcFlashInProgress": "DBC Flash in Progress",
   "dbcFlashSwapCablesTitle": "Swap USB to the DBC",

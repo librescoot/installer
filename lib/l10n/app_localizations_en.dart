@@ -40,6 +40,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get phaseMdbConnectDescription => 'Detect device and establish SSH';
 
   @override
+  String get phaseResumeDetectedTitle => 'Resume';
+
+  @override
+  String get phaseResumeDetectedDescription => 'Interrupted installation found';
+
+  @override
   String get phaseHealthCheckTitle => 'Health Check';
 
   @override
@@ -312,6 +318,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get waitingForUnlock => 'Unlock the scooter to continue...';
+
+  @override
+  String get unfinishedInstallDetected =>
+      'Unfinished installation detected, continuing without unlock...';
+
+  @override
+  String get waitingForBatteryData => 'Waiting for AUX/CBB battery data...';
+
+  @override
+  String get resumeFoundHeading => 'Interrupted installation found';
+
+  @override
+  String get resumeFoundBody =>
+      'A previous installation on this scooter did not finish. The unlock step has been skipped and disabled services were re-enabled. Continuing will run the installation again from the beginning.';
+
+  @override
+  String get resumeFoundLastError => 'Last recorded error:';
 
   @override
   String get unlockTimeout =>
@@ -641,6 +664,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String uploadError(String error) {
     return 'Upload error: $error';
   }
+
+  @override
+  String get dbcReadyButton => 'Begin flashing DBC';
 
   @override
   String get dbcFlashInProgress => 'DBC Flash in Progress';

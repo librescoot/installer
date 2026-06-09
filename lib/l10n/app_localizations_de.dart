@@ -40,6 +40,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get phaseMdbConnectDescription => 'Gerät erkennen und SSH aufbauen';
 
   @override
+  String get phaseResumeDetectedTitle => 'Fortsetzen';
+
+  @override
+  String get phaseResumeDetectedDescription =>
+      'Unterbrochene Installation gefunden';
+
+  @override
   String get phaseHealthCheckTitle => 'Statusprüfung';
 
   @override
@@ -316,6 +323,23 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get waitingForUnlock => 'Roller entsperren, um fortzufahren...';
+
+  @override
+  String get unfinishedInstallDetected =>
+      'Unvollständige Installation erkannt, Entsperren wird übersprungen...';
+
+  @override
+  String get waitingForBatteryData => 'Warte auf AUX/CBB-Batteriedaten...';
+
+  @override
+  String get resumeFoundHeading => 'Unterbrochene Installation gefunden';
+
+  @override
+  String get resumeFoundBody =>
+      'Eine frühere Installation auf diesem Roller wurde nicht abgeschlossen. Der Entsperr-Schritt wurde übersprungen und deaktivierte Dienste wurden wieder aktiviert. Die Installation beginnt anschließend von vorn.';
+
+  @override
+  String get resumeFoundLastError => 'Letzter aufgezeichneter Fehler:';
 
   @override
   String get unlockTimeout =>
@@ -647,6 +671,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String uploadError(String error) {
     return 'Upload-Fehler: $error';
   }
+
+  @override
+  String get dbcReadyButton => 'DBC-Flashen beginnen';
 
   @override
   String get dbcFlashInProgress => 'DBC wird geflasht';

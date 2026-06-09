@@ -19,6 +19,12 @@ enum InstallerPhase {
     description: 'Detect device and establish SSH',
     isManual: false,
   ),
+  resumeDetected(
+    title: 'Resume',
+    description: 'Interrupted installation found',
+    isManual: true,
+    hiddenUnlessActive: true,
+  ),
   healthCheck(
     title: 'Health Check',
     description: 'Verify scooter readiness',
@@ -89,17 +95,22 @@ enum InstallerPhase {
     required this.title,
     required this.description,
     required this.isManual,
+    this.hiddenUnlessActive = false,
   });
 
   final String title;
   final String description;
   final bool isManual;
+
+  /// Phases most installs never enter (e.g. resuming an interrupted
+  /// install). Shown in the sidebar only while they are the current phase.
+  final bool hiddenUnlessActive;
 }
 
 /// Major step grouping for sidebar display
 enum MajorStep {
   prepare('Prepare', [InstallerPhase.welcome, InstallerPhase.notices, InstallerPhase.physicalPrep]),
-  connect('Connect', [InstallerPhase.mdbConnect, InstallerPhase.healthCheck]),
+  connect('Connect', [InstallerPhase.mdbConnect, InstallerPhase.resumeDetected, InstallerPhase.healthCheck]),
   mdbFlash('Flash MDB', [InstallerPhase.batteryRemoval, InstallerPhase.mdbToUms, InstallerPhase.mdbFlash, InstallerPhase.scooterPrep, InstallerPhase.mdbBoot, InstallerPhase.cbbReconnect]),
   dbcFlash('Flash DBC', [InstallerPhase.dbcPrep, InstallerPhase.dbcFlash, InstallerPhase.reconnect]),
   finish('Finish', [InstallerPhase.bluetoothPairing, InstallerPhase.keycardSetup, InstallerPhase.finish]);

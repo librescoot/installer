@@ -292,7 +292,6 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       Substep(id: 'flasher', label: 'Upload flasher tool'),
       Substep(id: 'fwtools', label: 'Upload DBC bootloader tools'),
       Substep(id: 'script', label: 'Upload trampoline script'),
-      Substep(id: 'start', label: 'Start trampoline'),
     ];
     void setStep(String id, SubstepState state, {String? detail}) {
       final idx = substeps.indexWhere((s) => s.id == id);

@@ -60,6 +60,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _mdbFlashStarted = false;
   bool _mdbBootStarted = false;
   bool _dbcPrepStarted = false;
+  bool _dbcUploadReady = false; // upload done, waiting for "Begin flashing DBC"
   bool _reconnectStarted = false;
   bool _showElevatedHandoff = false;
   bool _dbcFlashSimulateError = false;
@@ -95,6 +96,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Color _keycardToastColor = Colors.green;
   Timer? _keycardToastTimer;
   String? _awaitingUnlockState; // null when not awaiting; current vehicle state otherwise
+  String? _resumePreviousError; // first error line from a leftover trampoline-status, if any
   Completer<bool>? _unlockCompleter;
   bool _keepCache = false;
   bool _isCriticalOperation = false; // prevent quit during flash/upload
@@ -750,6 +752,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       InstallerPhase.notices => _buildNotices(l10n),
       InstallerPhase.physicalPrep => _buildPhysicalPrep(l10n),
       InstallerPhase.mdbConnect => _buildMdbConnect(l10n),
+      InstallerPhase.resumeDetected => _buildResumeDetected(l10n),
       InstallerPhase.healthCheck => _buildHealthCheck(l10n),
       InstallerPhase.batteryRemoval => _buildBatteryRemoval(l10n),
       InstallerPhase.mdbToUms => _buildMdbToUms(l10n),
@@ -1561,7 +1564,71 @@ class _InstallerScreenState extends State<InstallerScreen> {
       setState(() => _mdbInfo = info);
       debugPrint('SSH: firmware=${info.firmwareVersion}, serial=${info.serialNumber ?? "unknown"}');
 
-      // Wait for scooter to be in parked state (or user-overridden ready-to-drive)
+      // An install that died mid-flash leaves /data/installer behind with
+      // keycard + bluetooth masked (the trampoline masks them pre-flash).
+      // After a power cycle such a scooter cannot be unlocked at all: no
+      // keycard reader, no BLE, so the parked-state gate below would wait
+      // forever. The leftovers prove an earlier session already passed the
+      // gate, so skip it and clean up the masked services / error signals
+      // before redoing the install.
+      var resumingUnfinished = false;
+      try {
+        final leftover = await _sshService.runCommand(
+          'ls /data/installer/trampoline-status /data/installer/trampoline.sh 2>/dev/null; true',
+        );
+        resumingUnfinished = leftover.trim().isNotEmpty;
+      } catch (e) {
+        debugPrint('SSH: unfinished-install check failed (ok): $e');
+      }
+
+      if (resumingUnfinished) {
+        debugPrint('SSH: unfinished install detected, skipping unlock gate');
+        _setStatus(l10n.unfinishedInstallDetected);
+        try {
+          await _sshService.runCommand(
+            '[ -x /data/installer/stop-error-signals.sh ] && /data/installer/stop-error-signals.sh; '
+            '[ -x /data/stop-error-signals.sh ] && /data/stop-error-signals.sh; true',
+          );
+        } catch (_) {}
+        // The staged stop-error-signals.sh is whatever the PREVIOUS
+        // installer version wrote; older builds only handled keycard and
+        // the LEDs. Re-assert the unmasks ourselves so we don't depend on
+        // it: without bluetooth-service the nRF52 bridge is down and the
+        // upcoming health check sees no AUX/CBB data at all. Keycard is
+        // unmasked but deliberately not started (keycardSetup starts it
+        // after disengaging auto-master-learn).
+        try {
+          await _sshService.runCommand(
+            'systemctl unmask librescoot-keycard keycard-service '
+            'librescoot-bluetooth librescoot-ums 2>/dev/null; '
+            'systemctl start librescoot-bluetooth librescoot-ums 2>/dev/null; true',
+          );
+        } catch (e) {
+          debugPrint('SSH: service unmask on resume failed (ok): $e');
+        }
+        // Surface what the previous run recorded, if anything, then let
+        // the user acknowledge before continuing.
+        String? prevError;
+        try {
+          final firstLine = await _sshService.runCommand(
+            'head -1 /data/installer/trampoline-status 2>/dev/null; true',
+          );
+          final trimmed = firstLine.trim();
+          if (trimmed.startsWith('error:')) {
+            prevError = trimmed.substring('error:'.length).trim();
+          }
+        } catch (_) {}
+        if (!mounted) return;
+        setState(() {
+          _resumePreviousError = prevError;
+          _isProcessing = false;
+        });
+        _setPhase(InstallerPhase.resumeDetected);
+        return;
+      }
+
+      // Wait for scooter to be in parked state (or user-overridden
+      // ready-to-drive)
       _setStatus(l10n.waitingForUnlock);
       final ok = await _waitForUnlock();
       if (!ok) {
@@ -1573,33 +1640,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       }
       debugPrint('SSH: scooter is parked (or overridden), locking...');
 
-      // Keep MDB USB gadget powered while the scooter is locked so we don't
-      // lose RNDIS mid-flash. Best-effort: the key may not exist on older
-      // images and `lsc set` returns non-zero in that case.
-      try {
-        await _sshService.runCommand('lsc set scooter.usb0-policy always-on');
-        debugPrint('UI: scooter.usb0-policy=always-on');
-      } catch (e) {
-        debugPrint('UI: failed to set scooter.usb0-policy=always-on (ok): $e');
-      }
-
-      // Don't let the old image fall into auto-standby or trip its alarm
-      // during the install. We get reset on the new image (see keycardSetup
-      // entry) and explicitly cleaned up at finish. Best-effort.
-      await _disableInstallerHazards(label: 'pre-flash');
-
-      // Lock the scooter for safe flashing
-      _setStatus(l10n.lockingScooter);
-      await _sshService.redisLpush('scooter:state', 'lock');
-      final locked = await _sshService.waitForVehicleState('stand-by', timeout: const Duration(seconds: 30));
-      if (!locked) {
-        debugPrint('SSH: lock did not reach stand-by, continuing anyway');
-      }
-      debugPrint('SSH: scooter locked');
-
-      _setStatus(l10n.connected);
-      setState(() => _isProcessing = false);
-      _setPhase(InstallerPhase.healthCheck);
+      await _completeConnectionSetup(l10n);
     } catch (e) {
       _setStatus(l10n.sshConnectionFailed(e.toString()));
       // No auto-retry here: SSH failure means the previous network config
@@ -1608,6 +1649,103 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // re-arms _mdbConnectStarted and re-invokes us.
       setState(() => _isProcessing = false);
     }
+  }
+
+  /// Shared tail of the connect phase: runs after the unlock gate (normal
+  /// flow) or after the user confirms the resume screen. Pins the USB
+  /// gadget, disables alarm/auto-standby, locks the scooter, and moves on
+  /// to the health check.
+  Future<void> _completeConnectionSetup(AppLocalizations l10n) async {
+    // Keep MDB USB gadget powered while the scooter is locked so we don't
+    // lose RNDIS mid-flash. Best-effort: the key may not exist on older
+    // images and `lsc set` returns non-zero in that case.
+    try {
+      await _sshService.runCommand('lsc set scooter.usb0-policy always-on');
+      debugPrint('UI: scooter.usb0-policy=always-on');
+    } catch (e) {
+      debugPrint('UI: failed to set scooter.usb0-policy=always-on (ok): $e');
+    }
+
+    // Don't let the old image fall into auto-standby or trip its alarm
+    // during the install. We get reset on the new image (see keycardSetup
+    // entry) and explicitly cleaned up at finish. Best-effort.
+    await _disableInstallerHazards(label: 'pre-flash');
+
+    // Lock the scooter for safe flashing
+    _setStatus(l10n.lockingScooter);
+    await _sshService.redisLpush('scooter:state', 'lock');
+    final locked = await _sshService.waitForVehicleState('stand-by', timeout: const Duration(seconds: 30));
+    if (!locked) {
+      debugPrint('SSH: lock did not reach stand-by, continuing anyway');
+    }
+    debugPrint('SSH: scooter locked');
+
+    _setStatus(l10n.connected);
+    setState(() => _isProcessing = false);
+    _setPhase(InstallerPhase.healthCheck);
+  }
+
+  /// Continue button on the resume screen.
+  Future<void> _continueFromResume() async {
+    final l10n = AppLocalizations.of(context)!;
+    setState(() => _isProcessing = true);
+    try {
+      await _completeConnectionSetup(l10n);
+    } catch (e) {
+      _setStatus(l10n.sshConnectionFailed(e.toString()));
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  Widget _buildResumeDetected(AppLocalizations l10n) {
+    return Center(
+      child: SizedBox(
+        width: 520,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Icon(Icons.history, size: 72, color: Colors.amber),
+            const SizedBox(height: 16),
+            Text(l10n.resumeFoundHeading,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.amber)),
+            const SizedBox(height: 12),
+            Text(l10n.resumeFoundBody,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade300)),
+            if (_resumePreviousError != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l10n.resumeFoundLastError,
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent)),
+                    const SizedBox(height: 4),
+                    SelectableText(_resumePreviousError!,
+                        style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: _isProcessing ? null : _continueFromResume,
+              icon: const Icon(Icons.arrow_forward),
+              label: Text(l10n.continueButton),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   bool get _isDryRun => launchArgs.dryRun;
@@ -1948,7 +2086,24 @@ class _InstallerScreenState extends State<InstallerScreen> {
       return;
     }
     try {
-      final health = await _sshService.queryHealth();
+      // aux-battery and cb-battery in Redis are bridged from the nRF52 by
+      // bluetooth-service. If that was just unmasked and started (resuming
+      // an unfinished install) or the MDB only just booted, the hashes are
+      // empty for a while and a single read fails every check except main
+      // battery presence. Poll until the data lands before rendering the
+      // verdict; after the deadline show whatever we have (a genuinely
+      // disconnected CBB/AUX should still surface as a failure).
+      var health = await _sshService.queryHealth();
+      final deadline = DateTime.now().add(const Duration(seconds: 90));
+      while ((health.auxCharge == null ||
+              health.cbbCharge == null ||
+              health.cbbStateOfHealth == null) &&
+          DateTime.now().isBefore(deadline)) {
+        _setStatus(l10n.waitingForBatteryData);
+        await Future.delayed(const Duration(seconds: 3));
+        if (!mounted) return;
+        health = await _sshService.queryHealth();
+      }
       setState(() => _scooterHealth = health);
       await _sshService.logScooterStats('health-check');
 
@@ -2832,19 +2987,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
     });
   }
 
-  void _markStartSubstep({required bool active, bool done = false}) {
-    if (!mounted) return;
-    final newState = done
-        ? SubstepState.done
-        : (active ? SubstepState.active : SubstepState.pending);
-    setState(() {
-      _dbcPrepSubsteps = [
-        for (final s in _dbcPrepSubsteps)
-          if (s.id == 'start') s.copyWith(state: newState) else s,
-      ];
-    });
-  }
-
   Widget _buildDbcPrep(AppLocalizations l10n) {
     if (!_dbcPrepStarted && !_isProcessing) {
       _dbcPrepStarted = true;
@@ -2877,7 +3019,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
               Text(_statusMessage,
                   style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                   textAlign: TextAlign.center),
-            if (!_isProcessing) ...[
+            if (_dbcUploadReady) ...[
+              const SizedBox(height: 20),
+              Center(
+                child: FilledButton.icon(
+                  onPressed: _isProcessing ? null : _startTrampoline,
+                  icon: const Icon(Icons.bolt),
+                  label: Text(l10n.dbcReadyButton),
+                ),
+              ),
+            ] else if (!_isProcessing) ...[
               const SizedBox(height: 16),
               Center(
                 child: FilledButton.icon(
@@ -2907,10 +3058,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
     setState(() => _isProcessing = true);
     _setCritical(true);
 
+    setState(() => _dbcUploadReady = false);
+
     if (_isDryRun) {
       _setStatus('[DRY RUN] Simulating DBC upload...');
       await Future.delayed(const Duration(seconds: 1));
-      _setPhase(InstallerPhase.dbcFlash);
+      _setCritical(false);
+      setState(() { _isProcessing = false; _dbcUploadReady = true; });
       return;
     }
 
@@ -2945,19 +3099,54 @@ class _InstallerScreenState extends State<InstallerScreen> {
         },
       );
 
-      _markStartSubstep(active: true);
-      _setStatus(l10n.startingTrampoline);
-      await trampolineService.start();
-      _markStartSubstep(active: false, done: true);
+      // Upload is done, but DON'T start the trampoline yet. The trampoline's
+      // first act is to wait for the laptop to disconnect, after which the
+      // install runs autonomously and we lose SSH. Stay on this page and
+      // surface the "Ready to flash DBC" button instead, so the user
+      // explicitly confirms before that point of no return. The cable-swap
+      // instructions only appear on the next screen, after the trampoline
+      // has started, so nobody can swap the cable before start() runs.
       _setCritical(false);
-      await Future.delayed(const Duration(seconds: 1));
-      _setPhase(InstallerPhase.dbcFlash);
+      setState(() { _isProcessing = false; _dbcUploadReady = true; });
     } catch (e) {
       _setCritical(false);
       _setStatus(l10n.uploadError(e.toString()));
       debugPrint('DBC prep error: $e');
       setState(() => _isProcessing = false);
       // Don't reset _dbcPrepStarted: retry button handles that
+    }
+  }
+
+  /// Confirm handler for the "Ready to flash DBC" button on the prep page:
+  /// fire the trampoline (the last thing we do over SSH) and hand off to the
+  /// swap-cables screen, which is the first place the user is told to touch
+  /// the cable.
+  Future<void> _startTrampoline() async {
+    final l10n = AppLocalizations.of(context)!;
+    setState(() { _isProcessing = true; _dbcUploadReady = false; });
+    _setCritical(true);
+
+    if (_isDryRun) {
+      _setStatus('[DRY RUN] Simulating trampoline start...');
+      await Future.delayed(const Duration(seconds: 1));
+      _setCritical(false);
+      setState(() => _isProcessing = false);
+      _setPhase(InstallerPhase.dbcFlash);
+      return;
+    }
+
+    try {
+      _setStatus(l10n.startingTrampoline);
+      await TrampolineService(_sshService).start();
+      _setCritical(false);
+      setState(() => _isProcessing = false);
+      await Future.delayed(const Duration(seconds: 1));
+      _setPhase(InstallerPhase.dbcFlash);
+    } catch (e) {
+      _setCritical(false);
+      _setStatus(l10n.uploadError(e.toString()));
+      debugPrint('Trampoline start error: $e');
+      setState(() => _isProcessing = false);
     }
   }
 
@@ -2978,30 +3167,71 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
 
     if (!_dbcUsbDisconnected) {
-      // Step 1: waiting for user to swap cables
+      // Step 1: waiting for user to swap cables. The trampoline is already
+      // running and waiting for the laptop to disconnect, so this is the
+      // first place we tell the user to touch the cable.
       return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(l10n.dbcFlashSwapCablesTitle,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 24),
-            InstructionStep(
-              number: 1,
-              title: l10n.disconnectUsbFromLaptop,
-              description: l10n.disconnectUsbFromLaptopDesc,
-            ),
-            InstructionStep(
-              number: 2,
-              title: l10n.reconnectDbcUsbToMdb,
-              description: l10n.reconnectDbcUsbToMdbDesc,
-            ),
-            const SizedBox(height: 16),
-            Text(l10n.waitingForUsbDisconnect,
-                style: TextStyle(color: Colors.grey.shade400)),
-            const SizedBox(height: 8),
-            const CircularProgressIndicator(),
-          ],
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(l10n.dbcFlashSwapCablesTitle,
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 20),
+              // Move the same MDB USB plug from the laptop cable to the DBC
+              // cable. Photos are self-labelled ("Laptop"/"DBC"), so the
+              // arrow between them carries the meaning without extra captions.
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Image.asset('assets/images/lsi-mdb_usb_laptop.jpg',
+                            fit: BoxFit.cover),
+                      ),
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 10),
+                    child: Icon(Icons.arrow_forward, color: kAccent, size: 28),
+                  ),
+                  Expanded(
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Image.asset('assets/images/lsi-mdb_usb_dbc.jpg',
+                            fit: BoxFit.cover),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              InstructionStep(
+                number: 1,
+                title: l10n.disconnectUsbFromLaptop,
+                description: l10n.disconnectUsbFromLaptopDesc,
+              ),
+              InstructionStep(
+                number: 2,
+                title: l10n.reconnectDbcUsbToMdb,
+                description: l10n.reconnectDbcUsbToMdbDesc,
+              ),
+              const SizedBox(height: 16),
+              Text(l10n.waitingForUsbDisconnect,
+                  style: TextStyle(color: Colors.grey.shade400),
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 8),
+              const Center(child: CircularProgressIndicator()),
+            ],
+          ),
         ),
       );
     }

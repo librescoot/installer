@@ -158,6 +158,18 @@ abstract class AppLocalizations {
   /// **'Detect device and establish SSH'**
   String get phaseMdbConnectDescription;
 
+  /// No description provided for @phaseResumeDetectedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Resume'**
+  String get phaseResumeDetectedTitle;
+
+  /// No description provided for @phaseResumeDetectedDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Interrupted installation found'**
+  String get phaseResumeDetectedDescription;
+
   /// No description provided for @phaseHealthCheckTitle.
   ///
   /// In en, this message translates to:
@@ -667,6 +679,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Unlock the scooter to continue...'**
   String get waitingForUnlock;
+
+  /// No description provided for @unfinishedInstallDetected.
+  ///
+  /// In en, this message translates to:
+  /// **'Unfinished installation detected, continuing without unlock...'**
+  String get unfinishedInstallDetected;
+
+  /// No description provided for @waitingForBatteryData.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for AUX/CBB battery data...'**
+  String get waitingForBatteryData;
+
+  /// No description provided for @resumeFoundHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Interrupted installation found'**
+  String get resumeFoundHeading;
+
+  /// No description provided for @resumeFoundBody.
+  ///
+  /// In en, this message translates to:
+  /// **'A previous installation on this scooter did not finish. The unlock step has been skipped and disabled services were re-enabled. Continuing will run the installation again from the beginning.'**
+  String get resumeFoundBody;
+
+  /// No description provided for @resumeFoundLastError.
+  ///
+  /// In en, this message translates to:
+  /// **'Last recorded error:'**
+  String get resumeFoundLastError;
 
   /// No description provided for @unlockTimeout.
   ///
@@ -1231,6 +1273,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Upload error: {error}'**
   String uploadError(String error);
+
+  /// No description provided for @dbcReadyButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Begin flashing DBC'**
+  String get dbcReadyButton;
 
   /// No description provided for @dbcFlashInProgress.
   ///
