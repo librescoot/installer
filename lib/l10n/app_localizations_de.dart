@@ -682,18 +682,18 @@ class AppLocalizationsDe extends AppLocalizations {
   String get dbcFlashSwapCablesTitle => 'USB auf das DBC umstecken';
 
   @override
-  String get disconnectUsbFromLaptop => 'USB vom Laptop trennen';
+  String get disconnectUsbFromLaptop => 'Laptop-USB-Kabel vom MDB abziehen';
 
   @override
   String get disconnectUsbFromLaptopDesc =>
-      'Ziehe das USB-Kabel von deinem Laptop ab.';
+      'Ziehe das Laptop-USB-Kabel vom MDB ab, damit der Port für das DBC-Kabel frei wird.';
 
   @override
   String get reconnectDbcUsbToMdb => 'DBC-USB-Kabel mit MDB verbinden';
 
   @override
   String get reconnectDbcUsbToMdbDesc =>
-      'Schraube das interne DBC-USB-Kabel wieder an den MDB-Port.';
+      'Stecke das interne DBC-USB-Kabel in den MDB-Port. Noch nicht festschrauben.';
 
   @override
   String get mdbFlashingDbcAutonomously =>
@@ -811,32 +811,26 @@ class AppLocalizationsDe extends AppLocalizations {
   String get finalSteps => 'Letzte Schritte:';
 
   @override
-  String get disconnectUsbFromLaptopFinal => 'USB vom Laptop trennen';
+  String get disconnectUsbFromLaptopFinal =>
+      'Laptop-USB-Kabel vom MDB abziehen';
 
   @override
   String get disconnectUsbFromLaptopFinalDesc =>
-      'Ziehe das USB-Kabel von deinem Laptop ab.';
+      'Ziehe das Laptop-USB-Kabel vom MDB ab. Dort kommt gleich das DBC-Kabel wieder hinein.';
 
   @override
   String get reconnectDbcUsbCable => 'DBC-USB-Kabel anschließen';
 
   @override
   String get reconnectDbcUsbCableDesc =>
-      'Schraube das interne DBC-USB-Kabel wieder an das MDB.';
+      'Stecke das interne DBC-USB-Kabel wieder in den MDB-Port und schraube es jetzt vorsichtig fest.';
 
   @override
-  String get insertMainBattery => 'Fahrakku einsetzen';
-
-  @override
-  String get insertMainBatteryDesc =>
-      'Setze den Fahrakku wieder in die Sitzbank ein.';
-
-  @override
-  String get closeSeatboxAndFootwell => 'Sitzbank und Fußraum schließen';
+  String get closeSeatboxAndFootwell => 'Fußraumabdeckung wieder anbringen';
 
   @override
   String get closeSeatboxAndFootwellDesc =>
-      'Schließe die Sitzbank und setze die Fußraumabdeckung wieder ein.';
+      'Klipse zuerst die Metallbügel wieder ein, setze dann die Fußraumabdeckung auf und schraube sie fest.';
 
   @override
   String get unlockScooter => 'Roller entsperren';
@@ -1550,7 +1544,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get gettingStartedDriveMenuDesc =>
-      'Sitzbank-Schalter gedrückt halten, um das Kurzmenü zu öffnen; solange du hältst, wechseln die Einträge automatisch weiter. Loslassen, um auf dem hervorgehobenen Eintrag zu stoppen, dann innerhalb etwa einer Sekunde noch einmal kurz drücken, um zu bestätigen.';
+      'Das Kurzmenü über den Sitzbank-Schalter funktioniert nur im Fahrmodus (Seitenständer oben). Sitzbank-Schalter gedrückt halten, um das Kurzmenü zu öffnen; solange du hältst, wechseln die Einträge automatisch im Sekundentakt weiter. Loslassen, um auf dem hervorgehobenen Eintrag zu stoppen, dann innerhalb etwa einer Sekunde noch einmal kurz drücken, um zu bestätigen.';
 
   @override
   String get gettingStartedUpdateModeTitle =>

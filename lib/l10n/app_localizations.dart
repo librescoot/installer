@@ -1295,13 +1295,13 @@ abstract class AppLocalizations {
   /// No description provided for @disconnectUsbFromLaptop.
   ///
   /// In en, this message translates to:
-  /// **'Disconnect USB from laptop'**
+  /// **'Unplug the laptop USB cable from the MDB'**
   String get disconnectUsbFromLaptop;
 
   /// No description provided for @disconnectUsbFromLaptopDesc.
   ///
   /// In en, this message translates to:
-  /// **'Unplug the USB cable from your laptop.'**
+  /// **'Unplug the laptop USB cable from the MDB to free the port for the DBC cable.'**
   String get disconnectUsbFromLaptopDesc;
 
   /// No description provided for @reconnectDbcUsbToMdb.
@@ -1313,7 +1313,7 @@ abstract class AppLocalizations {
   /// No description provided for @reconnectDbcUsbToMdbDesc.
   ///
   /// In en, this message translates to:
-  /// **'Screw the internal DBC USB cable back into the MDB port.'**
+  /// **'Plug the internal DBC USB cable into the MDB port. Don\'t screw it in yet.'**
   String get reconnectDbcUsbToMdbDesc;
 
   /// No description provided for @mdbFlashingDbcAutonomously.
@@ -1529,13 +1529,13 @@ abstract class AppLocalizations {
   /// No description provided for @disconnectUsbFromLaptopFinal.
   ///
   /// In en, this message translates to:
-  /// **'Disconnect USB from laptop'**
+  /// **'Unplug the laptop USB cable from the MDB'**
   String get disconnectUsbFromLaptopFinal;
 
   /// No description provided for @disconnectUsbFromLaptopFinalDesc.
   ///
   /// In en, this message translates to:
-  /// **'Unplug the USB cable from your laptop.'**
+  /// **'Unplug the laptop USB cable from the MDB. The DBC cable goes back into that port next.'**
   String get disconnectUsbFromLaptopFinalDesc;
 
   /// No description provided for @reconnectDbcUsbCable.
@@ -1547,31 +1547,19 @@ abstract class AppLocalizations {
   /// No description provided for @reconnectDbcUsbCableDesc.
   ///
   /// In en, this message translates to:
-  /// **'Screw the internal DBC USB cable back into MDB.'**
+  /// **'Plug the internal DBC USB cable back into the MDB port, then gently screw it in to secure it.'**
   String get reconnectDbcUsbCableDesc;
-
-  /// No description provided for @insertMainBattery.
-  ///
-  /// In en, this message translates to:
-  /// **'Insert main battery'**
-  String get insertMainBattery;
-
-  /// No description provided for @insertMainBatteryDesc.
-  ///
-  /// In en, this message translates to:
-  /// **'Place the main battery back into the seatbox.'**
-  String get insertMainBatteryDesc;
 
   /// No description provided for @closeSeatboxAndFootwell.
   ///
   /// In en, this message translates to:
-  /// **'Close seatbox and footwell'**
+  /// **'Replace the footwell cover'**
   String get closeSeatboxAndFootwell;
 
   /// No description provided for @closeSeatboxAndFootwellDesc.
   ///
   /// In en, this message translates to:
-  /// **'Close the seatbox and replace the footwell cover.'**
+  /// **'Clip the metal bars back in first, then fit the footwell cover and screw it down.'**
   String get closeSeatboxAndFootwellDesc;
 
   /// No description provided for @unlockScooter.
@@ -2777,7 +2765,7 @@ abstract class AppLocalizations {
   /// No description provided for @gettingStartedDriveMenuDesc.
   ///
   /// In en, this message translates to:
-  /// **'Hold the seatbox button to open the on-screen quick menu; the entries cycle automatically while you keep holding. Release to stop on the highlighted entry, then press once briefly within about a second to confirm.'**
+  /// **'The seatbox button only opens the quick menu in drive mode (kickstand up). Hold the seatbox button to open the on-screen quick menu; the entries cycle automatically every second while you keep holding. Release to stop on the highlighted entry, then press once briefly within about a second to confirm.'**
   String get gettingStartedDriveMenuDesc;
 
   /// No description provided for @gettingStartedUpdateModeTitle.

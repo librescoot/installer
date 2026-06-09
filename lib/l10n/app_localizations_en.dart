@@ -675,18 +675,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dbcFlashSwapCablesTitle => 'Swap USB to the DBC';
 
   @override
-  String get disconnectUsbFromLaptop => 'Disconnect USB from laptop';
+  String get disconnectUsbFromLaptop =>
+      'Unplug the laptop USB cable from the MDB';
 
   @override
   String get disconnectUsbFromLaptopDesc =>
-      'Unplug the USB cable from your laptop.';
+      'Unplug the laptop USB cable from the MDB to free the port for the DBC cable.';
 
   @override
   String get reconnectDbcUsbToMdb => 'Reconnect DBC USB cable to MDB';
 
   @override
   String get reconnectDbcUsbToMdbDesc =>
-      'Screw the internal DBC USB cable back into the MDB port.';
+      'Plug the internal DBC USB cable into the MDB port. Don\'t screw it in yet.';
 
   @override
   String get mdbFlashingDbcAutonomously =>
@@ -804,32 +805,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get finalSteps => 'Final steps:';
 
   @override
-  String get disconnectUsbFromLaptopFinal => 'Disconnect USB from laptop';
+  String get disconnectUsbFromLaptopFinal =>
+      'Unplug the laptop USB cable from the MDB';
 
   @override
   String get disconnectUsbFromLaptopFinalDesc =>
-      'Unplug the USB cable from your laptop.';
+      'Unplug the laptop USB cable from the MDB. The DBC cable goes back into that port next.';
 
   @override
   String get reconnectDbcUsbCable => 'Reconnect DBC USB cable';
 
   @override
   String get reconnectDbcUsbCableDesc =>
-      'Screw the internal DBC USB cable back into MDB.';
+      'Plug the internal DBC USB cable back into the MDB port, then gently screw it in to secure it.';
 
   @override
-  String get insertMainBattery => 'Insert main battery';
-
-  @override
-  String get insertMainBatteryDesc =>
-      'Place the main battery back into the seatbox.';
-
-  @override
-  String get closeSeatboxAndFootwell => 'Close seatbox and footwell';
+  String get closeSeatboxAndFootwell => 'Replace the footwell cover';
 
   @override
   String get closeSeatboxAndFootwellDesc =>
-      'Close the seatbox and replace the footwell cover.';
+      'Clip the metal bars back in first, then fit the footwell cover and screw it down.';
 
   @override
   String get unlockScooter => 'Unlock your scooter';
@@ -1535,7 +1530,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get gettingStartedDriveMenuDesc =>
-      'Hold the seatbox button to open the on-screen quick menu; the entries cycle automatically while you keep holding. Release to stop on the highlighted entry, then press once briefly within about a second to confirm.';
+      'The seatbox button only opens the quick menu in drive mode (kickstand up). Hold the seatbox button to open the on-screen quick menu; the entries cycle automatically every second while you keep holding. Release to stop on the highlighted entry, then press once briefly within about a second to confirm.';
 
   @override
   String get gettingStartedUpdateModeTitle => 'Open Update Mode again later';

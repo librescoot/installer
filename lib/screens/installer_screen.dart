@@ -4851,16 +4851,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
             ),
             InstructionStep(
               number: 3,
-              title: l10n.insertMainBattery,
-              description: l10n.insertMainBatteryDesc,
-            ),
-            InstructionStep(
-              number: 4,
               title: l10n.closeSeatboxAndFootwell,
               description: l10n.closeSeatboxAndFootwellDesc,
             ),
             InstructionStep(
-              number: 5,
+              number: 4,
               title: l10n.unlockScooter,
               description: l10n.unlockScooterDesc,
             ),
