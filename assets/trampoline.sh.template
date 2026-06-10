@@ -266,6 +266,19 @@ signal_error_stop() {
   done
 }
 
+# Chipidea role writes can also BLOCK (not just EBUSY) if the unbind
+# wedges on a dying USB device. A blocked write would freeze whoever
+# called it, so give every role write a hard 15s ceiling where a timeout
+# binary exists (busybox >= 1.30 and coreutils both take SECS PROG).
+ROLE_PATH=/sys/kernel/debug/ci_hdrc.0/role
+role_write() {
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 15 sh -c "echo $1 > $ROLE_PATH" 2>/dev/null
+  else
+    sh -c "echo $1 > $ROLE_PATH" 2>/dev/null
+  fi
+}
+
 # Restore USB gadget (RNDIS) mode so the installer can reach us again.
 # The chipidea role write can fail (EBUSY) while a device still occupies
 # the host port, and the old single-shot version silenced that, leaving
@@ -284,7 +297,7 @@ restore_gadget() {
     attempt=$((attempt + 1))
     rmmod g_ether 2>/dev/null || true
     sleep 1
-    echo gadget > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null || true
+    role_write gadget || true
     sleep 1
     modprobe g_ether 2>/dev/null || true
     sleep 1
@@ -332,7 +345,11 @@ gadget_rescue_start() {
         echo "$(date "+%H:%M:%S") gadget-rescue: role=$ROLE, retrying gadget restore" >> "$LOG"
         rmmod g_ether 2>/dev/null
         sleep 1
-        echo gadget > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null
+        if command -v timeout >/dev/null 2>&1; then
+          timeout 15 sh -c "echo gadget > /sys/kernel/debug/ci_hdrc.0/role" 2>/dev/null
+        else
+          echo gadget > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null
+        fi
         sleep 1
         modprobe g_ether 2>/dev/null
         sleep 1
@@ -409,7 +426,7 @@ probe_for_laptop_then_restore_host() {
   log "  probing gadget mode for laptop reconnect..."
   rmmod g_ether 2>/dev/null || true
   sleep 1
-  echo gadget > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null || true
+  role_write gadget || true
   modprobe g_ether 2>/dev/null || true
   sleep 1
   ifconfig usb0 192.168.7.1 netmask 255.255.255.0 up 2>/dev/null || true
@@ -427,7 +444,7 @@ probe_for_laptop_then_restore_host() {
   log "  no laptop on UDC; switching back to host"
   rmmod g_ether 2>/dev/null || true
   sleep 1
-  echo host > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null || true
+  role_write host || true
   sleep 2
 }
 
@@ -440,14 +457,19 @@ fail() {
   # gadget restore below must still run regardless.
   sync &
   sleep 2
-  # The watchdog must not fire its own recovery while the rescue below
-  # owns the situation.
-  trampoline_watchdog_stop
-  bootled_blink_red
+  # signal_error first: it stops the amber guard, so the red blink below
+  # starts clean instead of fighting the guard's 2s re-assert.
   signal_error
+  bootled_blink_red
   if ! restore_gadget; then
     gadget_rescue_start
   fi
+  # Watchdog stopped only after the restore attempt: if a wedged role
+  # write ever blocked restore_gadget despite the timeout, the still-armed
+  # watchdog stays as the backstop. No race with the rescue unit: its
+  # retries write to the log, so the 15-min silence the watchdog needs
+  # can never accumulate while the rescue is alive.
+  trampoline_watchdog_stop
   # Indicators are detached and run until the installer reconnects via SSH
   # and stops them. Just exit cleanly here.
   exit 1
@@ -509,7 +531,7 @@ wait_dbc_ssh() {
 probe_dbc_or_fail() {
   rmmod g_ether 2>/dev/null || true
   sleep 1
-  echo host > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null || true
+  role_write host || true
   sleep 3
   PROBE_LSUSB=$(lsusb 2>/dev/null)
   if echo "$PROBE_LSUSB" | grep -q "0525:a4a5"; then
@@ -544,6 +566,36 @@ find_dbc_block_device() {
     done
   done
   return 1
+}
+
+# Heartbeat for the host-mode watchdog during the long flash write. The
+# Go flasher logs progress, but gunzip|dd is silent until it exits, and
+# this eMMC writes at only 2-4 MB/s via u-boot UMS, so a full image can
+# stay quiet well past the watchdog's 15-minute stall threshold. Sample
+# the block device's written-sectors counter once a minute and log it
+# only when it advanced: a healthy-but-slow flash keeps the log mtime
+# fresh forever, while a flasher stuck in D-state stops the counter and
+# still lets the watchdog fire.
+FLASH_MON_PID=""
+flash_progress_monitor_start() {
+  local name="$(basename "$1")"
+  (
+    last=""
+    while :; do
+      sleep 60
+      cur="$(awk '{print $7}' "/sys/block/$name/stat" 2>/dev/null)"
+      [ -n "$cur" ] || continue
+      if [ "$cur" != "$last" ]; then
+        log "  flash progress: $cur sectors written to $name"
+        last="$cur"
+      fi
+    done
+  ) &
+  FLASH_MON_PID=$!
+}
+flash_progress_monitor_stop() {
+  [ -n "$FLASH_MON_PID" ] && kill $FLASH_MON_PID 2>/dev/null
+  FLASH_MON_PID=""
 }
 
 # =========================================================================
@@ -681,7 +733,11 @@ while [ $attempt -lt 3 ]; do
   attempt=$((attempt + 1))
   rmmod g_ether 2>/dev/null
   sleep 1
-  echo gadget > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 15 sh -c "echo gadget > /sys/kernel/debug/ci_hdrc.0/role" 2>/dev/null
+  else
+    echo gadget > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null
+  fi
   sleep 1
   modprobe g_ether 2>/dev/null
   sleep 1
@@ -914,7 +970,7 @@ CURRENT_ROLE=$(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)
 if [ "$CURRENT_ROLE" != "host" ]; then
   rmmod g_ether 2>/dev/null || true
   sleep 1
-  echo host > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null || fail "Failed to switch to host mode"
+  role_write host || fail "Failed to switch to host mode"
   sleep 3
 else
   log "  already in host mode"
@@ -1003,6 +1059,7 @@ ATTEMPT=0
 while [ $ATTEMPT -lt 3 ]; do
   ATTEMPT=$((ATTEMPT + 1))
   log "  flash attempt $ATTEMPT/3..."
+  flash_progress_monitor_start "$DBC_DEV"
 
   FLASHER="$INSTALLER_DIR/librescoot-flasher"
   USING_DD=""
@@ -1018,9 +1075,13 @@ while [ $ATTEMPT -lt 3 ]; do
     USING_DD="yes"
     log "  using dd (oflag=direct), image size: $FLASH_TOTAL"
     gunzip -c "$DBC_IMAGE" | dd bs=4M iflag=fullblock of=$DBC_DEV oflag=direct 2>> "$LOG_FILE"
-    FLASH_RC=${PIPESTATUS[1]:-0}
+    # $? of a pipeline is dd's status (PIPESTATUS is bash-only and a bad
+    # substitution under busybox ash). A gunzip failure truncates the
+    # stream without failing dd; the boot-sector verify below catches it.
+    FLASH_RC=$?
   fi
 
+  flash_progress_monitor_stop
   if [ "${FLASH_RC:-0}" -ne 0 ]; then
     log "  flash failed (rc=$FLASH_RC), retrying..."
     sleep 3
