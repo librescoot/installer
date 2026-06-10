@@ -3146,7 +3146,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _setCritical(false);
       _setStatus(l10n.uploadError(e.toString()));
       debugPrint('Trampoline start error: $e');
-      setState(() => _isProcessing = false);
+      // The upload is still intact; re-offer the begin button instead of
+      // demoting the user to a full prep retry over a transient SSH error.
+      setState(() { _isProcessing = false; _dbcUploadReady = true; });
     }
   }
 
