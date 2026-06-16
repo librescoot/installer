@@ -9,6 +9,29 @@ import '../models/substep.dart';
 import '../models/trampoline_status.dart';
 import 'ssh_service.dart';
 
+/// Pure placeholder substitution for the trampoline template, separated from
+/// asset loading so it is unit-testable. [generateScript] loads the template
+/// via rootBundle then calls this.
+String renderTrampoline(
+  String template, {
+  required String dbcImagePath,
+  String osmTilesFile = '',
+  String valhallaTilesFile = '',
+  bool installTiles = false,
+  String targetDbcVersion = '',
+  bool forceDbcReflash = false,
+}) {
+  return template
+      .replaceAll('{{DBC_IMAGE_PATH}}', dbcImagePath)
+      .replaceAll('{{INSTALL_TILES}}', installTiles ? 'true' : 'false')
+      .replaceAll('{{TARGET_DBC_VERSION}}', targetDbcVersion)
+      .replaceAll('{{FORCE_DBC_REFLASH}}', forceDbcReflash ? 'true' : 'false')
+      .replaceAll('{{OSM_TILES_FILE}}', osmTilesFile)
+      .replaceAll('{{VALHALLA_TILES_FILE}}', valhallaTilesFile)
+      .replaceAll('\r\n', '\n')
+      .replaceAll('\r', '\n');
+}
+
 class TrampolineService {
   final SshService _ssh;
   bool _pythonServerStarted = false;
@@ -23,27 +46,20 @@ class TrampolineService {
     String targetDbcVersion = '',
     bool forceDbcReflash = false,
   }) async {
-    var template = await rootBundle.loadString('assets/trampoline.sh.template');
-
-    template = template
-        .replaceAll('{{DBC_IMAGE_PATH}}', dbcImagePath)
-        .replaceAll('{{INSTALL_TILES}}', installTiles ? 'true' : 'false')
-        .replaceAll('{{TARGET_DBC_VERSION}}', targetDbcVersion)
-        .replaceAll('{{FORCE_DBC_REFLASH}}', forceDbcReflash ? 'true' : 'false')
-        .replaceAll(
-          '{{OSM_TILES_FILE}}',
-          installTiles && region != null
-              ? '/data/installer/${region.osmTilesFilename}'
-              : '',
-        )
-        .replaceAll(
-          '{{VALHALLA_TILES_FILE}}',
-          installTiles && region != null
-              ? '/data/installer/${region.valhallaTilesFilename}'
-              : '',
-        );
-
-    return template;
+    final template = await rootBundle.loadString('assets/trampoline.sh.template');
+    return renderTrampoline(
+      template,
+      dbcImagePath: dbcImagePath,
+      osmTilesFile: installTiles && region != null
+          ? '/data/installer/${region.osmTilesFilename}'
+          : '',
+      valhallaTilesFile: installTiles && region != null
+          ? '/data/installer/${region.valhallaTilesFilename}'
+          : '',
+      installTiles: installTiles,
+      targetDbcVersion: targetDbcVersion,
+      forceDbcReflash: forceDbcReflash,
+    );
   }
 
   /// Check if a remote file exists and matches the local file's md5.
