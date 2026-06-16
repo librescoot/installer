@@ -3381,10 +3381,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // Step 2: USB disconnected: MDB is flashing autonomously.
     //
     // Once the cable is unplugged we have NO link to the MDB until it
-    // comes back as RNDIS. So this screen is purely informational:
-    // it tells the user what's happening on the scooter lights and
-    // gives them a "I see X" button to advance when the boot LED
-    // settles on green or red.
+    // comes back as RNDIS. The MDB no longer drives a per-phase progress
+    // LED, so this is a walk-away screen: tell the user the swap is done,
+    // they can leave for a few minutes, and how to read the outcome (the
+    // dashboard lights up = done; hazards/red light = something went wrong).
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 620),
@@ -3412,7 +3412,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          l10n.dbcFlashDurationHeadline,
+                          l10n.dbcWalkAwayHeadline,
                           style: TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.bold,
@@ -3424,7 +3424,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    l10n.ledAmberWaitNotice,
+                    l10n.dbcWalkAwayBody,
                     style: TextStyle(
                       fontSize: 13,
                       color: Colors.orange.shade100,
@@ -3445,42 +3445,20 @@ class _InstallerScreenState extends State<InstallerScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(l10n.watchLightsForProgress,
-                      style: TextStyle(color: Colors.grey.shade300, fontSize: 13)),
-                  const SizedBox(height: 8),
-                  _ledSignal(l10n.ledBootAmber, l10n.ledBootAmberMeaning),
-                  _blinkerPhases(l10n),
-                  _ledSignal(l10n.ledBootGreen, l10n.ledBootGreenMeaning),
-                  _ledSignal(l10n.ledBootRedError, l10n.ledBootRedMeaning),
+                  _walkAwayOutcome(
+                    Icons.check_circle,
+                    Colors.green,
+                    l10n.dbcWalkAwayDashboardLit,
+                  ),
+                  const SizedBox(height: 10),
+                  _walkAwayOutcome(
+                    Icons.error,
+                    Colors.red,
+                    l10n.dbcWalkAwayFailure,
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                const SizedBox(width: 10),
-                Flexible(
-                  child: Text(
-                    _statusMessage.isEmpty
-                        ? l10n.waitingForMdbToReconnect
-                        : _statusMessage,
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // The flash runs autonomously on the scooter; the laptop is no
-            // longer in the loop. The user can walk away and come back.
-            Text(l10n.dbcFlashDurationHeadline,
-                style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-                textAlign: TextAlign.center),
             const SizedBox(height: 16),
             Wrap(
               spacing: 12,
@@ -3492,7 +3470,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 FilledButton.icon(
                   onPressed: () => _setPhase(InstallerPhase.finish),
                   icon: const Icon(Icons.check_circle, color: Colors.green),
-                  label: Text(l10n.ledIsGreen),
+                  label: Text(l10n.dbcWalkAwayDashboardLitButton),
                 ),
                 // Failure path: reconnect the laptop and run the verify logic
                 // to surface the trampoline error log.
@@ -3502,13 +3480,34 @@ class _InstallerScreenState extends State<InstallerScreen> {
                     _setPhase(InstallerPhase.reconnect);
                   },
                   icon: const Icon(Icons.error, color: Colors.red),
-                  label: Text(l10n.ledIsRed),
+                  label: Text(l10n.dbcWalkAwayWentWrongButton),
                 ),
               ],
             ),
           ],
         ),
       ),
+    );
+  }
+
+  // One outcome line on the walk-away screen: an icon plus the guidance for
+  // that outcome (dashboard lit = done, hazards/red = something went wrong).
+  Widget _walkAwayOutcome(IconData icon, Color color, String text) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(icon, size: 18, color: color),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(color: Colors.grey.shade300, fontSize: 13, height: 1.4),
+          ),
+        ),
+      ],
     );
   }
 
@@ -3537,93 +3536,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // flashes the DBC on its own. The user confirms completion with the
     // "dashboard lit up" button; the failure affordance routes to the verify
     // logic. We deliberately do NOT poll the MDB or auto-advance here anymore.
-  }
-
-  Widget _ledSignal(String signal, String meaning) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(width: 8),
-          const Padding(
-            padding: EdgeInsets.only(top: 3),
-            child: Icon(Icons.circle, size: 8, color: kAccent),
-          ),
-          const SizedBox(width: 8),
-          Expanded(flex: 3, child: Text(signal, style: const TextStyle(fontSize: 13))),
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 2,
-            child: Text(
-              meaning,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-              textAlign: TextAlign.right,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // The four turn-signal LEDs fill in sequence (FL -> FR -> BR -> BL), one per
-  // trampoline phase. Label each position with the step it represents so the
-  // user can read progress off the scooter itself.
-  Widget _blinkerPhases(AppLocalizations l10n) {
-    Widget phase(int n, String pos, String step) {
-      return Padding(
-        padding: const EdgeInsets.only(left: 24, bottom: 3),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 14,
-              child: Text('$n',
-                  style: const TextStyle(
-                      fontSize: 12, color: kAccent, fontWeight: FontWeight.w600)),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 2,
-              child: Text(pos,
-                  style: TextStyle(fontSize: 12.5, color: Colors.grey.shade500)),
-            ),
-            const SizedBox(width: 8),
-            Expanded(flex: 3, child: Text(step, style: const TextStyle(fontSize: 12.5))),
-          ],
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(width: 8),
-                const Padding(
-                  padding: EdgeInsets.only(top: 3),
-                  child: Icon(Icons.circle, size: 8, color: kAccent),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                    child: Text(l10n.ledBlinkerProgress,
-                        style: const TextStyle(fontSize: 13))),
-              ],
-            ),
-          ),
-          phase(1, l10n.blinkerPosFL, l10n.blinkerStepPrep),
-          phase(2, l10n.blinkerPosFR, l10n.blinkerStepFlash),
-          phase(3, l10n.blinkerPosBR, l10n.blinkerStepRestart),
-          phase(4, l10n.blinkerPosBL, l10n.blinkerStepMaps),
-        ],
-      ),
-    );
   }
 
   Widget _buildReconnect(AppLocalizations l10n) {

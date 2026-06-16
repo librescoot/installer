@@ -1465,6 +1465,28 @@ class AppLocalizationsDe extends AppLocalizations {
       'Wichtig: USB und Strom NICHT trennen, solange das hier läuft. Solange die Tacho-LED gelb-orange leuchtet, läuft der Flash noch. Finger weg, nichts anklicken. Wenn der Flash durch ist, fängt die LED an zu blinken: grün = Erfolg, rot = Fehler. Erst weitermachen, wenn sie blinkt.';
 
   @override
+  String get dbcWalkAwayHeadline =>
+      'Umstecken erledigt. Du kannst den Laptop jetzt abziehen.';
+
+  @override
+  String get dbcWalkAwayBody =>
+      'Lass den Roller ein paar Minuten in Ruhe, während er das DBC selbstständig flasht. Das kann 10 bis 20 Minuten dauern.';
+
+  @override
+  String get dbcWalkAwayDashboardLit =>
+      'Wenn der Tacho angeht, ist die Installation fertig: das DBC-Kabel festschrauben, alles wieder zumachen und den Roller entriegeln.';
+
+  @override
+  String get dbcWalkAwayFailure =>
+      'Wenn der Roller stattdessen mit dem Warnblinker blinkt oder du ein rotes Licht siehst, ist etwas schiefgelaufen: den Laptop wieder anschließen.';
+
+  @override
+  String get dbcWalkAwayDashboardLitButton => 'Der Tacho ist angegangen';
+
+  @override
+  String get dbcWalkAwayWentWrongButton => 'Etwas ist schiefgelaufen';
+
+  @override
   String get phaseKeycardSetupTitle => 'Schlüsselkarten einrichten';
 
   @override

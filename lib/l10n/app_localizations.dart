@@ -2618,6 +2618,42 @@ abstract class AppLocalizations {
   /// **'Most important: do NOT disconnect USB or power while this is running. While the dashboard LED is amber/orange, flashing is still in progress. Hands off, don\'t click anything. The LED will start blinking once it\'s done: green = success, red = error. Only continue once it\'s blinking.'**
   String get ledAmberWaitNotice;
 
+  /// No description provided for @dbcWalkAwayHeadline.
+  ///
+  /// In en, this message translates to:
+  /// **'Swap done. You can unplug the laptop now.'**
+  String get dbcWalkAwayHeadline;
+
+  /// No description provided for @dbcWalkAwayBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave the scooter alone for a few minutes while it flashes the dashboard on its own. This can take 10 to 20 minutes.'**
+  String get dbcWalkAwayBody;
+
+  /// No description provided for @dbcWalkAwayDashboardLit.
+  ///
+  /// In en, this message translates to:
+  /// **'When the dashboard lights up, the install is finished: screw the DBC cable down, close everything up, and unlock the scooter.'**
+  String get dbcWalkAwayDashboardLit;
+
+  /// No description provided for @dbcWalkAwayFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'If the scooter flashes its hazard lights or you see a red light instead, something went wrong: plug the laptop back in.'**
+  String get dbcWalkAwayFailure;
+
+  /// No description provided for @dbcWalkAwayDashboardLitButton.
+  ///
+  /// In en, this message translates to:
+  /// **'The dashboard lit up'**
+  String get dbcWalkAwayDashboardLitButton;
+
+  /// No description provided for @dbcWalkAwayWentWrongButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Something went wrong'**
+  String get dbcWalkAwayWentWrongButton;
+
   /// No description provided for @phaseKeycardSetupTitle.
   ///
   /// In en, this message translates to:

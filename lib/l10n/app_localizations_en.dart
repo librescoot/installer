@@ -1454,6 +1454,27 @@ class AppLocalizationsEn extends AppLocalizations {
       'Most important: do NOT disconnect USB or power while this is running. While the dashboard LED is amber/orange, flashing is still in progress. Hands off, don\'t click anything. The LED will start blinking once it\'s done: green = success, red = error. Only continue once it\'s blinking.';
 
   @override
+  String get dbcWalkAwayHeadline => 'Swap done. You can unplug the laptop now.';
+
+  @override
+  String get dbcWalkAwayBody =>
+      'Leave the scooter alone for a few minutes while it flashes the dashboard on its own. This can take 10 to 20 minutes.';
+
+  @override
+  String get dbcWalkAwayDashboardLit =>
+      'When the dashboard lights up, the install is finished: screw the DBC cable down, close everything up, and unlock the scooter.';
+
+  @override
+  String get dbcWalkAwayFailure =>
+      'If the scooter flashes its hazard lights or you see a red light instead, something went wrong: plug the laptop back in.';
+
+  @override
+  String get dbcWalkAwayDashboardLitButton => 'The dashboard lit up';
+
+  @override
+  String get dbcWalkAwayWentWrongButton => 'Something went wrong';
+
+  @override
   String get phaseKeycardSetupTitle => 'Keycard Setup';
 
   @override
