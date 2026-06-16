@@ -1076,9 +1076,6 @@ fi
 log "DBC device: $DBC_DEV ($(cat /sys/block/$(basename $DBC_DEV)/size 2>/dev/null || echo '?') sectors)"
 step_end
 
-# Safety
-echo "$DBC_DEV" | grep -q "mmcblk" && fail "SAFETY: $DBC_DEV is mmcblk — refusing!"
-
 # Prep complete — advance to phase 1 (FL filled, FR breathing).
 set_progress_phase 1
 
@@ -1090,6 +1087,30 @@ led_off 1  # front ring off during flash
 # Read uncompressed size from gzip footer (last 4 bytes, little-endian uint32)
 FLASH_TOTAL=$(python3 -c "import struct; f=open('$DBC_IMAGE','rb'); f.seek(-4,2); print(struct.unpack('<I',f.read(4))[0])" 2>/dev/null || echo 2500000000)
 log "  image uncompressed size: $FLASH_TOTAL"
+
+# Pre-write sanity: confirm we have a sane UMS volume of expected geometry before
+# going destructive. The host's 1-16GB isSafeToFlash check is dead in walk-away,
+# so the MDB must guard itself. fail() handles the abort (status + LEDs + restore).
+sanity_check_target() {
+  dev="$1"; min_total="$2"
+  name=$(basename "$dev")
+  case "$name" in
+    mmcblk*) fail "SAFETY: $dev is mmcblk - refusing"; return 1;;
+  esac
+  dd if="$dev" bs=512 count=1 of=/dev/null 2>/dev/null \
+    || { fail "Target $dev not readable - not a ready UMS volume"; return 1; }
+  sectors=$(cat "/sys/block/$name/size" 2>/dev/null || echo 0)
+  bytes=$((sectors * 512))
+  if [ "$bytes" -lt 1000000000 ] || [ "$bytes" -gt 17000000000 ]; then
+    fail "Target $dev size ${bytes}B outside 1-16GB band - refusing"; return 1
+  fi
+  if [ -n "$min_total" ] && [ "$bytes" -lt "$min_total" ]; then
+    fail "Target $dev (${bytes}B) smaller than image (${min_total}B) - refusing"; return 1
+  fi
+  log "Sanity OK: $dev ${bytes}B"
+  return 0
+}
+sanity_check_target "$DBC_DEV" "$FLASH_TOTAL" || exit 1
 
 FLASH_OK=""
 ATTEMPT=0
