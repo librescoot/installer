@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../main.dart' show LaunchArgs, installerLog, launchArgs, showElevationRequiredDialog;
 import '../l10n/app_localizations.dart';
 import '../models/download_state.dart';
+import '../models/install_state.dart';
 import '../models/installer_phase.dart';
 import '../models/region.dart';
 import '../models/scooter_health.dart';
@@ -59,8 +60,17 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _mdbToUmsStarted = false;
   bool _mdbFlashStarted = false;
   bool _mdbBootStarted = false;
-  bool _dbcPrepStarted = false;
   bool _dbcUploadReady = false; // upload done, waiting for "Begin flashing DBC"
+  // Stage-1 dashboardPrep tracking. The background DBC upload runs while
+  // Bluetooth pairing + keycard enrollment happen in the foreground; the
+  // "Begin flashing DBC" button only unlocks once all three are satisfied.
+  bool _dashboardPrepStarted = false; // background upload kicked off
+  bool _btDone = false;
+  bool _btSkipped = false;
+  bool _keycardDone = false;
+  bool _keycardSkipped = false;
+  // Which interactive sub-step the dashboardPrep screen is showing.
+  _DashboardPrepStep _dashboardPrepStep = _DashboardPrepStep.bluetooth;
   bool _reconnectStarted = false;
   bool _showElevatedHandoff = false;
   bool _dbcFlashSimulateError = false;
@@ -265,19 +275,46 @@ class _InstallerScreenState extends State<InstallerScreen> {
         phase != InstallerPhase.keycardSetup) {
       _keycardTearDown();
     }
+    // The keycard sub-step inside dashboardPrep subscribes to keycard events
+    // the same way the standalone phase does, so tear it down when we leave.
+    if (leaving == InstallerPhase.dashboardPrep &&
+        phase != InstallerPhase.dashboardPrep) {
+      _keycardTearDown();
+    }
     if (phase == InstallerPhase.keycardSetup) {
       _onEnterKeycardSetup();
     }
     if (phase == InstallerPhase.finish) {
       _onEnterFinish();
     }
-    if (phase == InstallerPhase.dbcFlash) {
+    if (phase == InstallerPhase.dbcSwapAndFlash) {
       _dbcFlashWatchStarted = false;
       _dbcUsbDisconnected = false;
     }
-    if (phase == InstallerPhase.bluetoothPairing) {
+    if (phase == InstallerPhase.dashboardPrep || phase == InstallerPhase.bluetoothPairing) {
       _fetchBleMac();
     }
+  }
+
+  /// Build an [InstallState] for the given [phase], carrying the fixed install
+  /// config (channel, release, image, tiles, language, serial) plus the current
+  /// Stage-1 progress flags. Used for every resume checkpoint write so the
+  /// state file always reflects the full install context.
+  InstallState _baseInstallState(InstallPhase phase) {
+    final dbcItem = _downloadState.itemOfType(DownloadItemType.dbcFirmware);
+    final osmItem = _downloadState.itemOfType(DownloadItemType.osmTiles);
+    final valhallaItem = _downloadState.itemOfType(DownloadItemType.valhallaTiles);
+    return InstallState(
+      phase: phase,
+      channel: _downloadState.channel.name,
+      releaseTag: _downloadState.releaseTag,
+      dbcImage: dbcItem?.filename,
+      osmTiles: osmItem?.filename,
+      valhallaTiles: valhallaItem?.filename,
+      serial: _mdbInfo?.serialNumber,
+      btPaired: _btDone,
+      keycardEnrolled: _keycardDone,
+    );
   }
 
   /// Read the scooter's BLE MAC from the MDB so the user can match it against
@@ -760,8 +797,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
       InstallerPhase.scooterPrep => _buildScooterPrep(l10n),
       InstallerPhase.mdbBoot => _buildMdbBoot(l10n),
       InstallerPhase.cbbReconnect => _buildCbbReconnect(l10n),
-      InstallerPhase.dbcPrep => _buildDbcPrep(l10n),
-      InstallerPhase.dbcFlash => _buildDbcFlash(l10n),
+      InstallerPhase.dashboardPrep => _buildDashboardPrep(l10n),
+      InstallerPhase.dbcSwapAndFlash => _buildDbcSwapAndFlash(l10n),
       InstallerPhase.reconnect => _buildReconnect(l10n),
       InstallerPhase.bluetoothPairing => _buildBluetoothPairing(l10n),
       InstallerPhase.keycardSetup => _buildKeycardSetup(l10n),
@@ -1916,10 +1953,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
           _skippedPhases.add(phase);
         }
         if (_skipDbcFlash) {
-          for (final phase in MajorStep.dbcFlash.phases) {
+          // DBC flash itself is skipped, but Bluetooth pairing + keycard
+          // enrollment still run as Stage 1. dashboardPrep handles that and
+          // the "skip DBC, finish" button when _skipDbcFlash is set.
+          for (final phase in MajorStep.dbc.phases) {
             _skippedPhases.add(phase);
           }
-          _setPhase(InstallerPhase.bluetoothPairing);
+          _setPhase(InstallerPhase.dashboardPrep);
         } else {
           _setPhase(InstallerPhase.cbbReconnect);
         }
@@ -2673,6 +2713,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
     try {
       await _sshService.connectToMdb();
 
+      // MDB has booted the freshly-flashed image and we have SSH back: persist
+      // the resume point so an interruption during Stage 1 (BT/keycard/DBC
+      // upload) resumes from here instead of re-flashing the MDB.
+      try {
+        await _sshService.writeInstallState(_baseInstallState(InstallPhase.mdbBooted));
+      } catch (e) {
+        debugPrint('UI: failed to write install state (mdb-booted), non-fatal: $e');
+      }
+
       // Disable keycard-service for the rest of the install. A freshly flashed
       // MDB boots into auto-master-learn mode; any tap before the explicit
       // keycard-setup phase would silently teach in a master card. We re-start
@@ -2706,7 +2755,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
       }
 
       if (_skipDbcFlash) {
-        _setPhase(InstallerPhase.bluetoothPairing);
+        // Even when skipping the DBC flash, Stage 1 (BT + keycard) still runs.
+        _setPhase(InstallerPhase.dashboardPrep);
       } else {
         _setPhase(InstallerPhase.cbbReconnect);
       }
@@ -2812,7 +2862,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
           }
           if (mounted) {
             setState(() => _batteryDetected = bat);
-            if (bat) _setPhase(InstallerPhase.dbcPrep);
+            if (bat) _setPhase(InstallerPhase.dashboardPrep);
           }
         }
       });
@@ -2929,7 +2979,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                   await _sshService.logScooterStats('cbb-and-battery-reconnected');
                   setState(() { _batteryDetected = true; _isProcessing = false; });
                   await Future.delayed(const Duration(seconds: 1));
-                  if (mounted) _setPhase(InstallerPhase.dbcPrep);
+                  if (mounted) _setPhase(InstallerPhase.dashboardPrep);
                 } else {
                   _setStatus(l10n.cbbNotDetected);
                   setState(() => _isProcessing = false);
@@ -2939,7 +2989,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             ),
             const SizedBox(height: 12),
             TextButton(
-              onPressed: () => _setPhase(InstallerPhase.dbcPrep),
+              onPressed: () => _setPhase(InstallerPhase.dashboardPrep),
               child: Text(l10n.proceedWithoutCbb,
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
             ),
@@ -2963,7 +3013,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     if (_isDryRun) {
       _setStatus('[DRY RUN] CBB connected');
       await Future.delayed(const Duration(seconds: 1));
-      _setPhase(InstallerPhase.dbcPrep);
+      _setPhase(InstallerPhase.dashboardPrep);
       return;
     }
     _setStatus(l10n.checkingCbbAndBattery);
@@ -2972,7 +3022,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       if (await _sshService.isCbbPresent()) {
         _setStatus(l10n.cbbConnected);
         await Future.delayed(const Duration(seconds: 1));
-        _setPhase(InstallerPhase.dbcPrep);
+        _setPhase(InstallerPhase.dashboardPrep);
         return;
       }
       attempts++;
@@ -2987,11 +3037,35 @@ class _InstallerScreenState extends State<InstallerScreen> {
     });
   }
 
-  Widget _buildDbcPrep(AppLocalizations l10n) {
-    if (!_dbcPrepStarted && !_isProcessing) {
-      _dbcPrepStarted = true;
-      Future.microtask(_uploadDbcFiles);
+  /// Stage 1: pair Bluetooth and enroll keycards in the foreground while the
+  /// DBC image/tiles upload runs in the background. The "Begin flashing DBC"
+  /// button unlocks only once BT is done-or-skipped, keycard is
+  /// done-or-skipped, and the background upload has completed.
+  Widget _buildDashboardPrep(AppLocalizations l10n) {
+    // Kick off the background upload once, on first entry. The upload itself
+    // doesn't navigate; it just flips _dbcUploadReady when finished. When the
+    // DBC flash is skipped there is nothing to upload, so treat it as ready.
+    if (!_dashboardPrepStarted) {
+      _dashboardPrepStarted = true;
+      if (_skipDbcFlash) {
+        _dbcUploadReady = true;
+      } else {
+        Future.microtask(_uploadDbcFiles);
+      }
     }
+
+    final btSatisfied = _btDone || _btSkipped;
+    final keycardSatisfied = _keycardDone || _keycardSkipped;
+    final beginEnabled =
+        btSatisfied && keycardSatisfied && _dbcUploadReady && !_isProcessing;
+
+    final Widget interactive;
+    if (_dashboardPrepStep == _DashboardPrepStep.bluetooth) {
+      interactive = _bluetoothPairingContent(l10n);
+    } else {
+      interactive = _keycardSetupContent(l10n);
+    }
+
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560),
@@ -2999,51 +3073,27 @@ class _InstallerScreenState extends State<InstallerScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(l10n.preparingDbcFlash,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            LinearProgressIndicator(value: _progress, minHeight: 6),
-            const SizedBox(height: 16),
-            if (_dbcPrepSubsteps.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A1A1A),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade800),
-                ),
-                child: SubstepList(substeps: _dbcPrepSubsteps),
-              )
-            else
-              Text(_statusMessage,
-                  style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-                  textAlign: TextAlign.center),
-            if (_dbcUploadReady) ...[
-              const SizedBox(height: 20),
-              Center(
-                child: FilledButton.icon(
-                  onPressed: _isProcessing ? null : _startTrampoline,
-                  icon: const Icon(Icons.bolt),
-                  label: Text(l10n.dbcReadyButton),
-                ),
+            // No upload to show when the DBC flash is being skipped.
+            if (!_skipDbcFlash) ...[
+              _dbcUploadProgressStrip(l10n),
+              const SizedBox(height: 24),
+            ],
+            interactive,
+            const SizedBox(height: 24),
+            Center(
+              child: FilledButton.icon(
+                onPressed: beginEnabled ? _onBeginFlashingDbc : null,
+                icon: Icon(_skipDbcFlash ? Icons.arrow_forward : Icons.bolt),
+                label: Text(_skipDbcFlash ? l10n.skipDbcFlashOption : l10n.dbcReadyButton),
               ),
-            ] else if (!_isProcessing) ...[
-              const SizedBox(height: 16),
+            ),
+            if (!beginEnabled) ...[
+              const SizedBox(height: 8),
               Center(
-                child: FilledButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _dbcPrepStarted = false;
-                      _dbcPrepSubsteps = const [];
-                    });
-                    Future.microtask(() {
-                      setState(() => _dbcPrepStarted = true);
-                      _uploadDbcFiles();
-                    });
-                  },
-                  icon: const Icon(Icons.refresh),
-                  label: Text(l10n.retryDbcPrep),
+                child: Text(
+                  !_dbcUploadReady ? l10n.waitingForDownloads : l10n.finishStepsAboveToContinue,
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                  textAlign: TextAlign.center,
                 ),
               ),
             ],
@@ -3051,6 +3101,76 @@ class _InstallerScreenState extends State<InstallerScreen> {
         ),
       ),
     );
+  }
+
+  /// Small persistent strip showing the background DBC upload progress while
+  /// the user works through BT pairing + keycard enrollment.
+  Widget _dbcUploadProgressStrip(AppLocalizations l10n) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade800),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(
+                _dbcUploadReady ? Icons.check_circle : Icons.cloud_upload_outlined,
+                size: 18,
+                color: _dbcUploadReady ? kAccent : Colors.grey.shade400,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _dbcUploadReady ? l10n.dbcFlashSuccessful : l10n.preparingDbcFlash,
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (!_dbcUploadReady) ...[
+            LinearProgressIndicator(value: _progress > 0 ? _progress : null, minHeight: 6),
+            const SizedBox(height: 8),
+            if (_dbcPrepSubsteps.isNotEmpty)
+              SubstepList(substeps: _dbcPrepSubsteps)
+            else
+              Text(_statusMessage,
+                  style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
+            // Upload failed (not processing, not ready): offer a retry.
+            if (!_isProcessing) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    setState(() => _dbcPrepSubsteps = const []);
+                    Future.microtask(_uploadDbcFiles);
+                  },
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: Text(l10n.retryDbcPrep),
+                ),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// "Begin flashing DBC" handler for the Stage-1 screen. Arms the trampoline
+  /// (last thing over SSH) and hands off to the cable-swap screen. When the
+  /// user opted to skip the DBC flash entirely, jump straight to finish.
+  Future<void> _onBeginFlashingDbc() async {
+    if (_skipDbcFlash) {
+      _setPhase(InstallerPhase.finish);
+      return;
+    }
+    await _startTrampoline();
   }
 
   Future<void> _uploadDbcFiles() async {
@@ -3102,28 +3222,34 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // Upload is done, but DON'T start the trampoline yet. The trampoline's
       // first act is to wait for the laptop to disconnect, after which the
       // install runs autonomously and we lose SSH. Stay on this page and
-      // surface the "Ready to flash DBC" button instead, so the user
+      // surface the "Begin flashing DBC" button instead, so the user
       // explicitly confirms before that point of no return. The cable-swap
       // instructions only appear on the next screen, after the trampoline
       // has started, so nobody can swap the cable before start() runs.
+      try {
+        await _sshService.writeInstallState(_baseInstallState(InstallPhase.dbcStaged));
+      } catch (e) {
+        debugPrint('UI: failed to write install state (dbc-staged), non-fatal: $e');
+      }
       _setCritical(false);
-      setState(() { _isProcessing = false; _dbcUploadReady = true; });
+      if (mounted) setState(() { _isProcessing = false; _dbcUploadReady = true; });
     } catch (e) {
       _setCritical(false);
       _setStatus(l10n.uploadError(e.toString()));
       debugPrint('DBC prep error: $e');
-      setState(() => _isProcessing = false);
-      // Don't reset _dbcPrepStarted: retry button handles that
+      if (mounted) setState(() => _isProcessing = false);
+      // _dbcUploadReady stays false; the upload-progress strip's retry button
+      // re-runs _uploadDbcFiles.
     }
   }
 
-  /// Confirm handler for the "Ready to flash DBC" button on the prep page:
+  /// Confirm handler for the "Begin flashing DBC" button on the Stage-1 page:
   /// fire the trampoline (the last thing we do over SSH) and hand off to the
   /// swap-cables screen, which is the first place the user is told to touch
   /// the cable.
   Future<void> _startTrampoline() async {
     final l10n = AppLocalizations.of(context)!;
-    setState(() { _isProcessing = true; _dbcUploadReady = false; });
+    setState(() { _isProcessing = true; });
     _setCritical(true);
 
     if (_isDryRun) {
@@ -3131,24 +3257,30 @@ class _InstallerScreenState extends State<InstallerScreen> {
       await Future.delayed(const Duration(seconds: 1));
       _setCritical(false);
       setState(() => _isProcessing = false);
-      _setPhase(InstallerPhase.dbcFlash);
+      _setPhase(InstallerPhase.dbcSwapAndFlash);
       return;
     }
 
     try {
       _setStatus(l10n.startingTrampoline);
       await TrampolineService(_sshService).start();
+      try {
+        await _sshService.writeInstallState(_baseInstallState(InstallPhase.trampolineArmed));
+      } catch (e) {
+        debugPrint('UI: failed to write install state (trampoline-armed), non-fatal: $e');
+      }
       _setCritical(false);
       setState(() => _isProcessing = false);
       await Future.delayed(const Duration(seconds: 1));
-      _setPhase(InstallerPhase.dbcFlash);
+      _setPhase(InstallerPhase.dbcSwapAndFlash);
     } catch (e) {
       _setCritical(false);
       _setStatus(l10n.uploadError(e.toString()));
       debugPrint('Trampoline start error: $e');
-      // The upload is still intact; re-offer the begin button instead of
-      // demoting the user to a full prep retry over a transient SSH error.
-      setState(() { _isProcessing = false; _dbcUploadReady = true; });
+      // The upload is still intact; the Begin button stays enabled so the user
+      // can retry instead of being demoted to a full prep retry over a
+      // transient SSH error.
+      setState(() { _isProcessing = false; });
     }
   }
 
@@ -3161,8 +3293,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _reconnectShowDiagnostics = false;
   String? _reconnectDiagnostics;
 
-  Widget _buildDbcFlash(AppLocalizations l10n) {
-    // Start watching for USB disconnect and MDB reconnect
+  Widget _buildDbcSwapAndFlash(AppLocalizations l10n) {
+    // Watch for the laptop USB cable being unplugged so we can flip from the
+    // swap-cables instructions to the in-progress view. On the happy path we
+    // do NOT poll the MDB or auto-advance; the user confirms via the buttons.
     if (!_dbcFlashWatchStarted) {
       _dbcFlashWatchStarted = true;
       _watchDbcFlash();
@@ -3336,19 +3470,26 @@ class _InstallerScreenState extends State<InstallerScreen> {
               ],
             ),
             const SizedBox(height: 16),
+            // The flash runs autonomously on the scooter; the laptop is no
+            // longer in the loop. The user can walk away and come back.
+            Text(l10n.dbcFlashDurationHeadline,
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 16),
             Wrap(
               spacing: 12,
               runSpacing: 8,
               alignment: WrapAlignment.center,
               children: [
+                // Happy path: the dashboard powered on. No MDB reconnect, no
+                // verify; we trust the lit display and finish.
                 FilledButton.icon(
-                  onPressed: () {
-                    _dbcFlashSimulateError = false;
-                    _setPhase(InstallerPhase.reconnect);
-                  },
+                  onPressed: () => _setPhase(InstallerPhase.finish),
                   icon: const Icon(Icons.check_circle, color: Colors.green),
                   label: Text(l10n.ledIsGreen),
                 ),
+                // Failure path: reconnect the laptop and run the verify logic
+                // to surface the trampoline error log.
                 OutlinedButton.icon(
                   onPressed: () {
                     _dbcFlashSimulateError = true;
@@ -3386,20 +3527,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _dbcUsbDisconnected = true);
     _setStatus(l10n.mdbDisconnectedFlashingDbc);
-
-    // Poll for MDB reconnect every 10s: only while still on dbcFlash phase
-    while (mounted && _currentPhase == InstallerPhase.dbcFlash) {
-      await Future.delayed(const Duration(seconds: 10));
-      if (_currentPhase != InstallerPhase.dbcFlash) return;
-      if (_device != null && _device!.mode == DeviceMode.ethernet) {
-        _setStatus(l10n.mdbReconnectedVerifying);
-        await Future.delayed(const Duration(seconds: 2));
-        if (mounted && _currentPhase == InstallerPhase.dbcFlash) {
-          _setPhase(InstallerPhase.reconnect);
-        }
-        return;
-      }
-    }
+    // Happy path stops here: the laptop is out of the loop and the scooter
+    // flashes the DBC on its own. The user confirms completion with the
+    // "dashboard lit up" button; the failure affordance routes to the verify
+    // logic. We deliberately do NOT poll the MDB or auto-advance here anymore.
   }
 
   Widget _ledSignal(String signal, String meaning) {
@@ -3549,20 +3680,26 @@ class _InstallerScreenState extends State<InstallerScreen> {
                     ),
                     OutlinedButton.icon(
                       onPressed: () {
+                        // Re-arm from Stage 1: BT + keycard are already done
+                        // (their flags persist), so dashboardPrep re-runs only
+                        // the upload, then the user re-confirms Begin.
                         setState(() {
-                          _dbcPrepStarted = false;
+                          _dashboardPrepStarted = false;
+                          _dashboardPrepStep = _DashboardPrepStep.bluetooth;
+                          _dbcUploadReady = false;
                           _reconnectStarted = false;
                           _reconnectShowDiagnostics = false;
                           _reconnectDiagnostics = null;
                           _reconnectSubsteps = const [];
+                          _dbcPrepSubsteps = const [];
                         });
-                        _setPhase(InstallerPhase.dbcPrep);
+                        _setPhase(InstallerPhase.dashboardPrep);
                       },
                       icon: const Icon(Icons.replay),
                       label: Text(l10n.retryDbcFlash),
                     ),
                     TextButton(
-                      onPressed: () => _setPhase(InstallerPhase.bluetoothPairing),
+                      onPressed: () => _setPhase(InstallerPhase.finish),
                       child: Text(l10n.skipToFinish),
                     ),
                   ],
@@ -3698,7 +3835,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         return;
       }
       _setStatus('[DRY RUN] DBC flash successful!');
-      _setPhase(InstallerPhase.bluetoothPairing);
+      _setPhase(InstallerPhase.finish);
       return;
     }
 
@@ -3756,8 +3893,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // Poll for trampoline status. A slow DBC first-boot (resize2fs on a
     // fresh filesystem) can take 5–10 minutes. Give it 5 minutes of quiet
     // polling, then surface the diagnostic panel — user can keep waiting,
-    // retry, or skip. The user can also bail by yanking USB and re-plugging;
-    // _watchDbcFlash picks that up and puts them back on the prep screen.
+    // retry, or skip.
     _setStatus(l10n.readingTrampolineStatus);
     _reconnectStatusWaitStart = DateTime.now();
     TrampolineStatus status;
@@ -3792,12 +3928,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // The green success-blink onboot.sh started means "safe to swap the
       // MDB's USB port back to the laptop". We only get here because the
       // laptop is already back on USB (that's how we read the status), so
-      // the cue has done its job — stop it now instead of letting it run
-      // decoratively through pairing + keycard setup.
+      // the cue has done its job — stop it now. BT pairing and keycard setup
+      // already happened in Stage 1, so a confirmed flash goes straight to
+      // finish.
       await _stopBootLedBlink();
       _setStatus(l10n.dbcFlashSuccessful);
       await Future.delayed(const Duration(seconds: 2));
-      _setPhase(InstallerPhase.bluetoothPairing);
+      _setPhase(InstallerPhase.finish);
     } else if (status.result == TrampolineResult.error) {
       // Quiet the failure indicators (red blink + hazards) now that we're
       // about to surface the actual error to the user. The helper also
@@ -3832,8 +3969,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Widget _buildBluetoothPairing(AppLocalizations l10n) {
-    return Center(
-      child: Column(
+    return Center(child: _bluetoothPairingContent(l10n));
+  }
+
+  /// Inner content of the Bluetooth pairing step, without the outer page
+  /// scaffold. Reused both as the standalone phase and as the first
+  /// interactive sub-step of the Stage-1 dashboardPrep screen.
+  Widget _bluetoothPairingContent(AppLocalizations l10n) {
+    return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(Icons.bluetooth, size: 48, color: Colors.blueAccent),
@@ -3876,7 +4019,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             ),
             const SizedBox(height: 12),
             TextButton(
-              onPressed: () => _setPhase(InstallerPhase.keycardSetup),
+              onPressed: _skipBluetoothPairing,
               child: Text(l10n.skipPairing),
             ),
           ],
@@ -3956,8 +4099,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             ),
           ],
         ],
-      ),
-    );
+      );
   }
 
   Future<void> _startBluetoothPairing() async {
@@ -4016,6 +4158,51 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _blePinCode = null;
       _bleConnected = false;
     });
+    await _bluetoothComplete(skipped: false);
+  }
+
+  /// Skip handler for the Bluetooth step. Stops any active pairing first.
+  Future<void> _skipBluetoothPairing() async {
+    if (_btPairingActive) {
+      _blePinPollTimer?.cancel();
+      _blePinPollTimer = null;
+      try {
+        await _sshService.redisLpush('scooter:state', 'lock');
+      } catch (_) {}
+      setState(() {
+        _btPairingActive = false;
+        _blePinCode = null;
+        _bleConnected = false;
+      });
+    }
+    await _bluetoothComplete(skipped: true);
+  }
+
+  /// Bluetooth step finished (done or skipped). Inside the Stage-1
+  /// dashboardPrep screen this records the result and advances the interactive
+  /// sub-step to keycard enrollment, persisting the resume checkpoint on a real
+  /// pairing. As the standalone phase it just advances to keycardSetup.
+  Future<void> _bluetoothComplete({required bool skipped}) async {
+    if (_currentPhase == InstallerPhase.dashboardPrep) {
+      setState(() {
+        if (skipped) {
+          _btSkipped = true;
+        } else {
+          _btDone = true;
+        }
+        _dashboardPrepStep = _DashboardPrepStep.keycard;
+      });
+      if (!skipped) {
+        try {
+          await _sshService.writeInstallState(_baseInstallState(InstallPhase.btPaired));
+        } catch (e) {
+          debugPrint('UI: failed to write install state (bt-paired), non-fatal: $e');
+        }
+      }
+      // Spin up the keycard sub-step the same way the standalone phase does.
+      await _onEnterKeycardSetup();
+      return;
+    }
     _setPhase(InstallerPhase.keycardSetup);
   }
 
@@ -4371,7 +4558,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         if (!mounted) return;
         await _keycardTearDown();
         if (!mounted) return;
-        _setPhase(InstallerPhase.finish);
+        await _keycardComplete(skipped: false);
       });
     } else if (payload.startsWith('rejected:already-authorized:')) {
       _keycardShowToast(l10n.keycardMasterStageRejectedToast, Colors.redAccent);
@@ -4404,7 +4591,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     await _keycardTearDown();
     if (!mounted) return;
     if (advance) {
-      _setPhase(InstallerPhase.finish);
+      await _keycardComplete(skipped: false);
     } else {
       setState(() {
         _keycardStage = _KeycardStage.cardsReview;
@@ -4463,12 +4650,44 @@ class _InstallerScreenState extends State<InstallerScreen> {
       await _stopKeycardLearning(advance: false);
     }
     await _keycardTearDown();
+    await _keycardComplete(skipped: true);
+  }
+
+  /// Keycard step finished (done or skipped). Inside the Stage-1 dashboardPrep
+  /// screen this records the result and stays on the screen so the "Begin
+  /// flashing DBC" button can unlock; on a real enrollment it persists the
+  /// resume checkpoint. As the standalone phase it advances to finish.
+  Future<void> _keycardComplete({required bool skipped}) async {
+    if (_currentPhase == InstallerPhase.dashboardPrep) {
+      setState(() {
+        if (skipped) {
+          _keycardSkipped = true;
+        } else {
+          _keycardDone = true;
+        }
+      });
+      if (!skipped) {
+        try {
+          await _sshService
+              .writeInstallState(_baseInstallState(InstallPhase.keycardEnrolled));
+        } catch (e) {
+          debugPrint('UI: failed to write install state (keycard-enrolled), non-fatal: $e');
+        }
+      }
+      return;
+    }
     if (mounted) _setPhase(InstallerPhase.finish);
   }
 
   Widget _buildKeycardSetup(AppLocalizations l10n) {
-    return Center(
-      child: ConstrainedBox(
+    return Center(child: _keycardSetupContent(l10n));
+  }
+
+  /// Inner content of the keycard enrollment step, without the outer page
+  /// scaffold. Reused both as the standalone phase and as the second
+  /// interactive sub-step of the Stage-1 dashboardPrep screen.
+  Widget _keycardSetupContent(AppLocalizations l10n) {
+    return ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 480),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -4497,8 +4716,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             },
           ],
         ),
-      ),
-    );
+      );
   }
 
   String _keycardStageHeading(AppLocalizations l10n) {
@@ -4524,7 +4742,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         ),
         const SizedBox(height: 24),
         FilledButton.icon(
-          onPressed: () => _setPhase(InstallerPhase.finish),
+          onPressed: () => _keycardComplete(skipped: false),
           icon: const Icon(Icons.arrow_forward),
           label: Text(l10n.keycardEntryContinueButton),
         ),
@@ -4659,7 +4877,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         ),
         const SizedBox(height: 16),
         FilledButton.icon(
-          onPressed: () => _setPhase(InstallerPhase.finish),
+          onPressed: () => _keycardComplete(skipped: false),
           icon: const Icon(Icons.arrow_forward),
           label: Text(l10n.keycardCardsStageContinueButton),
         ),
@@ -5116,3 +5334,8 @@ enum _KeycardStage {
   master,
   done,
 }
+
+/// Interactive sub-step shown inside the Stage-1 dashboardPrep screen. The
+/// background DBC upload progresses independently of this; this only tracks
+/// which foreground task (BT pairing, then keycard enrollment) is visible.
+enum _DashboardPrepStep { bluetooth, keycard }

@@ -89,22 +89,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get phaseCbbReconnectDescription => 'Reconnect CBB for DBC flash';
 
   @override
-  String get phaseDbcPrepTitle => 'Upload Files';
+  String get phaseDashboardPrepTitle => 'Dashboard Prep';
 
   @override
-  String get phaseDbcPrepDescription => 'Upload DBC image and tiles';
+  String get phaseDashboardPrepDescription =>
+      'Pair, enroll keycards, stage DBC image';
 
   @override
-  String get phaseDbcFlashTitle => 'Flash Image';
+  String get phaseDbcSwapAndFlashTitle => 'Flash Image';
 
   @override
-  String get phaseDbcFlashDescription => 'Autonomous DBC installation';
+  String get phaseDbcSwapAndFlashDescription =>
+      'Swap cable; scooter flashes the DBC';
 
   @override
   String get phaseReconnectTitle => 'Verify';
 
   @override
-  String get phaseReconnectDescription => 'Verify DBC installation';
+  String get phaseReconnectDescription =>
+      'Verify after an interrupted DBC flash';
 
   @override
   String get phaseBluetoothPairingTitle => 'Bluetooth';
@@ -126,6 +129,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get majorStepMdbFlash => 'Flash MDB';
+
+  @override
+  String get majorStepMdbPrep => 'Dashboard Prep';
 
   @override
   String get majorStepDbcFlash => 'Flash DBC';
@@ -656,6 +662,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get waitingForDownloads => 'Waiting for downloads to complete...';
+
+  @override
+  String get finishStepsAboveToContinue =>
+      'Finish the steps above to continue.';
 
   @override
   String get startingTrampoline => 'Starting trampoline script...';

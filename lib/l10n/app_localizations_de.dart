@@ -92,22 +92,25 @@ class AppLocalizationsDe extends AppLocalizations {
       'CBB für DBC-Flash wieder anschließen';
 
   @override
-  String get phaseDbcPrepTitle => 'DBC vorbereiten';
+  String get phaseDashboardPrepTitle => 'Dashboard vorbereiten';
 
   @override
-  String get phaseDbcPrepDescription => 'DBC-Image und Karten hochladen';
+  String get phaseDashboardPrepDescription =>
+      'Koppeln, Keycards anlernen, DBC-Image vorbereiten';
 
   @override
-  String get phaseDbcFlashTitle => 'DBC flashen';
+  String get phaseDbcSwapAndFlashTitle => 'DBC flashen';
 
   @override
-  String get phaseDbcFlashDescription => 'Autonome DBC-Installation';
+  String get phaseDbcSwapAndFlashDescription =>
+      'Kabel umstecken; der Roller flasht den DBC';
 
   @override
   String get phaseReconnectTitle => 'Verbinden';
 
   @override
-  String get phaseReconnectDescription => 'DBC-Installation prüfen';
+  String get phaseReconnectDescription =>
+      'Nach einem unterbrochenen DBC-Flash prüfen';
 
   @override
   String get phaseBluetoothPairingTitle => 'Bluetooth';
@@ -130,6 +133,9 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get majorStepMdbFlash => 'MDB flashen';
+
+  @override
+  String get majorStepMdbPrep => 'Dashboard vorbereiten';
 
   @override
   String get majorStepDbcFlash => 'DBC flashen';
@@ -663,6 +669,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get waitingForDownloads => 'Warte auf Abschluss der Downloads...';
+
+  @override
+  String get finishStepsAboveToContinue =>
+      'Schließe die Schritte oben ab, um fortzufahren.';
 
   @override
   String get startingTrampoline => 'Trampoline-Skript wird gestartet...';

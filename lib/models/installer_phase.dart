@@ -60,20 +60,10 @@ enum InstallerPhase {
     description: 'Reconnect CBB for DBC flash',
     isManual: true,
   ),
-  dbcPrep(
-    title: 'DBC Prep',
-    description: 'Upload DBC image and tiles',
+  dashboardPrep(
+    title: 'Dashboard Prep',
+    description: 'Pair, enroll keycards, stage DBC image',
     isManual: false,
-  ),
-  dbcFlash(
-    title: 'DBC Flash',
-    description: 'Autonomous DBC installation',
-    isManual: false,
-  ),
-  reconnect(
-    title: 'Reconnect',
-    description: 'Verify DBC installation',
-    isManual: true,
   ),
   bluetoothPairing(
     title: 'Bluetooth',
@@ -84,6 +74,17 @@ enum InstallerPhase {
     title: 'Keycard Setup',
     description: 'Register master and user keycards',
     isManual: true,
+  ),
+  dbcSwapAndFlash(
+    title: 'DBC Flash',
+    description: 'Swap cable; scooter flashes the DBC',
+    isManual: true,
+  ),
+  reconnect(
+    title: 'Reconnect',
+    description: 'Verify after an interrupted DBC flash',
+    isManual: true,
+    hiddenUnlessActive: true,
   ),
   finish(
     title: 'Finish',
@@ -112,8 +113,9 @@ enum MajorStep {
   prepare('Prepare', [InstallerPhase.welcome, InstallerPhase.notices, InstallerPhase.physicalPrep]),
   connect('Connect', [InstallerPhase.mdbConnect, InstallerPhase.resumeDetected, InstallerPhase.healthCheck]),
   mdbFlash('Flash MDB', [InstallerPhase.batteryRemoval, InstallerPhase.mdbToUms, InstallerPhase.mdbFlash, InstallerPhase.scooterPrep, InstallerPhase.mdbBoot, InstallerPhase.cbbReconnect]),
-  dbcFlash('Flash DBC', [InstallerPhase.dbcPrep, InstallerPhase.dbcFlash, InstallerPhase.reconnect]),
-  finish('Finish', [InstallerPhase.bluetoothPairing, InstallerPhase.keycardSetup, InstallerPhase.finish]);
+  mdbPrep('Dashboard Prep', [InstallerPhase.dashboardPrep, InstallerPhase.bluetoothPairing, InstallerPhase.keycardSetup]),
+  dbc('Flash DBC', [InstallerPhase.dbcSwapAndFlash]),
+  finish('Finish', [InstallerPhase.finish]);
 
   const MajorStep(this.title, this.phases);
 
@@ -130,6 +132,9 @@ enum MajorStep {
   }
 
   static MajorStep forPhase(InstallerPhase phase) {
-    return MajorStep.values.firstWhere((s) => s.containsPhase(phase));
+    return MajorStep.values.firstWhere(
+      (s) => s.containsPhase(phase),
+      orElse: () => MajorStep.connect,
+    );
   }
 }

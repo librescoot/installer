@@ -254,29 +254,29 @@ abstract class AppLocalizations {
   /// **'Reconnect CBB for DBC flash'**
   String get phaseCbbReconnectDescription;
 
-  /// No description provided for @phaseDbcPrepTitle.
+  /// No description provided for @phaseDashboardPrepTitle.
   ///
   /// In en, this message translates to:
-  /// **'Upload Files'**
-  String get phaseDbcPrepTitle;
+  /// **'Dashboard Prep'**
+  String get phaseDashboardPrepTitle;
 
-  /// No description provided for @phaseDbcPrepDescription.
+  /// No description provided for @phaseDashboardPrepDescription.
   ///
   /// In en, this message translates to:
-  /// **'Upload DBC image and tiles'**
-  String get phaseDbcPrepDescription;
+  /// **'Pair, enroll keycards, stage DBC image'**
+  String get phaseDashboardPrepDescription;
 
-  /// No description provided for @phaseDbcFlashTitle.
+  /// No description provided for @phaseDbcSwapAndFlashTitle.
   ///
   /// In en, this message translates to:
   /// **'Flash Image'**
-  String get phaseDbcFlashTitle;
+  String get phaseDbcSwapAndFlashTitle;
 
-  /// No description provided for @phaseDbcFlashDescription.
+  /// No description provided for @phaseDbcSwapAndFlashDescription.
   ///
   /// In en, this message translates to:
-  /// **'Autonomous DBC installation'**
-  String get phaseDbcFlashDescription;
+  /// **'Swap cable; scooter flashes the DBC'**
+  String get phaseDbcSwapAndFlashDescription;
 
   /// No description provided for @phaseReconnectTitle.
   ///
@@ -287,7 +287,7 @@ abstract class AppLocalizations {
   /// No description provided for @phaseReconnectDescription.
   ///
   /// In en, this message translates to:
-  /// **'Verify DBC installation'**
+  /// **'Verify after an interrupted DBC flash'**
   String get phaseReconnectDescription;
 
   /// No description provided for @phaseBluetoothPairingTitle.
@@ -331,6 +331,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Flash MDB'**
   String get majorStepMdbFlash;
+
+  /// No description provided for @majorStepMdbPrep.
+  ///
+  /// In en, this message translates to:
+  /// **'Dashboard Prep'**
+  String get majorStepMdbPrep;
 
   /// No description provided for @majorStepDbcFlash.
   ///
@@ -1261,6 +1267,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Waiting for downloads to complete...'**
   String get waitingForDownloads;
+
+  /// No description provided for @finishStepsAboveToContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Finish the steps above to continue.'**
+  String get finishStepsAboveToContinue;
 
   /// No description provided for @startingTrampoline.
   ///
