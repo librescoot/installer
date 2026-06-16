@@ -598,6 +598,66 @@ flash_progress_monitor_stop() {
   FLASH_MON_PID=""
 }
 
+# V3: grow the DBC data partition + fs over UMS and copy tiles, so the DBC
+# boots once already-complete. The DBC ships /data at 256M and grows it on
+# first boot (mender grow-data + systemd-growfs); doing it here makes that a
+# no-op. Tiles land at the exact on-disk paths the onboot HTTP push targets:
+# OSM display tiles -> /data/maps/map.mbtiles, Valhalla routing tiles ->
+# /data/valhalla/tiles.tar (the DBC boots fresh afterward, so valhalla picks
+# up its tiles on start; no service restart needed here). Returns 0 on success
+# (grown + tiles copied, or no tiles to copy), non-zero on ANY failure so the
+# caller falls back to the proven onboot path. Never proceeds on partial
+# failure. NOTE: partition number ($dev4 -> DBC mmcblk3p4) and the presence of
+# resize2fs/parted/sfdisk on the MDB image are unverified in this environment;
+# any mismatch returns non-zero and the proven onboot path takes over.
+grow_and_populate_dbc() {
+  dev="$1"
+  command -v resize2fs >/dev/null 2>&1 || { log "V3: resize2fs missing"; return 1; }
+  partprobe "$dev" 2>/dev/null || blockdev --rereadpt "$dev" 2>/dev/null || true
+  sleep 1
+  data_part="${dev}4"   # DBC data is mmcblk3p4 -> sdX4 over UMS; verify on hardware
+  [ -b "$data_part" ] || { log "V3: data partition $data_part not found"; return 1; }
+  # Grow the partition to fill the disk, then the filesystem.
+  if command -v parted >/dev/null 2>&1; then
+    parted -s "$dev" resizepart 4 100% 2>/dev/null || { log "V3: parted resizepart failed"; return 1; }
+  elif command -v sfdisk >/dev/null 2>&1; then
+    echo ", +" | sfdisk --no-reread -N 4 "$dev" 2>/dev/null || { log "V3: sfdisk grow failed"; return 1; }
+  else
+    log "V3: no parted/sfdisk"; return 1
+  fi
+  partprobe "$dev" 2>/dev/null || blockdev --rereadpt "$dev" 2>/dev/null || true
+  sleep 1
+  e2fsck -fy "$data_part" 2>/dev/null || true   # tolerate fsck rc<8; resize2fs will fail if truly bad
+  resize2fs "$data_part" 2>/dev/null || { log "V3: resize2fs failed"; return 1; }
+  if [ "$INSTALL_TILES" = "true" ]; then
+    mkdir -p /mnt/dbcdata 2>/dev/null
+    mount -t ext4 "$data_part" /mnt/dbcdata 2>/dev/null || { log "V3: mount failed"; return 1; }
+    mkdir -p /mnt/dbcdata/maps /mnt/dbcdata/valhalla 2>/dev/null
+    rc=0
+    # (source, dest) pairs mirror the proven onboot HTTP push exactly:
+    # OSM -> /data/maps/map.mbtiles, Valhalla -> /data/valhalla/tiles.tar.
+    if [ -n "$OSM_TILES_FILE" ] && [ -f "$OSM_TILES_FILE" ]; then
+      if cp "$OSM_TILES_FILE" /mnt/dbcdata/maps/map.mbtiles 2>/dev/null; then
+        log "V3: copied display tiles -> maps/map.mbtiles"
+      else
+        log "V3: copy display tiles failed"; rc=1
+      fi
+    fi
+    if [ -n "$VALHALLA_TILES_FILE" ] && [ -f "$VALHALLA_TILES_FILE" ]; then
+      if cp "$VALHALLA_TILES_FILE" /mnt/dbcdata/valhalla/tiles.tar 2>/dev/null; then
+        log "V3: copied routing tiles -> valhalla/tiles.tar"
+      else
+        log "V3: copy routing tiles failed"; rc=1
+      fi
+    fi
+    sync
+    umount /mnt/dbcdata 2>/dev/null || true
+    [ "$rc" = 0 ] || return 1
+  fi
+  log "V3: grow+tiles complete"
+  return 0
+}
+
 # =========================================================================
 # Drop a small helper the installer can invoke via SSH after a failure to
 # stop the boot-LED blink and the hazard flash, reset the LED state, and
@@ -1185,6 +1245,36 @@ step_end
 # reads PHASE_FILE after the MDB reboot and re-lights the same segments
 # before continuing to phase 3.
 set_progress_phase 2
+
+# V3 happy path: while STILL in UMS/host mode (DBC exposed as $DBC_DEV), grow
+# the DBC data partition + fs and copy tiles directly, so the DBC boots once
+# already-complete — no MDB reboot, no onboot HTTP tile push. If V3 fails for
+# ANY reason (tools missing, partition not found, grow/mount/copy failed) we
+# fall through to the proven onboot.sh + reboot path below, unchanged.
+step_begin "Step 8a: grow DBC data + copy tiles over UMS (V3)"
+if grow_and_populate_dbc "$DBC_DEV"; then
+  log "DBC complete via UMS (V3); no MDB reboot, no onboot tile push needed"
+  step_end
+  # Power the DBC on so its dashboard comes up = done. The DBC's own first-boot
+  # grow now no-ops (already grown). Mirror the clean-success LED sequence used
+  # by the "DBC already at target" early-exit above.
+  log "  syncing..."
+  sync
+  if ! restore_gadget; then
+    gadget_rescue_start
+  fi
+  trampoline_watchdog_stop
+  log "  powering DBC on..."
+  lsc --redis-addr localhost:6379 dbc on 2>/dev/null || true
+  echo "success" > "$STATUS_FILE"
+  cat "$LOG_FILE" >> "$STATUS_FILE"
+  signal_progress_off
+  bootled_guard_stop
+  bootled_blink_green
+  exit 0
+fi
+log "V3 grow/tiles failed or unavailable; falling back to onboot tile push + MDB reboot"
+step_end
 
 # Step 8: Sync, power off DBC, write onboot script, reboot MDB
 step_begin "Step 8: post-flash cleanup"
