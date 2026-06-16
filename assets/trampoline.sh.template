@@ -1061,185 +1061,314 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
   step_end
 fi  # end of DBC_ALREADY_UMS != yes
 
-# Step 5: Switch MDB to USB host (may already be in host mode if DBC was in UMS)
-step_begin "Step 5: switch MDB to USB host mode"
-CURRENT_ROLE=$(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)
-if [ "$CURRENT_ROLE" != "host" ]; then
-  rmmod g_ether 2>/dev/null || true
-  sleep 1
-  role_write host || fail "Failed to switch to host mode"
-  sleep 3
-else
-  log "  already in host mode"
-fi
-log "  role: $(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)"
-log "  lsusb: $(lsusb 2>/dev/null | grep 0525 || echo 'no 0525')"
-step_end
-
-# Step 6: Find DBC block device (DBC may still be rebooting from step 4).
-# This window absorbs two variable delays: the DBC reboot into u-boot UMS,
-# AND the human swapping the single USB cable from the laptop over to the
-# DBC. A slow swap is the common case, and timing out here is expensive to
-# recover from — step 4 already armed the DBC bootcmd to `ums 0 mmc 2` with
-# bootdelay=0, so a DBC that never got flashed will keep booting straight
-# into UMS until it's reflashed. Give the user real time (5 min) before
-# giving up.
-# We don't peek at gadget mode during the wait — flipping roles can
-# race the DBC enumeration. Only after the full timeout, if there's
-# really nothing on the bus, do a single gadget probe to disambiguate
-# "DBC absent" vs "laptop reconnected"; that gives the user a clear
-# error message instead of a generic "UMS not found".
-step_begin "Step 6: wait for DBC UMS device"
-TIMEOUT=300
-ELAPSED=0
-DBC_DEV=""
-# Remember where the captured journal stood when the wait started, so the
-# timeout analysis below only looks at bus activity from THIS window.
-# Earlier host-mode stints (step 3 probe) would otherwise pollute it.
-STEP6_JNL_START=$(wc -l < "$INSTALLER_DIR/trampoline-journal.log" 2>/dev/null || echo 0)
-STEP6_REPOWERED=""
-while [ $ELAPSED -lt $TIMEOUT ]; do
-  DBC_DEV="$(find_dbc_block_device 2>/dev/null)" && break
-  ELAPSED=$((ELAPSED + 2))
-  if [ $((ELAPSED % 10)) -eq 0 ]; then
-    log "  ${ELAPSED}s... $(lsusb 2>/dev/null | grep 0525 || echo 'no USB')"
-  fi
-  # Halfway nudge: re-power the DBC once. Recovers a DBC that hung before
-  # reaching UMS; bootcmd is armed with bootdelay=0, so a healthy DBC just
-  # lands back in UMS. Harmless if the cable simply isn't connected yet.
-  if [ $ELAPSED -ge $((TIMEOUT / 2)) ] && [ -z "$STEP6_REPOWERED" ]; then
-    STEP6_REPOWERED="yes"
-    log "  halfway through the wait, re-powering DBC once..."
-    lsc --redis-addr localhost:6379 dbc off-wait --force >> "$LOG_FILE" 2>&1 || log "  DBC off failed"
-    lsc --redis-addr localhost:6379 dbc on >> "$LOG_FILE" 2>&1 || log "  DBC on failed"
-  fi
-  sleep 2
-done
-if [ -z "$DBC_DEV" ]; then
-  # Last-ditch: see if the user yanked the DBC and connected the laptop.
-  # If so, probe_for_laptop_then_restore_host calls fail() with a clear
-  # message and never returns.
-  probe_for_laptop_then_restore_host
-  # Classify what (if anything) the bus saw during the wait, from the
-  # journal we're already capturing. An unplugged cable and an unpowered
-  # device are electrically identical (no D+ pullup), so total silence
-  # means the cable most likely never reached the DBC; enumeration errors
-  # mean something is plugged but the link is bad.
-  STEP6_JNL=$(tail -n +$((STEP6_JNL_START + 1)) "$INSTALLER_DIR/trampoline-journal.log" 2>/dev/null | grep "usb 1-1")
-  if [ -z "$STEP6_JNL" ]; then
-    fail "No USB device was detected while waiting for the DBC. The USB cable is probably not plugged into the DBC. Connect the MDB's USB cable to the DBC and retry."
-  elif echo "$STEP6_JNL" | grep -qiE "device descriptor read|device not accepting|unable to enumerate|error"; then
-    fail "A USB device was detected but failed to enumerate. Reseat the USB cable between MDB and DBC and retry."
-  fi
-  fail "DBC UMS not found in ${TIMEOUT}s"
-fi
-log "DBC device: $DBC_DEV ($(cat /sys/block/$(basename $DBC_DEV)/size 2>/dev/null || echo '?') sectors)"
-step_end
-
-# Prep complete — advance to phase 1 (FL filled, FR breathing).
-set_progress_phase 1
-
-# Step 7: Flash DBC
-step_begin "Step 7: flash DBC"
-breathe_stop
-led_off 1  # front ring off during flash
-
-# Read uncompressed size from gzip footer (last 4 bytes, little-endian uint32)
-FLASH_TOTAL=$(python3 -c "import struct; f=open('$DBC_IMAGE','rb'); f.seek(-4,2); print(struct.unpack('<I',f.read(4))[0])" 2>/dev/null || echo 2500000000)
-log "  image uncompressed size: $FLASH_TOTAL"
-
 # Pre-write sanity: confirm we have a sane UMS volume of expected geometry before
 # going destructive. The host's 1-16GB isSafeToFlash check is dead in walk-away,
-# so the MDB must guard itself. fail() handles the abort (status + LEDs + restore).
+# so the MDB must guard itself.
+#
+# Terminal vs retryable in the retry world (see the outer loop below):
+#   - mmcblk / size-out-of-band / smaller-than-image are TERMINAL: a wrong or
+#     oversized device won't fix itself by re-powering, so these still call
+#     fail() (which exits) directly.
+#   - "not readable" is RETRYABLE: the UMS volume can be present-but-not-yet-
+#     ready right after enumeration, and a re-power often settles it. We signal
+#     that with return code 2 so do_dbc_flash_round() treats it as a round
+#     failure instead of a hard abort.
+# Return: 0 = OK, 2 = retryable (device not readable yet). Terminal cases never
+# return (fail() exits).
 sanity_check_target() {
   dev="$1"; min_total="$2"
   name=$(basename "$dev")
   case "$name" in
-    mmcblk*) fail "SAFETY: $dev is mmcblk - refusing"; return 1;;
+    mmcblk*) fail "SAFETY: $dev is mmcblk - refusing";;
   esac
-  dd if="$dev" bs=512 count=1 of=/dev/null 2>/dev/null \
-    || { fail "Target $dev not readable - not a ready UMS volume"; return 1; }
+  if ! dd if="$dev" bs=512 count=1 of=/dev/null 2>/dev/null; then
+    log "Sanity: $dev not readable yet - treating as retryable"
+    return 2
+  fi
   sectors=$(cat "/sys/block/$name/size" 2>/dev/null || echo 0)
   bytes=$((sectors * 512))
   if [ "$bytes" -lt 1000000000 ] || [ "$bytes" -gt 17000000000 ]; then
-    fail "Target $dev size ${bytes}B outside 1-16GB band - refusing"; return 1
+    fail "Target $dev size ${bytes}B outside 1-16GB band - refusing"
   fi
   if [ -n "$min_total" ] && [ "$bytes" -lt "$min_total" ]; then
-    fail "Target $dev (${bytes}B) smaller than image (${min_total}B) - refusing"; return 1
+    fail "Target $dev (${bytes}B) smaller than image (${min_total}B) - refusing"
   fi
   log "Sanity OK: $dev ${bytes}B"
   return 0
 }
-sanity_check_target "$DBC_DEV" "$FLASH_TOTAL" || exit 1
 
-FLASH_OK=""
-ATTEMPT=0
-while [ $ATTEMPT -lt 3 ]; do
-  ATTEMPT=$((ATTEMPT + 1))
-  log "  flash attempt $ATTEMPT/3..."
-  flash_progress_monitor_start "$DBC_DEV"
-
-  FLASHER="$INSTALLER_DIR/librescoot-flasher"
-  USING_DD=""
-  if [ -x "$FLASHER" ] && [ -f "$DBC_BMAP" ]; then
-    log "  using librescoot-flasher (bmap: $DBC_BMAP)"
-    $FLASHER --image "$DBC_IMAGE" --bmap "$DBC_BMAP" --device "$DBC_DEV" >> "$LOG_FILE" 2>&1
-    FLASH_RC=$?
-  elif [ -x "$FLASHER" ]; then
-    log "  using librescoot-flasher (sequential)"
-    $FLASHER --image "$DBC_IMAGE" --device "$DBC_DEV" >> "$LOG_FILE" 2>&1
-    FLASH_RC=$?
-  else
-    USING_DD="yes"
-    log "  using dd (oflag=direct), image size: $FLASH_TOTAL"
-    gunzip -c "$DBC_IMAGE" | dd bs=4M iflag=fullblock of=$DBC_DEV oflag=direct 2>> "$LOG_FILE"
-    # $? of a pipeline is dd's status (PIPESTATUS is bash-only and a bad
-    # substitution under busybox ash). A gunzip failure truncates the
-    # stream without failing dd; the boot-sector verify below catches it.
-    FLASH_RC=$?
-  fi
-
-  flash_progress_monitor_stop
-  if [ "${FLASH_RC:-0}" -ne 0 ]; then
-    log "  flash failed (rc=$FLASH_RC), retrying..."
+# One flash round: flip MDB to USB host (step 5), wait for the DBC UMS block
+# device (step 6), run the pre-write sanity gate, then the inner 3-attempt
+# write+verify loop (step 7). Returns 0 only on a verified flash. Returns
+# non-zero on a retryable failure (no DBC device on the bus, device not
+# readable yet, or all 3 inner write attempts failed) so the outer loop can
+# re-power the DBC and try again. Terminal conditions (laptop reconnected,
+# SDP brick, wrong/oversized device) still call fail() and exit from within.
+# On success, leaves the verified device path in DBC_DEV for the V3/onboot
+# paths that run after a successful round.
+do_dbc_flash_round() {
+  # Step 5: Switch MDB to USB host (may already be in host mode if DBC was in UMS)
+  step_begin "Step 5: switch MDB to USB host mode"
+  CURRENT_ROLE=$(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)
+  if [ "$CURRENT_ROLE" != "host" ]; then
+    rmmod g_ether 2>/dev/null || true
+    sleep 1
+    if ! role_write host; then
+      log "  failed to switch to host mode this round"
+      step_end
+      return 1
+    fi
     sleep 3
-    DBC_DEV="$(find_dbc_block_device 2>/dev/null)" || { log "  device gone, waiting..."; sleep 5; DBC_DEV="$(find_dbc_block_device 2>/dev/null)" || continue; }
-    log "  re-probed device: $DBC_DEV"
-    continue
+  else
+    log "  already in host mode"
+  fi
+  log "  role: $(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)"
+  log "  lsusb: $(lsusb 2>/dev/null | grep 0525 || echo 'no 0525')"
+  step_end
+
+  # Step 6: Find DBC block device (DBC may still be rebooting from step 4).
+  # This window absorbs two variable delays: the DBC reboot into u-boot UMS,
+  # AND the human swapping the single USB cable from the laptop over to the
+  # DBC. A slow swap is the common case, and timing out here is expensive to
+  # recover from — step 4 already armed the DBC bootcmd to `ums 0 mmc 2` with
+  # bootdelay=0, so a DBC that never got flashed will keep booting straight
+  # into UMS until it's reflashed. Give the user real time (5 min) before
+  # giving up.
+  # We don't peek at gadget mode during the wait — flipping roles can
+  # race the DBC enumeration. Only after the full timeout, if there's
+  # really nothing on the bus, do a single gadget probe to disambiguate
+  # "DBC absent" vs "laptop reconnected"; that gives the user a clear
+  # error message instead of a generic "UMS not found".
+  step_begin "Step 6: wait for DBC UMS device"
+  TIMEOUT=300
+  ELAPSED=0
+  DBC_DEV=""
+  # Remember where the captured journal stood when the wait started, so the
+  # timeout analysis below only looks at bus activity from THIS window.
+  # Earlier host-mode stints (step 3 probe) would otherwise pollute it.
+  STEP6_JNL_START=$(wc -l < "$INSTALLER_DIR/trampoline-journal.log" 2>/dev/null || echo 0)
+  STEP6_REPOWERED=""
+  while [ $ELAPSED -lt $TIMEOUT ]; do
+    DBC_DEV="$(find_dbc_block_device 2>/dev/null)" && break
+    ELAPSED=$((ELAPSED + 2))
+    if [ $((ELAPSED % 10)) -eq 0 ]; then
+      log "  ${ELAPSED}s... $(lsusb 2>/dev/null | grep 0525 || echo 'no USB')"
+    fi
+    # Halfway nudge: re-power the DBC once. Recovers a DBC that hung before
+    # reaching UMS; bootcmd is armed with bootdelay=0, so a healthy DBC just
+    # lands back in UMS. Harmless if the cable simply isn't connected yet.
+    if [ $ELAPSED -ge $((TIMEOUT / 2)) ] && [ -z "$STEP6_REPOWERED" ]; then
+      STEP6_REPOWERED="yes"
+      log "  halfway through the wait, re-powering DBC once..."
+      lsc --redis-addr localhost:6379 dbc off-wait --force >> "$LOG_FILE" 2>&1 || log "  DBC off failed"
+      lsc --redis-addr localhost:6379 dbc on >> "$LOG_FILE" 2>&1 || log "  DBC on failed"
+    fi
+    sleep 2
+  done
+  if [ -z "$DBC_DEV" ]; then
+    # Last-ditch: see if the user yanked the DBC and connected the laptop.
+    # If so, probe_for_laptop_then_restore_host calls fail() with a clear
+    # message and never returns (a laptop reconnect is terminal, not a
+    # round-failure — retrying can't help if the DBC is no longer attached).
+    probe_for_laptop_then_restore_host
+    # No laptop, no DBC device. Classify what (if anything) the bus saw
+    # during the wait, from the journal we're already capturing, and log it
+    # so the eventual outer-exhaustion fail() carries the best message. This
+    # is a RETRYABLE round failure: a re-power may bring the DBC back.
+    STEP6_JNL=$(tail -n +$((STEP6_JNL_START + 1)) "$INSTALLER_DIR/trampoline-journal.log" 2>/dev/null | grep "usb 1-1")
+    if [ -z "$STEP6_JNL" ]; then
+      ROUND_FAIL_MSG="No USB device was detected while waiting for the DBC. The USB cable is probably not plugged into the DBC. Connect the MDB's USB cable to the DBC and retry."
+    elif echo "$STEP6_JNL" | grep -qiE "device descriptor read|device not accepting|unable to enumerate|error"; then
+      ROUND_FAIL_MSG="A USB device was detected but failed to enumerate. Reseat the USB cable between MDB and DBC and retry."
+    else
+      ROUND_FAIL_MSG="DBC UMS not found in ${TIMEOUT}s"
+    fi
+    log "  round failed: $ROUND_FAIL_MSG"
+    step_end
+    return 1
+  fi
+  log "DBC device: $DBC_DEV ($(cat /sys/block/$(basename $DBC_DEV)/size 2>/dev/null || echo '?') sectors)"
+  step_end
+
+  # Prep complete — advance to phase 1 (FL filled, FR breathing).
+  set_progress_phase 1
+
+  # Step 7: Flash DBC
+  step_begin "Step 7: flash DBC"
+  breathe_stop
+  led_off 1  # front ring off during flash
+
+  # Read uncompressed size from gzip footer (last 4 bytes, little-endian uint32)
+  FLASH_TOTAL=$(python3 -c "import struct; f=open('$DBC_IMAGE','rb'); f.seek(-4,2); print(struct.unpack('<I',f.read(4))[0])" 2>/dev/null || echo 2500000000)
+  log "  image uncompressed size: $FLASH_TOTAL"
+
+  sanity_check_target "$DBC_DEV" "$FLASH_TOTAL"
+  SANITY_RC=$?
+  # rc 0 = OK (fall through), rc 2 = device not readable yet (retryable round
+  # failure), terminal cases never return (fail() exited). Defensive: any
+  # other non-zero is also treated as a retryable round failure.
+  if [ "$SANITY_RC" -ne 0 ]; then
+    ROUND_FAIL_MSG="DBC UMS volume not ready (sanity rc=$SANITY_RC)"
+    log "  round failed: $ROUND_FAIL_MSG"
+    step_end
+    return 1
   fi
 
-  sync
+  FLASH_OK=""
+  ATTEMPT=0
+  while [ $ATTEMPT -lt 3 ]; do
+    ATTEMPT=$((ATTEMPT + 1))
+    log "  flash attempt $ATTEMPT/3..."
+    flash_progress_monitor_start "$DBC_DEV"
 
-  # Go flasher paths (bmap + sequential) already verify source/bmap integrity
-  # per range and surface write errors as non-zero exit; trust the exit code.
-  if [ -z "$USING_DD" ]; then
-    log "  flasher reports success"
-    FLASH_OK="yes"
+    FLASHER="$INSTALLER_DIR/librescoot-flasher"
+    USING_DD=""
+    if [ -x "$FLASHER" ] && [ -f "$DBC_BMAP" ]; then
+      log "  using librescoot-flasher (bmap: $DBC_BMAP)"
+      $FLASHER --image "$DBC_IMAGE" --bmap "$DBC_BMAP" --device "$DBC_DEV" >> "$LOG_FILE" 2>&1
+      FLASH_RC=$?
+    elif [ -x "$FLASHER" ]; then
+      log "  using librescoot-flasher (sequential)"
+      $FLASHER --image "$DBC_IMAGE" --device "$DBC_DEV" >> "$LOG_FILE" 2>&1
+      FLASH_RC=$?
+    else
+      USING_DD="yes"
+      log "  using dd (oflag=direct), image size: $FLASH_TOTAL"
+      gunzip -c "$DBC_IMAGE" | dd bs=4M iflag=fullblock of=$DBC_DEV oflag=direct 2>> "$LOG_FILE"
+      # $? of a pipeline is dd's status (PIPESTATUS is bash-only and a bad
+      # substitution under busybox ash). A gunzip failure truncates the
+      # stream without failing dd; the boot-sector verify below catches it.
+      FLASH_RC=$?
+    fi
+
+    flash_progress_monitor_stop
+    if [ "${FLASH_RC:-0}" -ne 0 ]; then
+      log "  flash failed (rc=$FLASH_RC), retrying..."
+      sleep 3
+      DBC_DEV="$(find_dbc_block_device 2>/dev/null)" || { log "  device gone, waiting..."; sleep 5; DBC_DEV="$(find_dbc_block_device 2>/dev/null)" || continue; }
+      log "  re-probed device: $DBC_DEV"
+      continue
+    fi
+
+    sync
+
+    # Go flasher paths (bmap + sequential) already verify source/bmap integrity
+    # per range and surface write errors as non-zero exit; trust the exit code.
+    if [ -z "$USING_DD" ]; then
+      log "  flasher reports success"
+      FLASH_OK="yes"
+      break
+    fi
+
+    # dd fallback: sanity-check boot sector (24 MB). iflag=direct bypasses page
+    # cache, which otherwise serves stale data populated by udev at enumeration.
+    log "  verifying boot sector ($BOOT_AREA_BLOCKS blocks = 24 MB)..."
+    SRC_HASH=$(gunzip -c "$DBC_IMAGE" | dd bs=4M iflag=fullblock count=$BOOT_AREA_BLOCKS 2>/dev/null | md5sum | cut -d' ' -f1)
+    DEV_HASH=$(dd if=$DBC_DEV bs=4M iflag=direct count=$BOOT_AREA_BLOCKS 2>/dev/null | md5sum | cut -d' ' -f1)
+    log "  src=$SRC_HASH dev=$DEV_HASH"
+
+    if [ "$SRC_HASH" = "$DEV_HASH" ]; then
+      log "  verified OK"
+      FLASH_OK="yes"
+      break
+    else
+      log "  checksum mismatch, retrying..."
+      sleep 3
+      DBC_DEV="$(find_dbc_block_device 2>/dev/null)" || { log "  device gone, waiting..."; sleep 5; DBC_DEV="$(find_dbc_block_device 2>/dev/null)" || continue; }
+      log "  re-probed device: $DBC_DEV"
+    fi
+  done
+
+  if [ "$FLASH_OK" != "yes" ]; then
+    ROUND_FAIL_MSG="DBC flash failed after 3 attempts"
+    log "  round failed: $ROUND_FAIL_MSG"
+    step_end
+    return 1
+  fi
+  log "DBC flash complete"
+  step_end
+  return 0
+}
+
+# Outer retry loop: keep flashing the DBC until a round verifies, bounded by
+# BOTH an attempt cap and a wall-clock budget. The host is gone during the
+# autonomous flash, so nobody can retry for the user — but a DBC that fell
+# into i.MX BootROM/SDP recovery (USB id 15a2:) is a hard brick that can never
+# present as the UMS device, so we short-circuit that as terminal before every
+# round instead of retrying forever. Between rounds we re-power the DBC (the
+# step-4 bootcmd lands it back in UMS) and back off, emitting a log line at
+# each round start and around every sleep so the 15-min host-mode stall
+# watchdog (which keys on trampoline.log mtime) stays inert during legitimate
+# retries.
+DBC_FLASH_MAX_ROUNDS=8
+DBC_FLASH_BUDGET_S=3600   # wall-clock ceiling across all rounds
+DBC_FLASH_T0=$(date +%s)
+ROUND=0
+ROUND_FAIL_MSG="DBC flash did not complete"
+DBC_FLASH_DONE=""
+while [ $ROUND -lt $DBC_FLASH_MAX_ROUNDS ]; do
+  ROUND=$((ROUND + 1))
+  NOW=$(date +%s)
+  ELAPSED_TOTAL=$((NOW - DBC_FLASH_T0))
+  log "=== DBC flash round $ROUND/$DBC_FLASH_MAX_ROUNDS (T+${ELAPSED_TOTAL}s of ${DBC_FLASH_BUDGET_S}s budget) ==="
+
+  # Terminal SDP short-circuit: a DBC in BootROM/SDP recovery (VID 15a2) is a
+  # hard brick — it can never present as the UMS device 0525:a4a5, so retrying
+  # is pointless. This is the one unrecoverable case; fail() exits.
+  if lsusb 2>/dev/null | grep -qi '15a2:'; then
+    fail "DBC is in BootROM (SDP) recovery mode - manual rescue required (imx_usb_loader). The installer cannot fix that."
+  fi
+
+  if do_dbc_flash_round; then
+    DBC_FLASH_DONE="yes"
     break
   fi
 
-  # dd fallback: sanity-check boot sector (24 MB). iflag=direct bypasses page
-  # cache, which otherwise serves stale data populated by udev at enumeration.
-  log "  verifying boot sector ($BOOT_AREA_BLOCKS blocks = 24 MB)..."
-  SRC_HASH=$(gunzip -c "$DBC_IMAGE" | dd bs=4M iflag=fullblock count=$BOOT_AREA_BLOCKS 2>/dev/null | md5sum | cut -d' ' -f1)
-  DEV_HASH=$(dd if=$DBC_DEV bs=4M iflag=direct count=$BOOT_AREA_BLOCKS 2>/dev/null | md5sum | cut -d' ' -f1)
-  log "  src=$SRC_HASH dev=$DEV_HASH"
-
-  if [ "$SRC_HASH" = "$DEV_HASH" ]; then
-    log "  verified OK"
-    FLASH_OK="yes"
+  # Round failed (retryable). Stop here if we've spent the budget or used the
+  # last attempt; surface the best classified message via the terminal fail().
+  NOW=$(date +%s)
+  ELAPSED_TOTAL=$((NOW - DBC_FLASH_T0))
+  if [ $ROUND -ge $DBC_FLASH_MAX_ROUNDS ]; then
+    log "  exhausted $DBC_FLASH_MAX_ROUNDS rounds"
     break
-  else
-    log "  checksum mismatch, retrying..."
-    sleep 3
-    DBC_DEV="$(find_dbc_block_device 2>/dev/null)" || { log "  device gone, waiting..."; sleep 5; DBC_DEV="$(find_dbc_block_device 2>/dev/null)" || continue; }
-    log "  re-probed device: $DBC_DEV"
   fi
+  if [ $ELAPSED_TOTAL -ge $DBC_FLASH_BUDGET_S ]; then
+    log "  wall-clock budget (${DBC_FLASH_BUDGET_S}s) exhausted after $ROUND rounds"
+    break
+  fi
+
+  # Re-power the DBC between rounds so a hung/half-booted DBC gets a clean
+  # cycle; the step-4 bootcmd (ums 0 mmc 2, bootdelay=0) lands it straight
+  # back in UMS for the next round. Same lsc invocation form as elsewhere.
+  log "  round $ROUND failed: $ROUND_FAIL_MSG"
+  log "  re-powering DBC before retry..."
+  lsc --redis-addr localhost:6379 dbc off-wait --force >> "$LOG_FILE" 2>&1 || log "  DBC off failed"
+  lsc --redis-addr localhost:6379 dbc on >> "$LOG_FILE" 2>&1 || log "  DBC on failed"
+
+  # Back off, capped, with a heartbeat: sleep in 5s slices and log each so
+  # trampoline.log mtime stays fresh and the stall watchdog never false-trips
+  # during a legitimate backoff.
+  case $ROUND in
+    1) BACKOFF=5;;
+    2) BACKOFF=15;;
+    3) BACKOFF=30;;
+    *) BACKOFF=60;;
+  esac
+  log "  backing off ${BACKOFF}s before round $((ROUND + 1))..."
+  SLEPT=0
+  while [ $SLEPT -lt $BACKOFF ]; do
+    sleep 5
+    SLEPT=$((SLEPT + 5))
+    log "  ...backoff ${SLEPT}/${BACKOFF}s"
+  done
 done
 
-[ "$FLASH_OK" != "yes" ] && fail "DBC flash failed after 3 attempts"
-log "DBC flash complete"
-step_end
+if [ "$DBC_FLASH_DONE" != "yes" ]; then
+  # All retryable avenues exhausted (attempt cap or wall-clock budget).
+  # Surface the failure via the terminal fail() as before, carrying the best
+  # message we classified from the last round.
+  fail "$ROUND_FAIL_MSG"
+fi
 
 # Flash done — advance to phase 2 (FL/FR filled, RR breathing). onboot.sh
 # reads PHASE_FILE after the MDB reboot and re-lights the same segments
