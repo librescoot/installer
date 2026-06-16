@@ -15,7 +15,8 @@ class TrampolineStatus {
     final lines = content.trim().split('\n');
     if (lines.isEmpty) return TrampolineStatus(result: TrampolineResult.unknown);
 
-    final resultLine = lines.first.trim().toLowerCase();
+    final rawLine = lines.first.trim();
+    final resultLine = rawLine.toLowerCase();
     if (resultLine == 'success' || resultLine == 'rebooting') {
       return TrampolineStatus(
         result: TrampolineResult.success,
@@ -24,7 +25,7 @@ class TrampolineStatus {
     } else if (resultLine.startsWith('error')) {
       return TrampolineStatus(
         result: TrampolineResult.error,
-        message: resultLine,
+        message: rawLine,
         errorLog: lines.length > 1 ? lines.sublist(1).join('\n') : null,
       );
     }
