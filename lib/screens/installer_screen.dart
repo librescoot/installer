@@ -15,6 +15,7 @@ import '../models/region.dart';
 import '../models/scooter_health.dart';
 import '../models/substep.dart';
 import '../models/trampoline_status.dart';
+import '../services/resume_resolver.dart';
 import '../services/services.dart';
 import '../widgets/download_progress.dart';
 import '../widgets/health_check_panel.dart';
@@ -107,6 +108,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Timer? _keycardToastTimer;
   String? _awaitingUnlockState; // null when not awaiting; current vehicle state otherwise
   String? _resumePreviousError; // first error line from a leftover trampoline-status, if any
+  ResumeDecision? _resumeDecision; // resolved resume target, applied by _continueFromResume
   Completer<bool>? _unlockCompleter;
   bool _keepCache = false;
   bool _isCriticalOperation = false; // prevent quit during flash/upload
@@ -1605,21 +1607,29 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // keycard + bluetooth masked (the trampoline masks them pre-flash).
       // After a power cycle such a scooter cannot be unlocked at all: no
       // keycard reader, no BLE, so the parked-state gate below would wait
-      // forever. The leftovers prove an earlier session already passed the
-      // gate, so skip it and clean up the masked services / error signals
-      // before redoing the install.
-      var resumingUnfinished = false;
-      try {
-        final leftover = await _sshService.runCommand(
-          'ls /data/installer/trampoline-status /data/installer/trampoline.sh 2>/dev/null; true',
-        );
-        resumingUnfinished = leftover.trim().isNotEmpty;
-      } catch (e) {
-        debugPrint('SSH: unfinished-install check failed (ok): $e');
+      // forever. state.json (written once the MDB runs Librescoot) proves an
+      // earlier session already passed the gate; so do the legacy leftover
+      // trampoline artifacts (older builds wrote no state.json). On either
+      // signal, skip the gate and clean up the masked services / error
+      // signals before resuming at the resolved phase.
+      final st = await _sshService.readInstallState();
+      final status = await _sshService.readTrampolineStatus();
+      var resumingUnfinished = st != null;
+      if (!resumingUnfinished) {
+        try {
+          final leftover = await _sshService.runCommand(
+            'ls /data/installer/trampoline-status /data/installer/trampoline.sh 2>/dev/null; true',
+          );
+          resumingUnfinished = leftover.trim().isNotEmpty;
+        } catch (e) {
+          debugPrint('SSH: unfinished-install check failed (ok): $e');
+        }
       }
 
       if (resumingUnfinished) {
-        debugPrint('SSH: unfinished install detected, skipping unlock gate');
+        final decision = resolveResume(state: st, status: status);
+        debugPrint('SSH: unfinished install detected (state=${st?.phase.wire ?? "none"}), '
+            'resuming at ${decision.phase.name}, skipping unlock gate');
         _setStatus(l10n.unfinishedInstallDetected);
         try {
           await _sshService.runCommand(
@@ -1643,21 +1653,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
         } catch (e) {
           debugPrint('SSH: service unmask on resume failed (ok): $e');
         }
-        // Surface what the previous run recorded, if anything, then let
-        // the user acknowledge before continuing.
-        String? prevError;
-        try {
-          final firstLine = await _sshService.runCommand(
-            'head -1 /data/installer/trampoline-status 2>/dev/null; true',
-          );
-          final trimmed = firstLine.trim();
-          if (trimmed.startsWith('error:')) {
-            prevError = trimmed.substring('error:'.length).trim();
-          }
-        } catch (_) {}
+        // Stash the decision for the resume screen's Continue handler, and
+        // surface what the previous run recorded so the user can acknowledge
+        // it before continuing.
         if (!mounted) return;
         setState(() {
-          _resumePreviousError = prevError;
+          _resumeDecision = decision;
+          _resumePreviousError = decision.previousError;
           _isProcessing = false;
         });
         _setPhase(InstallerPhase.resumeDetected);
@@ -1691,8 +1693,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// Shared tail of the connect phase: runs after the unlock gate (normal
   /// flow) or after the user confirms the resume screen. Pins the USB
   /// gadget, disables alarm/auto-standby, locks the scooter, and moves on
-  /// to the health check.
-  Future<void> _completeConnectionSetup(AppLocalizations l10n) async {
+  /// to [nextPhase] (the health check on a fresh install, or the resolved
+  /// resume target).
+  Future<void> _completeConnectionSetup(
+    AppLocalizations l10n, {
+    InstallerPhase nextPhase = InstallerPhase.healthCheck,
+  }) async {
     // Keep MDB USB gadget powered while the scooter is locked so we don't
     // lose RNDIS mid-flash. Best-effort: the key may not exist on older
     // images and `lsc set` returns non-zero in that case.
@@ -1719,15 +1725,34 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     _setStatus(l10n.connected);
     setState(() => _isProcessing = false);
-    _setPhase(InstallerPhase.healthCheck);
+    _setPhase(nextPhase);
   }
 
-  /// Continue button on the resume screen.
+  /// Continue button on the resume screen. Applies the resolved
+  /// ResumeDecision: seeds the dashboard-prep completion flags from the
+  /// recorded progress, runs the shared connection-setup side effects
+  /// (USB policy, hazard disable, lock), and jumps straight to the resolved
+  /// phase instead of always restarting from the health check. The unlock
+  /// gate is intentionally not run here: on resume the scooter may have
+  /// keycard/BLE masked and could not be unlocked at all.
   Future<void> _continueFromResume() async {
     final l10n = AppLocalizations.of(context)!;
-    setState(() => _isProcessing = true);
+    final decision = _resumeDecision;
+    setState(() {
+      _isProcessing = true;
+      if (decision != null) {
+        // Treat recorded progress as satisfied so the dashboardPrep gate
+        // (_btDone || _btSkipped, _keycardDone || _keycardSkipped) passes
+        // without redoing pairing/enrollment.
+        if (decision.bluetoothDone) _btDone = true;
+        if (decision.keycardDone) _keycardDone = true;
+      }
+    });
     try {
-      await _completeConnectionSetup(l10n);
+      await _completeConnectionSetup(
+        l10n,
+        nextPhase: decision?.phase ?? InstallerPhase.healthCheck,
+      );
     } catch (e) {
       _setStatus(l10n.sshConnectionFailed(e.toString()));
       if (mounted) setState(() => _isProcessing = false);
