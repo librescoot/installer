@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../models/install_state.dart';
 import '../models/scooter_health.dart';
 import '../models/trampoline_status.dart';
 import 'package:dartssh2/dartssh2.dart';
@@ -1253,6 +1254,32 @@ class SshService {
     );
     debugPrint('SSH: restored /data/radio-gaga/config.yaml (converted from stock)');
     return true;
+  }
+
+  /// Read /data/installer/state.json from the MDB. Returns null if absent or
+  /// unparseable (e.g. stock OS has no /data).
+  Future<InstallState?> readInstallState() async {
+    try {
+      final out = await runCommand(
+        'cat /data/installer/state.json 2>/dev/null',
+        timeout: const Duration(seconds: 10),
+      );
+      if (out.trim().isEmpty) return null;
+      return InstallState.decode(out.trim());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Atomically write /data/installer/state.json on the MDB.
+  Future<void> writeInstallState(InstallState state) async {
+    final json = state.encode().replaceAll("'", "'\\''");
+    await runCommand(
+      "mkdir -p /data/installer && "
+      "printf '%s' '$json' > /data/installer/state.json.tmp && "
+      "sync && mv /data/installer/state.json.tmp /data/installer/state.json && sync",
+      timeout: const Duration(seconds: 10),
+    );
   }
 
   /// Read the trampoline status file from MDB.
