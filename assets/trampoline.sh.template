@@ -5,7 +5,6 @@
 INSTALLER_DIR="/data/installer"
 STATUS_FILE="$INSTALLER_DIR/trampoline-status"
 LOG_FILE="$INSTALLER_DIR/trampoline.log"
-PHASE_FILE="$INSTALLER_DIR/trampoline-phase"
 DBC_IMAGE="{{DBC_IMAGE_PATH}}"
 DBC_BMAP="${DBC_IMAGE%.sdimg.gz}.sdimg.bmap"
 DBC_IP="192.168.7.2"
@@ -117,81 +116,6 @@ led_duty()       { $IOCTL /dev/pwm_led$1 0x0000754A -v $2 2>/dev/null; }
 led_fade()       { $IOCTL /dev/pwm_led$1 0x00007545 -v $2 2>/dev/null; }
 led_off()        { led_duty $1 0; led_deactivate $1; }
 
-# --- Front ring breathing (prep phase indicator) ---
-BREATHE_PID=""
-breathe_start() {
-  local ch=$1
-  led_activate $ch
-  (while true; do
-    led_fade $ch 0  # fade0: parking-smooth-on (3s)
-    sleep 3
-    led_fade $ch 1  # fade1: smooth-off (2.3s)
-    sleep 3
-  done) &
-  BREATHE_PID=$!
-}
-breathe_stop() {
-  [ -n "$BREATHE_PID" ] && kill $BREATHE_PID 2>/dev/null; BREATHE_PID=""
-}
-
-# --- Blinker progress bar (4 blinkers = 4 phases) ---
-# Order: FL(3) -> FR(4) -> RR(7) -> RL(6)
-# Phase semantics: each segment represents one overall trampoline phase.
-#   phase 0 = entering Prep        (FL breathing)
-#   phase 1 = Prep done, Flash     (FL filled, FR breathing)
-#   phase 2 = Flash done, 1st-boot (FL/FR filled, RR breathing)
-#   phase 3 = 1st-boot done, Tiles (FL/FR/RR filled, RL breathing)
-#   phase 4 = all done             (all four solid dim)
-# The phase number is persisted to $PHASE_FILE so onboot.sh can re-light
-# the right segments after the MDB reboot between Flash and 1st-boot.
-# Filled segments: static dim glow (DIM_DUTY). Active segment: breathing on
-# fade4/fade9 (brake-dim-on/off, duty ~48..180 of 12000) so it stays
-# distinguishable from filled. DIM_DUTY sits just under fade4's peak (156)
-# so the breathing segment reads brighter at its peak than the filled trail.
-BLINKER_LEDS="3 7 4 6"
-DIM_DUTY=150
-PROGRESS_BREATHE_PID=""
-PROGRESS_LAST_PHASE=-1
-
-# Light the segments for a given phase (0-4). Idempotent.
-set_progress_phase() {
-  local phase="$1"
-  [ "$phase" -lt 0 ] && phase=0
-  [ "$phase" -gt 4 ] && phase=4
-
-  echo "$phase" > "$PHASE_FILE" 2>/dev/null
-
-  [ "$phase" -eq "$PROGRESS_LAST_PHASE" ] && return
-  PROGRESS_LAST_PHASE=$phase
-
-  [ -n "$PROGRESS_BREATHE_PID" ] && kill $PROGRESS_BREATHE_PID 2>/dev/null; PROGRESS_BREATHE_PID=""
-
-  local i=0
-  for l in $BLINKER_LEDS; do
-    if [ $i -lt $phase ]; then
-      led_activate $l
-      led_duty $l $DIM_DUTY
-    elif [ $i -eq $phase ] && [ $phase -lt 4 ]; then
-      led_activate $l
-      (while true; do
-        led_fade $l 4; sleep 3
-        led_fade $l 9; sleep 3
-      done) &
-      PROGRESS_BREATHE_PID=$!
-    else
-      led_off $l
-    fi
-    i=$((i + 1))
-  done
-}
-
-signal_progress_off() {
-  [ -n "$PROGRESS_BREATHE_PID" ] && kill $PROGRESS_BREATHE_PID 2>/dev/null; PROGRESS_BREATHE_PID=""
-  for l in $BLINKER_LEDS; do led_off $l; done
-  rm -f "$PHASE_FILE"
-  PROGRESS_LAST_PHASE=-1
-}
-
 # --- DBC boot-LED defender ---
 # vehicle-service also drives the LP5562 (i2c-2 @ 0x30) for blinker
 # brightness via VehicleSystem.runBlinker (vehicle-service: dbc_led.go +
@@ -231,8 +155,6 @@ bootled_guard_stop() {
 # and stopped early by the installer when it reconnects.
 HAZARDS_UNIT="librescoot-bootled-hazards"
 signal_error() {
-  breathe_stop
-  signal_progress_off
   bootled_guard_stop
   signal_error_stop
   systemd-run --unit="$HAZARDS_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
@@ -897,10 +819,6 @@ JOURNAL_PID=$!
 # arming this early is free; it covers every host-mode stint from here on.
 trampoline_watchdog_start
 
-# Phase 0 — Prep: front ring breathes, FL blinker breathes.
-set_progress_phase 0
-breathe_start 1
-
 # Verify image
 [ -f "$DBC_IMAGE" ] || fail "DBC image not found: $DBC_IMAGE"
 log "Image: $(ls -lh "$DBC_IMAGE" | awk '{print $5}')"
@@ -977,7 +895,6 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
     log "DBC already at target $TARGET_DBC_VERSION; skipping DBC flash"
     echo "success" > "$STATUS_FILE"
     restore_gadget
-    signal_progress_off
     bootled_guard_stop
     bootled_blink_green
     exit 0
@@ -1190,13 +1107,8 @@ do_dbc_flash_round() {
   log "DBC device: $DBC_DEV ($(cat /sys/block/$(basename $DBC_DEV)/size 2>/dev/null || echo '?') sectors)"
   step_end
 
-  # Prep complete — advance to phase 1 (FL filled, FR breathing).
-  set_progress_phase 1
-
   # Step 7: Flash DBC
   step_begin "Step 7: flash DBC"
-  breathe_stop
-  led_off 1  # front ring off during flash
 
   # Read uncompressed size from gzip footer (last 4 bytes, little-endian uint32)
   FLASH_TOTAL=$(python3 -c "import struct; f=open('$DBC_IMAGE','rb'); f.seek(-4,2); print(struct.unpack('<I',f.read(4))[0])" 2>/dev/null || echo 2500000000)
@@ -1370,11 +1282,6 @@ if [ "$DBC_FLASH_DONE" != "yes" ]; then
   fail "$ROUND_FAIL_MSG"
 fi
 
-# Flash done — advance to phase 2 (FL/FR filled, RR breathing). onboot.sh
-# reads PHASE_FILE after the MDB reboot and re-lights the same segments
-# before continuing to phase 3.
-set_progress_phase 2
-
 # V3 happy path: while STILL in UMS/host mode (DBC exposed as $DBC_DEV), grow
 # the DBC data partition + fs and copy tiles directly, so the DBC boots once
 # already-complete — no MDB reboot, no onboot HTTP tile push. If V3 fails for
@@ -1397,7 +1304,6 @@ if grow_and_populate_dbc "$DBC_DEV"; then
   lsc --redis-addr localhost:6379 dbc on 2>/dev/null || true
   echo "success" > "$STATUS_FILE"
   cat "$LOG_FILE" >> "$STATUS_FILE"
-  signal_progress_off
   bootled_guard_stop
   bootled_blink_green
   exit 0
@@ -1437,7 +1343,6 @@ INSTALLER_DIR="/data/installer"
 LOG="$INSTALLER_DIR/trampoline.log"
 DBC_IP="192.168.7.2"
 STATUS_FILE="$INSTALLER_DIR/trampoline-status"
-PHASE_FILE="$INSTALLER_DIR/trampoline-phase"
 mkdir -p "$INSTALLER_DIR"
 
 log() { echo "$(date '+%H:%M:%S') $1" >> "$LOG"; }
@@ -1445,45 +1350,6 @@ log() { echo "$(date '+%H:%M:%S') $1" >> "$LOG"; }
 exec 2>>"$LOG"
 dbc_ssh() { local t=0; while [ $t -lt 3 ]; do ssh -y -y root@$DBC_IP "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
 dbc_scp() { local t=0; while [ $t -lt 3 ]; do scp "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
-
-# Re-light the blinker progress bar FIRST, before the slower service stops
-# and LP5562 init below, so the bar returns as early as possible after the
-# MDB reboot instead of staying dark until the tail of onboot. Phase is
-# whatever the pre-reboot half persisted to $PHASE_FILE (typically 2 =
-# FL/FR filled, RR breathing); phase 4 = all-done is set at success below.
-PHASE="$(cat "$PHASE_FILE" 2>/dev/null || echo 2)"
-case "$PHASE" in 0|1|2|3|4) :;; *) PHASE=2 ;; esac
-BLINKER_LEDS="3 7 4 6"
-DIM_DUTY=150
-PROGRESS_BREATHE_PID=""
-relight_progress() {
-  local phase="$1"
-  [ "$phase" -lt 0 ] && phase=0
-  [ "$phase" -gt 4 ] && phase=4
-  echo "$phase" > "$PHASE_FILE" 2>/dev/null
-  [ -n "$PROGRESS_BREATHE_PID" ] && kill $PROGRESS_BREATHE_PID 2>/dev/null
-  PROGRESS_BREATHE_PID=""
-  local i=0
-  for l in $BLINKER_LEDS; do
-    if [ $i -lt $phase ]; then
-      /usr/bin/ioctl /dev/pwm_led$l 0x00007549 -v 1 2>/dev/null
-      /usr/bin/ioctl /dev/pwm_led$l 0x0000754A -v $DIM_DUTY 2>/dev/null
-    elif [ $i -eq $phase ] && [ $phase -lt 4 ]; then
-      /usr/bin/ioctl /dev/pwm_led$l 0x00007549 -v 1 2>/dev/null
-      (while true; do
-        /usr/bin/ioctl /dev/pwm_led$l 0x00007545 -v 4 2>/dev/null; sleep 3
-        /usr/bin/ioctl /dev/pwm_led$l 0x00007545 -v 9 2>/dev/null; sleep 3
-      done) &
-      PROGRESS_BREATHE_PID=$!
-    else
-      /usr/bin/ioctl /dev/pwm_led$l 0x0000754A -v 0 2>/dev/null
-      /usr/bin/ioctl /dev/pwm_led$l 0x00007549 -v 0 2>/dev/null
-    fi
-    i=$((i + 1))
-  done
-}
-log "Onboot: relighting progress phase=$PHASE"
-relight_progress "$PHASE"
 
 log "Onboot: post-reboot DBC tile installation"
 
@@ -1509,26 +1375,6 @@ i2cset -f -y 2 0x30 0x00 0xC0 2>/dev/null
 i2cset -f -y 2 0x30 0x05 0xAF 2>/dev/null
 i2cset -f -y 2 0x30 0x06 0xAF 2>/dev/null
 i2cset -f -y 2 0x30 0x07 0xAF 2>/dev/null
-
-# Smoothly fade the whole progress bar out. Used once at all-done so the
-# blinkers release with a soft ramp instead of sitting lit. Ramp starts at
-# DIM_DUTY (150) and steps down to 0 over ~1s, then deactivates each channel.
-fade_progress_off() {
-  [ -n "$PROGRESS_BREATHE_PID" ] && kill $PROGRESS_BREATHE_PID 2>/dev/null
-  PROGRESS_BREATHE_PID=""
-  for l in $BLINKER_LEDS; do
-    /usr/bin/ioctl /dev/pwm_led$l 0x00007549 -v 1 2>/dev/null
-  done
-  for d in 150 110 75 48 28 14 6 0; do
-    for l in $BLINKER_LEDS; do
-      /usr/bin/ioctl /dev/pwm_led$l 0x0000754A -v $d 2>/dev/null
-    done
-    sleep 0.12
-  done
-  for l in $BLINKER_LEDS; do
-    /usr/bin/ioctl /dev/pwm_led$l 0x00007549 -v 0 2>/dev/null
-  done
-}
 
 # Boot LED + hazards helpers. Spawned via systemd-run so they run in their
 # own transient unit under system.slice — librescoot-onboot.service is
@@ -1685,12 +1531,6 @@ while [ $STABLE -lt 10 ] && [ $ELAPSED -lt 300 ]; do
 done
 log "  DBC stable after ${ELAPSED}s (stable_count=$STABLE)"
 
-# Stay on phase 2 (BR breathing = "MDB & DBC restart") through the SSH wait.
-# Re-establishing the DBC connection is part of the restart, not the copy, so
-# advancing to phase 3 (BL = "maps") happens only once the actual upload
-# starts. That keeps the two distinguishable: a BR blinker stuck breathing
-# means the DBC never came back (USB/boot issue), a stuck BL means the data
-# copy itself is slow.
 # Wait for SSH, re-asserting DBC power as we go. A freshly flashed DBC
 # reboots once on first boot to apply its boot-partition (u-boot) update,
 # and that update's `complete-dbc` makes vehicle-service power the DBC off
@@ -1715,13 +1555,8 @@ if [ $ELAPSED -ge 300 ]; then
   echo "success" > "$STATUS_FILE"
   cat "$LOG" >> "$STATUS_FILE"
   lsc --redis-addr localhost:6379 dbc off 2>/dev/null || true
-  # No tiles to do, jump straight to all-done.
-  relight_progress 4
   bootled_guard_stop
   bootled_blink_green
-  # Let the completed bar register, then fade it out so it doesn't sit lit.
-  sleep 1
-  fade_progress_off
   systemctl unmask librescoot-keycard keycard-service 2>/dev/null || true
   systemctl unmask librescoot-bluetooth 2>/dev/null || true
   systemctl start librescoot-bluetooth 2>/dev/null || true
@@ -1735,10 +1570,6 @@ ONBOOT
 # Append tile installation commands with actual paths
 if [ "$INSTALL_TILES" = "true" ]; then
   cat >> /data/onboot.sh << TILES
-# DBC connection is up — now advance to phase 3 (BL breathing = "maps"). From
-# here a slow BL blinker means the tile copy itself is slow, not a connection
-# problem.
-relight_progress 3
 dbc_ssh "mkdir -p /data/maps /data/valhalla" || log "WARNING: mkdir failed"
 
 # Detect whether DBC has data-server running (new firmware) or needs the
@@ -1847,15 +1678,10 @@ else
   # All MDB<->DBC work is done (image flashed, tiles uploaded, DBC powered
   # off). Now and only now signal the user it's safe to swap the MDB's
   # single USB port back to the laptop.
-  # Phase 4: all four segments filled, no active breathing.
-  relight_progress 4
   # Stop the LED guard before starting the green blink, otherwise the
   # guard re-asserts amber every 2s and we get an ugly amber/green flicker.
   bootled_guard_stop
   bootled_blink_green
-  # Let the completed bar register, then fade it out so it doesn't sit lit.
-  sleep 1
-  fade_progress_off
   # Unmask keycard-service. The installer's keycardSetup phase will start
   # it explicitly. We deliberately do NOT start it now: a freshly flashed
   # device with no master would auto-enter master-learning and silently
@@ -1880,12 +1706,8 @@ cat "$LOG_FILE" >> "$STATUS_FILE"
 step_end  # close step 8
 log "Total trampoline wall-clock: $(($(date +%s) - SCRIPT_T0))s"
 
-# Phase 2 (FL/FR filled, RR breathing) is now the user-visible "flash
-# done, MDB rebooting" cue — onboot.sh reads PHASE_FILE and re-lights
-# the same state after the reboot, so the progress bar looks continuous
-# across MDB reboot. bootled_guard is left running so amber stays solid
-# right up until systemd-shutdown tears down our cgroup.
-breathe_stop
+# bootled_guard is left running so amber stays solid right up until
+# systemd-shutdown tears down our cgroup.
 [ -n "$JOURNAL_PID" ] && kill $JOURNAL_PID 2>/dev/null
 log "  rebooting MDB..."
 reboot
