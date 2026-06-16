@@ -847,8 +847,23 @@ log "Image: $(ls -lh "$DBC_IMAGE" | awk '{print $5}')"
 
 # Step 1: Wait for laptop disconnect
 step_begin "Step 1: wait for laptop disconnect"
-while cat /sys/class/udc/ci_hdrc.0/state 2>/dev/null | grep -q configured; do sleep 1; done
-log "Laptop disconnected"
+# The laptop is gone when VBUS drops: udc state -> "not attached". Require it to
+# hold stable so a transient blip (host autosuspend, RNDIS re-enumeration) can't
+# flip us to host mode while the laptop is still attached. ~250ms of stable reads;
+# the swap itself takes seconds, so a short hold loses nothing. Tune GONE_NEEDED on
+# hardware to the real sleep granularity.
+UDC_STATE=/sys/class/udc/ci_hdrc.0/state
+GONE_NEEDED=3
+GONE=0
+while [ "$GONE" -lt "$GONE_NEEDED" ]; do
+  if grep -q "not attached" "$UDC_STATE" 2>/dev/null; then
+    GONE=$((GONE + 1))
+  else
+    GONE=0
+  fi
+  sleep 0.1 2>/dev/null || sleep 1
+done
+log "Laptop disconnected (debounced)"
 step_end
 
 # Step 2: Re-init g_ether for DBC
