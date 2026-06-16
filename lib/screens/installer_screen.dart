@@ -3211,6 +3211,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
         osmTilesLocalPath: osmItem?.localPath,
         valhallaTilesLocalPath: valhallaItem?.localPath,
         region: _downloadState.selectedRegion,
+        // Identity-based idempotent skip: the trampoline compares this against
+        // the DBC's os-release VERSION_ID over SSH and skips the destructive
+        // flash if they match. releaseTag is the version/tag of the release
+        // being installed; an empty tag simply never triggers the skip.
+        targetDbcVersion: _downloadState.releaseTag ?? '',
+        forceDbcReflash: false,
         onProgress: (status, progress) {
           _setStatus(status, progress: progress);
         },

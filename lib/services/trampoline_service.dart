@@ -20,12 +20,16 @@ class TrampolineService {
     required String dbcImagePath,
     Region? region,
     bool installTiles = false,
+    String targetDbcVersion = '',
+    bool forceDbcReflash = false,
   }) async {
     var template = await rootBundle.loadString('assets/trampoline.sh.template');
 
     template = template
         .replaceAll('{{DBC_IMAGE_PATH}}', dbcImagePath)
         .replaceAll('{{INSTALL_TILES}}', installTiles ? 'true' : 'false')
+        .replaceAll('{{TARGET_DBC_VERSION}}', targetDbcVersion)
+        .replaceAll('{{FORCE_DBC_REFLASH}}', forceDbcReflash ? 'true' : 'false')
         .replaceAll(
           '{{OSM_TILES_FILE}}',
           installTiles && region != null
@@ -260,6 +264,8 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     String? osmTilesLocalPath,
     String? valhallaTilesLocalPath,
     Region? region,
+    String targetDbcVersion = '',
+    bool forceDbcReflash = false,
     void Function(String status, double progress)? onProgress,
     void Function(List<Substep> steps)? onSubsteps,
   }) async {
@@ -436,6 +442,8 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       dbcImagePath: dbcRemotePath,
       region: region,
       installTiles: osmTilesLocalPath != null || valhallaTilesLocalPath != null,
+      targetDbcVersion: targetDbcVersion,
+      forceDbcReflash: forceDbcReflash,
     );
     // Ensure Unix line endings (LF only): Windows may introduce CRLF which
     // breaks the shebang line and prevents execution on Linux.

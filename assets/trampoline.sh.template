@@ -901,6 +901,28 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
   log "DBC reachable"
   step_end
 
+  # Identify the DBC over SSH while it still runs its own OS. This is the only
+  # reliable identity signal (no DBC-unique USB id exists). Skip the destructive
+  # flash if it is already at the exact target Librescoot version.
+  DBC_OS=$(dbc_ssh 'cat /etc/os-release 2>/dev/null')
+  DBC_VERSION=$(printf '%s\n' "$DBC_OS" | sed -n 's/^VERSION_ID=//p' | tr -d '"')
+  DBC_ID=$(printf '%s\n' "$DBC_OS" | sed -n 's/^ID=//p' | tr -d '"')
+  log "DBC identity: ID='${DBC_ID:-unknown}' VERSION_ID='${DBC_VERSION:-unknown}'"
+
+  TARGET_DBC_VERSION='{{TARGET_DBC_VERSION}}'
+  FORCE_REFLASH='{{FORCE_DBC_REFLASH}}'
+  if [ "$FORCE_REFLASH" != "true" ] && [ -n "$TARGET_DBC_VERSION" ] && [ -n "$DBC_VERSION" ] \
+     && [ "$DBC_VERSION" = "$TARGET_DBC_VERSION" ] \
+     && printf '%s' "$DBC_ID" | grep -q '^librescoot'; then
+    log "DBC already at target $TARGET_DBC_VERSION; skipping DBC flash"
+    echo "success" > "$STATUS_FILE"
+    restore_gadget
+    signal_progress_off
+    bootled_guard_stop
+    bootled_blink_green
+    exit 0
+  fi
+
   # Step 4: Configure DBC for UMS (retry up to 3x if DBC shuts down)
   step_begin "Step 4: configure DBC bootloader for UMS"
   STEP4_OK=""
