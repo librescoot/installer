@@ -1235,7 +1235,18 @@ i2cset -f -y 2 0x30 0x07 0xAF 2>/dev/null
 
 # Smoothly fade the whole progress bar out. Used once at all-done so the
 # blinkers release with a soft ramp instead of sitting lit. Ramp starts at
-# DIM_DUTY (150) and steps down to 0 over ~1s, then deactivates each channel.
+# DIM_DUTY (150) and steps down to 0 over ~1s, leaving the channels at duty 0.
+#
+# We deliberately do NOT deactivate (activate=0) the channels afterwards.
+# In the imx_pwm_led driver the active flag gates the PWM output: SET_ACTIVE 0
+# forces the duty to 0 regardless of what's loaded, and SET_DUTY only takes
+# effect while the channel is active. vehicle-service runs throughout the
+# install and is never restarted by us; it sets activate=1 exactly once, in its
+# own Init, and runBlinker afterwards only loads duties. So deactivating here
+# would leave vehicle-service loading duties into a gated-off channel and the
+# blinkers would stay dark until vehicle-service re-inits (a reboot, a service
+# restart). Duty 0 with activate=1 is the same "off" but keeps the channel in
+# the state vehicle-service expects, so blinkers work the moment the user signals.
 fade_progress_off() {
   [ -n "$PROGRESS_BREATHE_PID" ] && kill $PROGRESS_BREATHE_PID 2>/dev/null
   PROGRESS_BREATHE_PID=""
@@ -1247,9 +1258,6 @@ fade_progress_off() {
       /usr/bin/ioctl /dev/pwm_led$l 0x0000754A -v $d 2>/dev/null
     done
     sleep 0.12
-  done
-  for l in $BLINKER_LEDS; do
-    /usr/bin/ioctl /dev/pwm_led$l 0x00007549 -v 0 2>/dev/null
   done
 }
 
