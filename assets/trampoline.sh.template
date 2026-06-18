@@ -637,10 +637,14 @@ fi
 i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
 i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
 i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
-# Blinkers off + deactivate
+# Blinkers off: set duty 0 but leave the channels active. Deactivating
+# (activate=0) gates the PWM output off in the driver, and vehicle-service
+# only sets activate=1 once at its Init and afterwards just loads duties, so a
+# deactivated channel stays dark even while vehicle-service drives it, until it
+# re-inits. This helper runs on reconnect/resume, where nothing re-activates
+# afterwards, so duty 0 with activate=1 keeps the blinkers ready to fire.
 for ch in 3 4 6 7; do
   /usr/bin/ioctl /dev/pwm_led$ch 0x0000754A -v 0 2>/dev/null
-  /usr/bin/ioctl /dev/pwm_led$ch 0x00007549 -v 0 2>/dev/null
 done
 # Unmask keycard-service: the trampoline masked it pre-flash so it couldn't
 # race us on the LED. The installer's keycardSetup phase will start it
