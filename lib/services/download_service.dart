@@ -185,6 +185,62 @@ class DownloadService {
     }
   }
 
+  /// Derive the regions on offer from the published tile assets: every slug
+  /// that has both an OSM display tile and a Valhalla routing tile. Falls back
+  /// to [Region.all] if the listings can't be fetched, so the dropdown is
+  /// never empty offline.
+  Future<List<Region>> fetchAvailableRegions() async {
+    try {
+      final osmAssets = await resolveTileAssets(_osmTilesRepo, 'tiles_');
+      final valhallaAssets =
+          await resolveTileAssets(_valhallaTilesRepo, 'valhalla_tiles_');
+      final regions = regionsFromAssets(osmAssets, valhallaAssets);
+      return regions.isEmpty ? Region.all : regions;
+    } catch (e) {
+      debugPrint('fetchAvailableRegions failed, using fallback catalogue: $e');
+      return Region.all;
+    }
+  }
+
+  static final _osmSlugPattern = RegExp(r'^tiles_(.+)\.mbtiles$');
+  static final _valhallaSlugPattern = RegExp(r'^valhalla_tiles_(.+)\.tar$');
+
+  /// Intersect the slugs present in both asset listings and turn them into
+  /// regions, ordered by the known catalogue (German states first), with any
+  /// unknown slugs appended alphabetically by display name. Pure: no I/O.
+  static List<Region> regionsFromAssets(
+    List<Map<String, dynamic>> osmAssets,
+    List<Map<String, dynamic>> valhallaAssets,
+  ) {
+    final osmSlugs = _slugsFrom(osmAssets, _osmSlugPattern);
+    final valhallaSlugs = _slugsFrom(valhallaAssets, _valhallaSlugPattern);
+    final common = osmSlugs.intersection(valhallaSlugs);
+
+    final order = Region.all.map((r) => r.slug).toList();
+    final regions = common.map(Region.fromSlug).toList();
+    regions.sort((a, b) {
+      final ia = order.indexOf(a.slug);
+      final ib = order.indexOf(b.slug);
+      if (ia != -1 && ib != -1) return ia.compareTo(ib);
+      if (ia != -1) return -1;
+      if (ib != -1) return 1;
+      return a.name.compareTo(b.name);
+    });
+    return regions;
+  }
+
+  static Set<String> _slugsFrom(
+      List<Map<String, dynamic>> assets, RegExp pattern) {
+    final slugs = <String>{};
+    for (final asset in assets) {
+      final name = asset['name'] as String?;
+      if (name == null) continue;
+      final match = pattern.firstMatch(name);
+      if (match != null) slugs.add(match.group(1)!);
+    }
+    return slugs;
+  }
+
   /// Build the full download queue based on channel, region, and offline preference.
   Future<List<DownloadItem>> buildDownloadQueue({
     required DownloadChannel channel,

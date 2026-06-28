@@ -52,6 +52,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
   final List<bool> _prerequisiteChecks = [false, false, false, false];
   Map<DownloadChannel, ({String tag, String date})>? _availableChannels;
   bool _channelsLoading = true;
+  // Regions on offer, derived from the published tile assets. Seeded with the
+  // offline catalogue so the dropdown is populated immediately, then replaced
+  // once the live listing resolves.
+  List<Region> _availableRegions = Region.all;
 
   // Phase guard flags (prevent auto-start methods from re-firing on rebuild)
   bool _mdbConnectStarted = false;
@@ -119,6 +123,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     _applyLaunchArgs();
     Future.microtask(_detectResumeState);
     _resolveAvailableChannels();
+    _loadAvailableRegions();
     _detectRegionFromIp();
   }
 
@@ -138,10 +143,68 @@ class _InstallerScreenState extends State<InstallerScreen> {
     );
   }
 
+  Future<void> _loadAvailableRegions() async {
+    final regions = await _downloadService.fetchAvailableRegions();
+    if (!mounted || regions.isEmpty) return;
+    setState(() {
+      _availableRegions = regions;
+      // If a region was already chosen (launch args / IP), keep the user's
+      // pick but swap in the instance from the live list so dropdown identity
+      // lines up. Equality is by slug, so this is a no-op when slugs match.
+      final selected = _downloadState.selectedRegion;
+      if (selected != null) {
+        _downloadState.selectedRegion =
+            regions.where((r) => r.slug == selected.slug).firstOrNull;
+      }
+    });
+  }
+
+  static const _regionHeaderPrefix = '__country__';
+
+  /// Build dropdown items grouped by country: a disabled bold header per
+  /// country, followed by its (indented) regions. Relies on [_availableRegions]
+  /// already being ordered so each country's regions are contiguous.
+  List<DropdownMenuItem<Region>> _buildRegionDropdownItems(
+      List<Region> regions) {
+    final items = <DropdownMenuItem<Region>>[];
+    String? currentCountry;
+    for (final region in regions) {
+      if (region.country != currentCountry) {
+        currentCountry = region.country;
+        items.add(DropdownMenuItem<Region>(
+          enabled: false,
+          value: Region(
+              name: region.country,
+              slug: '$_regionHeaderPrefix${region.country}'),
+          child: Text(
+            region.country,
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade600),
+          ),
+        ));
+      }
+      items.add(DropdownMenuItem<Region>(
+        value: region,
+        child: Padding(
+          padding: const EdgeInsets.only(left: 12),
+          child: Text(region.name),
+        ),
+      ));
+    }
+    return items;
+  }
+
   Future<void> _detectRegionFromIp() async {
     if (_downloadState.selectedRegion != null) return; // already set (e.g. from launch args)
-    final region = await Region.detectFromIp();
-    if (region != null && mounted && _downloadState.selectedRegion == null) {
+    final slug = await Region.detectSlugFromIp();
+    if (slug == null || !mounted || _downloadState.selectedRegion != null) {
+      return;
+    }
+    // Only preselect if we actually offer tiles for the detected region.
+    final region = _availableRegions.where((r) => r.slug == slug).firstOrNull;
+    if (region != null) {
       setState(() => _downloadState.selectedRegion = region);
     }
   }
@@ -859,10 +922,22 @@ class _InstallerScreenState extends State<InstallerScreen> {
               border: const OutlineInputBorder(),
               hintText: l10n.selectRegion,
             ),
-            items: Region.all
-                .map((r) => DropdownMenuItem(value: r, child: Text(r.name)))
-                .toList(),
-            onChanged: (r) => setState(() => _downloadState.selectedRegion = r),
+            items: _buildRegionDropdownItems(_availableRegions),
+            selectedItemBuilder: (context) =>
+                _buildRegionDropdownItems(_availableRegions).map((item) {
+              final r = item.value!;
+              final isHeader = r.slug.startsWith(_regionHeaderPrefix);
+              return Align(
+                alignment: Alignment.centerLeft,
+                child: Text(isHeader ? '' : r.name),
+              );
+            }).toList(),
+            onChanged: (r) {
+              // Country headers are disabled, so onChanged only fires for real
+              // regions, but guard against the header sentinel just in case.
+              if (r == null || r.slug.startsWith(_regionHeaderPrefix)) return;
+              setState(() => _downloadState.selectedRegion = r);
+            },
           ),
 
         const SizedBox(height: 24),
