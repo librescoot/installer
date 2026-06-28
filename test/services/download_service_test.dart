@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -6,76 +7,103 @@ import 'package:http/testing.dart' as http_testing;
 import 'package:librescoot_installer/models/download_state.dart';
 import 'package:librescoot_installer/models/region.dart';
 import 'package:librescoot_installer/services/download_service.dart';
+import 'package:path/path.dart' as p;
+
+/// One release asset as it appears in the downloads.librescoot.org manifest.
+/// Firmware downloads read `url`; tiles read `browser_download_url`.
+Map<String, dynamic> _asset(String name, int size, {String? sha256}) => {
+      'name': name,
+      'size': size,
+      'url': 'https://example.com/$name',
+      'browser_download_url': 'https://example.com/$name',
+      if (sha256 != null) 'sha256': sha256,
+    };
+
+Map<String, dynamic> _release(
+  String tag,
+  List<Map<String, dynamic>> assets, {
+  String publishedAt = '2026-01-01T00:00:00Z',
+}) =>
+    {'tag_name': tag, 'published_at': publishedAt, 'assets': assets};
+
+/// MockClient that serves the given per-channel manifest from latest.json and
+/// 404s everything else.
+http_testing.MockClient _manifestClient(Map<String, dynamic> channels) =>
+    http_testing.MockClient((request) async {
+      if (request.url.path.endsWith('latest.json')) {
+        return http.Response(jsonEncode(channels), 200);
+      }
+      return http.Response('Not found', 404);
+    });
 
 void main() {
   group('DownloadService', () {
-    late http_testing.MockClient mockClient;
+    // _fetchLatest caches the manifest on disk (shared across instances), so
+    // clear it before each test to keep them reading their own mock.
+    setUp(() async {
+      final dir = await DownloadService.getCacheDir();
+      final cache = File(p.join(dir.path, 'latest.json'));
+      if (await cache.exists()) await cache.delete();
+    });
 
-    test('resolveRelease finds testing release', () async {
-      mockClient = http_testing.MockClient((request) async {
-        if (request.url.path.endsWith('/releases')) {
-          return http.Response(jsonEncode([
-            {
-              'tag_name': 'nightly-20260330T013130',
-              'assets': [
-                {'name': 'librescoot-unu-mdb-nightly-20260330T013130.sdimg.gz', 'size': 141215162, 'browser_download_url': 'https://example.com/mdb.sdimg.gz'},
-                {'name': 'librescoot-unu-dbc-nightly-20260330T013130.sdimg.gz', 'size': 197006162, 'browser_download_url': 'https://example.com/dbc.sdimg.gz'},
-              ],
-            },
-            {
-              'tag_name': 'testing-20260318T114803',
-              'assets': [
-                {'name': 'librescoot-unu-mdb-testing-20260318T114803.sdimg.gz', 'size': 140000000, 'browser_download_url': 'https://example.com/mdb-test.sdimg.gz'},
-                {'name': 'librescoot-unu-dbc-testing-20260318T114803.sdimg.gz', 'size': 196000000, 'browser_download_url': 'https://example.com/dbc-test.sdimg.gz'},
-              ],
-            },
-          ]), 200);
-        }
-        return http.Response('Not found', 404);
-      });
-
-      final service = DownloadService(client: mockClient);
+    test('resolveRelease finds the requested channel', () async {
+      final service = DownloadService(
+        client: _manifestClient({
+          'nightly': _release('nightly-20260330T013130', [
+            _asset('librescoot-unu-mdb-nightly-20260330T013130.sdimg.gz', 141215162),
+            _asset('librescoot-unu-dbc-nightly-20260330T013130.sdimg.gz', 197006162),
+          ]),
+          'testing': _release('testing-20260318T114803', [
+            _asset('librescoot-unu-mdb-testing-20260318T114803.sdimg.gz', 140000000),
+            _asset('librescoot-unu-dbc-testing-20260318T114803.sdimg.gz', 196000000),
+          ]),
+        }),
+      );
       final result = await service.resolveRelease(DownloadChannel.testing);
       expect(result.tag, 'testing-20260318T114803');
       expect(result.assets.length, 2);
     });
 
-    test('resolveRelease falls back from stable to testing', () async {
-      mockClient = http_testing.MockClient((request) async {
-        return http.Response(jsonEncode([
-          {
-            'tag_name': 'testing-20260318T114803',
-            'assets': [
-              {'name': 'librescoot-unu-mdb-testing-20260318T114803.sdimg.gz', 'size': 140000000, 'browser_download_url': 'https://example.com/mdb.sdimg.gz'},
-            ],
-          },
-        ]), 200);
-      });
-
-      final service = DownloadService(client: mockClient);
-      final result = await service.resolveRelease(DownloadChannel.stable);
-      expect(result.tag, startsWith('testing-'));
+    test('resolveRelease throws when the channel is absent', () async {
+      final service = DownloadService(
+        client: _manifestClient({
+          'testing': _release('testing-20260318T114803', [
+            _asset('librescoot-unu-mdb-testing-20260318T114803.sdimg.gz', 140000000),
+          ]),
+        }),
+      );
+      expect(() => service.resolveRelease(DownloadChannel.stable),
+          throwsA(isA<Exception>()));
     });
 
-    test('buildDownloadQueue filters to unu variants only', () async {
-      mockClient = http_testing.MockClient((request) async {
-        if (request.url.path.endsWith('/releases')) {
-          return http.Response(jsonEncode([
-            {
-              'tag_name': 'testing-20260318T114803',
-              'assets': [
-                {'name': 'librescoot-unu-mdb-testing-20260318T114803.sdimg.gz', 'size': 100, 'browser_download_url': 'https://example.com/mdb.gz'},
-                {'name': 'librescoot-unu-dbc-testing-20260318T114803.sdimg.gz', 'size': 200, 'browser_download_url': 'https://example.com/dbc.gz'},
-                {'name': 'librescoot-unu-mdb-testing-20260318T114803.mender', 'size': 300, 'browser_download_url': 'https://example.com/mdb.mender'},
-                {'name': 'librescoot-other-mdb-testing-20260318T114803.sdimg.gz', 'size': 400, 'browser_download_url': 'https://example.com/other.gz'},
-              ],
-            },
-          ]), 200);
-        }
-        return http.Response('Not found', 404);
-      });
+    test('fetchAvailableChannels reports only channels in the manifest', () async {
+      final service = DownloadService(
+        client: _manifestClient({
+          'testing': _release('testing-20260318T114803', [],
+              publishedAt: '2026-03-18T11:48:03Z'),
+          'nightly': _release('nightly-20260330T013130', [],
+              publishedAt: '2026-03-30T01:31:30Z'),
+        }),
+      );
+      final channels = await service.fetchAvailableChannels();
+      expect(channels.containsKey(DownloadChannel.stable), isFalse);
+      expect(channels.keys,
+          containsAll([DownloadChannel.testing, DownloadChannel.nightly]));
+      expect(channels[DownloadChannel.testing]!.tag, 'testing-20260318T114803');
+      expect(channels[DownloadChannel.testing]!.date, '2026-03-18');
+    });
 
-      final service = DownloadService(client: mockClient);
+    test('buildDownloadQueue filters to unu firmware variants only', () async {
+      final service = DownloadService(
+        client: _manifestClient({
+          'testing': _release('testing-20260318T114803', [
+            _asset('librescoot-unu-mdb-testing-20260318T114803.sdimg.gz', 100),
+            _asset('librescoot-unu-dbc-testing-20260318T114803.sdimg.gz', 200),
+            _asset('librescoot-unu-mdb-testing-20260318T114803.mender', 300),
+            _asset('librescoot-other-mdb-testing-20260318T114803.sdimg.gz', 400),
+          ]),
+        }),
+      );
       final items = await service.buildDownloadQueue(
         channel: DownloadChannel.testing,
         wantsOfflineMaps: false,
