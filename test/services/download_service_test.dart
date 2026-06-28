@@ -91,4 +91,110 @@ void main() {
       expect(region.valhallaTilesFilename, 'valhalla_tiles_berlin_brandenburg.tar');
     });
   });
+
+  group('regionsFromAssets', () {
+    List<Map<String, dynamic>> assets(List<String> names) =>
+        names.map((n) => <String, dynamic>{'name': n}).toList();
+
+    test('returns the intersection of osm and valhalla slugs', () {
+      final regions = DownloadService.regionsFromAssets(
+        assets([
+          'tiles_bayern.mbtiles',
+          'tiles_hessen.mbtiles',
+          'tiles_belgium.mbtiles',
+          'Custom Shortbread Tiles - June 2026',
+        ]),
+        assets([
+          'valhalla_tiles_bayern.tar',
+          'valhalla_tiles_belgium.tar',
+          'valhalla_tiles_netherlands.tar',
+        ]),
+      );
+      // Only bayern and belgium appear in both listings.
+      expect(regions.map((r) => r.slug), ['bayern', 'belgium']);
+    });
+
+    test('orders by catalogue (German first) then unknown slugs', () {
+      final regions = DownloadService.regionsFromAssets(
+        assets([
+          'tiles_zzz-unknown.mbtiles',
+          'tiles_belgium.mbtiles',
+          'tiles_bayern.mbtiles',
+        ]),
+        assets([
+          'valhalla_tiles_zzz-unknown.tar',
+          'valhalla_tiles_belgium.tar',
+          'valhalla_tiles_bayern.tar',
+        ]),
+      );
+      expect(regions.map((r) => r.slug), ['bayern', 'belgium', 'zzz-unknown']);
+      expect(regions.last.country, 'Weitere');
+    });
+  });
+
+  group('Region.detectSlugFromIp', () {
+    test('maps a German region_code to its slug', () async {
+      final client = http_testing.MockClient((request) async {
+        expect(request.url.host, 'ipwho.is');
+        return http.Response(
+            jsonEncode({
+              'success': true,
+              'country_code': 'DE',
+              'region_code': 'BY',
+            }),
+            200);
+      });
+      expect(await Region.detectSlugFromIp(client: client), 'bayern');
+    });
+
+    test('collapses Berlin and Brandenburg to the combined region', () async {
+      for (final code in ['BE', 'BB']) {
+        final client = http_testing.MockClient((request) async => http.Response(
+            jsonEncode({
+              'success': true,
+              'country_code': 'DE',
+              'region_code': code,
+            }),
+            200));
+        expect(await Region.detectSlugFromIp(client: client),
+            'berlin_brandenburg');
+      }
+    });
+
+    Future<String?> detect(String country, String? region) {
+      final client = http_testing.MockClient((request) async => http.Response(
+          jsonEncode({
+            'success': true,
+            'country_code': country,
+            if (region != null) 'region_code': region,
+          }),
+          200));
+      return Region.detectSlugFromIp(client: client);
+    }
+
+    test('maps neighbour subdivisions to their region', () async {
+      expect(await detect('FR', 'IDF'), 'ile-de-france');
+      expect(await detect('IT', '25'), 'italy-nord-ovest'); // Lombardy
+      expect(await detect('IT', '21'), 'italy-nord-ovest'); // Piedmont
+    });
+
+    test('maps fully-covered countries regardless of subdivision', () async {
+      expect(await detect('BE', 'VBR'), 'belgium');
+      expect(await detect('NL', 'ZH'), 'netherlands');
+      expect(await detect('LU', 'LU'), 'luxembourg');
+      expect(await detect('NL', null), 'netherlands'); // country default
+    });
+
+    test('returns null for uncovered subdivisions and countries', () async {
+      expect(await detect('FR', 'HDF'), isNull); // Hauts-de-France: no tiles
+      expect(await detect('IT', '72'), isNull); // Campania: not northwest
+      expect(await detect('US', 'CA'), isNull);
+    });
+
+    test('returns null when the lookup is unsuccessful', () async {
+      final client = http_testing.MockClient((request) async =>
+          http.Response(jsonEncode({'success': false}), 200));
+      expect(await Region.detectSlugFromIp(client: client), isNull);
+    });
+  });
 }
