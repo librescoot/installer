@@ -476,9 +476,13 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     debugPrint('Trampoline: uploadAll complete');
   }
 
-  /// Start the trampoline script on MDB in background.
+  /// Start the trampoline script on MDB in background. Kills any instance
+  /// still running from an earlier arm (retry after error, resume) first, so
+  /// two trampolines never race each other over the USB role and DBC power.
+  /// The [t] bracket keeps pkill's regex from matching this command line.
   Future<void> start() async {
     await _ssh.runCommand(
+      "pkill -f 'installer/[t]rampoline.sh' 2>/dev/null; "
       'nohup /data/installer/trampoline.sh > /data/installer/trampoline-stdout.log 2>&1 &',
     );
   }

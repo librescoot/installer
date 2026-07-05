@@ -832,21 +832,23 @@ log "Image: $(ls -lh "$DBC_IMAGE" | awk '{print $5}')"
 
 # Step 1: Wait for laptop disconnect
 step_begin "Step 1: wait for laptop disconnect"
-# The laptop is gone when VBUS drops: udc state -> "not attached". Require it to
-# hold stable so a transient blip (host autosuspend, RNDIS re-enumeration) can't
-# flip us to host mode while the laptop is still attached. ~250ms of stable reads;
-# the swap itself takes seconds, so a short hold loses nothing. Tune GONE_NEEDED on
-# hardware to the real sleep granularity.
+# The laptop is gone when the UDC state leaves "configured". This port has no
+# VBUS/BSV sensing from userspace, so "not attached" never appears on unplug —
+# the chipidea suspend irq parks the state at "suspended" (or it idles at
+# "default") instead. Require the non-configured reading to hold for a few
+# seconds so a transient blip (RNDIS re-enumeration cycling through
+# default/addressed) can't flip us to host mode while the laptop is still
+# attached; the cable swap itself takes seconds, so the hold loses nothing.
 UDC_STATE=/sys/class/udc/ci_hdrc.0/state
 GONE_NEEDED=3
 GONE=0
 while [ "$GONE" -lt "$GONE_NEEDED" ]; do
-  if grep -q "not attached" "$UDC_STATE" 2>/dev/null; then
-    GONE=$((GONE + 1))
-  else
+  if grep -q "configured" "$UDC_STATE" 2>/dev/null; then
     GONE=0
+  else
+    GONE=$((GONE + 1))
   fi
-  sleep 0.1 2>/dev/null || sleep 1
+  sleep 1
 done
 log "Laptop disconnected (debounced)"
 step_end
