@@ -255,6 +255,9 @@ class DownloadService {
     for (final asset in release.assets) {
       final name = asset['name'] as String;
       if (!name.contains('unu-')) continue;
+      // Minimal bootstrap images ship in the same release; they must never
+      // be picked up as full MDB/DBC firmware.
+      if (name.contains('-minimal-')) continue;
 
       final bool isBmap = name.endsWith('.sdimg.bmap');
       final bool isFirmware = name.endsWith('.sdimg.gz');
