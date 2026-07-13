@@ -1711,6 +1711,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
             'librescoot-bluetooth librescoot-ums 2>/dev/null; '
             'systemctl start librescoot-bluetooth librescoot-ums 2>/dev/null; true',
           );
+          // With cards already enrolled a master exists, so starting the
+          // keycard service cannot trigger auto-master-learn. Without this,
+          // a resume that lands on the finish screen leaves the reader dead
+          // until the next reboot.
+          if (decision.keycardDone) {
+            await _sshService.runCommand(
+              'systemctl start librescoot-keycard 2>/dev/null; true',
+            );
+          }
         } catch (e) {
           debugPrint('SSH: service unmask on resume failed (ok): $e');
         }
@@ -3094,7 +3103,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             padding: const EdgeInsets.only(top: 8),
             child: Center(
               child: Text(
-                !_dbcUploadReady ? l10n.waitingForDownloads : l10n.finishStepsAboveToContinue,
+                !_dbcUploadReady ? l10n.preparingDbcFlash : l10n.finishStepsAboveToContinue,
                 style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
                 textAlign: TextAlign.center,
               ),
@@ -3166,7 +3175,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                _dbcUploadReady ? l10n.dbcFlashSuccessful : l10n.preparingDbcFlash,
+                _dbcUploadReady ? l10n.dbcPrepComplete : l10n.preparingDbcFlash,
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -3209,7 +3218,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  _dbcUploadReady ? l10n.dbcFlashSuccessful : l10n.preparingDbcFlash,
+                  _dbcUploadReady ? l10n.dbcPrepComplete : l10n.preparingDbcFlash,
                   style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                 ),
               ),

@@ -13,7 +13,7 @@
   "phaseResumeDetectedDescription": "Interrupted installation found",
   "phaseHealthCheckTitle": "Health Check",
   "phaseHealthCheckDescription": "Verify scooter readiness",
-  "phaseBatteryRemovalTitle": "Remove Battery",
+  "phaseBatteryRemovalTitle": "Switch Off Battery",
   "phaseBatteryRemovalDescription": "Open seatbox, remove main battery",
   "phaseMdbToUmsTitle": "Prepare for Flashing",
   "phaseMdbToUmsDescription": "Configure bootloader for flashing",
@@ -190,7 +190,7 @@
   "scooterPrepHeading": "Scooter Preparation",
   "scooterPrepSubheading": "MDB firmware has been written. Now prepare for reboot.",
   "disconnectCbb": "Disconnect the CBB",
-  "disconnectCbbDesc": "The main battery must already be removed before disconnecting CBB. Failure to follow this order risks electrical damage.",
+  "disconnectCbbDesc": "The main battery must already be switched off (the previous step) before disconnecting the CBB. Failure to follow this order risks electrical damage.",
   "disconnectAuxPole": "Disconnect one AUX pole",
   "disconnectAuxPoleDesc": "Remove ONLY the positive pole (outermost, the red cable and pole) to avoid risk of inverting polarity. This will remove power from the MDB; the USB connection will disappear.",
   "auxDisconnectWarning": "The USB connection will be lost when you disconnect AUX. This is expected. The installer will wait for the MDB to reboot.",
@@ -253,7 +253,7 @@
   "reconnectDbcUsbToMdbDesc": "Plug the internal DBC USB cable into the MDB port. Don't screw it in yet.",
 
   "verifyingDbcInstallation": "Verifying DBC Installation",
-  "reconnectUsbToLaptop": "Reconnect USB to laptop...",
+  "reconnectUsbToLaptop": "Unplug the DBC cable from the MDB and plug the laptop back in...",
   "waitingForRndisDevice": "Waiting for RNDIS device...",
   "readingTrampolineStatus": "Reading trampoline status...",
   "readingTrampolineStatusElapsed": "Reading trampoline status… ({elapsed}s)",
@@ -263,6 +263,7 @@
     }
   },
   "dbcFlashSuccessful": "DBC flash successful!",
+  "dbcPrepComplete": "DBC image ready to flash",
   "dbcFlashFailed": "DBC flash failed: {message}",
   "@dbcFlashFailed": {
     "placeholders": {
@@ -275,16 +276,16 @@
 
   "welcomeToLibrescoot": "Welcome to Librescoot!",
   "finalSteps": "Final steps:",
-  "disconnectUsbFromLaptopFinal": "Unplug the laptop USB cable from the MDB",
-  "disconnectUsbFromLaptopFinalDesc": "Unplug the laptop USB cable from the MDB. The DBC cable goes back into that port next.",
-  "reconnectDbcUsbCable": "Reconnect DBC USB cable",
-  "reconnectDbcUsbCableDesc": "Plug the internal DBC USB cable back into the MDB port, then gently screw it in to secure it.",
+  "disconnectUsbFromLaptopFinal": "Unplug the laptop from the MDB",
+  "disconnectUsbFromLaptopFinalDesc": "If the laptop is still plugged into the MDB port, unplug it now. The DBC cable goes back into that port.",
+  "reconnectDbcUsbCable": "Reconnect and screw down the DBC USB cable",
+  "reconnectDbcUsbCableDesc": "Plug the internal DBC USB cable back into the MDB port if it isn't already, then gently screw it in to secure it.",
   "screwDbcUsbCable": "Screw the DBC USB cable down",
   "screwDbcUsbCableDesc": "The DBC cable is already plugged into the MDB port; gently screw it in to secure it.",
   "closeSeatboxAndFootwell": "Replace the footwell cover",
   "closeSeatboxAndFootwellDesc": "Clip the metal bars back in first, then fit the footwell cover and screw it down.",
   "unlockScooter": "Unlock your scooter",
-  "unlockScooterDesc": "Use one of the keycards you registered, or unlock via Bluetooth.",
+  "unlockScooterDesc": "Use a keycard or paired phone if you set one up, or the button in the app.",
   "deletedCache": "Deleted {sizeMb} MB",
   "@deletedCache": {
     "placeholders": {

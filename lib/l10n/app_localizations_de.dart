@@ -46,7 +46,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get phaseHealthCheckDescription => 'Roller-Bereitschaft prüfen';
 
   @override
-  String get phaseBatteryRemovalTitle => 'Akku entfernen';
+  String get phaseBatteryRemovalTitle => 'Akku abschalten';
 
   @override
   String get phaseBatteryRemovalDescription =>
@@ -528,7 +528,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get disconnectCbbDesc =>
-      'Der Fahrakku muss bereits entnommen sein, bevor du die CBB trennst. Bei falscher Reihenfolge droht ein elektrischer Schaden.';
+      'Der Fahrakku muss bereits abgeschaltet sein (vorheriger Schritt), bevor du die CBB trennst. Bei falscher Reihenfolge droht ein elektrischer Schaden.';
 
   @override
   String get disconnectAuxPole => 'Einen AUX-Pol trennen';
@@ -659,7 +659,8 @@ class AppLocalizationsDe extends AppLocalizations {
   String get verifyingDbcInstallation => 'DBC-Installation wird geprüft';
 
   @override
-  String get reconnectUsbToLaptop => 'USB wieder mit Laptop verbinden...';
+  String get reconnectUsbToLaptop =>
+      'DBC-Kabel vom MDB abziehen und den Laptop wieder anschließen...';
 
   @override
   String get waitingForRndisDevice => 'Warte auf RNDIS-Gerät...';
@@ -674,6 +675,9 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcFlashSuccessful => 'DBC-Flash erfolgreich!';
+
+  @override
+  String get dbcPrepComplete => 'DBC-Image bereit zum Flashen';
 
   @override
   String dbcFlashFailed(String message) {
@@ -697,19 +701,19 @@ class AppLocalizationsDe extends AppLocalizations {
   String get finalSteps => 'Letzte Schritte:';
 
   @override
-  String get disconnectUsbFromLaptopFinal =>
-      'Laptop-USB-Kabel vom MDB abziehen';
+  String get disconnectUsbFromLaptopFinal => 'Laptop vom MDB abziehen';
 
   @override
   String get disconnectUsbFromLaptopFinalDesc =>
-      'Ziehe das Laptop-USB-Kabel vom MDB ab. Dort kommt gleich das DBC-Kabel wieder hinein.';
+      'Falls der Laptop noch am MDB-Port steckt, zieh ihn jetzt ab. Dort kommt das DBC-Kabel wieder hinein.';
 
   @override
-  String get reconnectDbcUsbCable => 'DBC-USB-Kabel anschließen';
+  String get reconnectDbcUsbCable =>
+      'DBC-USB-Kabel anschließen und festschrauben';
 
   @override
   String get reconnectDbcUsbCableDesc =>
-      'Stecke das interne DBC-USB-Kabel wieder in den MDB-Port und schraube es jetzt vorsichtig fest.';
+      'Stecke das interne DBC-USB-Kabel wieder in den MDB-Port, falls nicht schon geschehen, und schraube es vorsichtig fest.';
 
   @override
   String get screwDbcUsbCable => 'DBC-USB-Kabel festschrauben';
@@ -730,7 +734,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get unlockScooterDesc =>
-      'Nutze eine der angelernten Schlüsselkarten oder entsperre über Bluetooth.';
+      'Nutze eine eingerichtete Schlüsselkarte, ein gekoppeltes Handy oder den Button in der App.';
 
   @override
   String deletedCache(String sizeMb) {

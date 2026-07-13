@@ -173,7 +173,7 @@ abstract class AppLocalizations {
   /// No description provided for @phaseBatteryRemovalTitle.
   ///
   /// In en, this message translates to:
-  /// **'Remove Battery'**
+  /// **'Switch Off Battery'**
   String get phaseBatteryRemovalTitle;
 
   /// No description provided for @phaseBatteryRemovalDescription.
@@ -1025,7 +1025,7 @@ abstract class AppLocalizations {
   /// No description provided for @disconnectCbbDesc.
   ///
   /// In en, this message translates to:
-  /// **'The main battery must already be removed before disconnecting CBB. Failure to follow this order risks electrical damage.'**
+  /// **'The main battery must already be switched off (the previous step) before disconnecting the CBB. Failure to follow this order risks electrical damage.'**
   String get disconnectCbbDesc;
 
   /// No description provided for @disconnectAuxPole.
@@ -1247,7 +1247,7 @@ abstract class AppLocalizations {
   /// No description provided for @reconnectUsbToLaptop.
   ///
   /// In en, this message translates to:
-  /// **'Reconnect USB to laptop...'**
+  /// **'Unplug the DBC cable from the MDB and plug the laptop back in...'**
   String get reconnectUsbToLaptop;
 
   /// No description provided for @waitingForRndisDevice.
@@ -1273,6 +1273,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'DBC flash successful!'**
   String get dbcFlashSuccessful;
+
+  /// No description provided for @dbcPrepComplete.
+  ///
+  /// In en, this message translates to:
+  /// **'DBC image ready to flash'**
+  String get dbcPrepComplete;
 
   /// No description provided for @dbcFlashFailed.
   ///
@@ -1313,25 +1319,25 @@ abstract class AppLocalizations {
   /// No description provided for @disconnectUsbFromLaptopFinal.
   ///
   /// In en, this message translates to:
-  /// **'Unplug the laptop USB cable from the MDB'**
+  /// **'Unplug the laptop from the MDB'**
   String get disconnectUsbFromLaptopFinal;
 
   /// No description provided for @disconnectUsbFromLaptopFinalDesc.
   ///
   /// In en, this message translates to:
-  /// **'Unplug the laptop USB cable from the MDB. The DBC cable goes back into that port next.'**
+  /// **'If the laptop is still plugged into the MDB port, unplug it now. The DBC cable goes back into that port.'**
   String get disconnectUsbFromLaptopFinalDesc;
 
   /// No description provided for @reconnectDbcUsbCable.
   ///
   /// In en, this message translates to:
-  /// **'Reconnect DBC USB cable'**
+  /// **'Reconnect and screw down the DBC USB cable'**
   String get reconnectDbcUsbCable;
 
   /// No description provided for @reconnectDbcUsbCableDesc.
   ///
   /// In en, this message translates to:
-  /// **'Plug the internal DBC USB cable back into the MDB port, then gently screw it in to secure it.'**
+  /// **'Plug the internal DBC USB cable back into the MDB port if it isn\'t already, then gently screw it in to secure it.'**
   String get reconnectDbcUsbCableDesc;
 
   /// No description provided for @screwDbcUsbCable.
@@ -1367,7 +1373,7 @@ abstract class AppLocalizations {
   /// No description provided for @unlockScooterDesc.
   ///
   /// In en, this message translates to:
-  /// **'Use one of the keycards you registered, or unlock via Bluetooth.'**
+  /// **'Use a keycard or paired phone if you set one up, or the button in the app.'**
   String get unlockScooterDesc;
 
   /// No description provided for @deletedCache.

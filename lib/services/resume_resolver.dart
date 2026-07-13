@@ -67,20 +67,34 @@ ResumeDecision resolveResume({
       );
     case InstallPhase.trampolineArmed:
       if (status?.result == TrampolineResult.success) {
-        return ResumeDecision(phase: InstallerPhase.finish, skipUnlockGate: true);
+        return ResumeDecision(
+          phase: InstallerPhase.finish,
+          skipUnlockGate: true,
+          bluetoothDone: state.btPaired,
+          keycardDone: state.keycardEnrolled,
+        );
       }
       return ResumeDecision(
         phase: InstallerPhase.dbcSwapAndFlash,
         skipUnlockGate: true,
+        bluetoothDone: state.btPaired,
+        keycardDone: state.keycardEnrolled,
         previousError: err,
       );
     case InstallPhase.trampolineOk:
     case InstallPhase.finished:
-      return ResumeDecision(phase: InstallerPhase.finish, skipUnlockGate: true);
+      return ResumeDecision(
+        phase: InstallerPhase.finish,
+        skipUnlockGate: true,
+        bluetoothDone: state.btPaired,
+        keycardDone: state.keycardEnrolled,
+      );
     case InstallPhase.trampolineErr:
       return ResumeDecision(
         phase: InstallerPhase.dbcSwapAndFlash,
         skipUnlockGate: true,
+        bluetoothDone: state.btPaired,
+        keycardDone: state.keycardEnrolled,
         previousError: err,
       );
     case InstallPhase.unknown:
