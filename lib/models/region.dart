@@ -45,9 +45,9 @@ class Region {
     'italy-nord-ovest': (name: 'Italien (Nordwest)', country: 'Italien'),
   };
 
-  /// Map ipwho.is country_code -> region_code -> our slug. Keyed on the ISO
-  /// 3166-2 subdivision code rather than the English region name, which is
-  /// stable across the provider's localisation. Both Berlin (BE) and
+  /// Map geo-provider countryCode -> ISO 3166-2 subdivision code -> our slug.
+  /// Keyed on the subdivision code rather than the English region name, which
+  /// is stable across the provider's localisation. Both Berlin (BE) and
   /// Brandenburg (BB) collapse to the combined berlin_brandenburg region.
   /// France and Italy only have partial coverage, so only the subdivisions
   /// whose tiles we publish map to a slug:
@@ -106,7 +106,11 @@ class Region {
       .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
       .join(' ');
 
-  /// Try to detect the user's region from their IP via ipwho.is (HTTPS).
+  /// Try to detect the user's region from their IP via ip-api.com. The free
+  /// tier is HTTP-only (non-commercial use), but it resolves German consumer
+  /// IPs to the right state far more reliably than the HTTPS providers we
+  /// tried (ipwho.is placed Berlin DSL lines in Hessen), and a spoofed
+  /// answer can at worst preselect a dropdown the user can change.
   /// Returns the region slug, or null if detection fails or the location is
   /// not a region we map. The caller matches the slug against the regions it
   /// actually offers before preselecting.
@@ -115,14 +119,14 @@ class Region {
       final c = client ?? http.Client();
       final response = await c
           .get(Uri.parse(
-              'https://ipwho.is/?fields=success,country_code,region_code'))
+              'http://ip-api.com/json/?fields=status,countryCode,region'))
           .timeout(const Duration(seconds: 5));
       if (client == null) c.close();
       if (response.statusCode != 200) return null;
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      if (data['success'] != true) return null;
-      final countryCode = data['country_code'] as String?;
-      final regionCode = data['region_code'] as String?;
+      if (data['status'] != 'success') return null;
+      final countryCode = data['countryCode'] as String?;
+      final regionCode = data['region'] as String?;
       if (countryCode == null) return null;
       return _geoMap[countryCode]?[regionCode] ?? _countryDefault[countryCode];
     } catch (_) {

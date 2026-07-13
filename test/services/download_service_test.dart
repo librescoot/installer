@@ -161,14 +161,14 @@ void main() {
   });
 
   group('Region.detectSlugFromIp', () {
-    test('maps a German region_code to its slug', () async {
+    test('maps a German subdivision code to its slug', () async {
       final client = http_testing.MockClient((request) async {
-        expect(request.url.host, 'ipwho.is');
+        expect(request.url.host, 'ip-api.com');
         return http.Response(
             jsonEncode({
-              'success': true,
-              'country_code': 'DE',
-              'region_code': 'BY',
+              'status': 'success',
+              'countryCode': 'DE',
+              'region': 'BY',
             }),
             200);
       });
@@ -179,9 +179,9 @@ void main() {
       for (final code in ['BE', 'BB']) {
         final client = http_testing.MockClient((request) async => http.Response(
             jsonEncode({
-              'success': true,
-              'country_code': 'DE',
-              'region_code': code,
+              'status': 'success',
+              'countryCode': 'DE',
+              'region': code,
             }),
             200));
         expect(await Region.detectSlugFromIp(client: client),
@@ -192,9 +192,9 @@ void main() {
     Future<String?> detect(String country, String? region) {
       final client = http_testing.MockClient((request) async => http.Response(
           jsonEncode({
-            'success': true,
-            'country_code': country,
-            if (region != null) 'region_code': region,
+            'status': 'success',
+            'countryCode': country,
+            if (region != null) 'region': region,
           }),
           200));
       return Region.detectSlugFromIp(client: client);
@@ -221,7 +221,7 @@ void main() {
 
     test('returns null when the lookup is unsuccessful', () async {
       final client = http_testing.MockClient((request) async =>
-          http.Response(jsonEncode({'success': false}), 200));
+          http.Response(jsonEncode({'status': 'fail'}), 200));
       expect(await Region.detectSlugFromIp(client: client), isNull);
     });
   });
