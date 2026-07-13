@@ -131,9 +131,13 @@ class Region {
   }
 
   String get osmTilesFilename => 'tiles_$slug.mbtiles';
-  String get osmTilesChecksumFilename => 'tiles_$slug.mbtiles.sha256';
   String get valhallaTilesFilename => 'valhalla_tiles_$slug.tar';
-  String get valhallaTilesChecksumFilename => 'valhalla_tiles_$slug.tar.sha256';
+
+  // No sidecar .sha256 asset is published alongside the tile files (checked
+  // against the live osm-tiles/valhalla-tiles releases: only the tile itself
+  // is uploaded). DownloadService verifies tile integrity from the sha256
+  // digest GitHub's releases API already reports for every asset instead of
+  // fetching a separate checksum file, so there's nothing to name here.
 
   /// Known regions, used as the offline fallback when the published tile list
   /// can't be fetched. Identity is by slug, so a Region built here compares

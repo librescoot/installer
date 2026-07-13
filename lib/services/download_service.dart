@@ -45,9 +45,14 @@ class DownloadService {
     if (await cacheFile.exists()) {
       final age = DateTime.now().difference(await cacheFile.lastModified());
       if (age.inHours < 1) {
-        _cachedLatest =
-            jsonDecode(await cacheFile.readAsString()) as Map<String, dynamic>;
-        return _cachedLatest!;
+        try {
+          _cachedLatest = jsonDecode(await cacheFile.readAsString())
+              as Map<String, dynamic>;
+          return _cachedLatest!;
+        } catch (e) {
+          debugPrint('latest.json: fresh cache unreadable, falling back to '
+              'network: $e');
+        }
       }
     }
 
@@ -61,8 +66,20 @@ class DownloadService {
             .get(Uri.parse(_latestManifestUrl))
             .timeout(const Duration(seconds: 10));
         if (response.statusCode == 200) {
+          // Parse before writing to disk: a 200 with a non-JSON body (e.g. a
+          // captive portal login page) must never land in the cache, or
+          // every retry and future launch re-poisons itself on the same
+          // garbage.
+          final Map<String, dynamic> parsed;
+          try {
+            parsed = jsonDecode(response.body) as Map<String, dynamic>;
+          } catch (e) {
+            debugPrint('latest.json fetch returned unparseable body '
+                '(attempt ${attempt + 1}/${delays.length}): $e');
+            continue;
+          }
           await cacheFile.writeAsString(response.body);
-          _cachedLatest = jsonDecode(response.body) as Map<String, dynamic>;
+          _cachedLatest = parsed;
           return _cachedLatest!;
         }
         debugPrint('latest.json fetch HTTP ${response.statusCode} '
@@ -74,10 +91,15 @@ class DownloadService {
     }
 
     if (await cacheFile.exists()) {
-      debugPrint('latest.json: network unavailable, using stale on-disk cache');
-      _cachedLatest =
-          jsonDecode(await cacheFile.readAsString()) as Map<String, dynamic>;
-      return _cachedLatest!;
+      try {
+        debugPrint('latest.json: network unavailable, using stale on-disk cache');
+        _cachedLatest = jsonDecode(await cacheFile.readAsString())
+            as Map<String, dynamic>;
+        return _cachedLatest!;
+      } catch (e) {
+        debugPrint('latest.json: stale cache unreadable, falling back to '
+            'bundled snapshot: $e');
+      }
     }
 
     try {
@@ -139,6 +161,21 @@ class DownloadService {
   Future<String> _sha256OfFile(File file) async {
     final digest = await sha256.bind(file.openRead()).first;
     return digest.toString();
+  }
+
+  /// Extract the sha256 hex digest GitHub computes server-side for every
+  /// release asset (`"digest": "sha256:<hex>"`). Tile releases don't publish
+  /// a separate SHA256SUMS or sidecar checksum file, but this field is
+  /// populated on every asset already returned by the releases API, so it's
+  /// used as the source of truth for tile integrity instead. Returns null if
+  /// absent or not a sha256 digest.
+  static String? _sha256FromAssetDigest(Map<String, dynamic> asset) {
+    final digest = asset['digest'] as String?;
+    if (digest == null || !digest.startsWith('sha256:')) return null;
+    final hex = digest.substring('sha256:'.length);
+    // An empty remainder would pass downloadItem's != null gate and then
+    // false-mismatch every good download; treat it as "no digest".
+    return hex.isEmpty ? null : hex;
   }
 
   /// Resolve tile release assets for a repo, with disk caching.
@@ -308,6 +345,7 @@ class DownloadService {
           url: asset['browser_download_url'] as String,
           filename: name,
           expectedSize: expectedSize,
+          expectedSha256: _sha256FromAssetDigest(asset),
         );
         if (await cached.exists() && await cached.length() == expectedSize) {
           item.localPath = cached.path;
@@ -328,6 +366,7 @@ class DownloadService {
           url: asset['browser_download_url'] as String,
           filename: name,
           expectedSize: expectedSize,
+          expectedSha256: _sha256FromAssetDigest(asset),
         );
         if (await cached.exists() && await cached.length() == expectedSize) {
           item.localPath = cached.path;
@@ -364,13 +403,16 @@ class DownloadService {
     final sink = partFile.openWrite();
     var downloaded = 0;
 
-    await for (final chunk in response.stream) {
-      sink.add(chunk);
-      downloaded += chunk.length;
-      item.bytesDownloaded = downloaded;
-      onProgress?.call(downloaded, item.expectedSize);
+    try {
+      await for (final chunk in response.stream) {
+        sink.add(chunk);
+        downloaded += chunk.length;
+        item.bytesDownloaded = downloaded;
+        onProgress?.call(downloaded, item.expectedSize);
+      }
+    } finally {
+      await sink.close();
     }
-    await sink.close();
 
     // Verify size
     if (await partFile.length() != item.expectedSize) {
