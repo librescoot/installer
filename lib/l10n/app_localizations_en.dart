@@ -433,35 +433,23 @@ class AppLocalizationsEn extends AppLocalizations {
       'Without the main battery, the 12V auxiliary battery will drain faster. The scooter may shut down during extended operations.';
 
   @override
-  String get batteryRemovalHeading => 'Battery Removal';
+  String get deactivateMainBatteryHeading => 'Main Battery';
 
   @override
-  String get seatboxOpening => 'Seatbox is opening...';
+  String get deactivateMainBattery => 'Deactivate main battery';
 
   @override
-  String get seatboxOpeningDesc => 'The seatbox will open automatically.';
+  String get deactivateMainBatteryStep =>
+      'The scooter will switch off the main battery. You do not need to take it out of the seatbox.';
 
   @override
-  String get removeMainBattery => 'Remove the main battery';
+  String get deactivatingMainBattery => 'Switching off the main battery...';
 
   @override
-  String get removeMainBatteryDesc =>
-      'Lift the main battery (Fahrakku) out of the seatbox.';
+  String get mainBatteryDeactivated => 'Main battery switched off';
 
   @override
-  String get openSeatbox => 'Open Seatbox';
-
-  @override
-  String get mainBatteryAlreadyRemoved => 'Main battery already removed';
-
-  @override
-  String get openingSeatbox => 'Opening seatbox...';
-
-  @override
-  String get waitingForBatteryRemoval => 'Waiting for battery removal...';
-
-  @override
-  String get batteryRemoved => 'Battery removed!';
+  String get mainBatteryAlreadyOff => 'Main battery is already off';
 
   @override
   String get configuringMdbBootloader => 'Configuring MDB Bootloader';

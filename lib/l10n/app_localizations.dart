@@ -872,65 +872,41 @@ abstract class AppLocalizations {
   /// **'Without the main battery, the 12V auxiliary battery will drain faster. The scooter may shut down during extended operations.'**
   String get riskNoBattery;
 
-  /// No description provided for @batteryRemovalHeading.
+  /// No description provided for @deactivateMainBatteryHeading.
   ///
   /// In en, this message translates to:
-  /// **'Battery Removal'**
-  String get batteryRemovalHeading;
+  /// **'Main Battery'**
+  String get deactivateMainBatteryHeading;
 
-  /// No description provided for @seatboxOpening.
+  /// No description provided for @deactivateMainBattery.
   ///
   /// In en, this message translates to:
-  /// **'Seatbox is opening...'**
-  String get seatboxOpening;
+  /// **'Deactivate main battery'**
+  String get deactivateMainBattery;
 
-  /// No description provided for @seatboxOpeningDesc.
+  /// No description provided for @deactivateMainBatteryStep.
   ///
   /// In en, this message translates to:
-  /// **'The seatbox will open automatically.'**
-  String get seatboxOpeningDesc;
+  /// **'The scooter will switch off the main battery. You do not need to take it out of the seatbox.'**
+  String get deactivateMainBatteryStep;
 
-  /// No description provided for @removeMainBattery.
+  /// No description provided for @deactivatingMainBattery.
   ///
   /// In en, this message translates to:
-  /// **'Remove the main battery'**
-  String get removeMainBattery;
+  /// **'Switching off the main battery...'**
+  String get deactivatingMainBattery;
 
-  /// No description provided for @removeMainBatteryDesc.
+  /// No description provided for @mainBatteryDeactivated.
   ///
   /// In en, this message translates to:
-  /// **'Lift the main battery (Fahrakku) out of the seatbox.'**
-  String get removeMainBatteryDesc;
+  /// **'Main battery switched off'**
+  String get mainBatteryDeactivated;
 
-  /// No description provided for @openSeatbox.
+  /// No description provided for @mainBatteryAlreadyOff.
   ///
   /// In en, this message translates to:
-  /// **'Open Seatbox'**
-  String get openSeatbox;
-
-  /// No description provided for @mainBatteryAlreadyRemoved.
-  ///
-  /// In en, this message translates to:
-  /// **'Main battery already removed'**
-  String get mainBatteryAlreadyRemoved;
-
-  /// No description provided for @openingSeatbox.
-  ///
-  /// In en, this message translates to:
-  /// **'Opening seatbox...'**
-  String get openingSeatbox;
-
-  /// No description provided for @waitingForBatteryRemoval.
-  ///
-  /// In en, this message translates to:
-  /// **'Waiting for battery removal...'**
-  String get waitingForBatteryRemoval;
-
-  /// No description provided for @batteryRemoved.
-  ///
-  /// In en, this message translates to:
-  /// **'Battery removed!'**
-  String get batteryRemoved;
+  /// **'Main battery is already off'**
+  String get mainBatteryAlreadyOff;
 
   /// No description provided for @configuringMdbBootloader.
   ///

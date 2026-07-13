@@ -2210,25 +2210,20 @@ class _InstallerScreenState extends State<InstallerScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(l10n.batteryRemovalHeading,
+          Text(l10n.deactivateMainBatteryHeading,
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 24),
           if (_scooterHealth?.batteryPresent == true) ...[
             InstructionStep(
               number: 1,
-              title: l10n.seatboxOpening,
-              description: l10n.seatboxOpeningDesc,
-            ),
-            InstructionStep(
-              number: 2,
-              title: l10n.removeMainBattery,
-              description: l10n.removeMainBatteryDesc,
+              title: l10n.deactivateMainBattery,
+              description: l10n.deactivateMainBatteryStep,
             ),
             const SizedBox(height: 16),
             if (!_isProcessing)
               FilledButton(
-                onPressed: _openSeatboxAndWaitForBattery,
-                child: Text(l10n.openSeatbox),
+                onPressed: _deactivateMainBatteryAndWait,
+                child: Text(l10n.deactivateMainBattery),
               ),
             if (_isProcessing) ...[
               const CircularProgressIndicator(),
@@ -2238,7 +2233,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
           ] else ...[
             const Icon(Icons.check_circle, size: 48, color: kAccent),
             const SizedBox(height: 16),
-            Text(l10n.mainBatteryAlreadyRemoved),
+            Text(l10n.mainBatteryAlreadyOff),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: () => _setPhase(InstallerPhase.mdbToUms),
@@ -2251,29 +2246,35 @@ class _InstallerScreenState extends State<InstallerScreen> {
     );
   }
 
-  Future<void> _openSeatboxAndWaitForBattery() async {
+  Future<void> _deactivateMainBatteryAndWait() async {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
     if (_isDryRun) {
-      _setStatus('[DRY RUN] Simulating battery removal...');
+      _setStatus('[DRY RUN] Simulating main battery deactivation...');
       await Future.delayed(const Duration(seconds: 1));
       setState(() { _scooterHealth?.batteryPresent = false; _isProcessing = false; });
       _setPhase(InstallerPhase.mdbToUms);
       return;
     }
-    _setStatus(l10n.openingSeatbox);
-    await _sshService.openSeatbox();
+    _setStatus(l10n.deactivatingMainBattery);
+    await _sshService.deactivateMainBattery();
 
-    _setStatus(l10n.waitingForBatteryRemoval);
-    debugPrint('Battery: waiting for depart on battery:0');
-    while (await _sshService.isBatteryPresent()) {
+    debugPrint('Battery: waiting for battery:0 state to leave active');
+    final deadline = DateTime.now().add(const Duration(seconds: 30));
+    var stillActive = await _sshService.isMainBatteryActive();
+    while (stillActive && DateTime.now().isBefore(deadline)) {
       await Future.delayed(const Duration(seconds: 2));
       if (!mounted) return;
+      stillActive = await _sshService.isMainBatteryActive();
     }
-    debugPrint('Battery: depart detected on battery:0');
-    await _sshService.logScooterStats('battery-removed');
+    if (stillActive) {
+      debugPrint('Battery: still active after 30s, proceeding anyway (UMS reboot deactivates it regardless)');
+    } else {
+      debugPrint('Battery: main battery deactivated');
+    }
+    await _sshService.logScooterStats('main-battery-deactivated');
 
-    _setStatus(l10n.batteryRemoved);
+    _setStatus(l10n.mainBatteryDeactivated);
     setState(() {
       _scooterHealth?.batteryPresent = false;
       _isProcessing = false;

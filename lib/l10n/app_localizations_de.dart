@@ -438,34 +438,23 @@ class AppLocalizationsDe extends AppLocalizations {
       'Ohne den Fahrakku entlädt sich die 12V-Hilfsbatterie schneller. Der Roller könnte bei längeren Vorgängen herunterfahren.';
 
   @override
-  String get batteryRemovalHeading => 'Akku entfernen';
+  String get deactivateMainBatteryHeading => 'Fahrakku';
 
   @override
-  String get seatboxOpening => 'Sitzbank wird geöffnet...';
+  String get deactivateMainBattery => 'Fahrakku deaktivieren';
 
   @override
-  String get seatboxOpeningDesc => 'Die Sitzbank öffnet sich automatisch.';
+  String get deactivateMainBatteryStep =>
+      'Der Roller schaltet den Fahrakku ab. Du musst ihn nicht aus der Sitzbank nehmen.';
 
   @override
-  String get removeMainBattery => 'Fahrakku entnehmen';
+  String get deactivatingMainBattery => 'Fahrakku wird abgeschaltet...';
 
   @override
-  String get removeMainBatteryDesc => 'Hebe den Fahrakku aus der Sitzbank.';
+  String get mainBatteryDeactivated => 'Fahrakku abgeschaltet';
 
   @override
-  String get openSeatbox => 'Sitzbank öffnen';
-
-  @override
-  String get mainBatteryAlreadyRemoved => 'Fahrakku bereits entnommen';
-
-  @override
-  String get openingSeatbox => 'Sitzbank wird geöffnet...';
-
-  @override
-  String get waitingForBatteryRemoval => 'Warte auf Akku-Entnahme...';
-
-  @override
-  String get batteryRemoved => 'Akku entnommen!';
+  String get mainBatteryAlreadyOff => 'Fahrakku ist bereits abgeschaltet';
 
   @override
   String get configuringMdbBootloader => 'MDB-Bootloader wird konfiguriert';

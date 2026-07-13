@@ -865,6 +865,36 @@ class SshService {
     await runCommand('redis-cli LPUSH $key $value');
   }
 
+  /// Run a Redis HSET command on the MDB.
+  Future<void> redisHset(String hash, String field, String value) async {
+    await runCommand('redis-cli HSET ${_shellEscape(hash)} ${_shellEscape(field)} ${_shellEscape(value)}');
+  }
+
+  /// Run a Redis PUBLISH command on the MDB.
+  Future<void> redisPublish(String channel, String message) async {
+    await runCommand('redis-cli PUBLISH ${_shellEscape(channel)} ${_shellEscape(message)}');
+  }
+
+  /// Signal battery-service that the seatbox is open so it deactivates the
+  /// main pack (opens the BMS contactors) without physically opening the
+  /// seatbox. Electrically equivalent to removing the battery for the flash.
+  Future<void> deactivateMainBattery() async {
+    // Stop vehicle-service first so it can't re-assert the physical seatbox
+    // latch back to "closed" and re-enable the main battery. Safe because
+    // the MDB is about to be rebooted into UMS mode and reflashed anyway.
+    // The unit may be stock (vehicle-service) or Librescoot
+    // (librescoot-vehicle) at this point in the install, so stop both.
+    await runCommand('systemctl stop vehicle-service librescoot-vehicle 2>/dev/null; true');
+    await redisHset('vehicle', 'seatbox:lock', 'open');
+    await redisPublish('vehicle', 'seatbox:lock');
+  }
+
+  /// Check whether the main battery is still active (powered on).
+  Future<bool> isMainBatteryActive() async {
+    final state = await redisHget('battery:0', 'state');
+    return state == 'active';
+  }
+
   /// Subscribe to a Redis pub/sub [channel] over a long-running SSH session.
   /// Yields one event per published message (the payload only). Caller must
   /// invoke [stop] on the returned subscription to terminate the session and
@@ -1058,11 +1088,6 @@ class SshService {
     final batteryPresent = await redisHget('battery:0', 'present');
     health.batteryPresent = batteryPresent == 'true';
     return health;
-  }
-
-  /// Open the seatbox.
-  Future<void> openSeatbox() async {
-    await redisLpush('scooter:seatbox', 'open');
   }
 
   /// Check if CBB is connected.
