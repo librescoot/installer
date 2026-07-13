@@ -548,6 +548,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Reconnect the positive AUX pole. The MDB will power on and boot into Librescoot.';
 
   @override
+  String get reconnectCbbFirstDesc =>
+      'Reconnect the CBB first, while the AUX is still disconnected, so it connects to a powered-down scooter.';
+
+  @override
+  String get cbbBeforeAuxWarning =>
+      'Reconnect the CBB before the AUX. Connecting the CBB while the scooter is powered risks the main battery being live.';
+
+  @override
   String get dbcLedHint =>
       'DBC LED: orange = starting, green = booting, off = running';
 
@@ -580,7 +588,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get reconnectCbbHeading => 'Reconnect CBB & Battery';
+  String get reconnectCbbHeading => 'Verify CBB and main battery';
 
   @override
   String get verifyCbbConnection => 'Verify CBB Connection';
@@ -598,10 +606,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cbbNotDetected => 'CBB not detected. Please check the connection.';
-
-  @override
-  String get cbbDetectionMayTakeMinutes =>
-      'This can take several minutes, please be patient.';
 
   @override
   String get preparingDbcFlash => 'Preparing DBC Flash';
@@ -1014,21 +1018,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get openSeatboxButton => 'Open seatbox';
-
-  @override
   String get reconnectCbbStep => 'Reconnect the CBB';
-
-  @override
-  String get reconnectCbbStepDesc =>
-      'Plug the CBB cable back into the connector in the footwell. Without the CBB, the MDB could shut down during flashing.';
-
-  @override
-  String get insertMainBatteryStep => 'Insert the main battery';
-
-  @override
-  String get insertMainBatteryStepDesc =>
-      'Put the main battery back in the seatbox. Without it, the CBB or 12V auxiliary battery could run empty during flashing, which may cause the MDB or DBC to shut down.';
 
   @override
   String get cbbDetected => 'CBB detected';

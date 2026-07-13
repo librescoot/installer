@@ -555,6 +555,14 @@ class AppLocalizationsDe extends AppLocalizations {
       'Schließe den positiven AUX-Pol wieder an. Das MDB startet und bootet Librescoot.';
 
   @override
+  String get reconnectCbbFirstDesc =>
+      'Schließe zuerst die CBB wieder an, solange der AUX noch getrennt ist, damit sie an einen stromlosen Roller kommt.';
+
+  @override
+  String get cbbBeforeAuxWarning =>
+      'Schließe die CBB vor dem AUX an. Wird die CBB bei eingeschaltetem Roller verbunden, kann der Fahrakku unter Spannung stehen.';
+
+  @override
   String get dbcLedHint =>
       'DBC-LED: orange = startet, grün = bootet, aus = läuft';
 
@@ -587,7 +595,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get reconnectCbbHeading => 'CBB & Batterie wieder anschließen';
+  String get reconnectCbbHeading => 'CBB und Fahrakku prüfen';
 
   @override
   String get verifyCbbConnection => 'CBB-Verbindung prüfen';
@@ -605,10 +613,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get cbbNotDetected => 'CBB nicht erkannt. Bitte Verbindung prüfen.';
-
-  @override
-  String get cbbDetectionMayTakeMinutes =>
-      'Das kann mehrere Minuten dauern, bitte etwas Geduld.';
 
   @override
   String get preparingDbcFlash => 'DBC-Flash wird vorbereitet';
@@ -1023,21 +1027,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get openSeatboxButton => 'Sitzbank öffnen';
-
-  @override
   String get reconnectCbbStep => 'CBB wieder anschließen';
-
-  @override
-  String get reconnectCbbStepDesc =>
-      'Stecke das CBB-Kabel wieder in den Anschluss im Fußraum. Ohne CBB könnte das MDB während des Flashens herunterfahren.';
-
-  @override
-  String get insertMainBatteryStep => 'Fahrakku einsetzen';
-
-  @override
-  String get insertMainBatteryStepDesc =>
-      'Setze den Fahrakku wieder in die Sitzbank ein. Ohne ihn könnte die CBB oder die 12V-Hilfsbatterie während des Flashens leer werden, was MDB oder DBC zum Absturz bringen kann.';
 
   @override
   String get cbbDetected => 'CBB erkannt';

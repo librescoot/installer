@@ -199,6 +199,8 @@
   "waitingForMdbBoot": "Waiting for MDB Boot",
   "reconnectAuxPole": "Reconnect the AUX pole",
   "reconnectAuxPoleDesc": "Reconnect the positive AUX pole. The MDB will power on and boot into Librescoot.",
+  "reconnectCbbFirstDesc": "Reconnect the CBB first, while the AUX is still disconnected, so it connects to a powered-down scooter.",
+  "cbbBeforeAuxWarning": "Reconnect the CBB before the AUX. Connecting the CBB while the scooter is powered risks the main battery being live.",
   "dbcLedHint": "DBC LED: orange = starting, green = booting, off = running",
   "mdbStillUms": "MDB still in UMS mode. Flash may not have taken. Retrying...",
   "mdbDetectedNetwork": "MDB detected in network mode. Waiting for stable connection...",
@@ -218,7 +220,7 @@
     }
   },
 
-  "reconnectCbbHeading": "Reconnect CBB & Battery",
+  "reconnectCbbHeading": "Verify CBB and main battery",
   "verifyCbbConnection": "Verify CBB Connection",
   "verifyBatteryPresence": "Verify battery",
   "checkingCbb": "Checking CBB...",
@@ -229,7 +231,6 @@
     }
   },
   "cbbNotDetected": "CBB not detected. Please check the connection.",
-  "cbbDetectionMayTakeMinutes": "This can take several minutes, please be patient.",
 
   "preparingDbcFlash": "Preparing DBC Flash",
   "waitingForDownloads": "Waiting for downloads to complete...",
@@ -409,11 +410,7 @@
     }
   },
 
-  "openSeatboxButton": "Open seatbox",
   "reconnectCbbStep": "Reconnect the CBB",
-  "reconnectCbbStepDesc": "Plug the CBB cable back into the connector in the footwell. Without the CBB, the MDB could shut down during flashing.",
-  "insertMainBatteryStep": "Insert the main battery",
-  "insertMainBatteryStepDesc": "Put the main battery back in the seatbox. Without it, the CBB or 12V auxiliary battery could run empty during flashing, which may cause the MDB or DBC to shut down.",
   "cbbDetected": "CBB detected",
   "batteryDetected": "Battery detected",
   "proceedWithoutCbb": "I understand the risks, proceed anyway",

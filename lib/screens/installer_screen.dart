@@ -2668,9 +2668,36 @@ class _InstallerScreenState extends State<InstallerScreen> {
           const SizedBox(height: 16),
           InstructionStep(
             number: 1,
+            title: l10n.reconnectCbbStep,
+            description: l10n.reconnectCbbFirstDesc,
+            imageAsset: 'assets/images/lsi-unu_scooter_cbb_connected.jpg',
+          ),
+          InstructionStep(
+            number: 2,
             title: l10n.reconnectAuxPole,
             description: l10n.reconnectAuxPoleDesc,
             imageAsset: 'assets/images/lsi-unu_scooter_aux_connected.jpg',
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade900.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.shade700),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.warning, color: Colors.orange),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    l10n.cbbBeforeAuxWarning,
+                    style: const TextStyle(color: Colors.orange, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
           Text(l10n.dbcLedHint,
@@ -2859,12 +2886,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _cbbAutoCheckStarted = false;
   bool _cbbDetected = false;
   bool _batteryDetected = false;
-  bool _cbbWaitNoticeShown = false;
 
-  // Poll for CBB presence. Up to 3 minutes (90 × 2s); flips _cbbWaitNoticeShown
-  // after 30s so the "be patient" notice appears.
+  // Poll for CBB presence, up to 3 minutes (90 x 2s).
   static const int _cbbPollIterations = 90;
-  static const int _cbbNoticeAfterIterations = 15;
 
   Future<bool> _pollForCbb(AppLocalizations l10n) async {
     if (_isDryRun) {
@@ -2889,9 +2913,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
         return true;
       }
       if (!mounted) return false;
-      if (i + 1 == _cbbNoticeAfterIterations && !_cbbWaitNoticeShown) {
-        setState(() => _cbbWaitNoticeShown = true);
-      }
       _setStatus(l10n.waitingForCbb(i + 1));
       await Future.delayed(const Duration(seconds: 2));
     }
@@ -2935,13 +2956,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 24),
 
-          // Step 1: Reconnect CBB
-          InstructionStep(
-            number: 1,
-            title: l10n.reconnectCbbStep,
-            description: l10n.reconnectCbbStepDesc,
-            imageAsset: 'assets/images/lsi-unu_scooter_cbb_connected.jpg',
-          ),
           if (_cbbDetected)
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -2950,77 +2964,18 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 const SizedBox(width: 8),
                 Text(l10n.cbbDetected, style: const TextStyle(color: kAccent, fontSize: 13)),
               ],
-            )
-          else ...[
-            if (_cbbWaitNoticeShown)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 4),
-                child: Text(
-                  l10n.cbbDetectionMayTakeMinutes,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey.shade400, fontSize: 12, fontStyle: FontStyle.italic),
-                ),
-              ),
-            if (!_isProcessing)
-              FilledButton(
-                onPressed: () async {
-                  setState(() => _isProcessing = true);
-                  _setStatus(l10n.checkingCbb);
-                  final detected = await _pollForCbb(l10n);
-                  if (!mounted) return;
-                  if (detected) {
-                    setState(() { _cbbDetected = true; _isProcessing = false; });
-                    _setStatus('');
-                  } else {
-                    _setStatus(l10n.cbbNotDetected);
-                    setState(() { _isProcessing = false; _cbbDetected = false; });
-                  }
-                },
-                child: Text(l10n.verifyCbbConnection),
-              ),
-          ],
-
-          const SizedBox(height: 16),
-
-          // Step 2: Insert battery (greyed out until CBB connected)
-          Opacity(
-            opacity: _cbbDetected ? 1.0 : 0.4,
-            child: Column(
+            ),
+          if (_batteryDetected) ...[
+            const SizedBox(height: 8),
+            Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                InstructionStep(
-                  number: 2,
-                  title: l10n.insertMainBatteryStep,
-                  description: l10n.insertMainBatteryStepDesc,
-                ),
-                if (_cbbDetected) ...[
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: _sshService.isConnected ? () async {
-                          try { await _sshService.runCommand('lsc open'); } catch (_) {}
-                        } : null,
-                        icon: const Icon(Icons.lock_open, size: 18),
-                        label: Text(l10n.openSeatboxButton),
-                      ),
-                    ],
-                  ),
-                  if (_batteryDetected)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.check_circle, size: 16, color: kAccent),
-                          const SizedBox(width: 8),
-                          Text(l10n.batteryDetected, style: const TextStyle(color: kAccent, fontSize: 13)),
-                        ],
-                      ),
-                    ),
-                ],
+                const Icon(Icons.check_circle, size: 16, color: kAccent),
+                const SizedBox(width: 8),
+                Text(l10n.batteryDetected, style: const TextStyle(color: kAccent, fontSize: 13)),
               ],
             ),
-          ),
+          ],
 
           const SizedBox(height: 16),
           if (_isProcessing) ...[
@@ -3053,10 +3008,25 @@ class _InstallerScreenState extends State<InstallerScreen> {
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
             ),
           ] else ...[
-            TextButton(
-              onPressed: () {
-                setState(() => _cbbDetected = true);
+            FilledButton(
+              onPressed: () async {
+                setState(() => _isProcessing = true);
+                _setStatus(l10n.checkingCbb);
+                final detected = await _pollForCbb(l10n);
+                if (!mounted) return;
+                if (detected) {
+                  setState(() { _cbbDetected = true; _isProcessing = false; });
+                  _setStatus('');
+                } else {
+                  _setStatus(l10n.cbbNotDetected);
+                  setState(() { _isProcessing = false; _cbbDetected = false; });
+                }
               },
+              child: Text(l10n.verifyCbbConnection),
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () => setState(() => _cbbDetected = true),
               child: Text(l10n.proceedWithoutCbb,
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
             ),

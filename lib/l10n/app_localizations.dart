@@ -1070,6 +1070,18 @@ abstract class AppLocalizations {
   /// **'Reconnect the positive AUX pole. The MDB will power on and boot into Librescoot.'**
   String get reconnectAuxPoleDesc;
 
+  /// No description provided for @reconnectCbbFirstDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect the CBB first, while the AUX is still disconnected, so it connects to a powered-down scooter.'**
+  String get reconnectCbbFirstDesc;
+
+  /// No description provided for @cbbBeforeAuxWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect the CBB before the AUX. Connecting the CBB while the scooter is powered risks the main battery being live.'**
+  String get cbbBeforeAuxWarning;
+
   /// No description provided for @dbcLedHint.
   ///
   /// In en, this message translates to:
@@ -1121,7 +1133,7 @@ abstract class AppLocalizations {
   /// No description provided for @reconnectCbbHeading.
   ///
   /// In en, this message translates to:
-  /// **'Reconnect CBB & Battery'**
+  /// **'Verify CBB and main battery'**
   String get reconnectCbbHeading;
 
   /// No description provided for @verifyCbbConnection.
@@ -1153,12 +1165,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'CBB not detected. Please check the connection.'**
   String get cbbNotDetected;
-
-  /// No description provided for @cbbDetectionMayTakeMinutes.
-  ///
-  /// In en, this message translates to:
-  /// **'This can take several minutes, please be patient.'**
-  String get cbbDetectionMayTakeMinutes;
 
   /// No description provided for @preparingDbcFlash.
   ///
@@ -1832,35 +1838,11 @@ abstract class AppLocalizations {
   /// **'Firmware: {version}'**
   String firmwareVersionDisplay(String version);
 
-  /// No description provided for @openSeatboxButton.
-  ///
-  /// In en, this message translates to:
-  /// **'Open seatbox'**
-  String get openSeatboxButton;
-
   /// No description provided for @reconnectCbbStep.
   ///
   /// In en, this message translates to:
   /// **'Reconnect the CBB'**
   String get reconnectCbbStep;
-
-  /// No description provided for @reconnectCbbStepDesc.
-  ///
-  /// In en, this message translates to:
-  /// **'Plug the CBB cable back into the connector in the footwell. Without the CBB, the MDB could shut down during flashing.'**
-  String get reconnectCbbStepDesc;
-
-  /// No description provided for @insertMainBatteryStep.
-  ///
-  /// In en, this message translates to:
-  /// **'Insert the main battery'**
-  String get insertMainBatteryStep;
-
-  /// No description provided for @insertMainBatteryStepDesc.
-  ///
-  /// In en, this message translates to:
-  /// **'Put the main battery back in the seatbox. Without it, the CBB or 12V auxiliary battery could run empty during flashing, which may cause the MDB or DBC to shut down.'**
-  String get insertMainBatteryStepDesc;
 
   /// No description provided for @cbbDetected.
   ///
