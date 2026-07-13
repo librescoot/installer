@@ -290,6 +290,22 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     // but only kicks in on the first PUT.
     await _ssh.runCommand('mkdir -p /data/installer');
 
+    // librescoot-ums is enabled with Restart=always and can grab the OTG
+    // UDC (ci_hdrc.0) away from g_ether at any moment, tearing down usb0
+    // and killing this SSH connection. Bluetooth pairing and keycard
+    // teach-in happen during this same pre-trampoline window, so we can't
+    // mask those services yet, only get librescoot-ums out of the way and
+    // re-assert usb0 so SSH survives until the trampoline arms and masks
+    // it properly. If the user aborts before the trampoline starts, ums
+    // stays masked until the next install run's recovery path unmasks it
+    // (stop-error-signals.sh / onboot.sh), matching the existing masking
+    // model used once the trampoline itself is running.
+    await _ssh.runCommand(
+      'systemctl stop librescoot-ums 2>/dev/null; '
+      'systemctl mask librescoot-ums 2>/dev/null; '
+      'ifconfig usb0 192.168.7.1 netmask 255.255.255.0 up 2>/dev/null; true',
+    );
+
     final filesToUpload = <MapEntry<String, String>>[];
 
     final dbcFilename = File(dbcImageLocalPath).uri.pathSegments.last;
@@ -480,11 +496,31 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
   /// still running from an earlier arm (retry after error, resume) first, so
   /// two trampolines never race each other over the USB role and DBC power.
   /// The [t] bracket keeps pkill's regex from matching this command line.
+  ///
+  /// After launching, verifies the trampoline process is actually running:
+  /// a silent launch failure (or a stale SSH connection) would otherwise
+  /// look identical to "DBC flash never starts", with no feedback. The
+  /// trampoline's first action is a passive wait for laptop disconnect, so
+  /// this only confirms the process exists; it does not wait for any
+  /// status or progress. Throws if no process shows up after a few
+  /// retries; the caller already surfaces start() failures and keeps the
+  /// Begin button enabled for retry.
   Future<void> start() async {
     await _ssh.runCommand(
       "pkill -f 'installer/[t]rampoline.sh' 2>/dev/null; "
       'nohup /data/installer/trampoline.sh > /data/installer/trampoline-stdout.log 2>&1 &',
     );
+
+    for (var attempt = 0; attempt < 5; attempt++) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      final pid = (await _ssh.runCommand(
+        "pgrep -f 'installer/[t]rampoline.sh' 2>/dev/null",
+      )).trim();
+      if (pid.isNotEmpty) {
+        return;
+      }
+    }
+    throw Exception('Trampoline did not start on the MDB');
   }
 
   /// Read trampoline status (call after reconnecting to MDB).

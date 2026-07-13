@@ -395,6 +395,9 @@ fail() {
   # retries write to the log, so the 15-min silence the watchdog needs
   # can never accumulate while the rescue is alive.
   trampoline_watchdog_stop
+  # Stop the background journal capture, otherwise it leaks past this
+  # script exiting (reparented to init) and keeps appending forever.
+  [ -n "$JOURNAL_PID" ] && kill $JOURNAL_PID 2>/dev/null
   # Indicators are detached and run until the installer reconnects via SSH
   # and stops them. Just exit cleanly here.
   exit 1
@@ -576,7 +579,32 @@ grow_and_populate_dbc() {
       fi
     fi
     sync
-    umount /mnt/dbcdata 2>/dev/null || true
+    # A failed unmount must fail the function too, otherwise the caller
+    # flips the USB OTG role back to gadget with /mnt/dbcdata still
+    # mounted, yanking the device out from under the mount. Retry a few
+    # times, then fall back to a lazy unmount; if even that can't detach
+    # it, bail so the caller falls back to the proven onboot.sh+reboot path
+    # instead of switching USB roles on a mounted partition.
+    umount_ok=""
+    umount_attempt=0
+    while [ $umount_attempt -lt 3 ]; do
+      umount_attempt=$((umount_attempt + 1))
+      if umount /mnt/dbcdata 2>/dev/null; then
+        umount_ok="yes"
+        break
+      fi
+      sleep 1
+    done
+    if [ -z "$umount_ok" ]; then
+      log "V3: umount /mnt/dbcdata failed after $umount_attempt attempts, trying lazy umount"
+      if umount -l /mnt/dbcdata 2>/dev/null; then
+        umount_ok="yes"
+      fi
+    fi
+    if [ -z "$umount_ok" ]; then
+      log "V3: could not unmount /mnt/dbcdata, refusing to hand back USB role"
+      return 1
+    fi
     [ "$rc" = 0 ] || return 1
   fi
   log "V3: grow+tiles complete"
@@ -902,8 +930,16 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
      && [ "$DBC_VERSION" = "$TARGET_DBC_VERSION" ] \
      && printf '%s' "$DBC_ID" | grep -q '^librescoot'; then
     log "DBC already at target $TARGET_DBC_VERSION; skipping DBC flash"
+    # Mirror fail()/the V3 success path: guard the restore_gadget result and
+    # stop the watchdog before declaring done. A bare restore_gadget here
+    # left the watchdog armed with no one able to reach it if the role flip
+    # wedged, and 15 min later it would stomp the "success" we already wrote.
+    if ! restore_gadget; then
+      gadget_rescue_start
+    fi
+    trampoline_watchdog_stop
+    [ -n "$JOURNAL_PID" ] && kill $JOURNAL_PID 2>/dev/null
     echo "success" > "$STATUS_FILE"
-    restore_gadget
     bootled_guard_stop
     bootled_blink_green
     exit 0
@@ -1315,6 +1351,9 @@ if grow_and_populate_dbc "$DBC_DEV"; then
   cat "$LOG_FILE" >> "$STATUS_FILE"
   bootled_guard_stop
   bootled_blink_green
+  # Stop the background journal capture, otherwise it leaks past this
+  # script exiting (reparented to init) and keeps appending forever.
+  [ -n "$JOURNAL_PID" ] && kill $JOURNAL_PID 2>/dev/null
   exit 0
 fi
 log "V3 grow/tiles failed or unavailable; falling back to onboot tile push + MDB reboot"
