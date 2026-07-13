@@ -495,7 +495,12 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
   /// Start the trampoline script on MDB in background. Kills any instance
   /// still running from an earlier arm (retry after error, resume) first, so
   /// two trampolines never race each other over the USB role and DBC power.
-  /// The [t] bracket keeps pkill's regex from matching this command line.
+  ///
+  /// The pkill and the nohup launch MUST be separate SSH commands. pkill -f
+  /// matches the full command line of every process; the [t] bracket keeps
+  /// the pkill token itself from matching, but if the nohup clause shares
+  /// the shell's command line, its bare /data/installer/trampoline.sh path
+  /// matches and pkill kills its own launching shell before nohup runs.
   ///
   /// After launching, verifies the trampoline process is actually running:
   /// a silent launch failure (or a stale SSH connection) would otherwise
@@ -507,20 +512,31 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
   /// Begin button enabled for retry.
   Future<void> start() async {
     await _ssh.runCommand(
-      "pkill -f 'installer/[t]rampoline.sh' 2>/dev/null; "
+      "pkill -f 'installer/[t]rampoline.sh' 2>/dev/null; true",
+    );
+    // A leftover trampoline-status from an earlier run would be read as the
+    // fresh run's result; arming a new trampoline invalidates it.
+    await _ssh.runCommand(
+      'rm -f /data/installer/trampoline-status; '
       'nohup /data/installer/trampoline.sh > /data/installer/trampoline-stdout.log 2>&1 &',
     );
 
     for (var attempt = 0; attempt < 5; attempt++) {
       await Future.delayed(const Duration(milliseconds: 500));
-      final pid = (await _ssh.runCommand(
-        "pgrep -f 'installer/[t]rampoline.sh' 2>/dev/null",
-      )).trim();
-      if (pid.isNotEmpty) {
+      if (await isRunning()) {
         return;
       }
     }
     throw Exception('Trampoline did not start on the MDB');
+  }
+
+  /// Whether a trampoline process is currently running on the MDB. The
+  /// bracketed pattern keeps pgrep from matching its own command line.
+  Future<bool> isRunning() async {
+    final pid = (await _ssh.runCommand(
+      "pgrep -f 'installer/[t]rampoline.sh' 2>/dev/null; true",
+    )).trim();
+    return pid.isNotEmpty;
   }
 
   /// Read trampoline status (call after reconnecting to MDB).
