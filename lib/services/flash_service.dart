@@ -844,8 +844,11 @@ class FlashService {
     final totalMb = totalBytes / (1024 * 1024);
     onProgress?.call(0.0, 'dd fallback (no Go flasher for this CPU)...');
 
+    // macOS /bin/sh is bash, which supports pipefail: without it, a gunzip
+    // I/O error would be swallowed and only dd's (successful) exit code
+    // would count, leaving a truncated write reported as success.
     final cmd = isCompressed
-        ? 'gunzip -c "$imagePath" | dd of=$rawDevice bs=4m'
+        ? 'set -o pipefail; gunzip -c "$imagePath" | dd of=$rawDevice bs=4m'
         : 'dd if="$imagePath" of=$rawDevice bs=4m';
 
     final process = await Process.start('/bin/sh', ['-c', cmd]);
@@ -969,6 +972,8 @@ class FlashService {
 
     onProgress?.call(0.0, bmapPath != null ? 'Bmap flash...' : 'Waiting for authorization...');
 
+    var sawChecksumMismatch = false;
+
     final Process process;
     if (Platform.isWindows) {
       // Windows: run flasher directly (already elevated)
@@ -1037,12 +1042,20 @@ class FlashService {
         }
         if (line.startsWith('CHECKSUM MISMATCH')) {
           debugPrint('Flash: $line');
+          sawChecksumMismatch = true;
         }
       }
     }
 
     final exitCode = await process.exitCode;
     debugPrint('Flash: Go flasher exit code: $exitCode');
+
+    // Fatal regardless of exit code: a checksum mismatch means the write is
+    // corrupt even if the flasher process itself exited 0.
+    if (sawChecksumMismatch) {
+      debugPrint('Flash: Go flasher output: ${output.toString()}');
+      throw Exception('Flash verification FAILED: checksum mismatch detected during write. Check log.');
+    }
 
     if (exitCode != 0) {
       final out = output.toString();
@@ -1153,6 +1166,7 @@ class FlashService {
     // Single shell script that does Phase A, Phase B, sync, and verify
     final script = '''
 set -e
+set -o pipefail
 echo "PHASE:A"
 $decompressPrefix dd $inputArg of=$devicePath bs=4M skip=$bootAreaBlocks seek=$bootAreaBlocks oflag=direct status=progress 2>&1 | tr '\\r' '\\n'
 echo "PHASE:B"
@@ -1175,7 +1189,10 @@ echo "VERIFY:OK"
     await scriptFile.writeAsString(script);
     await Process.run('chmod', ['+x', scriptFile.path]);
 
-    var argv = <String>['/bin/sh', scriptFile.path];
+    // /bin/sh is dash on most Linux distros, which doesn't support
+    // `set -o pipefail`; run the script under bash so that guard actually
+    // works instead of being a fatal syntax error under `set -e`.
+    var argv = <String>['/bin/bash', scriptFile.path];
     Map<String, String>? env;
     if (!isRoot) {
       final elev = await _elevationArgv();

@@ -657,8 +657,26 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
       final output = listResult.stdout.toString();
       final diskPath = _selectBestExternalDisk(output);
       if (diskPath == null) return null;
+
+      // Cross-check the heuristic pick against the actual USB device
+      // identity before trusting it. _selectBestExternalDisk only scores by
+      // size/label; with a second unrelated external disk attached, it can
+      // pick the wrong one. Resolve which BSD disk number system_profiler
+      // ties to the Librescoot gadget (VID 0x0525 / PID 0xA4A5) and require
+      // the heuristic pick to match it. No match (or identity unresolved)
+      // means we refuse to guess rather than risk flashing the wrong disk.
+      final usbDiskNum = await _findLibrescootUsbDiskNumber();
+      if (usbDiskNum == null) {
+        debugPrint('USB detector: could not resolve Librescoot USB disk identity, refusing to select a target');
+        return null;
+      }
+      final pickedDiskNum = int.tryParse(RegExp(r'/dev/disk(\d+)').firstMatch(diskPath)?.group(1) ?? '');
+      if (pickedDiskNum != usbDiskNum) {
+        debugPrint('USB detector: heuristic pick $diskPath does not match USB-identified disk$usbDiskNum, refusing to select a target');
+        return null;
+      }
       final rawPath = diskPath.replaceFirst('/dev/disk', '/dev/rdisk');
-      debugPrint('USB detector: diskutil selected $diskPath');
+      debugPrint('USB detector: diskutil selected $diskPath (confirmed via USB identity)');
 
       debugPrint('USB detector: diskutil info $diskPath');
       final infoResult = await _runWithFallback(
@@ -727,6 +745,54 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
     if (candidates.isEmpty) return null;
     candidates.sort((a, b) => (b['score'] as int).compareTo(a['score'] as int));
     return candidates.first['disk'] as String;
+  }
+
+  /// Resolve the BSD disk number `system_profiler` ties to the Librescoot
+  /// USB mass-storage gadget (VID 0x0525 / PID 0xA4A5). Used to cross-check
+  /// disk selection against actual USB device identity instead of trusting
+  /// the size/label heuristic alone. Returns null if the device isn't
+  /// present or `system_profiler` doesn't expose a Media/BSD Name entry for
+  /// it (e.g. it's still in ethernet mode).
+  Future<int?> _findLibrescootUsbDiskNumber() async {
+    try {
+      final result = await _runWithFallback(
+        ['/usr/sbin/system_profiler', 'system_profiler'],
+        ['SPUSBDataType'],
+      );
+      if (result == null || result.exitCode != 0) return null;
+      return _parseUsbDiskNumber(result.stdout.toString());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Parse `system_profiler SPUSBDataType` plain-text output for the BSD
+  /// disk number of the device reporting Vendor ID 0x0525 and Product ID
+  /// 0xa4a5. Vendor ID and Product ID are adjacent lines in the same device
+  /// block (order varies by macOS version), and its BSD Name (if any) is a
+  /// nested "Media" entry further down in that same block, before the next
+  /// device's Product ID line.
+  int? _parseUsbDiskNumber(String output) {
+    final lines = output.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i].toLowerCase();
+      if (!line.contains('vendor id: 0x0525')) continue;
+
+      final windowStart = (i - 5).clamp(0, lines.length);
+      final windowEnd = (i + 5).clamp(0, lines.length);
+      final window = lines.sublist(windowStart, windowEnd).join('\n').toLowerCase();
+      if (!window.contains('product id: 0xa4a5')) continue;
+
+      for (var j = i + 1; j < lines.length; j++) {
+        if (RegExp(r'product id:', caseSensitive: false).hasMatch(lines[j])) break;
+        final bsdMatch = RegExp(r'BSD Name:\s*disk(\d+)', caseSensitive: false).firstMatch(lines[j]);
+        if (bsdMatch != null) {
+          return int.tryParse(bsdMatch.group(1)!);
+        }
+      }
+      return null;
+    }
+    return null;
   }
 
   bool _isMacOSSystemDisk(String diskInfo, String diskPath) {
