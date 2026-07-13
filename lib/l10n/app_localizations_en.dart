@@ -9,13 +9,6 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appTitle => 'Librescoot Installer';
-
-  @override
-  String get elevationWarning =>
-      'Running without administrator privileges. Some operations may fail.';
-
-  @override
   String get phaseWelcomeTitle => 'Welcome';
 
   @override
@@ -217,9 +210,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Requesting administrator privileges...';
 
   @override
-  String get quitButton => 'Quit';
-
-  @override
   String get firmwareChannel => 'Firmware Channel';
 
   @override
@@ -276,19 +266,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Four screws to remove. PH2 Phillips from factory, H4 hex or Torx if serviced by a good shop.';
 
   @override
-  String get removeFootwellCoverImage =>
-      '[Photo: footwell cover with screw locations highlighted]';
-
-  @override
   String get unscrewUsbCable => 'Unscrew USB cable from MDB';
 
   @override
   String get unscrewUsbCableDesc =>
       'Disconnect the internal DBC USB cable from the MDB board. Use a flat head or PH1 screwdriver.';
-
-  @override
-  String get unscrewUsbCableImage =>
-      '[Photo: USB Mini-B connector on MDB, close-up]';
 
   @override
   String get connectLaptopUsb => 'Connect laptop USB cable';
@@ -312,9 +294,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get checkingRndisDriver => 'Checking RNDIS driver...';
-
-  @override
-  String get installingRndisDriver => 'Installing RNDIS driver...';
 
   @override
   String get configuringNetwork => 'Configuring network...';
@@ -341,10 +320,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get resumeFoundLastError => 'Last recorded error:';
-
-  @override
-  String get unlockTimeout =>
-      'Timed out waiting for scooter to be unlocked. Unlock and retry.';
 
   @override
   String get awaitingUnlockHeading => 'Unlock your scooter';
@@ -524,9 +499,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get waitingForMdbFirmware => 'Waiting for MDB firmware download...';
 
   @override
-  String get noDevicePath => 'Error: no device path available';
-
-  @override
   String get mdbFlashComplete => 'MDB flash complete!';
 
   @override
@@ -569,10 +541,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get disconnectAuxPoleDesc =>
       'Remove ONLY the positive pole (outermost, the red cable and pole) to avoid risk of inverting polarity. This will remove power from the MDB; the USB connection will disappear.';
-
-  @override
-  String get disconnectAuxPoleImage =>
-      '[Photo: AUX battery poles, positive (red/outermost) highlighted]';
 
   @override
   String get auxDisconnectWarning =>
@@ -627,13 +595,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reconnectCbbHeading => 'Reconnect CBB & Battery';
 
   @override
-  String get reconnectCbb => 'Reinstall the main battery and reconnect the CBB';
-
-  @override
-  String get reconnectCbbDesc =>
-      'Put the main battery back in the seatbox and plug the CBB cable back in. The scooter needs full power for the DBC flash.';
-
-  @override
   String get verifyCbbConnection => 'Verify CBB Connection';
 
   @override
@@ -641,9 +602,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get checkingCbb => 'Checking CBB...';
-
-  @override
-  String get cbbConnected => 'CBB connected!';
 
   @override
   String waitingForCbb(int attempts) {
@@ -698,80 +656,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get reconnectDbcUsbToMdbDesc =>
       'Plug the internal DBC USB cable into the MDB port. Don\'t screw it in yet.';
-
-  @override
-  String get mdbFlashingDbcAutonomously =>
-      'The MDB is now flashing the DBC autonomously.';
-
-  @override
-  String get watchLightsForProgress => 'Watch the scooter lights for progress:';
-
-  @override
-  String get ledFrontRingPulse => 'Front ring breathing';
-
-  @override
-  String get ledFrontRingPulseMeaning =>
-      'Preparing DBC (configuring bootloader, waiting for connection)';
-
-  @override
-  String get ledFrontRingSolid => 'Front ring glows briefly';
-
-  @override
-  String get ledFrontRingSolidMeaning => 'Flash complete. Success!';
-
-  @override
-  String get disconnectCbbImage =>
-      '[Photo: CBB connector location in footwell]';
-
-  @override
-  String get ledBlinkerProgress => 'Blinkers light up in turn';
-
-  @override
-  String get ledBlinkerProgressMeaning =>
-      'Overall progress: Prep → Flash → Reboot → Maps';
-
-  @override
-  String get blinkerPosFL => 'front left';
-
-  @override
-  String get blinkerPosFR => 'front right';
-
-  @override
-  String get blinkerPosBR => 'rear right';
-
-  @override
-  String get blinkerPosBL => 'rear left';
-
-  @override
-  String get blinkerStepPrep => 'Prepare DBC';
-
-  @override
-  String get blinkerStepFlash => 'Flash DBC';
-
-  @override
-  String get blinkerStepRestart => 'Restart MDB & DBC';
-
-  @override
-  String get blinkerStepMaps => 'Upload maps';
-
-  @override
-  String get ledBootGreen => 'Dashboard LED blinking green';
-
-  @override
-  String get ledBootGreenMeaning => 'Success. Reconnect laptop';
-
-  @override
-  String get ledRearLightSolid => 'All four blinkers (hazards) flashing';
-
-  @override
-  String get ledRearLightSolidMeaning =>
-      'Error. Reconnect laptop to see log; the indicators stop once you reconnect';
-
-  @override
-  String get bootLedGreenReconnect => 'LED blinking green';
-
-  @override
-  String get rearLightCheckError => 'LED blinking red, hazards flashing';
 
   @override
   String get verifyingDbcInstallation => 'Verifying DBC Installation';
@@ -844,11 +728,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Use one of the keycards you registered, or unlock via Bluetooth.';
 
   @override
-  String deleteCachedDownloads(String sizeMb) {
-    return 'Delete cached downloads ($sizeMb MB)';
-  }
-
-  @override
   String deletedCache(String sizeMb) {
     return 'Deleted $sizeMb MB';
   }
@@ -863,106 +742,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadsFinishedHint => 'You can continue offline.';
 
   @override
-  String get downloadMdbFirmware => 'MDB Firmware';
-
-  @override
-  String get downloadDbcFirmware => 'DBC Firmware';
-
-  @override
-  String get downloadMapTiles => 'Map Tiles';
-
-  @override
-  String get downloadRoutingTiles => 'Routing Tiles';
-
-  @override
-  String get homeAppTitle => 'Librescoot Installer';
-
-  @override
-  String get notElevated => 'Not elevated';
-
-  @override
-  String get selectFirmwareStep => 'Select Firmware';
-
-  @override
-  String get connectDeviceStep => 'Connect Device';
-
-  @override
-  String get configureNetworkStep => 'Configure Network';
-
-  @override
-  String get prepareDeviceStep => 'Prepare Device';
-
-  @override
-  String get flashFirmwareStep => 'Flash Firmware';
-
-  @override
-  String get completeStep => 'Complete';
-
-  @override
-  String get selectFirmwareImage => 'Select Firmware Image';
-
-  @override
-  String get selectFirmwareHint =>
-      'Choose a .sdimg.gz, .sdimg, .wic.gz, .wic, or .img firmware file to flash';
-
-  @override
-  String get selectFile => 'Select File';
-
-  @override
-  String get changeFile => 'Change File';
-
-  @override
-  String get deviceConnected => 'Device Connected';
-
-  @override
-  String get connectYourDevice => 'Connect Your Device';
-
-  @override
-  String get connectMdbViaUsb =>
-      'Connect the MDB via USB and wait for detection';
-
-  @override
-  String get configuringNetworkHeading => 'Configuring Network';
-
-  @override
-  String get settingUpNetwork => 'Setting up network interface...';
-
-  @override
-  String get readyToConfigureNetwork =>
-      'Ready to configure network for device communication';
-
-  @override
-  String get configureNetworkButton => 'Configure Network';
-
-  @override
-  String get preparingDevice => 'Preparing Device';
-
-  @override
-  String get readyToPrepare => 'Ready to Prepare';
-
-  @override
-  String get prepareForFlashing => 'Prepare for Flashing';
-
-  @override
-  String get flashingFirmware => 'Flashing Firmware';
-
-  @override
-  String get startFlashing => 'Start Flashing';
-
-  @override
-  String get installationComplete => 'Installation Complete!';
-
-  @override
-  String get installationCompleteDesc =>
-      'Your device has been successfully flashed.\nIt will reboot automatically.';
-
-  @override
-  String get flashAnotherDevice => 'Flash Another Device';
-
-  @override
-  String get flashDryRun => 'Flash Dry Run';
-
-  @override
   String get safetyCheckFailed => 'Safety Check Failed';
 
   @override
@@ -970,113 +749,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Cannot flash this device due to safety concerns:';
 
   @override
-  String get okButton => 'OK';
-
-  @override
-  String get confirmFlashOperation => 'Confirm Flash Operation';
-
-  @override
-  String get aboutToWriteFirmware => 'You are about to write firmware to:';
-
-  @override
-  String get deviceLabel => 'Device';
-
-  @override
-  String get pathLabel => 'Path';
-
-  @override
-  String get sizeLabel => 'Size';
-
-  @override
-  String get firmwareLabel => 'Firmware:';
-
-  @override
-  String get warningsLabel => 'Warnings:';
-
-  @override
-  String get eraseWarning =>
-      'This will ERASE ALL DATA on the device. This action cannot be undone.';
-
-  @override
   String get cancelButton => 'Cancel';
 
   @override
-  String get flashDeviceButton => 'Flash Device';
-
-  @override
-  String get installingUsbDriver => 'Installing USB driver...';
-
-  @override
-  String get usbDriverInstalled => 'USB driver installed successfully';
-
-  @override
-  String driverInstallFailed(String error) {
-    return 'Driver install failed: $error';
-  }
-
-  @override
-  String get autoLoadedFirmware =>
-      'Auto-loaded firmware from current directory';
-
-  @override
-  String get deviceDisconnected =>
-      'Device disconnected. Reconnect/wait for mass storage mode.';
-
-  @override
-  String get waitingForMdbNetwork => 'Waiting for MDB network to settle...';
-
-  @override
-  String get findingNetworkInterface => 'Finding network interface...';
-
-  @override
-  String get couldNotFindInterface => 'Could not find USB network interface';
-
-  @override
-  String get networkConfigured => 'Network configured successfully';
-
-  @override
-  String get selectFirmwareFileError =>
-      'Please select a .sdimg.gz, .sdimg, .wic.gz, .wic, or .img file';
-
-  @override
-  String errorOpeningFilePicker(String error) {
-    return 'Error opening file picker: $error';
-  }
-
-  @override
-  String get configuringBootloader =>
-      'Configuring bootloader for mass storage mode...';
-
-  @override
-  String get rebootingDevice => 'Rebooting device...';
-
-  @override
-  String get waitingForMassStorage =>
-      'Waiting for device to reboot in mass storage mode...';
-
-  @override
-  String get deviceReadyForFlashing => 'Device ready for flashing';
-
-  @override
-  String get selectFirmwareDialogTitle => 'Select Firmware Image';
-
-  @override
-  String connectedTo(String host, String firmware, String serial) {
-    return 'Connected to: $host\nFirmware: $firmware\nSerial: $serial';
-  }
-
-  @override
-  String connectedToFirmware(String version) {
-    return 'Connected to $version';
-  }
-
-  @override
   String get unknown => 'Unknown';
-
-  @override
-  String modeLabel(String mode) {
-    return 'Mode: $mode';
-  }
 
   @override
   String get backingUpConfig => 'Backing up device configuration...';
@@ -1085,23 +761,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get configBackedUp => 'Device configuration backed up';
 
   @override
-  String get noConfigFound => 'No device configuration found to back up';
-
-  @override
   String get restoringConfig => 'Restoring device configuration...';
 
   @override
   String healthCheckFailed(String error) {
     return 'Health check failed: $error';
   }
-
-  @override
-  String flashError(String error) {
-    return 'Flash error: $error';
-  }
-
-  @override
-  String get flashComplete => 'Flash complete!';
 
   @override
   String errorPrefix(String error) {
@@ -1113,10 +778,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get skipOfflineMaps => 'Skip offline maps';
-
-  @override
-  String get skipOfflineMapsHint =>
-      'You can install maps later by re-running the installer';
 
   @override
   String get bluetoothPairingHeading => 'Bluetooth Pairing';
@@ -1295,10 +956,6 @@ class AppLocalizationsEn extends AppLocalizations {
       '[DRY RUN] Simulate already-authorized rejection';
 
   @override
-  String get willAskForElevation =>
-      'Start Installation (will ask for elevation)';
-
-  @override
   String get installationContinuesInNewWindow =>
       'Installation continues in the new window';
 
@@ -1401,35 +1058,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get waitingForUsbDisconnect => 'Waiting for USB disconnect...';
 
   @override
-  String get dbcWillCyclePower =>
-      'The DBC will turn on and off multiple times during this process. Do not disconnect the USB cable between MDB and DBC.';
-
-  @override
-  String get ledBootAmber => 'Dashboard LED amber';
-
-  @override
-  String get ledBootAmberMeaning => 'Flashing in progress';
-
-  @override
-  String get ledBootRedError => 'Dashboard LED blinking red';
-
-  @override
-  String get ledBootRedMeaning =>
-      'Error. Reconnect laptop to check log; the indicators stop once you reconnect';
-
-  @override
-  String get flashingTakesAbout10Min =>
-      'Once the dashboard LED is blinking (green or red), and only then, reconnect the laptop USB cable.';
-
-  @override
-  String get dbcFlashDurationHeadline =>
-      'The DBC flash can take 10–20 minutes.';
-
-  @override
-  String get dbcFlashDurationDetail =>
-      'The DBC will turn on and off several times during this process — that is normal. Do not unplug anything until the dashboard LED is blinking green or red.';
-
-  @override
   String get finishRebootingTitle => 'Rebooting scooter…';
 
   @override
@@ -1439,19 +1067,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get networkConfigNeedsPermission =>
       'macOS is asking for permission to change network settings. Click Allow in the system dialog, then hit Retry.';
-
-  @override
-  String get waitingForMdbToReconnect => 'Waiting for MDB to reconnect...';
-
-  @override
-  String get ledIsGreen => 'LED blinking green';
-
-  @override
-  String get ledIsRed => 'LED blinking red';
-
-  @override
-  String get ledAmberWaitNotice =>
-      'Most important: do NOT disconnect USB or power while this is running. While the dashboard LED is amber/orange, flashing is still in progress. Hands off, don\'t click anything. The LED will start blinking once it\'s done: green = success, red = error. Only continue once it\'s blinking.';
 
   @override
   String get dbcWalkAwayHeadline => 'Swap done. You can unplug the laptop now.';
@@ -1513,9 +1128,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get mdbDisconnectedFlashingDbc =>
       'MDB disconnected. Flashing DBC autonomously...';
-
-  @override
-  String get mdbReconnectedVerifying => 'MDB reconnected! Verifying...';
 
   @override
   String get logDebugShell => 'Log & Debug Shell';
