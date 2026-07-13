@@ -654,5 +654,11 @@
   "usbDeviceNone": "none",
   "collectingUsbInfo": "Collecting USB device info…",
   "usbInfoUnsupportedPlatform": "USB info collection not supported on this platform.",
-  "usbInfoCollectFailed": "Failed to collect USB info"
+  "usbInfoCollectFailed": "Failed to collect USB info",
+
+  "internalError": "Internal error: {error}",
+  "@internalError": { "placeholders": { "error": { "type": "String" } } },
+  "copyLog": "Copy log",
+  "tileLabelMaps": "Maps",
+  "tileLabelRoutes": "Routes"
 }

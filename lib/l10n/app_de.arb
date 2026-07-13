@@ -515,5 +515,10 @@
   "usbDeviceNone": "keines",
   "collectingUsbInfo": "USB-Geräteinfos werden gesammelt…",
   "usbInfoUnsupportedPlatform": "USB-Geräteinfos werden auf dieser Plattform nicht unterstützt.",
-  "usbInfoCollectFailed": "USB-Geräteinfos konnten nicht gesammelt werden"
+  "usbInfoCollectFailed": "USB-Geräteinfos konnten nicht gesammelt werden",
+
+  "internalError": "Interner Fehler: {error}",
+  "copyLog": "Log kopieren",
+  "tileLabelMaps": "Karten",
+  "tileLabelRoutes": "Routen"
 }

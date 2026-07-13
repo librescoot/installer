@@ -1646,4 +1646,18 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get usbInfoCollectFailed =>
       'USB-Geräteinfos konnten nicht gesammelt werden';
+
+  @override
+  String internalError(String error) {
+    return 'Interner Fehler: $error';
+  }
+
+  @override
+  String get copyLog => 'Log kopieren';
+
+  @override
+  String get tileLabelMaps => 'Karten';
+
+  @override
+  String get tileLabelRoutes => 'Routen';
 }

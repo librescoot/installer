@@ -1630,4 +1630,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get usbInfoCollectFailed => 'Failed to collect USB info';
+
+  @override
+  String internalError(String error) {
+    return 'Internal error: $error';
+  }
+
+  @override
+  String get copyLog => 'Copy log';
+
+  @override
+  String get tileLabelMaps => 'Maps';
+
+  @override
+  String get tileLabelRoutes => 'Routes';
 }
