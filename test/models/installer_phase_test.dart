@@ -6,13 +6,16 @@ void main() {
     test('dashboardPrep is in the MDB-prep major step', () {
       expect(MajorStep.forPhase(InstallerPhase.dashboardPrep), MajorStep.mdbPrep);
     });
-    test('bluetooth and keycard are Stage 1, not Finish', () {
-      expect(MajorStep.forPhase(InstallerPhase.bluetoothPairing), MajorStep.mdbPrep);
-      expect(MajorStep.forPhase(InstallerPhase.keycardSetup), MajorStep.mdbPrep);
+    test('bluetooth and keycard are merged into dashboardPrep and hidden', () {
+      expect(InstallerPhase.bluetoothPairing.hiddenUnlessActive, isTrue);
+      expect(InstallerPhase.keycardSetup.hiddenUnlessActive, isTrue);
     });
     test('dbcSwapAndFlash is the only happy-path DBC phase', () {
       expect(MajorStep.dbc.phases, contains(InstallerPhase.dbcSwapAndFlash));
-      expect(MajorStep.dbc.phases, isNot(contains(InstallerPhase.reconnect)));
+      expect(InstallerPhase.dbcSwapAndFlash.hiddenUnlessActive, isFalse);
+      // reconnect belongs to the DBC step so the sidebar shows it active (not
+      // completed) during recovery, but it stays hidden on the happy path.
+      expect(InstallerPhase.reconnect.hiddenUnlessActive, isTrue);
     });
     test('finish major step only holds finish', () {
       expect(MajorStep.finish.phases, [InstallerPhase.finish]);

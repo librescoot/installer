@@ -65,15 +65,19 @@ enum InstallerPhase {
     description: 'Pair, enroll keycards, stage DBC image',
     isManual: false,
   ),
+  // Merged into dashboardPrep; kept as enum values for switch exhaustiveness
+  // and resume compatibility, but never entered as standalone phases.
   bluetoothPairing(
     title: 'Bluetooth',
     description: 'Pair phone or other devices',
     isManual: true,
+    hiddenUnlessActive: true,
   ),
   keycardSetup(
     title: 'Keycard Setup',
     description: 'Register master and user keycards',
     isManual: true,
+    hiddenUnlessActive: true,
   ),
   dbcSwapAndFlash(
     title: 'DBC Flash',

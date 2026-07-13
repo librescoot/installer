@@ -1994,24 +1994,6 @@ abstract class AppLocalizations {
   /// **'MDB detected in UMS mode. Skipping to flash.'**
   String get mdbDetectedUmsSkipping;
 
-  /// No description provided for @waitingForMdbToReboot.
-  ///
-  /// In en, this message translates to:
-  /// **'Waiting for MDB to reboot...'**
-  String get waitingForMdbToReboot;
-
-  /// No description provided for @mdbDetectedWaitingForSsh.
-  ///
-  /// In en, this message translates to:
-  /// **'MDB detected, waiting for SSH...'**
-  String get mdbDetectedWaitingForSsh;
-
-  /// No description provided for @reconnectedToMdb.
-  ///
-  /// In en, this message translates to:
-  /// **'Reconnected to MDB'**
-  String get reconnectedToMdb;
-
   /// No description provided for @verifyingBootloaderConfig.
   ///
   /// In en, this message translates to:

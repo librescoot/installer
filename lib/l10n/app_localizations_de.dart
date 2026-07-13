@@ -1114,15 +1114,6 @@ class AppLocalizationsDe extends AppLocalizations {
       'MDB im UMS-Modus erkannt. Direkt zum Flashen.';
 
   @override
-  String get waitingForMdbToReboot => 'Warte auf MDB-Neustart...';
-
-  @override
-  String get mdbDetectedWaitingForSsh => 'MDB erkannt, warte auf SSH...';
-
-  @override
-  String get reconnectedToMdb => 'MDB wieder verbunden';
-
-  @override
   String get verifyingBootloaderConfig =>
       'Bootloader-Konfiguration wird überprüft...';
 

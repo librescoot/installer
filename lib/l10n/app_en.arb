@@ -440,9 +440,6 @@
 
   "usingLocalFirmwareImages": "Using local firmware images",
   "mdbDetectedUmsSkipping": "MDB detected in UMS mode. Skipping to flash.",
-  "waitingForMdbToReboot": "Waiting for MDB to reboot...",
-  "mdbDetectedWaitingForSsh": "MDB detected, waiting for SSH...",
-  "reconnectedToMdb": "Reconnected to MDB",
   "verifyingBootloaderConfig": "Verifying bootloader config...",
   "umsNotDetectedTimeout": "UMS device not detected within 60s. MDB may have booted back into Linux.",
   "waitingForDevicePath": "Waiting for device path...",

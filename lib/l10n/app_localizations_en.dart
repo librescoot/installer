@@ -1103,15 +1103,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'MDB detected in UMS mode. Skipping to flash.';
 
   @override
-  String get waitingForMdbToReboot => 'Waiting for MDB to reboot...';
-
-  @override
-  String get mdbDetectedWaitingForSsh => 'MDB detected, waiting for SSH...';
-
-  @override
-  String get reconnectedToMdb => 'Reconnected to MDB';
-
-  @override
   String get verifyingBootloaderConfig => 'Verifying bootloader config...';
 
   @override
