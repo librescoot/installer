@@ -130,20 +130,57 @@ led_off()        { led_duty $1 0; led_deactivate $1; }
 # the LP5562. Spawned via systemd-run so it survives this script exiting
 # (KillMode=control-group on librescoot-onboot.service would otherwise
 # clip it). Stopped via `systemctl stop`.
+#
+# The guard doubles as the progress display: amber pulse groups, one pulse
+# per started quarter (1 = 0-24%, 2 = 25-49%, 3 = 50-74%, 4 = 75-99%),
+# read from /data/installer/progress each cycle. Any stray LED write is
+# still overwritten within a pulse. Green and red stay reserved for the
+# terminal states.
 BOOTLED_GUARD_UNIT="librescoot-bootled-guard"
 bootled_guard_start() {
   systemctl stop "${BOOTLED_GUARD_UNIT}.service" 2>/dev/null
   systemd-run --unit="$BOOTLED_GUARD_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
-    while true; do
-      i2cset -f -y 2 0x30 0x02 0xFF 2>/dev/null
+    amber() {
+      i2cset -f -y 2 0x30 0x02 "$1" 2>/dev/null
       i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
       i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
-      sleep 2
+    }
+    while true; do
+      P=$(cat /data/installer/progress 2>/dev/null)
+      case "$P" in ""|*[!0-9]*) P=0;; esac
+      N=$((P / 25 + 1)); [ "$N" -gt 4 ] && N=4
+      i=0
+      while [ "$i" -lt "$N" ]; do
+        amber 0xFF; sleep 0.2
+        amber 0x00; sleep 0.3
+        i=$((i+1))
+      done
+      sleep 1.4
     done
   '
 }
 bootled_guard_stop() {
   systemctl stop "${BOOTLED_GUARD_UNIT}.service" 2>/dev/null
+}
+set_progress() { echo "$1" > "$INSTALLER_DIR/progress"; }
+
+# Put the scooter back into normal operation after a successful install.
+# Both success exits that skip the MDB reboot need this: nothing else
+# restarts what the trampoline stopped pre-flash, and the walk-away user
+# never reconnects the installer. Wiping /data/settings.toml drops the
+# installer-only overrides the app persisted before the flash
+# (usb0-policy=always-on, auto-standby=0, alarm.enabled=false). Starting
+# keycard is safe in the MDB-first flow: cards are enrolled before the
+# DBC is staged, so a master exists and auto-master-learn stays off.
+restore_normal_operation() {
+  log "  restoring services + settings for normal operation..."
+  rm -f /data/settings.toml
+  systemctl restart librescoot-settings 2>/dev/null
+  systemctl unmask librescoot-keycard keycard-service librescoot-bluetooth librescoot-ums 2>/dev/null
+  systemctl start librescoot-bluetooth 2>/dev/null
+  systemctl start librescoot-ums 2>/dev/null
+  systemctl start librescoot-pm 2>/dev/null
+  systemctl start librescoot-keycard 2>/dev/null
 }
 
 # Hazards (all four blinkers — FL=3, FR=4, RL=6, RR=7) flashing in unison
@@ -508,6 +545,7 @@ FLASH_MON_PID=""
 flash_progress_monitor_start() {
   local name="$(basename "$1")"
   (
+    base="$(awk '{print $7}' "/sys/block/$name/stat" 2>/dev/null)"
     last=""
     while :; do
       sleep 60
@@ -516,6 +554,14 @@ flash_progress_monitor_start() {
       if [ "$cur" != "$last" ]; then
         log "  flash progress: $cur sectors written to $name"
         last="$cur"
+      fi
+      # Map written bytes onto the 20-70 band of the overall install so the
+      # LED pulse groups advance during the longest step.
+      if [ -n "$base" ] && [ "${FLASH_TOTAL:-0}" -gt 0 ]; then
+        pct=$((20 + (cur - base) * 512 * 50 / FLASH_TOTAL))
+        [ "$pct" -gt 70 ] && pct=70
+        [ "$pct" -lt 20 ] && pct=20
+        set_progress "$pct"
       fi
     done
   ) &
@@ -839,6 +885,7 @@ systemctl stop librescoot-ums 2>/dev/null || true
 systemctl mask librescoot-ums 2>/dev/null || true
 systemctl stop librescoot-pm 2>/dev/null || true
 
+set_progress 0
 bootled_init
 bootled amber
 # vehicle-service also drives the LP5562 (for blinker brightness) and we
@@ -879,6 +926,7 @@ while [ "$GONE" -lt "$GONE_NEEDED" ]; do
   sleep 1
 done
 log "Laptop disconnected (debounced)"
+set_progress 5
 step_end
 
 # Step 2: Re-init g_ether for DBC
@@ -908,6 +956,7 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
     probe_dbc_or_fail
   fi
 fi
+set_progress 10
 step_end
 
 if [ "$DBC_ALREADY_UMS" != "yes" ]; then
@@ -939,6 +988,7 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
     fi
     trampoline_watchdog_stop
     [ -n "$JOURNAL_PID" ] && kill $JOURNAL_PID 2>/dev/null
+    restore_normal_operation
     echo "success" > "$STATUS_FILE"
     bootled_guard_stop
     bootled_blink_green
@@ -1020,6 +1070,7 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
     break
   done
   [ "$STEP4_OK" != "yes" ] && fail "Failed to configure DBC after 3 attempts"
+  set_progress 15
   step_end
 fi  # end of DBC_ALREADY_UMS != yes
 
@@ -1150,6 +1201,7 @@ do_dbc_flash_round() {
     return 1
   fi
   log "DBC device: $DBC_DEV ($(cat /sys/block/$(basename $DBC_DEV)/size 2>/dev/null || echo '?') sectors)"
+  set_progress 20
   step_end
 
   # Step 7: Flash DBC
@@ -1243,6 +1295,7 @@ do_dbc_flash_round() {
     return 1
   fi
   log "DBC flash complete"
+  set_progress 72
   step_end
   return 0
 }
@@ -1333,8 +1386,10 @@ fi
 # ANY reason (tools missing, partition not found, grow/mount/copy failed) we
 # fall through to the proven onboot.sh + reboot path below, unchanged.
 step_begin "Step 8a: grow DBC data + copy tiles over UMS (V3)"
+set_progress 75
 if grow_and_populate_dbc "$DBC_DEV"; then
   log "DBC complete via UMS (V3); no MDB reboot, no onboot tile push needed"
+  set_progress 90
   step_end
   # Power the DBC on so its dashboard comes up = done. The DBC's own first-boot
   # grow now no-ops (already grown). Mirror the clean-success LED sequence used
@@ -1347,6 +1402,7 @@ if grow_and_populate_dbc "$DBC_DEV"; then
   trampoline_watchdog_stop
   log "  powering DBC on..."
   lsc --redis-addr localhost:6379 dbc on 2>/dev/null || true
+  restore_normal_operation
   echo "success" > "$STATUS_FILE"
   cat "$LOG_FILE" >> "$STATUS_FILE"
   bootled_guard_stop
@@ -1361,6 +1417,7 @@ step_end
 
 # Step 8: Sync, power off DBC, write onboot script, reboot MDB
 step_begin "Step 8: post-flash cleanup"
+set_progress 75
 
 # Power off the DBC cleanly. Historically we did off-wait → on-wait →
 # off-wait here to "let the DBC do its first boot / partition resize"
@@ -1499,23 +1556,37 @@ hazards_30s() {
 }
 
 # Re-arm the boot-LED guard. vehicle-service can stomp the LP5562 when
-# it drives blinker brightness; the guard re-asserts amber every 2s.
+# it drives blinker brightness; the guard re-asserts the LED state.
 # Stopped explicitly before bootled_blink_{green,red} at the end.
+# Same amber pulse-group progress display as the trampoline: one pulse
+# per started quarter, read from /data/installer/progress.
 BOOTLED_GUARD_UNIT="librescoot-bootled-guard"
 bootled_guard_start() {
   systemctl stop "${BOOTLED_GUARD_UNIT}.service" 2>/dev/null
   systemd-run --unit="$BOOTLED_GUARD_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
-    while true; do
-      i2cset -f -y 2 0x30 0x02 0xFF 2>/dev/null
+    amber() {
+      i2cset -f -y 2 0x30 0x02 "$1" 2>/dev/null
       i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
       i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
-      sleep 2
+    }
+    while true; do
+      P=$(cat /data/installer/progress 2>/dev/null)
+      case "$P" in ""|*[!0-9]*) P=0;; esac
+      N=$((P / 25 + 1)); [ "$N" -gt 4 ] && N=4
+      i=0
+      while [ "$i" -lt "$N" ]; do
+        amber 0xFF; sleep 0.2
+        amber 0x00; sleep 0.3
+        i=$((i+1))
+      done
+      sleep 1.4
     done
   '
 }
 bootled_guard_stop() {
   systemctl stop "${BOOTLED_GUARD_UNIT}.service" 2>/dev/null
 }
+set_progress() { echo "$1" > "$INSTALLER_DIR/progress"; }
 
 # Image write succeeded but we're not done — tile uploads to the DBC still
 # need to happen over the same USB link. Stay amber so the user knows the
@@ -1526,6 +1597,7 @@ bootled_guard_stop() {
 i2cset -f -y 2 0x30 0x02 0xFF 2>/dev/null
 i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
 i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
+set_progress 80
 bootled_guard_start
 
 # Restore original onboot.sh if backed up, otherwise delete ourselves
@@ -1702,6 +1774,7 @@ TILES
 fi
 
 cat >> /data/onboot.sh << 'ONBOOT_END'
+set_progress 90
 # Turn off DBC
 lsc --redis-addr localhost:6379 dbc off 2>/dev/null || true
 
@@ -1729,16 +1802,21 @@ else
   # off). Now and only now signal the user it's safe to swap the MDB's
   # single USB port back to the laptop.
   # Stop the LED guard before starting the green blink, otherwise the
-  # guard re-asserts amber every 2s and we get an ugly amber/green flicker.
+  # guard re-asserts amber and we get an ugly amber/green flicker.
   bootled_guard_stop
   bootled_blink_green
-  # Unmask keycard-service. The installer's keycardSetup phase will start
-  # it explicitly. We deliberately do NOT start it now: a freshly flashed
-  # device with no master would auto-enter master-learning and silently
-  # teach in whatever card the user taps before they reach explicit setup.
+  # Put the scooter back into normal operation. The walk-away user never
+  # reconnects the installer, so this is the last chance to drop the
+  # installer-only overrides (usb0-policy=always-on, auto-standby=0,
+  # alarm.enabled=false) and restart the stopped services. Starting
+  # keycard is safe in the MDB-first flow: cards were enrolled before
+  # the DBC was staged, so a master exists and auto-master-learn stays
+  # off. Started after the green blink is armed so its LP5562 init loses
+  # to the blink loop within a cycle.
+  rm -f /data/settings.toml
+  systemctl restart librescoot-settings 2>/dev/null || true
   systemctl unmask librescoot-keycard keycard-service 2>/dev/null || true
-  # Unmask + start bluetooth — the installer's bluetoothPairing phase
-  # needs it running. No equivalent "wait for explicit start" concern.
+  systemctl start librescoot-keycard 2>/dev/null || true
   systemctl unmask librescoot-bluetooth 2>/dev/null || true
   systemctl start librescoot-bluetooth 2>/dev/null || true
   # Re-enable UMS now that all USB-host work on the OTG UDC is done.
