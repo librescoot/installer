@@ -256,6 +256,12 @@ class SshService {
             debugPrint('SSH: parsed version from banner -> $authVersion');
           }
         },
+        // Ping more aggressively than dartssh2's 10s default across the
+        // multi-minute Bluetooth-pairing and keycard teach-in window so the
+        // MDB's sshd doesn't drop the idle client. The primary defense against
+        // usb0 going away in that window is MDB-side (masking librescoot-ums so
+        // it can't grab the OTG UDC); this just covers plain idle drops.
+        keepAliveInterval: const Duration(seconds: 5),
       );
 
       try {
@@ -519,8 +525,13 @@ class SshService {
       }
     }();
 
-    await Future.wait([stdoutDone, stderrDone, session.done])
-        .timeout(timeout);
+    try {
+      await Future.wait([stdoutDone, stderrDone, session.done])
+          .timeout(timeout);
+    } catch (_) {
+      session.close();
+      rethrow;
+    }
 
     final exitCode = session.exitCode;
     if (exitCode != null && exitCode != 0) {
@@ -567,6 +578,7 @@ class SshService {
       socket,
       username: sshUser,
       onPasswordRequest: () => pw,
+      keepAliveInterval: const Duration(seconds: 5),
     );
     try {
       await client.authenticated;
@@ -1080,8 +1092,13 @@ class SshService {
       final stderrDone = () async {
         await for (final _ in session.stderr) {}
       }();
-      await Future.wait([stdoutDone, stderrDone, session.done])
-          .timeout(const Duration(seconds: 30));
+      try {
+        await Future.wait([stdoutDone, stderrDone, session.done])
+            .timeout(const Duration(seconds: 30));
+      } catch (_) {
+        session.close();
+        rethrow;
+      }
       if (session.exitCode != 0) return null;
       return Uint8List.fromList(chunks);
     } catch (_) {
