@@ -321,7 +321,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get resumeFoundBody =>
-      'Eine frühere Installation auf diesem Roller wurde nicht abgeschlossen. Der Entsperr-Schritt wurde übersprungen und deaktivierte Dienste wurden wieder aktiviert. Die Installation beginnt anschließend von vorn.';
+      'Eine frühere Installation auf diesem Roller wurde nicht abgeschlossen. Der Entsperr-Schritt wurde übersprungen und deaktivierte Dienste wurden wieder aktiviert. Die Installation wird an der passenden Stelle fortgesetzt.';
 
   @override
   String get resumeFoundLastError => 'Letzter aufgezeichneter Fehler:';
@@ -688,7 +688,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get trampolineStatusUnknown =>
-      'Trampoline-Status unbekannt. Prüfe /data/trampoline.log auf dem MDB.';
+      'Trampoline-Status unbekannt. Prüfe /data/installer/trampoline.log auf dem MDB.';
 
   @override
   String get welcomeToLibrescoot => 'Willkommen bei Librescoot!';
@@ -710,6 +710,13 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get reconnectDbcUsbCableDesc =>
       'Stecke das interne DBC-USB-Kabel wieder in den MDB-Port und schraube es jetzt vorsichtig fest.';
+
+  @override
+  String get screwDbcUsbCable => 'DBC-USB-Kabel festschrauben';
+
+  @override
+  String get screwDbcUsbCableDesc =>
+      'Das DBC-Kabel steckt bereits im MDB-Port; schraube es jetzt vorsichtig fest.';
 
   @override
   String get closeSeatboxAndFootwell => 'Fußraumabdeckung wieder anbringen';
@@ -1058,22 +1065,22 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcWalkAwayHeadline =>
-      'Umstecken erledigt. Du kannst den Laptop jetzt abziehen.';
+      'Umstecken erledigt. Die Installation läuft jetzt von selbst.';
 
   @override
   String get dbcWalkAwayBody =>
-      'Lass den Roller ein paar Minuten in Ruhe, während er das DBC selbstständig flasht. Das kann 10 bis 20 Minuten dauern.';
+      'Lass den Roller in Ruhe, während er das DBC flasht. Das kann 10 bis 20 Minuten dauern.';
 
   @override
   String get dbcWalkAwayDashboardLit =>
-      'Wenn der Tacho angeht, ist die Installation fertig: das DBC-Kabel festschrauben, alles wieder zumachen und den Roller entriegeln.';
+      'Der Tacho geht während der Installation mehrmals an und aus, das ist normal. Fertig ist die Installation erst, wenn die Keycard-LED am Tacho grün blinkt: dann das DBC-Kabel festschrauben, alles wieder zumachen und den Roller entriegeln.';
 
   @override
   String get dbcWalkAwayFailure =>
-      'Wenn der Roller stattdessen mit dem Warnblinker blinkt oder du ein rotes Licht siehst, ist etwas schiefgelaufen: den Laptop wieder anschließen.';
+      'Wenn der Roller mit dem Warnblinker blinkt oder die Keycard-LED rot blinkt, ist etwas schiefgelaufen: den Laptop wieder ans MDB anschließen.';
 
   @override
-  String get dbcWalkAwayDashboardLitButton => 'Der Tacho ist angegangen';
+  String get dbcWalkAwayDashboardLitButton => 'Die LED blinkt grün';
 
   @override
   String get dbcWalkAwayWentWrongButton => 'Etwas ist schiefgelaufen';

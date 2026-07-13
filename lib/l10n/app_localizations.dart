@@ -671,7 +671,7 @@ abstract class AppLocalizations {
   /// No description provided for @resumeFoundBody.
   ///
   /// In en, this message translates to:
-  /// **'A previous installation on this scooter did not finish. The unlock step has been skipped and disabled services were re-enabled. Continuing will run the installation again from the beginning.'**
+  /// **'A previous installation on this scooter did not finish. The unlock step has been skipped and disabled services were re-enabled. Continuing will pick the installation up where it left off.'**
   String get resumeFoundBody;
 
   /// No description provided for @resumeFoundLastError.
@@ -1295,7 +1295,7 @@ abstract class AppLocalizations {
   /// No description provided for @trampolineStatusUnknown.
   ///
   /// In en, this message translates to:
-  /// **'Trampoline status unknown. Check /data/trampoline.log on MDB.'**
+  /// **'Trampoline status unknown. Check /data/installer/trampoline.log on the MDB.'**
   String get trampolineStatusUnknown;
 
   /// No description provided for @welcomeToLibrescoot.
@@ -1333,6 +1333,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Plug the internal DBC USB cable back into the MDB port, then gently screw it in to secure it.'**
   String get reconnectDbcUsbCableDesc;
+
+  /// No description provided for @screwDbcUsbCable.
+  ///
+  /// In en, this message translates to:
+  /// **'Screw the DBC USB cable down'**
+  String get screwDbcUsbCable;
+
+  /// No description provided for @screwDbcUsbCableDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'The DBC cable is already plugged into the MDB port; gently screw it in to secure it.'**
+  String get screwDbcUsbCableDesc;
 
   /// No description provided for @closeSeatboxAndFootwell.
   ///
@@ -1895,31 +1907,31 @@ abstract class AppLocalizations {
   /// No description provided for @dbcWalkAwayHeadline.
   ///
   /// In en, this message translates to:
-  /// **'Swap done. You can unplug the laptop now.'**
+  /// **'Swap done. The install is now running on its own.'**
   String get dbcWalkAwayHeadline;
 
   /// No description provided for @dbcWalkAwayBody.
   ///
   /// In en, this message translates to:
-  /// **'Leave the scooter alone for a few minutes while it flashes the dashboard on its own. This can take 10 to 20 minutes.'**
+  /// **'Leave the scooter alone while it flashes the dashboard. This can take 10 to 20 minutes.'**
   String get dbcWalkAwayBody;
 
   /// No description provided for @dbcWalkAwayDashboardLit.
   ///
   /// In en, this message translates to:
-  /// **'When the dashboard lights up, the install is finished: screw the DBC cable down, close everything up, and unlock the scooter.'**
+  /// **'The dashboard will turn on and off several times during the install; that\'s normal. The install is only finished when the keycard LED on the dashboard blinks green: then screw the DBC cable down, close everything up, and unlock the scooter.'**
   String get dbcWalkAwayDashboardLit;
 
   /// No description provided for @dbcWalkAwayFailure.
   ///
   /// In en, this message translates to:
-  /// **'If the scooter flashes its hazard lights or you see a red light instead, something went wrong: plug the laptop back in.'**
+  /// **'If the scooter flashes its hazard lights or the keycard LED blinks red instead, something went wrong: plug the laptop back into the MDB.'**
   String get dbcWalkAwayFailure;
 
   /// No description provided for @dbcWalkAwayDashboardLitButton.
   ///
   /// In en, this message translates to:
-  /// **'The dashboard lit up'**
+  /// **'The LED is blinking green'**
   String get dbcWalkAwayDashboardLitButton;
 
   /// No description provided for @dbcWalkAwayWentWrongButton.

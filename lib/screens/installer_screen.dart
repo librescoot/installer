@@ -454,9 +454,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// updates pull from the same track they just installed). Both are
   /// best-effort — failure is harmless, the user can fix from the dashboard.
   Future<void> _onEnterFinish() async {
-    if (_isDryRun || !_sshService.isConnected) {
-      // Dry-run / no SSH: nothing to reboot, render the success screen
-      // immediately.
+    // On the walk-away happy path the laptop is not plugged into the MDB.
+    // The SSH object may still claim to be connected (the transport only
+    // notices on the next command), so every MDB-side step below would
+    // stack multi-minute TCP timeouts while the user stares at the
+    // waiting-for-reboot screen. There is no MDB to talk to: skip it all.
+    if (_isDryRun || _finishFromWalkAway || !_sshService.isConnected) {
+      // Nothing to reboot, render the success screen immediately.
       if (mounted) setState(() => _awaitingFinishReboot = false);
       return;
     }
@@ -1806,6 +1810,18 @@ class _InstallerScreenState extends State<InstallerScreen> {
       }
     });
     try {
+      // state.json saying trampoline-armed only proves an earlier session
+      // launched the trampoline; the process may be gone (launch failure,
+      // MDB reboot, crash). Resuming to the swap-cables screen with no
+      // trampoline listening would wait forever, so re-arm a dead one here.
+      if (decision?.phase == InstallerPhase.dbcSwapAndFlash && !_isDryRun) {
+        final trampoline = TrampolineService(_sshService);
+        if (!await trampoline.isRunning()) {
+          debugPrint('Resume: trampoline not running, re-arming');
+          _setStatus(l10n.startingTrampoline);
+          await trampoline.start();
+        }
+      }
       await _completeConnectionSetup(
         l10n,
         nextPhase: decision?.phase ?? InstallerPhase.healthCheck,
@@ -3359,6 +3375,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   bool _dbcFlashWatchStarted = false;
   bool _dbcUsbDisconnected = false;
+  // Whether the finish screen was reached from the walk-away happy path
+  // (green LED confirmed, laptop never reconnected, DBC cable already in
+  // the MDB port) rather than via the laptop-reconnect verify path.
+  bool _finishFromWalkAway = false;
   List<Substep> _dbcPrepSubsteps = const [];
   List<Substep> _reconnectSubsteps = const [];
   DateTime? _reconnectRndisWaitStart;
@@ -3532,10 +3552,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
               runSpacing: 8,
               alignment: WrapAlignment.center,
               children: [
-                // Happy path: the dashboard powered on. No MDB reconnect, no
-                // verify; we trust the lit display and finish.
+                // Happy path: the keycard LED blinks green. No MDB reconnect,
+                // no verify; we trust the success signal and finish. The
+                // laptop is not plugged into the MDB on this path and the DBC
+                // cable already is, so the finish screen must not ask to swap
+                // them again.
                 FilledButton.icon(
-                  onPressed: () => _setPhase(InstallerPhase.finish),
+                  onPressed: () {
+                    _finishFromWalkAway = true;
+                    _setPhase(InstallerPhase.finish);
+                  },
                   icon: const Icon(Icons.check_circle, color: Colors.green),
                   label: Text(l10n.dbcWalkAwayDashboardLitButton),
                 ),
@@ -5036,23 +5062,34 @@ class _InstallerScreenState extends State<InstallerScreen> {
             const SizedBox(height: 24),
             Text(l10n.finalSteps, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 16),
+            // On the walk-away happy path the laptop is not plugged into the
+            // MDB and the DBC cable already is (just not screwed down), so
+            // the cable-swap steps don't apply.
+            if (_finishFromWalkAway)
+              InstructionStep(
+                number: 1,
+                title: l10n.screwDbcUsbCable,
+                description: l10n.screwDbcUsbCableDesc,
+              )
+            else ...[
+              InstructionStep(
+                number: 1,
+                title: l10n.disconnectUsbFromLaptopFinal,
+                description: l10n.disconnectUsbFromLaptopFinalDesc,
+              ),
+              InstructionStep(
+                number: 2,
+                title: l10n.reconnectDbcUsbCable,
+                description: l10n.reconnectDbcUsbCableDesc,
+              ),
+            ],
             InstructionStep(
-              number: 1,
-              title: l10n.disconnectUsbFromLaptopFinal,
-              description: l10n.disconnectUsbFromLaptopFinalDesc,
-            ),
-            InstructionStep(
-              number: 2,
-              title: l10n.reconnectDbcUsbCable,
-              description: l10n.reconnectDbcUsbCableDesc,
-            ),
-            InstructionStep(
-              number: 3,
+              number: _finishFromWalkAway ? 2 : 3,
               title: l10n.closeSeatboxAndFootwell,
               description: l10n.closeSeatboxAndFootwellDesc,
             ),
             InstructionStep(
-              number: 4,
+              number: _finishFromWalkAway ? 3 : 4,
               title: l10n.unlockScooter,
               description: l10n.unlockScooterDesc,
             ),

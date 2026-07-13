@@ -316,7 +316,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get resumeFoundBody =>
-      'A previous installation on this scooter did not finish. The unlock step has been skipped and disabled services were re-enabled. Continuing will run the installation again from the beginning.';
+      'A previous installation on this scooter did not finish. The unlock step has been skipped and disabled services were re-enabled. Continuing will pick the installation up where it left off.';
 
   @override
   String get resumeFoundLastError => 'Last recorded error:';
@@ -682,7 +682,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get trampolineStatusUnknown =>
-      'Trampoline status unknown. Check /data/trampoline.log on MDB.';
+      'Trampoline status unknown. Check /data/installer/trampoline.log on the MDB.';
 
   @override
   String get welcomeToLibrescoot => 'Welcome to Librescoot!';
@@ -704,6 +704,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get reconnectDbcUsbCableDesc =>
       'Plug the internal DBC USB cable back into the MDB port, then gently screw it in to secure it.';
+
+  @override
+  String get screwDbcUsbCable => 'Screw the DBC USB cable down';
+
+  @override
+  String get screwDbcUsbCableDesc =>
+      'The DBC cable is already plugged into the MDB port; gently screw it in to secure it.';
 
   @override
   String get closeSeatboxAndFootwell => 'Replace the footwell cover';
@@ -1047,22 +1054,23 @@ class AppLocalizationsEn extends AppLocalizations {
       'macOS is asking for permission to change network settings. Click Allow in the system dialog, then hit Retry.';
 
   @override
-  String get dbcWalkAwayHeadline => 'Swap done. You can unplug the laptop now.';
+  String get dbcWalkAwayHeadline =>
+      'Swap done. The install is now running on its own.';
 
   @override
   String get dbcWalkAwayBody =>
-      'Leave the scooter alone for a few minutes while it flashes the dashboard on its own. This can take 10 to 20 minutes.';
+      'Leave the scooter alone while it flashes the dashboard. This can take 10 to 20 minutes.';
 
   @override
   String get dbcWalkAwayDashboardLit =>
-      'When the dashboard lights up, the install is finished: screw the DBC cable down, close everything up, and unlock the scooter.';
+      'The dashboard will turn on and off several times during the install; that\'s normal. The install is only finished when the keycard LED on the dashboard blinks green: then screw the DBC cable down, close everything up, and unlock the scooter.';
 
   @override
   String get dbcWalkAwayFailure =>
-      'If the scooter flashes its hazard lights or you see a red light instead, something went wrong: plug the laptop back in.';
+      'If the scooter flashes its hazard lights or the keycard LED blinks red instead, something went wrong: plug the laptop back into the MDB.';
 
   @override
-  String get dbcWalkAwayDashboardLitButton => 'The dashboard lit up';
+  String get dbcWalkAwayDashboardLitButton => 'The LED is blinking green';
 
   @override
   String get dbcWalkAwayWentWrongButton => 'Something went wrong';
