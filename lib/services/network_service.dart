@@ -503,11 +503,4 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
       debugPrint('Network: nmcli call failed: $e');
     }
   }
-
-  String _sanitizeOutput(String output) {
-    return output
-        .replaceAll('\u0000', '')
-        .replaceAll('\r\n', '\n')
-        .replaceAll('\r', '\n');
-  }
 }

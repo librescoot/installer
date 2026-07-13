@@ -300,8 +300,7 @@ if ($d) {
     } finally {
       if (infPath != null) {
         try {
-          await File(infPath).delete();
-          await Directory(path.dirname(infPath)).delete();
+          await Directory(path.dirname(infPath)).delete(recursive: true);
         } catch (_) {
           // Ignore cleanup errors
         }

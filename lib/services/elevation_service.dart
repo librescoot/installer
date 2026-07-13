@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as path;
 
 /// Service for handling privilege elevation across platforms.
 ///
@@ -99,25 +101,44 @@ class ElevationService {
 
   static Future<bool> _elevateMacOS(String executable, List<String> args) async {
     // Write a launcher script to avoid shell quoting issues with osascript.
-    // The script logs to /tmp for debugging and does NOT use exec (so & works).
-    final launcher = File('/tmp/librescoot-elevate.sh');
+    // The script logs to a file for debugging and does NOT use exec (so & works).
+    //
+    // The launcher lives in a securely-created, unpredictably-named temp dir
+    // rather than a fixed /tmp path: a fixed world-writable path lets another
+    // local user pre-create/symlink it before we write to it (TOCTOU), which
+    // `do shell script ... with administrator privileges` would then execute
+    // as root.
+    final tempDir = await Directory.systemTemp.createTemp('librescoot_elevate_');
+    final launcher = File(path.join(tempDir.path, 'elevate.sh'));
+    final logFile = path.join(tempDir.path, 'elevate.log');
     final argLine = args.map((a) => "'${a.replaceAll("'", "'\\''")}'").join(' ');
     // The launcher script MUST exit immediately. do shell script waits for it.
     // Only launch the app in background and exit: nothing else.
     await launcher.writeAsString(
       '#!/bin/sh\n'
-      '\'${executable.replaceAll("'", "'\\''")}\' $argLine >> /tmp/librescoot-elevate.log 2>&1 &\n',
+      '\'${executable.replaceAll("'", "'\\''")}\' $argLine >> \'$logFile\' 2>&1 &\n',
     );
     await Process.run('chmod', ['+x', launcher.path]);
 
     try {
+      final escapedPath = launcher.path.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
       final result = await Process.run('osascript', [
         '-e',
-        'do shell script "/tmp/librescoot-elevate.sh" with administrator privileges',
+        'do shell script "$escapedPath" with administrator privileges',
       ]);
       return result.exitCode == 0;
     } catch (_) {
       return false;
+    } finally {
+      // Best-effort cleanup; the unpredictable path is what matters for
+      // correctness, not whether this succeeds. By the time osascript
+      // returns, the launcher has already forked the elevated process into
+      // the background and exited, so it's safe to remove the temp dir here.
+      unawaited(() async {
+        try {
+          await tempDir.delete(recursive: true);
+        } catch (_) {}
+      }());
     }
   }
 
@@ -128,14 +149,34 @@ class ElevationService {
     for (final elevator in elevators) {
       try {
         final which = await Process.run('which', [elevator]);
-        if (which.exitCode == 0) {
-          await Process.start(
-            elevator,
-            [executable, ...args],
-          );
-          // Started successfully, caller should exit
-          return true;
+        if (which.exitCode != 0) continue;
+
+        final process = await Process.start(
+          elevator,
+          [executable, ...args],
+        );
+
+        // Process.start returns as soon as the child is spawned; the
+        // relaunched app is long-running, so we can't just await exitCode
+        // like the sync elevation paths do. Instead, race a short window:
+        // pkexec exits 126 immediately if the user cancels the auth dialog
+        // and 127 if authentication itself fails, so a quick non-zero exit
+        // is a reliable "declined" signal. If nothing has happened after
+        // the window, assume the elevated relaunch is up and running.
+        final exitCode = await process.exitCode
+            .timeout(const Duration(seconds: 2), onTimeout: () => 0);
+        if (exitCode != 0) {
+          // A fast non-zero exit means the user cancelled/declined the
+          // prompt (or auth failed), not that this elevator is missing.
+          // Report failure rather than silently trying the next one, so
+          // the caller shows the elevation-required dialog instead of
+          // treating this as "elevation started" and exiting the app.
+          debugPrint('Elevation: $elevator exited $exitCode within window, treating as declined');
+          return false;
         }
+        // Still running after the window: assume the elevated relaunch is
+        // up and the caller should exit.
+        return true;
       } catch (_) {
         continue;
       }
