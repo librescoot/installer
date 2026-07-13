@@ -291,14 +291,14 @@ class _DownloadStatus extends StatelessWidget {
 
   final List<DownloadItem> items;
 
-  static const _labels = {
-    DownloadItemType.mdbFirmware: 'MDB',
-    DownloadItemType.mdbBmap: 'Bmap',
-    DownloadItemType.dbcFirmware: 'DBC',
-    DownloadItemType.dbcBmap: 'Bmap',
-    DownloadItemType.osmTiles: 'Maps',
-    DownloadItemType.valhallaTiles: 'Routes',
-  };
+  static String _labelFor(DownloadItemType type, AppLocalizations l10n) => switch (type) {
+        DownloadItemType.mdbFirmware => 'MDB',
+        DownloadItemType.mdbBmap => 'Bmap',
+        DownloadItemType.dbcFirmware => 'DBC',
+        DownloadItemType.dbcBmap => 'Bmap',
+        DownloadItemType.osmTiles => l10n.tileLabelMaps,
+        DownloadItemType.valhallaTiles => l10n.tileLabelRoutes,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -352,7 +352,7 @@ class _DownloadStatus extends StatelessWidget {
                       ),
                       const SizedBox(width: 3),
                       Text(
-                        _labels[item.type] ?? '',
+                        _labelFor(item.type, l10n),
                         style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
                       ),
                     ],
