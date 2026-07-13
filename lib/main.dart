@@ -148,7 +148,7 @@ late final LaunchArgs launchArgs;
 /// `--lang=xx` overrides the default at startup.
 final ValueNotifier<Locale> appLocale = ValueNotifier(const Locale('de'));
 
-/// Installer version. Injected by CI via --dart-define=APP_VERSION=<git describe>;
+/// Installer version. Injected by CI via `--dart-define=APP_VERSION=<git describe>`;
 /// falls back to 'dev' for local unflagged builds.
 const String appVersion = String.fromEnvironment('APP_VERSION', defaultValue: 'dev');
 

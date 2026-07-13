@@ -315,14 +315,14 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
       );
 
       if (result.exitCode != 0) {
-        print('ifconfig failed: ${result.stderr}');
+        debugPrint('ifconfig failed: ${result.stderr}');
         return false;
       }
 
       await Future.delayed(const Duration(seconds: 2));
       return await isMdbReachable();
     } catch (e) {
-      print('Failed to configure macOS interface: $e');
+      debugPrint('Failed to configure macOS interface: $e');
       return false;
     }
   }

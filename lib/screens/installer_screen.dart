@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../main.dart' show LaunchArgs, installerLog, launchArgs, showElevationRequiredDialog;
+import '../main.dart' show installerLog, launchArgs, showElevationRequiredDialog;
 import '../l10n/app_localizations.dart';
 import '../models/download_state.dart';
 import '../models/install_state.dart';
@@ -76,7 +76,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   // Which interactive sub-step the dashboardPrep screen is showing.
   _DashboardPrepStep _dashboardPrepStep = _DashboardPrepStep.bluetooth;
   bool _reconnectStarted = false;
-  bool _showElevatedHandoff = false;
+  final bool _showElevatedHandoff = false;
   bool _dbcFlashSimulateError = false;
   DeviceInfo? _mdbInfo;
   bool _skipMdbFlash = false;
@@ -1869,45 +1869,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   bool get _isDryRun => launchArgs.dryRun;
 
-  /// Wait for MDB to reboot into RNDIS, reconfigure network, reconnect SSH.
-  Future<bool> _reconnectToMdb() async {
-    final l10n = AppLocalizations.of(context)!;
-    try {
-      _setStatus(l10n.waitingForMdbToReboot);
-      final found = await _waitForDevice(DeviceMode.ethernet, timeout: const Duration(seconds: 60));
-      if (!found) return false;
-
-      // MDB needs time to fully boot after RNDIS appears
-      _setStatus(l10n.mdbDetectedWaitingForSsh);
-      await Future.delayed(const Duration(seconds: 10));
-
-      final iface = await NetworkService().findLibrescootInterface();
-      if (iface != null) {
-        try {
-          await NetworkService().configureInterface(iface);
-        } on NetworkPrivilegeException catch (e) {
-          _setStatus(l10n.errorPrefix(e.toString()));
-          return false;
-        }
-      }
-
-      // Retry SSH connection a few times (MDB may still be starting sshd)
-      for (var i = 0; i < 5; i++) {
-        try {
-          await _sshService.loadDeviceConfig('assets');
-          await _sshService.connectToMdb();
-          _setStatus(l10n.reconnectedToMdb);
-          return true;
-        } catch (_) {
-          await Future.delayed(const Duration(seconds: 5));
-        }
-      }
-      return false;
-    } catch (_) {
-      return false;
-    }
-  }
-
   Future<bool> _waitForDevice(DeviceMode mode, {Duration timeout = const Duration(seconds: 120)}) async {
     if (_isDryRun) {
       await Future.delayed(const Duration(seconds: 1));
@@ -2243,8 +2204,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
       setState(() => _isProcessing = false);
     }
   }
-
-  bool _batteryRemovalStarted = false;
 
   Widget _buildBatteryRemoval(AppLocalizations l10n) {
     return Center(

@@ -901,7 +901,7 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
     return null;
   }
 
-  /// True if /sys/block/<name> sits under the MDB USB gadget (idVendor 0525,
+  /// True if `/sys/block/<name>` sits under the MDB USB gadget (idVendor 0525,
   /// idProduct a4a5). Resolves the sysfs symlink and walks up to the first
   /// ancestor exposing idVendor/idProduct (the USB device node).
   bool _linuxBlockIsMdb(String name) {
