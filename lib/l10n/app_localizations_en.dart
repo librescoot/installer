@@ -807,13 +807,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bleMacLabel => 'BLE address';
 
   @override
-  String get startPairing => 'Unlock and start pairing';
+  String get startPairing => 'Start pairing';
 
   @override
   String get skipPairing => 'Skip';
 
   @override
-  String get pairingActive => 'Scooter unlocked';
+  String get pairingActive => 'Pairing mode active';
 
   @override
   String get pairingActiveHint =>
@@ -1077,18 +1077,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dbcWalkAwayBody =>
-      'Leave the scooter alone while it flashes the dashboard. This can take 10 to 20 minutes.';
+      'The scooter now flashes the dashboard on its own. This takes 10 to 20 minutes. You are done here on the laptop; you can close the installer.';
 
   @override
-  String get dbcWalkAwayDashboardLit =>
-      'The dashboard will turn on and off several times during the install; that\'s normal. The install is only finished when the keycard LED on the dashboard blinks green: then screw the DBC cable down, close everything up, and unlock the scooter.';
+  String get dbcWalkAwayLedProgress =>
+      'Progress: the keycard LED on the dashboard pulses amber in groups. One pulse shortly after the start, up to four pulses near the end. The dashboard itself may turn on and off several times; that\'s normal.';
+
+  @override
+  String get dbcWalkAwayDone =>
+      'Done: the LED stops pulsing and stays off. Then screw the DBC cable down, close everything up, unlock the scooter, and ride.';
 
   @override
   String get dbcWalkAwayFailure =>
       'If the scooter flashes its hazard lights or the keycard LED blinks red instead, something went wrong: plug the laptop back into the MDB.';
 
   @override
-  String get dbcWalkAwayDashboardLitButton => 'The LED is blinking green';
+  String get dbcWalkAwayDoneButton => 'Continue to finish';
 
   @override
   String get dbcWalkAwayWentWrongButton => 'Something went wrong';

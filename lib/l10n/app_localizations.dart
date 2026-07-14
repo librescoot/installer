@@ -1511,7 +1511,7 @@ abstract class AppLocalizations {
   /// No description provided for @startPairing.
   ///
   /// In en, this message translates to:
-  /// **'Unlock and start pairing'**
+  /// **'Start pairing'**
   String get startPairing;
 
   /// No description provided for @skipPairing.
@@ -1523,7 +1523,7 @@ abstract class AppLocalizations {
   /// No description provided for @pairingActive.
   ///
   /// In en, this message translates to:
-  /// **'Scooter unlocked'**
+  /// **'Pairing mode active'**
   String get pairingActive;
 
   /// No description provided for @pairingActiveHint.
@@ -1943,14 +1943,20 @@ abstract class AppLocalizations {
   /// No description provided for @dbcWalkAwayBody.
   ///
   /// In en, this message translates to:
-  /// **'Leave the scooter alone while it flashes the dashboard. This can take 10 to 20 minutes.'**
+  /// **'The scooter now flashes the dashboard on its own. This takes 10 to 20 minutes. You are done here on the laptop; you can close the installer.'**
   String get dbcWalkAwayBody;
 
-  /// No description provided for @dbcWalkAwayDashboardLit.
+  /// No description provided for @dbcWalkAwayLedProgress.
   ///
   /// In en, this message translates to:
-  /// **'The dashboard will turn on and off several times during the install; that\'s normal. The install is only finished when the keycard LED on the dashboard blinks green: then screw the DBC cable down, close everything up, and unlock the scooter.'**
-  String get dbcWalkAwayDashboardLit;
+  /// **'Progress: the keycard LED on the dashboard pulses amber in groups. One pulse shortly after the start, up to four pulses near the end. The dashboard itself may turn on and off several times; that\'s normal.'**
+  String get dbcWalkAwayLedProgress;
+
+  /// No description provided for @dbcWalkAwayDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Done: the LED stops pulsing and stays off. Then screw the DBC cable down, close everything up, unlock the scooter, and ride.'**
+  String get dbcWalkAwayDone;
 
   /// No description provided for @dbcWalkAwayFailure.
   ///
@@ -1958,11 +1964,11 @@ abstract class AppLocalizations {
   /// **'If the scooter flashes its hazard lights or the keycard LED blinks red instead, something went wrong: plug the laptop back into the MDB.'**
   String get dbcWalkAwayFailure;
 
-  /// No description provided for @dbcWalkAwayDashboardLitButton.
+  /// No description provided for @dbcWalkAwayDoneButton.
   ///
   /// In en, this message translates to:
-  /// **'The LED is blinking green'**
-  String get dbcWalkAwayDashboardLitButton;
+  /// **'Continue to finish'**
+  String get dbcWalkAwayDoneButton;
 
   /// No description provided for @dbcWalkAwayWentWrongButton.
   ///

@@ -813,13 +813,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get bleMacLabel => 'BLE-Adresse';
 
   @override
-  String get startPairing => 'Entsperren und Kopplung starten';
+  String get startPairing => 'Kopplung starten';
 
   @override
   String get skipPairing => 'Überspringen';
 
   @override
-  String get pairingActive => 'Roller entsperrt';
+  String get pairingActive => 'Kopplungsmodus aktiv';
 
   @override
   String get pairingActiveHint =>
@@ -1087,18 +1087,22 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcWalkAwayBody =>
-      'Lass den Roller in Ruhe, während er das DBC flasht. Das kann 10 bis 20 Minuten dauern.';
+      'Der Roller flasht das Dashboard jetzt selbstständig. Das dauert 10 bis 20 Minuten. Hier am Laptop bist du fertig; du kannst den Installer schließen.';
 
   @override
-  String get dbcWalkAwayDashboardLit =>
-      'Der Tacho geht während der Installation mehrmals an und aus, das ist normal. Fertig ist die Installation erst, wenn die Keycard-LED am Tacho grün blinkt: dann das DBC-Kabel festschrauben, alles wieder zumachen und den Roller entriegeln.';
+  String get dbcWalkAwayLedProgress =>
+      'Fortschritt: Die Keycard-LED am Tacho pulst gelb in Gruppen. Ein Puls kurz nach dem Start, bis zu vier Pulse kurz vor Schluss. Der Tacho selbst geht dabei mehrmals an und aus, das ist normal.';
+
+  @override
+  String get dbcWalkAwayDone =>
+      'Fertig: Die LED hört auf zu pulsieren und bleibt aus. Dann das DBC-Kabel festschrauben, alles wieder zumachen, Roller entriegeln und losfahren.';
 
   @override
   String get dbcWalkAwayFailure =>
       'Wenn der Roller mit dem Warnblinker blinkt oder die Keycard-LED rot blinkt, ist etwas schiefgelaufen: den Laptop wieder ans MDB anschließen.';
 
   @override
-  String get dbcWalkAwayDashboardLitButton => 'Die LED blinkt grün';
+  String get dbcWalkAwayDoneButton => 'Weiter zum Abschluss';
 
   @override
   String get dbcWalkAwayWentWrongButton => 'Etwas ist schiefgelaufen';

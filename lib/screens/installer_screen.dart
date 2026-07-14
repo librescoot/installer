@@ -3603,9 +3603,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _walkAwayOutcome(
+                    Icons.wb_incandescent,
+                    Colors.amber,
+                    l10n.dbcWalkAwayLedProgress,
+                  ),
+                  const SizedBox(height: 10),
+                  _walkAwayOutcome(
                     Icons.check_circle,
                     Colors.green,
-                    l10n.dbcWalkAwayDashboardLit,
+                    l10n.dbcWalkAwayDone,
                   ),
                   const SizedBox(height: 10),
                   _walkAwayOutcome(
@@ -3617,23 +3623,25 @@ class _InstallerScreenState extends State<InstallerScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            _buildGettingStarted(l10n),
+            const SizedBox(height: 16),
             Wrap(
               spacing: 12,
               runSpacing: 8,
               alignment: WrapAlignment.center,
               children: [
-                // Happy path: the keycard LED blinks green. No MDB reconnect,
-                // no verify; we trust the success signal and finish. The
-                // laptop is not plugged into the MDB on this path and the DBC
-                // cable already is, so the finish screen must not ask to swap
-                // them again.
+                // The install runs autonomously from here; the installer is
+                // effectively done. No MDB reconnect, no verify. The laptop
+                // is not plugged into the MDB on this path and the DBC cable
+                // already is, so the finish screen must not ask to swap them
+                // again.
                 FilledButton.icon(
                   onPressed: () {
                     _finishFromWalkAway = true;
                     _setPhase(InstallerPhase.finish);
                   },
                   icon: const Icon(Icons.check_circle, color: Colors.green),
-                  label: Text(l10n.dbcWalkAwayDashboardLitButton),
+                  label: Text(l10n.dbcWalkAwayDoneButton),
                 ),
                 // Failure path: reconnect the laptop and run the verify logic
                 // to surface the trampoline error log.
@@ -4187,16 +4195,22 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   Future<void> _startBluetoothPairing() async {
     try {
-      await _sshService.redisLpush('scooter:state', 'unlock');
-      debugPrint('UI: scooter unlocked for BT pairing');
+      // Pairing does not need the vehicle unlocked: the nRF52 accepts
+      // bonding whenever it advertises without whitelist (its pairing gate
+      // is the advertising mode, not the lock state), and the passkey
+      // reaches us via the ble hash. Unlocking here used to power on the
+      // DBC, which at this point may still run the stock firmware.
+      await _sshService.redisLpush(
+          'scooter:bluetooth', 'advertising-restart-no-whitelisting');
+      debugPrint('UI: BT advertising without whitelist for pairing');
       setState(() {
         _btPairingActive = true;
         _blePinCode = null;
       });
       _startBlePinPolling();
     } catch (e) {
-      debugPrint('UI: failed to unlock scooter: $e');
-      _setStatus('Failed to unlock scooter: $e');
+      debugPrint('UI: failed to start BT pairing: $e');
+      _setStatus('Failed to start BT pairing: $e');
     }
   }
 
@@ -4230,11 +4244,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _stopBluetoothPairing() async {
     _blePinPollTimer?.cancel();
     _blePinPollTimer = null;
+    // No unlock happens at pairing start anymore, so there is nothing to
+    // lock back. Restart advertising with whitelist so only bonded devices
+    // reconnect from here on.
     try {
-      await _sshService.redisLpush('scooter:state', 'lock');
-      debugPrint('UI: scooter locked after BT pairing');
+      await _sshService.redisLpush(
+          'scooter:bluetooth', 'advertising-start-with-whitelisting');
     } catch (e) {
-      debugPrint('UI: failed to lock scooter: $e');
+      debugPrint('UI: failed to restore whitelist advertising (ok): $e');
     }
     setState(() {
       _btPairingActive = false;
@@ -4250,7 +4267,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _blePinPollTimer?.cancel();
       _blePinPollTimer = null;
       try {
-        await _sshService.redisLpush('scooter:state', 'lock');
+        await _sshService.redisLpush(
+            'scooter:bluetooth', 'advertising-start-with-whitelisting');
       } catch (_) {}
       setState(() {
         _btPairingActive = false;
