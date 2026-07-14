@@ -3318,7 +3318,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         // flash if they match. releaseTag is the version/tag of the release
         // being installed; an empty tag simply never triggers the skip.
         targetDbcVersion: _downloadState.releaseTag ?? '',
-        forceDbcReflash: false,
+        forceDbcReflash: launchArgs.forceDbcReflash,
         onProgress: (status, progress) {
           _setStatus(status, progress: progress);
         },

@@ -80,6 +80,9 @@ class LaunchArgs {
   /// region selection).
   final bool noOfflineMaps;
   final bool dryRun;
+  /// Skip the DBC already-at-target-version check in the trampoline and
+  /// flash unconditionally. For testing the full flash path.
+  final bool forceDbcReflash;
 
   LaunchArgs({
     this.channel,
@@ -90,6 +93,7 @@ class LaunchArgs {
     this.autoStart = false,
     this.noOfflineMaps = false,
     this.dryRun = false,
+    this.forceDbcReflash = false,
   });
 
   factory LaunchArgs.fromArgs(List<String> args) {
@@ -97,6 +101,7 @@ class LaunchArgs {
     var autoStart = false;
     var noOfflineMaps = false;
     var dryRun = false;
+    var forceDbcReflash = false;
     for (final arg in args) {
       if (arg.startsWith('--channel=')) channel = arg.split('=')[1];
       if (arg.startsWith('--region=')) region = arg.split('=')[1];
@@ -106,6 +111,7 @@ class LaunchArgs {
       if (arg == '--auto-start') autoStart = true;
       if (arg == '--no-offline-maps') noOfflineMaps = true;
       if (arg == '--dry-run') dryRun = true;
+      if (arg == '--force-dbc-reflash') forceDbcReflash = true;
     }
     return LaunchArgs(
       channel: channel,
@@ -116,6 +122,7 @@ class LaunchArgs {
       autoStart: autoStart,
       noOfflineMaps: noOfflineMaps,
       dryRun: dryRun,
+      forceDbcReflash: forceDbcReflash,
     );
   }
 
@@ -138,6 +145,7 @@ class LaunchArgs {
         if (dbcImage != null) '--dbc-image=$dbcImage',
         if (!wantsOfflineMaps) '--no-offline-maps',
         if (dryRun) '--dry-run',
+        if (forceDbcReflash) '--force-dbc-reflash',
         '--auto-start',
       ];
 }
