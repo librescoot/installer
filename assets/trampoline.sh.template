@@ -78,21 +78,6 @@ bootled_blink_red() {
     done
   '
 }
-bootled_blink_green() {
-  bootled_blink_stop
-  systemd-run --unit="$BOOTLED_BLINK_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
-    while true; do
-      i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
-      i2cset -f -y 2 0x30 0x03 0xFF 2>/dev/null
-      i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
-      sleep 0.4
-      i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
-      i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
-      i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
-      sleep 0.4
-    done
-  '
-}
 bootled_blink_stop() {
   systemctl stop "${BOOTLED_BLINK_UNIT}.service" 2>/dev/null
   # Best-effort cleanup of any leftover PID-file blink loop from older
@@ -991,7 +976,7 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
     restore_normal_operation
     echo "success" > "$STATUS_FILE"
     bootled_guard_stop
-    bootled_blink_green
+    bootled off
     exit 0
   fi
 
@@ -1406,7 +1391,9 @@ if grow_and_populate_dbc "$DBC_DEV"; then
   echo "success" > "$STATUS_FILE"
   cat "$LOG_FILE" >> "$STATUS_FILE"
   bootled_guard_stop
-  bootled_blink_green
+  # Success is deliberately quiet: pulses stop and the LED goes dark, the
+  # scooter is back in normal operation and immediately usable.
+  bootled off
   # Stop the background journal capture, otherwise it leaks past this
   # script exiting (reparented to init) and keeps appending forever.
   [ -n "$JOURNAL_PID" ] && kill $JOURNAL_PID 2>/dev/null
@@ -1498,21 +1485,6 @@ bootled_blink_stop() {
     fi
     rm -f /data/bootled-blink.pid
   fi
-}
-bootled_blink_green() {
-  bootled_blink_stop
-  systemd-run --unit="$BOOTLED_BLINK_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
-    while true; do
-      i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
-      i2cset -f -y 2 0x30 0x03 0xFF 2>/dev/null
-      i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
-      sleep 0.4
-      i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
-      i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
-      i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
-      sleep 0.4
-    done
-  '
 }
 bootled_blink_red() {
   bootled_blink_stop
@@ -1678,7 +1650,9 @@ if [ $ELAPSED -ge 300 ]; then
   cat "$LOG" >> "$STATUS_FILE"
   lsc --redis-addr localhost:6379 dbc off 2>/dev/null || true
   bootled_guard_stop
-  bootled_blink_green
+  i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
+  i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
+  i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
   systemctl unmask librescoot-keycard keycard-service 2>/dev/null || true
   systemctl unmask librescoot-bluetooth 2>/dev/null || true
   systemctl start librescoot-bluetooth 2>/dev/null || true
@@ -1801,10 +1775,12 @@ else
   # All MDB<->DBC work is done (image flashed, tiles uploaded, DBC powered
   # off). Now and only now signal the user it's safe to swap the MDB's
   # single USB port back to the laptop.
-  # Stop the LED guard before starting the green blink, otherwise the
-  # guard re-asserts amber and we get an ugly amber/green flicker.
+  # Success is deliberately quiet: stop the pulse guard and turn the LED
+  # off. The scooter is back in normal operation and immediately usable.
   bootled_guard_stop
-  bootled_blink_green
+  i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
+  i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
+  i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
   # Put the scooter back into normal operation. The walk-away user never
   # reconnects the installer, so this is the last chance to drop the
   # installer-only overrides (usb0-policy=always-on, auto-standby=0,
