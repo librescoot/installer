@@ -331,7 +331,7 @@
   "checkingCbbAndBattery": "CBB und Akku werden geprüft...",
   "waitingForUsbDisconnect": "Warte auf USB-Trennung...",
   "finishRebootingTitle": "Roller startet neu…",
-  "finishRebootingBody": "Warte auf die USB-Trennung, dann ist der Installer fertig.",
+  "finishRebootingBody": "Das MDB startet gerade neu; die USB-Verbindung bricht dabei von selbst ab. Du musst noch nichts umstecken.",
   "networkConfigNeedsPermission": "macOS fragt nach Erlaubnis, die Netzwerk-Einstellungen zu ändern. Im Systemdialog auf 'Erlauben' klicken, dann 'Erneut versuchen' drücken.",
   "dbcWalkAwayHeadline": "Umstecken erledigt. Die Installation läuft jetzt von selbst.",
   "dbcWalkAwayBody": "Lass den Roller in Ruhe, während er das DBC flasht. Das kann 10 bis 20 Minuten dauern.",

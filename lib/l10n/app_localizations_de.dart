@@ -1061,7 +1061,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get finishRebootingBody =>
-      'Warte auf die USB-Trennung, dann ist der Installer fertig.';
+      'Das MDB startet gerade neu; die USB-Verbindung bricht dabei von selbst ab. Du musst noch nichts umstecken.';
 
   @override
   String get networkConfigNeedsPermission =>

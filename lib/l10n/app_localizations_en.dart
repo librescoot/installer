@@ -1051,7 +1051,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get finishRebootingBody =>
-      'Waiting for the MDB to drop the USB link before completing the install.';
+      'The MDB is rebooting; the USB connection will drop by itself. No need to touch the cable yet.';
 
   @override
   String get networkConfigNeedsPermission =>

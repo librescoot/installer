@@ -422,7 +422,7 @@
 
   "waitingForUsbDisconnect": "Waiting for USB disconnect...",
   "finishRebootingTitle": "Rebooting scooter…",
-  "finishRebootingBody": "Waiting for the MDB to drop the USB link before completing the install.",
+  "finishRebootingBody": "The MDB is rebooting; the USB connection will drop by itself. No need to touch the cable yet.",
   "networkConfigNeedsPermission": "macOS is asking for permission to change network settings. Click Allow in the system dialog, then hit Retry.",
   "dbcWalkAwayHeadline": "Swap done. The install is now running on its own.",
   "dbcWalkAwayBody": "Leave the scooter alone while it flashes the dashboard. This can take 10 to 20 minutes.",

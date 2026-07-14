@@ -1901,7 +1901,7 @@ abstract class AppLocalizations {
   /// No description provided for @finishRebootingBody.
   ///
   /// In en, this message translates to:
-  /// **'Waiting for the MDB to drop the USB link before completing the install.'**
+  /// **'The MDB is rebooting; the USB connection will drop by itself. No need to touch the cable yet.'**
   String get finishRebootingBody;
 
   /// No description provided for @networkConfigNeedsPermission.

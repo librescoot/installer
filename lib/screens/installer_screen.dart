@@ -499,12 +499,22 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     // Wipe installer staging from /data before we kick off the reboot, so
     // the user doesn't carry a few hundred MB of leftover image/tile files
-    // around forever. Skipped in non-release builds so devs can poke at
-    // the trampoline state after a failed run.
+    // around forever. Non-release builds keep the images and logs so devs
+    // can poke at the trampoline state, but must still clear the resume
+    // triggers: leaving state.json at trampoline-armed makes every later
+    // connect resume to the finish screen as an unfinished install.
     if (kReleaseMode) {
       await _cleanupMdb();
     } else {
-      debugPrint('UI: skipping MDB cleanup (non-release build)');
+      debugPrint('UI: non-release build, clearing resume state only');
+      try {
+        await _sshService.runCommand(
+          'rm -f /data/installer/state.json /data/installer/trampoline-status '
+          '/data/installer/trampoline.sh; true',
+        );
+      } catch (e) {
+        debugPrint('UI: failed to clear resume state (ok): $e');
+      }
     }
 
     // Reboot the MDB. The install path leaves several services stopped
