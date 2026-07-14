@@ -206,6 +206,10 @@
     }
   },
   "dbcFlashSuccessful": "DBC-Flash erfolgreich!",
+  "dbcAlreadyCurrentTitle": "Dashboard ist bereits aktuell",
+  "dbcAlreadyCurrentBody": "Auf dem Dashboard (DBC) läuft bereits Librescoot {version}. Trotzdem neu flashen?",
+  "dbcAlreadyCurrentReflash": "Neu flashen",
+  "dbcAlreadyCurrentSkip": "DBC-Flash überspringen",
   "dbcPrepComplete": "DBC-Image bereit zum Flashen",
   "dbcFlashFailed": "DBC-Flash fehlgeschlagen: {message}",
   "dbcFlashError": "DBC-Flash-Fehler",

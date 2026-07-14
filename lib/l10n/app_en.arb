@@ -263,6 +263,15 @@
     }
   },
   "dbcFlashSuccessful": "DBC flash successful!",
+  "dbcAlreadyCurrentTitle": "Dashboard already up to date",
+  "dbcAlreadyCurrentBody": "The dashboard (DBC) already runs Librescoot {version}. Flash it again anyway?",
+  "@dbcAlreadyCurrentBody": {
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
+  "dbcAlreadyCurrentReflash": "Flash again",
+  "dbcAlreadyCurrentSkip": "Skip DBC flash",
   "dbcPrepComplete": "DBC image ready to flash",
   "dbcFlashFailed": "DBC flash failed: {message}",
   "@dbcFlashFailed": {

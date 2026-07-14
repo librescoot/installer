@@ -671,6 +671,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dbcFlashSuccessful => 'DBC flash successful!';
 
   @override
+  String get dbcAlreadyCurrentTitle => 'Dashboard already up to date';
+
+  @override
+  String dbcAlreadyCurrentBody(String version) {
+    return 'The dashboard (DBC) already runs Librescoot $version. Flash it again anyway?';
+  }
+
+  @override
+  String get dbcAlreadyCurrentReflash => 'Flash again';
+
+  @override
+  String get dbcAlreadyCurrentSkip => 'Skip DBC flash';
+
+  @override
   String get dbcPrepComplete => 'DBC image ready to flash';
 
   @override

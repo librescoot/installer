@@ -3299,6 +3299,57 @@ class _InstallerScreenState extends State<InstallerScreen> {
       }
     }
 
+    // If the DBC already runs the exact target Librescoot version (per
+    // version-service data in Redis, written when the DBC last booted),
+    // ask the user instead of silently deciding: re-flash or skip. An
+    // absent version:dbc key (stock DBC, or no DBC boot since the last
+    // MDB reboot) means we can't know here; the trampoline's own SSH
+    // check still covers the silent at-target skip in that case.
+    var forceReflash = launchArgs.forceDbcReflash;
+    final targetVersion = _downloadState.releaseTag ?? '';
+    if (!forceReflash && targetVersion.isNotEmpty) {
+      String? dbcId, dbcVersion;
+      try {
+        dbcId = await _sshService.redisHget('version:dbc', 'id');
+        dbcVersion = await _sshService.redisHget('version:dbc', 'version_id');
+      } catch (e) {
+        debugPrint('UI: version:dbc lookup failed (ok): $e');
+      }
+      if ((dbcId ?? '').startsWith('librescoot') && dbcVersion == targetVersion) {
+        if (!mounted) return;
+        final reflash = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            title: Text(l10n.dbcAlreadyCurrentTitle),
+            content: Text(l10n.dbcAlreadyCurrentBody(targetVersion)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text(l10n.dbcAlreadyCurrentSkip),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: Text(l10n.dbcAlreadyCurrentReflash),
+              ),
+            ],
+          ),
+        );
+        if (reflash != true) {
+          _setCritical(false);
+          if (mounted) {
+            setState(() {
+              _skipDbcFlash = true;
+              _dbcUploadReady = true;
+              _isProcessing = false;
+            });
+          }
+          return;
+        }
+        forceReflash = true;
+      }
+    }
+
     try {
       final trampolineService = TrampolineService(_sshService);
       final dbcItem = _downloadState.itemOfType(DownloadItemType.dbcFirmware);
@@ -3317,8 +3368,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
         // the DBC's os-release VERSION_ID over SSH and skips the destructive
         // flash if they match. releaseTag is the version/tag of the release
         // being installed; an empty tag simply never triggers the skip.
-        targetDbcVersion: _downloadState.releaseTag ?? '',
-        forceDbcReflash: launchArgs.forceDbcReflash,
+        targetDbcVersion: targetVersion,
+        forceDbcReflash: forceReflash,
         onProgress: (status, progress) {
           _setStatus(status, progress: progress);
         },

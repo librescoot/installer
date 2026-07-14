@@ -1274,6 +1274,30 @@ abstract class AppLocalizations {
   /// **'DBC flash successful!'**
   String get dbcFlashSuccessful;
 
+  /// No description provided for @dbcAlreadyCurrentTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Dashboard already up to date'**
+  String get dbcAlreadyCurrentTitle;
+
+  /// No description provided for @dbcAlreadyCurrentBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The dashboard (DBC) already runs Librescoot {version}. Flash it again anyway?'**
+  String dbcAlreadyCurrentBody(String version);
+
+  /// No description provided for @dbcAlreadyCurrentReflash.
+  ///
+  /// In en, this message translates to:
+  /// **'Flash again'**
+  String get dbcAlreadyCurrentReflash;
+
+  /// No description provided for @dbcAlreadyCurrentSkip.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip DBC flash'**
+  String get dbcAlreadyCurrentSkip;
+
   /// No description provided for @dbcPrepComplete.
   ///
   /// In en, this message translates to:
