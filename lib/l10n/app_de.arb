@@ -338,7 +338,7 @@
   "finishRebootingBody": "Das MDB startet gerade neu; die USB-Verbindung bricht dabei von selbst ab. Du musst noch nichts umstecken.",
   "networkConfigNeedsPermission": "macOS fragt nach Erlaubnis, die Netzwerk-Einstellungen zu ändern. Im Systemdialog auf 'Erlauben' klicken, dann 'Erneut versuchen' drücken.",
   "dbcWalkAwayHeadline": "Umstecken erledigt. Die Installation läuft jetzt von selbst.",
-  "dbcWalkAwayBody": "Der Roller flasht das Dashboard jetzt selbstständig. Das dauert 10 bis 20 Minuten. Hier am Laptop bist du fertig; du kannst den Installer schließen.",
+  "dbcWalkAwayBody": "Der Roller flasht das Dashboard jetzt selbstständig. Das dauert 10 bis 20 Minuten. Schau dir in der Zwischenzeit die ersten Schritte unten an und wirf einen Blick ins Handbuch.",
   "dbcWalkAwayLedProgress": "Fortschritt: Die Keycard-LED am Tacho pulst gelb in Gruppen. Ein Puls kurz nach dem Start, bis zu vier Pulse kurz vor Schluss. Der Tacho selbst geht dabei mehrmals an und aus, das ist normal.",
   "dbcWalkAwayDone": "Fertig: Die LED hört auf zu pulsieren und bleibt aus. Dann das DBC-Kabel festschrauben, alles wieder zumachen, Roller entriegeln und losfahren.",
   "dbcWalkAwayFailure": "Wenn der Roller mit dem Warnblinker blinkt oder die Keycard-LED rot blinkt, ist etwas schiefgelaufen: den Laptop wieder ans MDB anschließen.",

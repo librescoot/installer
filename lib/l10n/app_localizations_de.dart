@@ -1087,7 +1087,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcWalkAwayBody =>
-      'Der Roller flasht das Dashboard jetzt selbstständig. Das dauert 10 bis 20 Minuten. Hier am Laptop bist du fertig; du kannst den Installer schließen.';
+      'Der Roller flasht das Dashboard jetzt selbstständig. Das dauert 10 bis 20 Minuten. Schau dir in der Zwischenzeit die ersten Schritte unten an und wirf einen Blick ins Handbuch.';
 
   @override
   String get dbcWalkAwayLedProgress =>

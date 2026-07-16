@@ -434,7 +434,7 @@
   "finishRebootingBody": "The MDB is rebooting; the USB connection will drop by itself. No need to touch the cable yet.",
   "networkConfigNeedsPermission": "macOS is asking for permission to change network settings. Click Allow in the system dialog, then hit Retry.",
   "dbcWalkAwayHeadline": "Swap done. The install is now running on its own.",
-  "dbcWalkAwayBody": "The scooter now flashes the dashboard on its own. This takes 10 to 20 minutes. You are done here on the laptop; you can close the installer.",
+  "dbcWalkAwayBody": "The scooter now flashes the dashboard on its own. This takes 10 to 20 minutes. In the meantime, have a look at the first steps below and the handbook.",
   "dbcWalkAwayLedProgress": "Progress: the keycard LED on the dashboard pulses amber in groups. One pulse shortly after the start, up to four pulses near the end. The dashboard itself may turn on and off several times; that's normal.",
   "dbcWalkAwayDone": "Done: the LED stops pulsing and stays off. Then screw the DBC cable down, close everything up, unlock the scooter, and ride.",
   "dbcWalkAwayFailure": "If the scooter flashes its hazard lights or the keycard LED blinks red instead, something went wrong: plug the laptop back into the MDB.",

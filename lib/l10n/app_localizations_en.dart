@@ -1077,7 +1077,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dbcWalkAwayBody =>
-      'The scooter now flashes the dashboard on its own. This takes 10 to 20 minutes. You are done here on the laptop; you can close the installer.';
+      'The scooter now flashes the dashboard on its own. This takes 10 to 20 minutes. In the meantime, have a look at the first steps below and the handbook.';
 
   @override
   String get dbcWalkAwayLedProgress =>
