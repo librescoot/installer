@@ -395,6 +395,20 @@ class AppLocalizationsDe extends AppLocalizations {
   String get verifyingReadiness => 'Roller-Bereitschaft wird geprüft...';
 
   @override
+  String get incompleteImageStatus =>
+      'Unvollständiges Firmware-Image erkannt. Neuflashen zur Wiederherstellung...';
+
+  @override
+  String get incompleteImageHeading => 'Unvollständiges Firmware-Image';
+
+  @override
+  String get incompleteImageBody =>
+      'Dieser Roller läuft mit einem minimalen Wiederherstellungs-Image ohne Batterie-Telemetrie. Das kann passieren, wenn eine frühere Installation das falsche Image geschrieben hat. Fahre fort, um die vollständige Firmware neu zu flashen und die Einrichtung abzuschließen.';
+
+  @override
+  String get reflashToRecover => 'Neu flashen zur Wiederherstellung';
+
+  @override
   String get continueButton => 'Weiter';
 
   @override

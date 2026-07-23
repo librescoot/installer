@@ -142,6 +142,10 @@
 
   "healthCheckHeading": "Health Check",
   "verifyingReadiness": "Verifying scooter readiness...",
+  "incompleteImageStatus": "Incomplete firmware image detected. Re-flashing to recover...",
+  "incompleteImageHeading": "Incomplete firmware image",
+  "incompleteImageBody": "This scooter is running a minimal recovery image with no battery telemetry. This can happen when a previous install wrote the wrong image. Continue to re-flash the full firmware and finish setup.",
+  "reflashToRecover": "Re-flash to recover",
   "continueButton": "Continue",
   "retryButton": "Retry",
   "proceedAtOwnRisk": "Proceed at my own risk",

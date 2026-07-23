@@ -110,6 +110,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Timer? _keycardToastTimer;
   String? _awaitingUnlockState; // null when not awaiting; current vehicle state otherwise
   String? _resumePreviousError; // first error line from a leftover trampoline-status, if any
+  bool _mdbStackMissing = false; // MDB answered SSH but has no redis (minimal/broken image) -> recover by re-flashing
   ResumeDecision? _resumeDecision; // resolved resume target, applied by _continueFromResume
   Completer<bool>? _unlockCompleter;
   bool _keepCache = false;
@@ -1674,6 +1675,25 @@ class _InstallerScreenState extends State<InstallerScreen> {
       setState(() => _mdbInfo = info);
       debugPrint('SSH: firmware=${info.firmwareVersion}, serial=${info.serialNumber ?? "unknown"}');
 
+      // A scooter accidentally flashed with a minimal/bootstrap image answers
+      // SSH but has no redis: the resume screen's Continue, the parked-state
+      // gate, and the pre-flash lock all die with `redis-cli: not found`,
+      // wedging the installer. Detect that here and route straight to the
+      // health screen (which shows a recovery banner) and on to re-flashing
+      // the full firmware, bypassing every redis-backed step.
+      if (!await _sshService.hasRedisStack()) {
+        debugPrint('SSH: MDB has no redis stack (incomplete image), routing to recovery re-flash');
+        if (!mounted) return;
+        setState(() {
+          _mdbStackMissing = true;
+          _skipMdbFlash = false; // must re-flash; never offer to keep this image
+          _isProcessing = false;
+        });
+        _setStatus(l10n.incompleteImageStatus);
+        _setPhase(InstallerPhase.healthCheck);
+        return;
+      }
+
       // An install that died mid-flash leaves /data/installer behind with
       // keycard + bluetooth masked (the trampoline masks them pre-flash).
       // After a power cycle such a scooter cannot be unlocked at all: no
@@ -1794,14 +1814,20 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // entry) and explicitly cleaned up at finish. Best-effort.
     await _disableInstallerHazards(label: 'pre-flash');
 
-    // Lock the scooter for safe flashing
+    // Lock the scooter for safe flashing. Best-effort: an image without the
+    // redis stack (minimal/broken) can't be locked and can't move anyway, so
+    // a `redis-cli: not found` here must not abort the whole connect flow.
     _setStatus(l10n.lockingScooter);
-    await _sshService.redisLpush('scooter:state', 'lock');
-    final locked = await _sshService.waitForVehicleState('stand-by', timeout: const Duration(seconds: 30));
-    if (!locked) {
-      debugPrint('SSH: lock did not reach stand-by, continuing anyway');
+    try {
+      await _sshService.redisLpush('scooter:state', 'lock');
+      final locked = await _sshService.waitForVehicleState('stand-by', timeout: const Duration(seconds: 30));
+      if (!locked) {
+        debugPrint('SSH: lock did not reach stand-by, continuing anyway');
+      }
+      debugPrint('SSH: scooter locked');
+    } catch (e) {
+      debugPrint('SSH: lock failed (continuing, likely incomplete image): $e');
     }
-    debugPrint('SSH: scooter locked');
 
     _setStatus(l10n.connected);
     setState(() => _isProcessing = false);
@@ -2059,6 +2085,37 @@ class _InstallerScreenState extends State<InstallerScreen> {
           const SizedBox(height: 8),
           Text(l10n.verifyingReadiness,
               style: TextStyle(color: Colors.grey.shade400)),
+          if (_mdbStackMissing) ...[
+            const SizedBox(height: 16),
+            Container(
+              width: 400,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.healing, color: Colors.amber),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(l10n.incompleteImageHeading,
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber)),
+                        const SizedBox(height: 4),
+                        Text(l10n.incompleteImageBody,
+                            style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (_isUntestedStockFirmware) ...[
             const SizedBox(height: 16),
             Container(
@@ -2123,8 +2180,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
               ),
             ),
 
-          // Librescoot detected: offer to skip MDB reflash
-          if (_scooterHealth != null && _isLibrescootFirmware) ...[
+          // Librescoot detected: offer to skip MDB reflash. Never when the
+          // image is incomplete (a minimal rootfs reports as Librescoot but
+          // must be re-flashed, not kept).
+          if (_scooterHealth != null && _isLibrescootFirmware && !_mdbStackMissing) ...[
             const SizedBox(height: 24),
             Container(
               width: 400,
@@ -2162,13 +2221,19 @@ class _InstallerScreenState extends State<InstallerScreen> {
           ],
 
           const SizedBox(height: 24),
-          if (_scooterHealth != null && _scooterHealth!.allOk)
+          if (_mdbStackMissing)
+            FilledButton.icon(
+              onPressed: proceed,
+              icon: const Icon(Icons.build),
+              label: Text(l10n.reflashToRecover),
+            ),
+          if (!_mdbStackMissing && _scooterHealth != null && _scooterHealth!.allOk)
             FilledButton.icon(
               onPressed: proceed,
               icon: const Icon(Icons.arrow_forward),
               label: Text(l10n.continueButton),
             ),
-          if (_scooterHealth != null && !_scooterHealth!.allOk) ...[
+          if (!_mdbStackMissing && _scooterHealth != null && !_scooterHealth!.allOk) ...[
             OutlinedButton.icon(
               onPressed: () {
                 setState(() {
@@ -2201,6 +2266,17 @@ class _InstallerScreenState extends State<InstallerScreen> {
         ..cbbCharge = 92
         ..batteryPresent = true);
       setState(() => _isProcessing = false);
+      return;
+    }
+    if (_mdbStackMissing) {
+      // No redis on this image: battery telemetry can't be read and there's
+      // nothing to back up. Render the verdict as all-unknown; the health
+      // screen shows the recovery banner and a Continue button that leads
+      // into the re-flash.
+      setState(() {
+        _scooterHealth = ScooterHealth();
+        _isProcessing = false;
+      });
       return;
     }
     try {

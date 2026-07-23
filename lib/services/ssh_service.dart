@@ -1063,6 +1063,24 @@ class SshService {
     return redisHget('vehicle', 'state');
   }
 
+  /// Probe whether the connected MDB is running a full image with the redis
+  /// stack. A minimal/bootstrap rootfs (e.g. flashed by mistake) answers SSH
+  /// but ships no redis-cli, so every redis-backed step (the parked-state
+  /// gate, the pre-flash lock, the health telemetry) fails with
+  /// `redis-cli: not found`. Returns false when redis-cli is absent so the
+  /// caller can route straight to re-flash instead of getting wedged.
+  Future<bool> hasRedisStack() async {
+    try {
+      final out = await runCommand(
+        'command -v redis-cli >/dev/null 2>&1 && echo yes || echo no',
+      );
+      return out.trim() == 'yes';
+    } catch (e) {
+      debugPrint('SSH: redis-cli probe failed: $e');
+      return false;
+    }
+  }
+
   /// Wait for a specific vehicle state, polling every [interval].
   /// Returns true if the state was reached, false on timeout.
   Future<bool> waitForVehicleState(
