@@ -54,15 +54,31 @@ fetch "$TOOLS_DIR/linuxdeploy-plugin-gtk.sh" \
 
 # linuxdeploy discovers plugins by name on PATH.
 export PATH="$PWD/$TOOLS_DIR:$PATH"
-export OUTPUT="librescoot-installer-linux-x86_64-${VERSION}.AppImage"
+OUTPUT="librescoot-installer-linux-x86_64-${VERSION}.AppImage"
 
+# Populate the AppDir (bundle the Flutter libs + GTK runtime, write AppRun,
+# the root desktop file and icon) but stop short of the final packaging.
+# We invoke appimagetool ourselves below so we can supply the runtime.
 "$TOOLS_DIR/linuxdeploy" \
   --appdir "$APPDIR" \
   --executable "$APPDIR/usr/bin/librescoot_installer" \
   --desktop-file "$APPDIR/usr/share/applications/librescoot-installer.desktop" \
   --icon-file "$APPDIR/usr/share/icons/hicolor/256x256/apps/librescoot-installer.png" \
-  --plugin gtk \
-  --output appimage
+  --plugin gtk
 
-mv "$OUTPUT" "$RELEASE_DIR/$OUTPUT"
+# AppImageKit is archived; appimagetool is now the rewrite that downloads the
+# AppImage runtime at package time instead of embedding it. Its built-in
+# fetch doesn't follow GitHub's 302 redirect to the asset CDN and fails the
+# build. Our fetch() uses curl -L (which does follow redirects), so pre-fetch
+# both the tool and the runtime and hand the runtime over with --runtime-file
+# so appimagetool never downloads anything itself.
+fetch "$TOOLS_DIR/appimagetool" \
+  https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+fetch "$TOOLS_DIR/runtime-x86_64" \
+  https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64
+
+"$TOOLS_DIR/appimagetool" \
+  --runtime-file "$TOOLS_DIR/runtime-x86_64" \
+  "$APPDIR" "$RELEASE_DIR/$OUTPUT"
+
 echo "Built $RELEASE_DIR/$OUTPUT"
