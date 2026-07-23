@@ -830,6 +830,30 @@ abstract class AppLocalizations {
   /// **'Verifying scooter readiness...'**
   String get verifyingReadiness;
 
+  /// No description provided for @incompleteImageStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Incomplete firmware image detected. Re-flashing to recover...'**
+  String get incompleteImageStatus;
+
+  /// No description provided for @incompleteImageHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Incomplete firmware image'**
+  String get incompleteImageHeading;
+
+  /// No description provided for @incompleteImageBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This scooter is running a minimal recovery image with no battery telemetry. This can happen when a previous install wrote the wrong image. Continue to re-flash the full firmware and finish setup.'**
+  String get incompleteImageBody;
+
+  /// No description provided for @reflashToRecover.
+  ///
+  /// In en, this message translates to:
+  /// **'Re-flash to recover'**
+  String get reflashToRecover;
+
   /// No description provided for @continueButton.
   ///
   /// In en, this message translates to:

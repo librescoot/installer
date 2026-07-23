@@ -409,6 +409,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get verifyingReadiness => 'Verifying scooter readiness...';
 
   @override
+  String get incompleteImageStatus =>
+      'Incomplete firmware image detected. Re-flashing to recover...';
+
+  @override
+  String get incompleteImageHeading => 'Incomplete firmware image';
+
+  @override
+  String get incompleteImageBody =>
+      'This scooter is running a minimal recovery image with no battery telemetry. This can happen when a previous install wrote the wrong image. Continue to re-flash the full firmware and finish setup.';
+
+  @override
+  String get reflashToRecover => 'Re-flash to recover';
+
+  @override
   String get continueButton => 'Continue';
 
   @override
