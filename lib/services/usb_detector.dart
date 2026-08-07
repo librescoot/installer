@@ -34,27 +34,10 @@ class UsbDevice {
 
   bool get isLibrescootDevice => vendorId == 0x0525;
 
-  /// Safety check: Is this device safe to write to?
-  bool get isSafeToFlash {
-    // NEVER flash if it's a system disk
-    if (isSystemDisk) return false;
-
-    // Must be a Librescoot device with correct VID
-    if (!isLibrescootDevice) return false;
-
-    // Must be in mass storage mode
-    if (mode != DeviceMode.massStorage) return false;
-
-    // Size sanity check: Librescoot uses 4GB or 8GB eMMC
-    // Reject anything larger than 16GB or smaller than 1GB
-    if (sizeBytes != null) {
-      const minSize = 1 * 1024 * 1024 * 1024; // 1 GB
-      const maxSize = 16 * 1024 * 1024 * 1024; // 16 GB
-      if (sizeBytes! < minSize || sizeBytes! > maxSize) return false;
-    }
-
-    return true;
-  }
+  // No isSafeToFlash here on purpose. It duplicated a subset of
+  // FlashService.validateDevice and was never called, so it read as a
+  // safety net that wasn't wired to anything. validateDevice is the single
+  // gate, called from _flashMdb immediately before the write.
 
   /// Human-readable size
   String get sizeFormatted {

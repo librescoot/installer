@@ -1371,40 +1371,10 @@ echo "VERIFY:OK"
     }
   }
 
-  /// Verify the written image by reading and checksumming
-  Future<String?> verifyImage(String devicePath, int sizeBytes) async {
-    try {
-      ProcessResult result;
-
-      if (Platform.isWindows) {
-        // Read first 4MB blocks for verification
-        final ddPath = await _getDdPath();
-        if (ddPath == null) return null;
-
-        final blocks = (sizeBytes / (4 * 1024 * 1024)).ceil();
-        result = await Process.run(
-          'powershell',
-          [
-            '-Command',
-            '& "$ddPath" if="$devicePath" bs=4M count=$blocks 2>\$null | Get-FileHash -Algorithm MD5 -InputStream ([System.IO.MemoryStream]::new((cat -Encoding Byte))) | Select-Object -ExpandProperty Hash',
-          ],
-          runInShell: true,
-        );
-      } else {
-        final blocks = (sizeBytes / (4 * 1024 * 1024)).ceil();
-        result = await Process.run(
-          'sh',
-          [
-            '-c',
-            'dd if="$devicePath" bs=4M count=$blocks 2>/dev/null | md5sum | cut -d" " -f1',
-          ],
-        );
-      }
-
-      if (result.exitCode == 0) {
-        return result.stdout.toString().trim();
-      }
-    } catch (_) {}
-    return null;
-  }
+  // verifyImage was removed here. It hashed the first N blocks of the
+  // device and returned the digest, but nothing ever computed an
+  // expected digest to compare it against, and it could not match a
+  // sparse/compressed write anyway. Real post-write verification is the
+  // flasher's own per-range bmap checksum, surfaced as CHECKSUM MISMATCH
+  // and treated as fatal in _writeWithGoFlasher.
 }
