@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../main.dart' show LaunchArgs, installerLog, launchArgs, showElevationRequiredDialog;
+import '../main.dart' show installerLog, launchArgs, showElevationRequiredDialog;
 import '../l10n/app_localizations.dart';
 import '../models/download_state.dart';
 import '../models/installer_phase.dart';
@@ -15,7 +15,6 @@ import '../models/scooter_health.dart';
 import '../models/substep.dart';
 import '../models/trampoline_status.dart';
 import '../services/services.dart';
-import '../widgets/download_progress.dart';
 import '../widgets/health_check_panel.dart';
 import '../widgets/instruction_step.dart';
 import '../widgets/phase_sidebar.dart';
@@ -66,9 +65,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _dbcPrepStarted = false;
   bool _dbcUploadReady = false; // upload done, waiting for "Begin flashing DBC"
   bool _reconnectStarted = false;
-  bool _showElevatedHandoff = false;
+  final bool _showElevatedHandoff = false;
   bool _dbcFlashSimulateError = false;
-  bool _cbbCheckFailed = false;
   DeviceInfo? _mdbInfo;
   bool _skipMdbFlash = false;
   bool _skipDbcFlash = false;
@@ -727,24 +725,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
         ],
       ),
     ),
-    );
-  }
-
-  Widget _buildElevationWarning(AppLocalizations l10n) {
-    return Container(
-      width: double.infinity,
-      color: Colors.orange.shade900,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          const Icon(Icons.warning, color: Colors.orange, size: 16),
-          const SizedBox(width: 8),
-          Text(
-            l10n.elevationWarning,
-            style: const TextStyle(color: Colors.orange, fontSize: 12),
-          ),
-        ],
-      ),
     );
   }
 
@@ -1851,45 +1831,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   bool get _isDryRun => launchArgs.dryRun;
 
-  /// Wait for MDB to reboot into RNDIS, reconfigure network, reconnect SSH.
-  Future<bool> _reconnectToMdb() async {
-    final l10n = AppLocalizations.of(context)!;
-    try {
-      _setStatus(l10n.waitingForMdbToReboot);
-      final found = await _waitForDevice(DeviceMode.ethernet, timeout: const Duration(seconds: 60));
-      if (!found) return false;
-
-      // MDB needs time to fully boot after RNDIS appears
-      _setStatus(l10n.mdbDetectedWaitingForSsh);
-      await Future.delayed(const Duration(seconds: 10));
-
-      final iface = await NetworkService().findLibrescootInterface();
-      if (iface != null) {
-        try {
-          await NetworkService().configureInterface(iface);
-        } on NetworkPrivilegeException catch (e) {
-          _setStatus(l10n.errorPrefix(e.toString()));
-          return false;
-        }
-      }
-
-      // Retry SSH connection a few times (MDB may still be starting sshd)
-      for (var i = 0; i < 5; i++) {
-        try {
-          await _sshService.loadDeviceConfig('assets');
-          await _sshService.connectToMdb();
-          _setStatus(l10n.reconnectedToMdb);
-          return true;
-        } catch (_) {
-          await Future.delayed(const Duration(seconds: 5));
-        }
-      }
-      return false;
-    } catch (_) {
-      return false;
-    }
-  }
-
   Future<bool> _waitForDevice(DeviceMode mode, {Duration timeout = const Duration(seconds: 120)}) async {
     if (_isDryRun) {
       await Future.delayed(const Duration(seconds: 1));
@@ -2273,7 +2214,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
   }
 
-  bool _batteryRemovalStarted = false;
 
   Widget _buildBatteryRemoval(AppLocalizations l10n) {
     return Center(
@@ -3130,36 +3070,6 @@ class _InstallerScreenState extends State<InstallerScreen> {
         ],
       ),
     );
-  }
-
-  Future<void> _waitForCbb() async {
-    final l10n = AppLocalizations.of(context)!;
-    setState(() => _isProcessing = true);
-    if (_isDryRun) {
-      _setStatus('[DRY RUN] CBB connected');
-      await Future.delayed(const Duration(seconds: 1));
-      _setPhase(InstallerPhase.dbcPrep);
-      return;
-    }
-    _setStatus(l10n.checkingCbbAndBattery);
-    var attempts = 0;
-    while (attempts < 30) {
-      if (await _sshService.isCbbPresent()) {
-        _setStatus(l10n.cbbConnected);
-        await Future.delayed(const Duration(seconds: 1));
-        _setPhase(InstallerPhase.dbcPrep);
-        return;
-      }
-      attempts++;
-      _setStatus(l10n.waitingForCbb(attempts));
-      await Future.delayed(const Duration(seconds: 2));
-      if (!mounted) return;
-    }
-    _setStatus(l10n.cbbNotDetected);
-    setState(() {
-      _isProcessing = false;
-      _cbbCheckFailed = true;
-    });
   }
 
   Widget _buildDbcPrep(AppLocalizations l10n) {
