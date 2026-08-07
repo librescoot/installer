@@ -1107,11 +1107,4 @@ echo "VERIFY:OK"
 
     onProgress?.call(1.0, 'Boot sector verified');
   }
-
-  // verifyImage was removed here. It hashed the first N blocks of the
-  // device and returned the digest, but nothing ever computed an
-  // expected digest to compare it against, and it could not match a
-  // sparse/compressed write anyway. Real post-write verification is the
-  // flasher's own per-range bmap checksum, surfaced as CHECKSUM MISMATCH
-  // and treated as fatal in _writeWithGoFlasher.
 }
