@@ -2604,13 +2604,20 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
       final flashService = FlashService()..l10n = l10n;
 
+      // Fall back to the detector's own last-known device: _device is set
+      // from the poll stream via setState, so it can lag a frame behind the
+      // path we just resolved. Without the fallback that lag would present
+      // as vendorId 0 and block a perfectly good flash. If both are null we
+      // genuinely cannot confirm what we are about to write to, and the
+      // guard below refuses -- which is the outcome we want.
+      final target = _device ?? _usbDetector.currentDevice;
       final safetyCheck = flashService.validateDevice(
         devicePath: devicePath,
-        sizeBytes: _device?.sizeBytes,
-        isRemovable: _device?.isRemovable ?? false,
-        isSystemDisk: _device?.isSystemDisk ?? false,
-        vendorId: _device?.vendorId ?? 0,
-        productId: _device?.productId ?? 0,
+        sizeBytes: target?.sizeBytes,
+        isRemovable: target?.isRemovable ?? false,
+        isSystemDisk: target?.isSystemDisk ?? false,
+        vendorId: target?.vendorId ?? 0,
+        productId: target?.productId ?? 0,
       );
       if (!safetyCheck.passed) {
         debugPrint('Flash: safety check failed: ${safetyCheck.errors.join('; ')}');
