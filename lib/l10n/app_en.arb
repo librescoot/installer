@@ -601,6 +601,9 @@
   "mdbReconnectedVerifying": "MDB reconnected! Verifying...",
 
   "logDebugShell": "Log & Debug Shell",
+  "internalError": "Internal error: {error}",
+  "@internalError": { "placeholders": { "error": { "type": "String" } } },
+  "copyLog": "Copy log",
   "copyToClipboard": "Copy to clipboard",
   "debugCommandHint": "Run a command in the installer context...",
   "mbOnDisk": "{size} MB on disk",

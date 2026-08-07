@@ -1504,6 +1504,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get logDebugShell => 'Log & Debug Shell';
 
   @override
+  String internalError(String error) {
+    return 'Internal error: $error';
+  }
+
+  @override
+  String get copyLog => 'Copy log';
+
+  @override
   String get copyToClipboard => 'Copy to clipboard';
 
   @override
