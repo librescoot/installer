@@ -34,11 +34,6 @@ class UsbDevice {
 
   bool get isLibrescootDevice => vendorId == 0x0525;
 
-  // No isSafeToFlash here on purpose. It duplicated a subset of
-  // FlashService.validateDevice and was never called, so it read as a
-  // safety net that wasn't wired to anything. validateDevice is the single
-  // gate, called from _flashMdb immediately before the write.
-
   /// Human-readable size
   String get sizeFormatted {
     if (sizeBytes == null) return 'Unknown';
