@@ -31,6 +31,13 @@ jobs:
             platform: windows
             arch: x64
 
+    # The `secrets` context is not available in step-level `if:` conditions,
+    # so surface the signing secrets as booleans here and gate on `env`.
+    env:
+      HAS_SIGNING_CERT: ${{ secrets.MACOS_CERTIFICATE != '' }}
+      HAS_TEAM_ID: ${{ secrets.APPLE_TEAM_ID != '' }}
+      HAS_NOTARY_KEY: ${{ secrets.APPLE_API_KEY != '' }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -107,8 +114,11 @@ jobs:
             || echo "warning: latest.json fetch failed, keeping committed snapshot"
           ls -l assets/latest.json.fallback
 
+      # Signing, notarization and stapling are skipped when their secrets are
+      # absent, so forks (and PRs from forks) still produce an unsigned but
+      # runnable build instead of failing the whole macOS job.
       - name: Import signing certificate
-        if: matrix.target == 'macos'
+        if: matrix.target == 'macos' && env.HAS_SIGNING_CERT == 'true'
         env:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
@@ -139,7 +149,7 @@ jobs:
         run: flutter build windows --release --dart-define=AUTH_KEY=${{ secrets.AUTH_KEY }} --dart-define=APP_VERSION=${{ steps.version.outputs.describe }}
 
       - name: Sign macOS app
-        if: matrix.target == 'macos'
+        if: matrix.target == 'macos' && env.HAS_TEAM_ID == 'true'
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
@@ -187,7 +197,7 @@ jobs:
           rm -rf "$DMG_DIR"
 
       - name: Notarize and staple DMG
-        if: matrix.target == 'macos'
+        if: matrix.target == 'macos' && env.HAS_NOTARY_KEY == 'true'
         env:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
