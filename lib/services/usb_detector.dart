@@ -544,10 +544,7 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
 
   Future<UsbDevice?> _detectMacOSSystemProfiler() async {
     try {
-      final result = await _runWithFallback(
-        ['/usr/sbin/system_profiler', 'system_profiler'],
-        ['SPUSBDataType'],
-      );
+      final result = await _runSystemProfilerUsb();
       if (result == null || result.exitCode != 0) return null;
 
       final output = result.stdout.toString().toLowerCase();
@@ -586,6 +583,26 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
       } catch (_) {
         continue;
       }
+    }
+    return null;
+  }
+
+  /// Query system_profiler's USB report across macOS versions.
+  ///
+  /// macOS 26 renamed the datatype from `SPUSBDataType` to
+  /// `SPUSBHostDataType`. The legacy name still exits 0 there but returns an
+  /// empty report, which is indistinguishable from "no devices attached" —
+  /// so an empty result falls through to the next candidate instead of being
+  /// treated as an answer.
+  Future<ProcessResult?> _runSystemProfilerUsb() async {
+    for (final dataType in const ['SPUSBHostDataType', 'SPUSBDataType']) {
+      final result = await _runWithFallback(
+        ['/usr/sbin/system_profiler', 'system_profiler'],
+        [dataType],
+      );
+      if (result == null || result.exitCode != 0) continue;
+      if (result.stdout.toString().trim().isEmpty) continue;
+      return result;
     }
     return null;
   }
@@ -725,23 +742,77 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
     return candidates.first['disk'] as String;
   }
 
-  /// Resolve the BSD disk number `system_profiler` ties to the Librescoot
-  /// USB mass-storage gadget (VID 0x0525 / PID 0xA4A5). Used to cross-check
-  /// disk selection against actual USB device identity instead of trusting
-  /// the size/label heuristic alone. Returns null if the device isn't
-  /// present or `system_profiler` doesn't expose a Media/BSD Name entry for
-  /// it (e.g. it's still in ethernet mode).
+  /// Resolve the BSD disk number of the Librescoot USB mass-storage gadget
+  /// (VID 0x0525 / PID 0xA4A5). Used to cross-check disk selection against
+  /// actual USB device identity instead of trusting the size/label heuristic
+  /// alone. Returns null if the device isn't present or its identity can't be
+  /// tied to a disk (e.g. it's still in ethernet mode).
+  ///
+  /// Prefers the IORegistry, which nests the gadget's IOMedia node — and its
+  /// "BSD Name" — directly beneath the USB device. The `system_profiler`
+  /// scrape is a fallback for older releases only: macOS 26 both renamed the
+  /// datatype and dropped "BSD Name" from the USB report entirely, so it
+  /// cannot map USB identity to a disk there at all.
   Future<int?> _findLibrescootUsbDiskNumber() async {
+    final viaIoreg = await _findUsbDiskNumberViaIoreg();
+    if (viaIoreg != null) return viaIoreg;
+
     try {
-      final result = await _runWithFallback(
-        ['/usr/sbin/system_profiler', 'system_profiler'],
-        ['SPUSBDataType'],
-      );
+      final result = await _runSystemProfilerUsb();
       if (result == null || result.exitCode != 0) return null;
       return _parseUsbDiskNumber(result.stdout.toString());
     } catch (_) {
       return null;
     }
+  }
+
+  /// Walk the IORegistry for the Librescoot gadget and return the BSD disk
+  /// number of the IOMedia nested beneath it.
+  Future<int?> _findUsbDiskNumberViaIoreg() async {
+    try {
+      final result = await _runWithFallback(
+        ['/usr/sbin/ioreg', 'ioreg'],
+        ['-r', '-c', 'IOUSBHostDevice', '-l', '-w', '0'],
+      );
+      if (result == null || result.exitCode != 0) return null;
+      return parseIoregDiskNumber(result.stdout.toString());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Parse `ioreg -r -c IOUSBHostDevice -l` for the BSD disk number belonging
+  /// to VID 0x0525 / PID 0xA4A5.
+  ///
+  /// ioreg prints each device's properties followed, depth-first, by its
+  /// children, so a storage device's "BSD Name" always appears after that
+  /// device's own idVendor/idProduct lines and before any sibling device's.
+  /// Tracking the most recently seen VID/PID therefore attributes each disk
+  /// to the correct device even with other USB storage attached.
+  @visibleForTesting
+  int? parseIoregDiskNumber(String output) {
+    final vendorRe = RegExp(r'"idVendor"\s*=\s*(\d+)', caseSensitive: false);
+    final productRe = RegExp(r'"idProduct"\s*=\s*(\d+)', caseSensitive: false);
+    // Whole disks only: matches "disk8", never the "disk8s1" slice.
+    final bsdRe = RegExp(r'"BSD Name"\s*=\s*"disk(\d+)"', caseSensitive: false);
+
+    int? lastVendor;
+    int? lastProduct;
+
+    for (final line in output.split('\n')) {
+      final vendor = vendorRe.firstMatch(line);
+      if (vendor != null) lastVendor = int.tryParse(vendor.group(1)!);
+      final product = productRe.firstMatch(line);
+      if (product != null) lastProduct = int.tryParse(product.group(1)!);
+
+      final bsd = bsdRe.firstMatch(line);
+      if (bsd != null &&
+          lastVendor == targetVendorId &&
+          lastProduct == massStoragePid) {
+        return int.tryParse(bsd.group(1)!);
+      }
+    }
+    return null;
   }
 
   /// Parse `system_profiler SPUSBDataType` plain-text output for the BSD
