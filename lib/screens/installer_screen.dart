@@ -1911,11 +1911,38 @@ class _InstallerScreenState extends State<InstallerScreen> {
     String snapshot;
     try {
       if (Platform.isMacOS) {
-        final r = await Process.run(
-          '/usr/sbin/system_profiler',
-          ['SPUSBDataType'],
-        ).timeout(const Duration(seconds: 8));
-        snapshot = r.stdout.toString();
+        // macOS 26 renamed SPUSBDataType to SPUSBHostDataType; the legacy
+        // name still exits 0 there but reports nothing, so fall through on an
+        // empty snapshot rather than showing the user a blank panel.
+        snapshot = '';
+        for (final dataType in const ['SPUSBHostDataType', 'SPUSBDataType']) {
+          final r = await Process.run(
+            '/usr/sbin/system_profiler',
+            [dataType],
+          ).timeout(const Duration(seconds: 8));
+          if (r.exitCode == 0 && r.stdout.toString().trim().isNotEmpty) {
+            snapshot = r.stdout.toString();
+            break;
+          }
+        }
+        // ioreg always resolves the USB->disk mapping, which system_profiler
+        // no longer exposes on macOS 26. Append it so the panel stays useful
+        // for diagnosing target-selection failures.
+        try {
+          final io = await Process.run(
+            '/usr/sbin/ioreg',
+            ['-r', '-c', 'IOUSBHostDevice', '-l', '-w', '0'],
+          ).timeout(const Duration(seconds: 8));
+          if (io.exitCode == 0) {
+            final bsd = RegExp(r'"BSD Name"\s*=\s*"(disk\d+)"')
+                .allMatches(io.stdout.toString())
+                .map((m) => m.group(1)!)
+                .toSet();
+            if (bsd.isNotEmpty) {
+              snapshot = '$snapshot\n\nUSB block devices (ioreg): ${bsd.join(", ")}';
+            }
+          }
+        } catch (_) {}
       } else if (Platform.isLinux) {
         final r = await Process.run('lsusb', []).timeout(const Duration(seconds: 5));
         snapshot = r.stdout.toString();
