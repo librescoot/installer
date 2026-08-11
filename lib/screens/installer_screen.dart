@@ -64,6 +64,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _healthCheckStarted = false;
   bool _mdbToUmsStarted = false;
   bool _mdbFlashStarted = false;
+  /// Set when the flash stopped for a reason retrying on its own cannot clear
+  /// (failed safety check, no device path, retries exhausted). It keeps the
+  /// build from auto-starting the flash again and shows the manual controls.
+  bool _mdbFlashBlocked = false;
   bool _mdbBootStarted = false;
   bool _dbcUploadReady = false; // upload done, waiting for "Begin flashing DBC"
   // Stage-1 dashboardPrep tracking. The background DBC upload runs while
@@ -2527,7 +2531,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       );
     }
 
-    if (!_mdbFlashStarted && !_isProcessing) {
+    if (!_mdbFlashStarted && !_isProcessing && !_mdbFlashBlocked) {
       _mdbFlashStarted = true;
       Future.microtask(_flashMdb);
     }
@@ -2551,22 +2555,50 @@ class _InstallerScreenState extends State<InstallerScreen> {
               ],
             ),
           ),
-          if (!_isProcessing && !_mdbFlashStarted) ...[
+          if (_mdbFlashBlocked) ...[
             const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () {
-                setState(() {
-                  _mdbFlashStarted = true;
-                });
-                Future.microtask(_flashMdb);
-              },
-              icon: const Icon(Icons.refresh),
-              label: Text(l10n.retryMdbFlash),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                FilledButton.icon(
+                  onPressed: () {
+                    _resetRetries('mdbFlash');
+                    setState(() {
+                      _mdbFlashBlocked = false;
+                      _mdbFlashStarted = true;
+                    });
+                    Future.microtask(_flashMdb);
+                  },
+                  icon: const Icon(Icons.refresh),
+                  label: Text(l10n.retryMdbFlash),
+                ),
+                const SizedBox(width: 16),
+                OutlinedButton.icon(
+                  onPressed: _showLogDialog,
+                  icon: const Icon(Icons.article_outlined),
+                  label: Text(l10n.showLog),
+                ),
+              ],
             ),
           ],
         ],
       ),
     );
+  }
+
+  /// Stop the flash and hand control back to the user.
+  ///
+  /// The build path starts the flash whenever it is neither running nor
+  /// already started, so a failure that only clears those two flags is picked
+  /// up again on the very next frame and spins. Blocking is what turns a
+  /// failure the code cannot resolve by itself into a manual retry.
+  void _blockMdbFlash() {
+    if (!mounted) return;
+    setState(() {
+      _isProcessing = false;
+      _mdbFlashStarted = false;
+      _mdbFlashBlocked = true;
+    });
   }
 
   Future<void> _flashMdb() async {
@@ -2614,8 +2646,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
         if (!mounted) return;
       }
       if (devicePath == null || devicePath.isEmpty) {
+        _setCritical(false);
         _setStatus(l10n.noDevicePathFound);
-        setState(() { _isProcessing = false; _mdbFlashStarted = false; });
+        _blockMdbFlash();
         return;
       }
       debugPrint('Flash: device path resolved: $devicePath');
@@ -2641,7 +2674,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         debugPrint('Flash: safety check failed: ${safetyCheck.errors.join('; ')}');
         _setCritical(false);
         _setStatus('${l10n.safetyCheckFailed}: ${l10n.cannotFlashSafety}\n${safetyCheck.errors.join('\n')}');
-        setState(() { _isProcessing = false; _mdbFlashStarted = false; });
+        _blockMdbFlash();
         return;
       }
 
@@ -2694,7 +2727,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _setStatus(diagnosis);
       setState(() => _isProcessing = false);
 
-      if (!await _shouldRetry('mdbFlash')) return;
+      if (!await _shouldRetry('mdbFlash')) {
+        _blockMdbFlash();
+        return;
+      }
 
       // Wait for the device to come back before re-running the flash —
       // otherwise we burn retries against a stale path that can't be
@@ -2705,7 +2741,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         _setStatus('$diagnosis\n\nDevice did not come back within 60s. '
             'Replug the USB (or, as a last resort, power-cycle the MDB) '
             'and use the manual retry button.');
-        setState(() => _mdbFlashStarted = false);
+        _blockMdbFlash();
         return;
       }
       setState(() => _mdbFlashStarted = false);
@@ -2882,6 +2918,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       setState(() {
         _isProcessing = false;
         _mdbFlashStarted = false;
+        _mdbFlashBlocked = false;
       });
       _setPhase(InstallerPhase.mdbFlash);
       return;
