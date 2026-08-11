@@ -2586,6 +2586,108 @@ class _InstallerScreenState extends State<InstallerScreen> {
     );
   }
 
+  /// Ask the user to confirm the target before writing, for the case where
+  /// Windows could not tell us whether that disk carries boot or system.
+  ///
+  /// Only the detected disk can be accepted. The other USB disks are shown so
+  /// the user has something to compare against, and internal disks are left
+  /// out entirely so nothing they could mistake for their own drive appears.
+  Future<bool> _confirmFlashTarget(UsbDevice target, String devicePath) async {
+    final l10n = AppLocalizations.of(context)!;
+    final others = (await _usbDetector.listUsbDisks(detectedPath: devicePath))
+        .where((disk) => !disk.isDetectedTarget)
+        .toList();
+    if (!mounted) return false;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.confirmFlashTargetTitle),
+        content: SizedBox(
+          width: 480,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l10n.confirmFlashTargetBody),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: kAccent),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${target.name}  ${target.sizeFormatted}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      SelectableText(
+                        devicePath,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: kTextPrimary.withValues(alpha: 0.7),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        l10n.confirmFlashTargetDetected,
+                        style: const TextStyle(fontSize: 12, color: kAccent),
+                      ),
+                    ],
+                  ),
+                ),
+                if (others.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    l10n.confirmFlashTargetOthers,
+                    style: TextStyle(color: kTextPrimary.withValues(alpha: 0.7)),
+                  ),
+                  const SizedBox(height: 4),
+                  for (final disk in others)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        '${disk.model}  ${disk.sizeFormatted}  ${disk.path}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: kTextPrimary.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ),
+                ],
+                const SizedBox(height: 16),
+                Text(
+                  l10n.confirmFlashTargetInternalHidden,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: kTextPrimary.withValues(alpha: 0.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.cancelButton),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.confirmFlashTargetAccept),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
   /// Stop the flash and hand control back to the user.
   ///
   /// The build path starts the flash whenever it is neither running nor
@@ -2662,6 +2764,24 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // genuinely cannot confirm what we are about to write to, and the
       // guard below refuses -- which is the outcome we want.
       final target = _device ?? _usbDetector.currentDevice;
+
+      // Windows could not say whether this disk carries boot or system. The
+      // detector already matched it by vendor and product, so put that to the
+      // user rather than guessing in either direction.
+      if (target != null &&
+          target.systemDiskVerdict == SystemDiskVerdict.unknown) {
+        final confirmed = await _confirmFlashTarget(target, devicePath);
+        if (!mounted) return;
+        if (!confirmed) {
+          debugPrint('Flash: user did not confirm $devicePath as the target');
+          _setCritical(false);
+          _setStatus(l10n.flashTargetNotConfirmed);
+          _blockMdbFlash();
+          return;
+        }
+        debugPrint('Flash: user confirmed $devicePath as the target');
+      }
+
       final safetyCheck = flashService.validateDevice(
         devicePath: devicePath,
         sizeBytes: target?.sizeBytes,

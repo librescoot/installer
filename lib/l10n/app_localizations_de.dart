@@ -789,6 +789,102 @@ class AppLocalizationsDe extends AppLocalizations {
   String get cancelButton => 'Abbrechen';
 
   @override
+  String get confirmFlashTargetTitle => 'Ziel-Laufwerk bestätigen';
+
+  @override
+  String get confirmFlashTargetBody =>
+      'Windows konnte nicht bestätigen, dass dieses Laufwerk nicht dein Systemlaufwerk ist. Prüfe das Ziel vor dem Flashen.';
+
+  @override
+  String get confirmFlashTargetDetected => 'Erkanntes Librescoot-Gerät';
+
+  @override
+  String get confirmFlashTargetOthers =>
+      'Weitere USB-Laufwerke an diesem Rechner:';
+
+  @override
+  String get confirmFlashTargetInternalHidden =>
+      'Interne Laufwerke werden nicht angezeigt.';
+
+  @override
+  String get confirmFlashTargetAccept => 'Dieses Laufwerk flashen';
+
+  @override
+  String get flashTargetNotConfirmed =>
+      'Flashen abgebrochen: Das Ziel-Laufwerk wurde nicht bestätigt.';
+
+  @override
+  String get flashDeviceButton => 'Gerät flashen';
+
+  @override
+  String get installingUsbDriver => 'USB-Treiber wird installiert...';
+
+  @override
+  String get usbDriverInstalled => 'USB-Treiber erfolgreich installiert';
+
+  @override
+  String driverInstallFailed(String error) {
+    return 'Treiber-Installation fehlgeschlagen: $error';
+  }
+
+  @override
+  String get autoLoadedFirmware =>
+      'Firmware automatisch aus dem aktuellen Verzeichnis geladen';
+
+  @override
+  String get deviceDisconnected =>
+      'Gerät getrennt. Neu verbinden oder auf Mass-Storage-Modus warten.';
+
+  @override
+  String get waitingForMdbNetwork => 'Warte auf MDB-Netzwerkstabilisierung...';
+
+  @override
+  String get findingNetworkInterface => 'Netzwerkschnittstelle wird gesucht...';
+
+  @override
+  String get couldNotFindInterface =>
+      'USB-Netzwerkschnittstelle nicht gefunden';
+
+  @override
+  String get networkConfigured => 'Netzwerk erfolgreich konfiguriert';
+
+  @override
+  String get selectFirmwareFileError =>
+      'Bitte wähle eine .sdimg.gz-, .sdimg-, .wic.gz-, .wic- oder .img-Datei';
+
+  @override
+  String errorOpeningFilePicker(String error) {
+    return 'Fehler beim Öffnen der Dateiauswahl: $error';
+  }
+
+  @override
+  String get configuringBootloader =>
+      'Bootloader wird für Mass-Storage-Modus konfiguriert...';
+
+  @override
+  String get rebootingDevice => 'Gerät wird neu gestartet...';
+
+  @override
+  String get waitingForMassStorage =>
+      'Warte auf Neustart im Mass-Storage-Modus...';
+
+  @override
+  String get deviceReadyForFlashing => 'Gerät bereit zum Flashen';
+
+  @override
+  String get selectFirmwareDialogTitle => 'Firmware-Image auswählen';
+
+  @override
+  String connectedTo(String host, String firmware, String serial) {
+    return 'Verbunden mit: $host\nFirmware: $firmware\nSeriennummer: $serial';
+  }
+
+  @override
+  String connectedToFirmware(String version) {
+    return 'Verbunden mit $version';
+  }
+
+  @override
   String get unknown => 'Unbekannt';
 
   @override

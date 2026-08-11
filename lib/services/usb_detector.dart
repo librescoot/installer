@@ -2,6 +2,48 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 
+/// Outcome of asking the OS whether a disk carries boot or system.
+enum SystemDiskVerdict {
+  /// The storage stack confirmed it carries neither.
+  notSystem,
+
+  /// It carries boot or system, or we refuse to probe it at all. Never flash.
+  systemDisk,
+
+  /// The probe could not answer. The user confirms the target instead.
+  unknown,
+}
+
+/// One disk as the OS enumerates it, for the dialog that asks the user to
+/// confirm the flash target when the system-disk probe came back unknown.
+class UsbDiskInfo {
+  final int index;
+  final String model;
+  final int? sizeBytes;
+  final String bus;
+  final String path;
+
+  /// True for the disk the detector matched by its USB vendor and product,
+  /// which is the only one the installer offers to write to.
+  final bool isDetectedTarget;
+
+  UsbDiskInfo({
+    required this.index,
+    required this.model,
+    required this.sizeBytes,
+    required this.bus,
+    required this.path,
+    this.isDetectedTarget = false,
+  });
+
+  String get sizeFormatted {
+    final bytes = sizeBytes;
+    if (bytes == null) return 'Unknown';
+    final gb = bytes / (1024 * 1024 * 1024);
+    return '${gb.toStringAsFixed(1)} GB';
+  }
+}
+
 /// USB device information with safety metadata
 class UsbDevice {
   final String id;
@@ -17,8 +59,8 @@ class UsbDevice {
   /// Whether this is definitely a removable device
   final bool isRemovable;
 
-  /// Whether this device is the system/boot disk (DANGER!)
-  final bool isSystemDisk;
+  /// What the OS said about this device being the system/boot disk (DANGER!)
+  final SystemDiskVerdict systemDiskVerdict;
 
   UsbDevice({
     required this.id,
@@ -29,8 +71,12 @@ class UsbDevice {
     required this.mode,
     this.sizeBytes,
     this.isRemovable = false,
-    this.isSystemDisk = false,
+    this.systemDiskVerdict = SystemDiskVerdict.notSystem,
   });
+
+  /// Only a confirmed system disk blocks the flash outright. An unknown
+  /// verdict is put to the user instead of guessing either way.
+  bool get isSystemDisk => systemDiskVerdict == SystemDiskVerdict.systemDisk;
 
   bool get isLibrescootDevice => vendorId == 0x0525;
 
@@ -44,7 +90,7 @@ class UsbDevice {
   @override
   String toString() => 'UsbDevice($name, VID=${vendorId.toRadixString(16)}, '
       'PID=${productId.toRadixString(16)}, mode=$mode, size=$sizeFormatted, '
-      'removable=$isRemovable, systemDisk=$isSystemDisk)';
+      'removable=$isRemovable, systemDisk=${systemDiskVerdict.name})';
 }
 
 /// Device operating modes
@@ -110,7 +156,7 @@ class UsbDetector {
           device?.path != _lastDevice?.path ||
           device?.sizeBytes != _lastDevice?.sizeBytes ||
           device?.isRemovable != _lastDevice?.isRemovable ||
-          device?.isSystemDisk != _lastDevice?.isSystemDisk;
+          device?.systemDiskVerdict != _lastDevice?.systemDiskVerdict;
       if (changed) {
         _lastDevice = device;
         if (device == null) {
@@ -288,7 +334,7 @@ if ($dev) { "$($dev.Model)`t$($dev.PNPDeviceID)`t$($dev.DeviceID)`t$($dev.Size)`
           final isRemovable = mediaType.toLowerCase().contains('removable');
 
           // CRITICAL: Check if this might be a system disk
-          final isSystemDisk = await _isWindowsSystemDisk(deviceId);
+          final verdict = await _windowsSystemDiskVerdict(deviceId);
 
           return UsbDevice(
             id: pnpId,
@@ -299,7 +345,7 @@ if ($dev) { "$($dev.Model)`t$($dev.PNPDeviceID)`t$($dev.DeviceID)`t$($dev.Size)`
             mode: DeviceMode.massStorage,
             sizeBytes: sizeBytes,
             isRemovable: isRemovable,
-            isSystemDisk: isSystemDisk,
+            systemDiskVerdict: verdict,
           );
       }
     } catch (_) {}
@@ -400,17 +446,17 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
   /// directly; the CIM associator walk is there for the rare machine whose
   /// Storage module is missing, and compares against the actual system drive
   /// instead of assuming it is C:.
-  Future<bool> _isWindowsSystemDisk(String deviceId) async {
+  Future<SystemDiskVerdict> _windowsSystemDiskVerdict(String deviceId) async {
     // Anything we cannot name a disk number for is not something we are
     // willing to write to.
     final diskMatch = RegExp(r'PHYSICALDRIVE(\d+)').firstMatch(deviceId);
-    if (diskMatch == null) return true;
+    if (diskMatch == null) return SystemDiskVerdict.systemDisk;
 
     final diskNumber = int.parse(diskMatch.group(1)!);
 
     // Disk 0 is the boot disk on essentially every Windows install, and the
     // path guard in FlashService refuses it too. Never probe, never flash.
-    if (diskNumber == 0) return true;
+    if (diskNumber == 0) return SystemDiskVerdict.systemDisk;
 
     try {
       final result = await Process.run(
@@ -441,23 +487,78 @@ try {
       );
 
       final verdict = result.stdout.toString().trim().toLowerCase();
-      if (result.exitCode == 0 && verdict == 'system') return true;
-      if (result.exitCode == 0 && verdict == 'ok') return false;
+      if (result.exitCode == 0 && verdict == 'system') {
+        return SystemDiskVerdict.systemDisk;
+      }
+      if (result.exitCode == 0 && verdict == 'ok') {
+        return SystemDiskVerdict.notSystem;
+      }
 
-      // An inconclusive probe used to report every disk as the system disk,
-      // which blocks the whole installer with nothing the user can do about
-      // it. Let it through: this disk is not disk 0, it matched the gadget's
-      // PNP ID to get here, and FlashService still has to agree on vendor,
-      // product, size and path before anything is written.
       debugPrint(
         'USB detector: system-disk check inconclusive for $deviceId '
         '(exit ${result.exitCode}, output "$verdict"), '
-        'relying on the vendor, product, size and path guards',
+        'asking the user to confirm the target',
       );
-      return false;
+      return SystemDiskVerdict.unknown;
     } catch (e) {
       debugPrint('USB detector: system-disk check failed for $deviceId: $e');
-      return false;
+      return SystemDiskVerdict.unknown;
+    }
+  }
+
+  /// USB-attached disks the OS can see, for the confirmation dialog.
+  ///
+  /// Deliberately narrow: disk 0 and everything on an internal bus is left
+  /// out, so nothing the user could mistake for their own drive is offered.
+  /// [detectedPath] marks the disk the detector matched by vendor and
+  /// product, which is the only one the installer will write to.
+  Future<List<UsbDiskInfo>> listUsbDisks({String? detectedPath}) async {
+    if (!Platform.isWindows) return const [];
+    try {
+      final result = await Process.run(
+        'powershell',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          r'''
+Get-CimInstance Win32_DiskDrive | ForEach-Object {
+  "$($_.Index)`t$($_.Model)`t$($_.Size)`t$($_.InterfaceType)`t$($_.DeviceID)`t$($_.PNPDeviceID)"
+}
+''',
+        ],
+      );
+      if (result.exitCode != 0) return const [];
+
+      final disks = <UsbDiskInfo>[];
+      for (final line in result.stdout.toString().split('\n')) {
+        final parts = line.trim().split('\t');
+        if (parts.length < 6) continue;
+
+        final index = int.tryParse(parts[0].trim());
+        if (index == null || index == 0) continue;
+
+        final bus = parts[3].trim();
+        final pnpId = parts[5].trim().toUpperCase();
+        final isUsb = bus.toUpperCase() == 'USB' || pnpId.startsWith('USBSTOR');
+        if (!isUsb) continue;
+
+        final devicePath = parts[4].trim();
+        disks.add(UsbDiskInfo(
+          index: index,
+          model: parts[1].trim().isEmpty ? 'Disk $index' : parts[1].trim(),
+          sizeBytes: int.tryParse(parts[2].trim()),
+          bus: bus.isEmpty ? 'USB' : bus,
+          path: devicePath,
+          isDetectedTarget: detectedPath != null &&
+              devicePath.toUpperCase() == detectedPath.toUpperCase(),
+        ));
+      }
+      disks.sort((a, b) => a.index.compareTo(b.index));
+      return disks;
+    } catch (e) {
+      debugPrint('USB detector: could not enumerate USB disks: $e');
+      return const [];
     }
   }
 
@@ -523,7 +624,9 @@ try {
             mode: DeviceMode.massStorage,
             sizeBytes: diskInfo?['size'],
             isRemovable: diskInfo?['removable'] ?? false,
-            isSystemDisk: diskInfo?['systemDisk'] ?? false,
+            systemDiskVerdict: (diskInfo?['systemDisk'] ?? false)
+                ? SystemDiskVerdict.systemDisk
+                : SystemDiskVerdict.notSystem,
           );
         }
 

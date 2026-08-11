@@ -314,6 +314,54 @@
   "safetyCheckFailed": "Safety Check Failed",
   "cannotFlashSafety": "Cannot flash this device due to safety concerns:",
   "cancelButton": "Cancel",
+  "confirmFlashTargetTitle": "Confirm the flash target",
+  "confirmFlashTargetBody": "Windows could not confirm this disk is not your system disk. Check the target before flashing.",
+  "confirmFlashTargetDetected": "Detected Librescoot device",
+  "confirmFlashTargetOthers": "Other USB disks on this machine:",
+  "confirmFlashTargetInternalHidden": "Internal disks are not shown.",
+  "confirmFlashTargetAccept": "Flash this disk",
+  "flashTargetNotConfirmed": "Flashing cancelled: the target disk was not confirmed.",
+  "flashDeviceButton": "Flash Device",
+  "installingUsbDriver": "Installing USB driver...",
+  "usbDriverInstalled": "USB driver installed successfully",
+  "driverInstallFailed": "Driver install failed: {error}",
+  "@driverInstallFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "autoLoadedFirmware": "Auto-loaded firmware from current directory",
+  "deviceDisconnected": "Device disconnected. Reconnect/wait for mass storage mode.",
+  "waitingForMdbNetwork": "Waiting for MDB network to settle...",
+  "findingNetworkInterface": "Finding network interface...",
+  "couldNotFindInterface": "Could not find USB network interface",
+  "networkConfigured": "Network configured successfully",
+  "selectFirmwareFileError": "Please select a .sdimg.gz, .sdimg, .wic.gz, .wic, or .img file",
+  "errorOpeningFilePicker": "Error opening file picker: {error}",
+  "@errorOpeningFilePicker": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "configuringBootloader": "Configuring bootloader for mass storage mode...",
+  "rebootingDevice": "Rebooting device...",
+  "waitingForMassStorage": "Waiting for device to reboot in mass storage mode...",
+  "deviceReadyForFlashing": "Device ready for flashing",
+  "selectFirmwareDialogTitle": "Select Firmware Image",
+  "connectedTo": "Connected to: {host}\nFirmware: {firmware}\nSerial: {serial}",
+  "@connectedTo": {
+    "placeholders": {
+      "host": { "type": "String" },
+      "firmware": { "type": "String" },
+      "serial": { "type": "String" }
+    }
+  },
+  "connectedToFirmware": "Connected to {version}",
+  "@connectedToFirmware": {
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
   "unknown": "Unknown",
   "backingUpConfig": "Backing up device configuration...",
   "configBackedUp": "Device configuration backed up",

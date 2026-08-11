@@ -1466,6 +1466,162 @@ abstract class AppLocalizations {
   /// **'Cancel'**
   String get cancelButton;
 
+  /// No description provided for @confirmFlashTargetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm the flash target'**
+  String get confirmFlashTargetTitle;
+
+  /// No description provided for @confirmFlashTargetBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Windows could not confirm this disk is not your system disk. Check the target before flashing.'**
+  String get confirmFlashTargetBody;
+
+  /// No description provided for @confirmFlashTargetDetected.
+  ///
+  /// In en, this message translates to:
+  /// **'Detected Librescoot device'**
+  String get confirmFlashTargetDetected;
+
+  /// No description provided for @confirmFlashTargetOthers.
+  ///
+  /// In en, this message translates to:
+  /// **'Other USB disks on this machine:'**
+  String get confirmFlashTargetOthers;
+
+  /// No description provided for @confirmFlashTargetInternalHidden.
+  ///
+  /// In en, this message translates to:
+  /// **'Internal disks are not shown.'**
+  String get confirmFlashTargetInternalHidden;
+
+  /// No description provided for @confirmFlashTargetAccept.
+  ///
+  /// In en, this message translates to:
+  /// **'Flash this disk'**
+  String get confirmFlashTargetAccept;
+
+  /// No description provided for @flashTargetNotConfirmed.
+  ///
+  /// In en, this message translates to:
+  /// **'Flashing cancelled: the target disk was not confirmed.'**
+  String get flashTargetNotConfirmed;
+
+  /// No description provided for @flashDeviceButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Flash Device'**
+  String get flashDeviceButton;
+
+  /// No description provided for @installingUsbDriver.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing USB driver...'**
+  String get installingUsbDriver;
+
+  /// No description provided for @usbDriverInstalled.
+  ///
+  /// In en, this message translates to:
+  /// **'USB driver installed successfully'**
+  String get usbDriverInstalled;
+
+  /// No description provided for @driverInstallFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Driver install failed: {error}'**
+  String driverInstallFailed(String error);
+
+  /// No description provided for @autoLoadedFirmware.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-loaded firmware from current directory'**
+  String get autoLoadedFirmware;
+
+  /// No description provided for @deviceDisconnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Device disconnected. Reconnect/wait for mass storage mode.'**
+  String get deviceDisconnected;
+
+  /// No description provided for @waitingForMdbNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for MDB network to settle...'**
+  String get waitingForMdbNetwork;
+
+  /// No description provided for @findingNetworkInterface.
+  ///
+  /// In en, this message translates to:
+  /// **'Finding network interface...'**
+  String get findingNetworkInterface;
+
+  /// No description provided for @couldNotFindInterface.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not find USB network interface'**
+  String get couldNotFindInterface;
+
+  /// No description provided for @networkConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'Network configured successfully'**
+  String get networkConfigured;
+
+  /// No description provided for @selectFirmwareFileError.
+  ///
+  /// In en, this message translates to:
+  /// **'Please select a .sdimg.gz, .sdimg, .wic.gz, .wic, or .img file'**
+  String get selectFirmwareFileError;
+
+  /// No description provided for @errorOpeningFilePicker.
+  ///
+  /// In en, this message translates to:
+  /// **'Error opening file picker: {error}'**
+  String errorOpeningFilePicker(String error);
+
+  /// No description provided for @configuringBootloader.
+  ///
+  /// In en, this message translates to:
+  /// **'Configuring bootloader for mass storage mode...'**
+  String get configuringBootloader;
+
+  /// No description provided for @rebootingDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Rebooting device...'**
+  String get rebootingDevice;
+
+  /// No description provided for @waitingForMassStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for device to reboot in mass storage mode...'**
+  String get waitingForMassStorage;
+
+  /// No description provided for @deviceReadyForFlashing.
+  ///
+  /// In en, this message translates to:
+  /// **'Device ready for flashing'**
+  String get deviceReadyForFlashing;
+
+  /// No description provided for @selectFirmwareDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Firmware Image'**
+  String get selectFirmwareDialogTitle;
+
+  /// No description provided for @connectedTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Connected to: {host}\nFirmware: {firmware}\nSerial: {serial}'**
+  String connectedTo(String host, String firmware, String serial);
+
+  /// No description provided for @connectedToFirmware.
+  ///
+  /// In en, this message translates to:
+  /// **'Connected to {version}'**
+  String connectedToFirmware(String version);
+
   /// No description provided for @unknown.
   ///
   /// In en, this message translates to:

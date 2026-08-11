@@ -783,6 +783,100 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cancelButton => 'Cancel';
 
   @override
+  String get confirmFlashTargetTitle => 'Confirm the flash target';
+
+  @override
+  String get confirmFlashTargetBody =>
+      'Windows could not confirm this disk is not your system disk. Check the target before flashing.';
+
+  @override
+  String get confirmFlashTargetDetected => 'Detected Librescoot device';
+
+  @override
+  String get confirmFlashTargetOthers => 'Other USB disks on this machine:';
+
+  @override
+  String get confirmFlashTargetInternalHidden =>
+      'Internal disks are not shown.';
+
+  @override
+  String get confirmFlashTargetAccept => 'Flash this disk';
+
+  @override
+  String get flashTargetNotConfirmed =>
+      'Flashing cancelled: the target disk was not confirmed.';
+
+  @override
+  String get flashDeviceButton => 'Flash Device';
+
+  @override
+  String get installingUsbDriver => 'Installing USB driver...';
+
+  @override
+  String get usbDriverInstalled => 'USB driver installed successfully';
+
+  @override
+  String driverInstallFailed(String error) {
+    return 'Driver install failed: $error';
+  }
+
+  @override
+  String get autoLoadedFirmware =>
+      'Auto-loaded firmware from current directory';
+
+  @override
+  String get deviceDisconnected =>
+      'Device disconnected. Reconnect/wait for mass storage mode.';
+
+  @override
+  String get waitingForMdbNetwork => 'Waiting for MDB network to settle...';
+
+  @override
+  String get findingNetworkInterface => 'Finding network interface...';
+
+  @override
+  String get couldNotFindInterface => 'Could not find USB network interface';
+
+  @override
+  String get networkConfigured => 'Network configured successfully';
+
+  @override
+  String get selectFirmwareFileError =>
+      'Please select a .sdimg.gz, .sdimg, .wic.gz, .wic, or .img file';
+
+  @override
+  String errorOpeningFilePicker(String error) {
+    return 'Error opening file picker: $error';
+  }
+
+  @override
+  String get configuringBootloader =>
+      'Configuring bootloader for mass storage mode...';
+
+  @override
+  String get rebootingDevice => 'Rebooting device...';
+
+  @override
+  String get waitingForMassStorage =>
+      'Waiting for device to reboot in mass storage mode...';
+
+  @override
+  String get deviceReadyForFlashing => 'Device ready for flashing';
+
+  @override
+  String get selectFirmwareDialogTitle => 'Select Firmware Image';
+
+  @override
+  String connectedTo(String host, String firmware, String serial) {
+    return 'Connected to: $host\nFirmware: $firmware\nSerial: $serial';
+  }
+
+  @override
+  String connectedToFirmware(String version) {
+    return 'Connected to $version';
+  }
+
+  @override
   String get unknown => 'Unknown';
 
   @override
