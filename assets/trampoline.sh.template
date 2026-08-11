@@ -213,11 +213,22 @@ signal_error_stop() {
   done
 }
 
+# Where the chipidea role-switch file lives depends on the MDB kernel:
+# linux-imx 5.4 (pre-1.2.0 images) creates the chipidea debugfs dir at the
+# debugfs root, linux-fslc 6.12 (wrynose) under usb/. Both kernels also
+# expose the `role` sysfs device attribute, which needs no debugfs at all,
+# as a final fallback. The embedded rescue scripts re-probe on their own
+# because they run standalone (single-quoted systemd-run / staged files).
+for ROLE_PATH in /sys/kernel/debug/ci_hdrc.0/role \
+                 /sys/kernel/debug/usb/ci_hdrc.0/role \
+                 /sys/bus/platform/devices/ci_hdrc.0/role; do
+  [ -f "$ROLE_PATH" ] && break
+done
+
 # Chipidea role writes can also BLOCK (not just EBUSY) if the unbind
 # wedges on a dying USB device. A blocked write would freeze whoever
 # called it, so give every role write a hard 15s ceiling where a timeout
 # binary exists (busybox >= 1.30 and coreutils both take SECS PROG).
-ROLE_PATH=/sys/kernel/debug/ci_hdrc.0/role
 role_write() {
   if command -v timeout >/dev/null 2>&1; then
     timeout 15 sh -c "echo $1 > $ROLE_PATH" 2>/dev/null
@@ -234,7 +245,7 @@ role_write() {
 # times. Returns 0 only on confirmed gadget mode.
 restore_gadget() {
   log "Restoring gadget mode..."
-  if [ "$(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)" = "gadget" ] \
+  if [ "$(cat "$ROLE_PATH" 2>/dev/null)" = "gadget" ] \
       && ifconfig usb0 2>/dev/null | grep -q '192\.168\.7\.1'; then
     log "  already in gadget mode with usb0 up"
     return 0
@@ -250,7 +261,7 @@ restore_gadget() {
     sleep 1
     ifconfig usb0 192.168.7.1 netmask 255.255.255.0 up 2>/dev/null || true
     sleep 1
-    local role="$(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)"
+    local role="$(cat "$ROLE_PATH" 2>/dev/null)"
     if [ "$role" = "gadget" ] && ifconfig usb0 2>/dev/null | grep -q '192\.168\.7\.1'; then
       log "  gadget restored (attempt $attempt), UDC: $(cat /sys/class/udc/ci_hdrc.0/state 2>/dev/null)"
       return 0
@@ -280,8 +291,13 @@ gadget_rescue_start() {
   systemd-run --unit="$GADGET_RESCUE_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
     LOG=/data/installer/trampoline.log
     DEADLINE=$(( $(date +%s) + 240 ))
+    for RP in /sys/kernel/debug/ci_hdrc.0/role \
+              /sys/kernel/debug/usb/ci_hdrc.0/role \
+              /sys/bus/platform/devices/ci_hdrc.0/role; do
+      [ -f "$RP" ] && break
+    done
     while :; do
-      ROLE="$(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)"
+      ROLE="$(cat "$RP" 2>/dev/null)"
       if [ "$ROLE" = "gadget" ] && ifconfig usb0 2>/dev/null | grep -q "192\.168\.7\.1"; then
         if cat /sys/class/udc/ci_hdrc.0/state 2>/dev/null | grep -q configured; then
           echo "$(date "+%H:%M:%S") gadget-rescue: laptop enumerated, done" >> "$LOG"
@@ -293,9 +309,9 @@ gadget_rescue_start() {
         rmmod g_ether 2>/dev/null
         sleep 1
         if command -v timeout >/dev/null 2>&1; then
-          timeout 15 sh -c "echo gadget > /sys/kernel/debug/ci_hdrc.0/role" 2>/dev/null
+          timeout 15 sh -c "echo gadget > $RP" 2>/dev/null
         else
-          echo gadget > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null
+          echo gadget > "$RP" 2>/dev/null
         fi
         sleep 1
         modprobe g_ether 2>/dev/null
@@ -304,7 +320,7 @@ gadget_rescue_start() {
         sleep 2
       fi
       if [ "$(date +%s)" -ge "$DEADLINE" ]; then
-        ROLE="$(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)"
+        ROLE="$(cat "$RP" 2>/dev/null)"
         if [ "$ROLE" = "gadget" ]; then
           echo "$(date "+%H:%M:%S") gadget-rescue: gadget up, laptop never enumerated, leaving as-is" >> "$LOG"
           exit 0
@@ -342,9 +358,14 @@ TRAMPOLINE_WATCHDOG_UNIT="librescoot-trampoline-watchdog"
 trampoline_watchdog_start() {
   systemctl stop "${TRAMPOLINE_WATCHDOG_UNIT}.service" 2>/dev/null
   systemd-run --unit="$TRAMPOLINE_WATCHDOG_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
+    for RP in /sys/kernel/debug/ci_hdrc.0/role \
+              /sys/kernel/debug/usb/ci_hdrc.0/role \
+              /sys/bus/platform/devices/ci_hdrc.0/role; do
+      [ -f "$RP" ] && break
+    done
     while :; do
       sleep 60
-      [ "$(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)" = "host" ] || continue
+      [ "$(cat "$RP" 2>/dev/null)" = "host" ] || continue
       [ -n "$(find /data/installer/trampoline.log -mmin +15 2>/dev/null)" ] || continue
       /bin/sh /data/installer/watchdog-recover.sh
       exit 0
@@ -768,6 +789,12 @@ LOG="$INSTALLER_DIR/trampoline.log"
 STATUS="$INSTALLER_DIR/trampoline-status"
 log() { echo "$(date '+%H:%M:%S') watchdog: $1" >> "$LOG"; }
 
+for ROLE_PATH in /sys/kernel/debug/ci_hdrc.0/role \
+                 /sys/kernel/debug/usb/ci_hdrc.0/role \
+                 /sys/bus/platform/devices/ci_hdrc.0/role; do
+  [ -f "$ROLE_PATH" ] && break
+done
+
 log "trampoline stalled in host mode, attempting recovery"
 echo "error: installation stalled in USB host mode and was recovered by the watchdog. Please retry the install." > "$STATUS"
 cat "$LOG" >> "$STATUS"
@@ -782,16 +809,16 @@ while [ $attempt -lt 3 ]; do
   rmmod g_ether 2>/dev/null
   sleep 1
   if command -v timeout >/dev/null 2>&1; then
-    timeout 15 sh -c "echo gadget > /sys/kernel/debug/ci_hdrc.0/role" 2>/dev/null
+    timeout 15 sh -c "echo gadget > $ROLE_PATH" 2>/dev/null
   else
-    echo gadget > /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null
+    echo gadget > "$ROLE_PATH" 2>/dev/null
   fi
   sleep 1
   modprobe g_ether 2>/dev/null
   sleep 1
   ifconfig usb0 192.168.7.1 netmask 255.255.255.0 up 2>/dev/null
   sleep 1
-  if [ "$(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)" = "gadget" ] \
+  if [ "$(cat "$ROLE_PATH" 2>/dev/null)" = "gadget" ] \
       && ifconfig usb0 2>/dev/null | grep -q '192\.168\.7\.1'; then
     log "gadget restored in place (attempt $attempt)"
     systemctl stop librescoot-bootled-blink.service 2>/dev/null
@@ -1107,7 +1134,7 @@ sanity_check_target() {
 do_dbc_flash_round() {
   # Step 5: Switch MDB to USB host (may already be in host mode if DBC was in UMS)
   step_begin "Step 5: switch MDB to USB host mode"
-  CURRENT_ROLE=$(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)
+  CURRENT_ROLE=$(cat "$ROLE_PATH" 2>/dev/null)
   if [ "$CURRENT_ROLE" != "host" ]; then
     rmmod g_ether 2>/dev/null || true
     sleep 1
@@ -1120,7 +1147,7 @@ do_dbc_flash_round() {
   else
     log "  already in host mode"
   fi
-  log "  role: $(cat /sys/kernel/debug/ci_hdrc.0/role 2>/dev/null)"
+  log "  role: $(cat "$ROLE_PATH" 2>/dev/null)"
   log "  lsusb: $(lsusb 2>/dev/null | grep 0525 || echo 'no 0525')"
   step_end
 

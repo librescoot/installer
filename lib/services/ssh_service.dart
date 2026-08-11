@@ -345,7 +345,12 @@ class SshService {
     String? serial;
     try {
       // OCOTP UID is (CFG1 << 32) | CFG0 — high word first when concatenated.
-      final result = await runCommand('cat /sys/fsl_otp/HW_OCOTP_CFG1 /sys/fsl_otp/HW_OCOTP_CFG0 2>/dev/null');
+      // fsl_otp is the NXP vendor driver (stock 4.x and librescoot 5.4
+      // kernels); mainline kernels (1.2.0+ MDBs on linux-fslc 6.12) expose
+      // the same value preformatted at /sys/devices/soc0/serial_number.
+      final result = await runCommand(
+          'cat /sys/fsl_otp/HW_OCOTP_CFG1 /sys/fsl_otp/HW_OCOTP_CFG0 2>/dev/null'
+          ' || cat /sys/devices/soc0/serial_number 2>/dev/null');
       serial = _parseSerial(result);
       if (serial != null) {
         debugPrint('SSH: parsed serial $serial');
@@ -832,8 +837,12 @@ class SshService {
 
   String? _parseSerial(String raw) {
     final matches = RegExp(r'0x[0-9a-fA-F]+').allMatches(raw).map((m) => m.group(0)!).toList();
-    if (matches.isEmpty) return null;
-    return matches.map((part) => part.replaceFirst(RegExp(r'^0x', caseSensitive: false), '')).join().toLowerCase();
+    if (matches.isNotEmpty) {
+      return matches.map((part) => part.replaceFirst(RegExp(r'^0x', caseSensitive: false), '')).join().toLowerCase();
+    }
+    // soc0/serial_number is a bare 16-digit uppercase hex word, no 0x prefix.
+    final bare = RegExp(r'^[0-9a-fA-F]{16}$').firstMatch(raw.trim());
+    return bare?.group(0)!.toLowerCase();
   }
 
   /// Disconnect from device. Clears the cached auth so any subsequent

@@ -8,8 +8,33 @@ on:
   workflow_dispatch:
 
 jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Pure Dart, no platform channels and no bundled tooling, so one runner
+      # covers all three targets. The suite guards the disk-selection and
+      # flash-safety paths, which is where a wrong answer costs somebody their
+      # drive, so the builds below wait on it.
+      - name: Run tests
+        run: flutter test
+
   build:
     name: Build (${{ matrix.target }})
+    needs: test
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -30,6 +55,16 @@ jobs:
             target: windows
             platform: windows
             arch: x64
+
+    # The `secrets` context is not available in step-level `if:` conditions,
+    # so surface the signing secrets as booleans here and gate on `env`.
+    # Signing needs both halves, the certificate to import and the team id that
+    # names the identity, so gate on them together: importing a certificate no
+    # step can then use, or running codesign against an identity that was never
+    # imported, fails the job just as hard as no gate at all.
+    env:
+      HAS_SIGNING: ${{ secrets.MACOS_CERTIFICATE != '' && secrets.APPLE_TEAM_ID != '' }}
+      HAS_NOTARY_KEY: ${{ secrets.APPLE_API_KEY != '' }}
 
     steps:
       - name: Checkout
@@ -107,8 +142,11 @@ jobs:
             || echo "warning: latest.json fetch failed, keeping committed snapshot"
           ls -l assets/latest.json.fallback
 
+      # Signing, notarization and stapling are skipped when their secrets are
+      # absent, so forks (and PRs from forks) still produce an unsigned but
+      # runnable build instead of failing the whole macOS job.
       - name: Import signing certificate
-        if: matrix.target == 'macos'
+        if: matrix.target == 'macos' && env.HAS_SIGNING == 'true'
         env:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
@@ -139,7 +177,7 @@ jobs:
         run: flutter build windows --release --dart-define=AUTH_KEY=${{ secrets.AUTH_KEY }} --dart-define=APP_VERSION=${{ steps.version.outputs.describe }}
 
       - name: Sign macOS app
-        if: matrix.target == 'macos'
+        if: matrix.target == 'macos' && env.HAS_SIGNING == 'true'
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
@@ -187,7 +225,7 @@ jobs:
           rm -rf "$DMG_DIR"
 
       - name: Notarize and staple DMG
-        if: matrix.target == 'macos'
+        if: matrix.target == 'macos' && env.HAS_SIGNING == 'true' && env.HAS_NOTARY_KEY == 'true'
         env:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}

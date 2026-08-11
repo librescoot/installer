@@ -1254,6 +1254,14 @@ class AppLocalizationsDe extends AppLocalizations {
   String get logDebugShell => 'Log & Debug-Shell';
 
   @override
+  String internalError(String error) {
+    return 'Interner Fehler: $error';
+  }
+
+  @override
+  String get copyLog => 'Log kopieren';
+
+  @override
   String get copyToClipboard => 'In Zwischenablage kopieren';
 
   @override
@@ -1372,14 +1380,6 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get usbInfoCollectFailed =>
       'USB-Geräteinfos konnten nicht gesammelt werden';
-
-  @override
-  String internalError(String error) {
-    return 'Interner Fehler: $error';
-  }
-
-  @override
-  String get copyLog => 'Log kopieren';
 
   @override
   String get tileLabelMaps => 'Karten';

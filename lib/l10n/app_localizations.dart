@@ -2216,6 +2216,18 @@ abstract class AppLocalizations {
   /// **'Log & Debug Shell'**
   String get logDebugShell;
 
+  /// No description provided for @internalError.
+  ///
+  /// In en, this message translates to:
+  /// **'Internal error: {error}'**
+  String internalError(String error);
+
+  /// No description provided for @copyLog.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy log'**
+  String get copyLog;
+
   /// No description provided for @copyToClipboard.
   ///
   /// In en, this message translates to:
@@ -2425,18 +2437,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to collect USB info'**
   String get usbInfoCollectFailed;
-
-  /// No description provided for @internalError.
-  ///
-  /// In en, this message translates to:
-  /// **'Internal error: {error}'**
-  String internalError(String error);
-
-  /// No description provided for @copyLog.
-  ///
-  /// In en, this message translates to:
-  /// **'Copy log'**
-  String get copyLog;
 
   /// No description provided for @tileLabelMaps.
   ///
