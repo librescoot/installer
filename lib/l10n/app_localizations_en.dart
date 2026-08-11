@@ -1515,6 +1515,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get copyToClipboard => 'Copy to clipboard';
 
   @override
+  String logFilePath(String path) {
+    return 'Log file: $path';
+  }
+
+  @override
+  String get revealLogFile => 'Show in folder';
+
+  @override
   String get debugCommandHint => 'Run a command in the installer context...';
 
   @override

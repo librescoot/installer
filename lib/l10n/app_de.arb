@@ -470,6 +470,8 @@
   "internalError": "Interner Fehler: {error}",
   "copyLog": "Log kopieren",
   "copyToClipboard": "In Zwischenablage kopieren",
+  "logFilePath": "Logdatei: {path}",
+  "revealLogFile": "Im Ordner anzeigen",
   "debugCommandHint": "Befehl im Installer-Kontext ausführen...",
   "mbOnDisk": "{size} MB belegt",
   "beforeImageLabel": "Vorher",

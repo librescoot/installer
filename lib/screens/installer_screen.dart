@@ -6,7 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../main.dart' show installerLog, launchArgs, showElevationRequiredDialog;
+import '../main.dart'
+    show appendLog, appendLogRaw, installerLog, launchArgs, showElevationRequiredDialog;
 import '../l10n/app_localizations.dart';
 import '../models/download_state.dart';
 import '../models/installer_phase.dart';
@@ -517,9 +518,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   void _setStatus(String message, {double? progress}) {
-    if (message.isNotEmpty) {
-      installerLog.add('${DateTime.now().toIso8601String().substring(11, 19)} $message');
-    }
+    if (message.isNotEmpty) appendLog(message);
     setState(() {
       _statusMessage = message;
       if (progress != null) _progress = progress;
@@ -549,6 +548,25 @@ class _InstallerScreenState extends State<InstallerScreen> {
                     ),
                   ),
                 ),
+                if (LogService.filePath != null)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SelectableText(
+                          l10n.logFilePath(LogService.filePath!),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: kTextPrimary.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => LogService.revealInFileManager(),
+                        icon: const Icon(Icons.folder_open, size: 16),
+                        label: Text(l10n.revealLogFile),
+                      ),
+                    ],
+                  ),
                 const Divider(),
                 Row(
                   children: [
@@ -563,17 +581,17 @@ class _InstallerScreenState extends State<InstallerScreen> {
                         ),
                         onSubmitted: (cmd) async {
                           if (cmd.trim().isEmpty) return;
-                          installerLog.add('> $cmd');
+                          appendLogRaw('> $cmd');
                           setDialogState(() {});
                           try {
                             final result = await Process.run('/bin/sh', ['-c', cmd]);
                             final out = result.stdout.toString().trim();
                             final err = result.stderr.toString().trim();
-                            if (out.isNotEmpty) installerLog.add(out);
-                            if (err.isNotEmpty) installerLog.add('stderr: $err');
-                            installerLog.add('exit: ${result.exitCode}');
+                            if (out.isNotEmpty) appendLogRaw(out);
+                            if (err.isNotEmpty) appendLogRaw('stderr: $err');
+                            appendLogRaw('exit: ${result.exitCode}');
                           } catch (e) {
-                            installerLog.add('error: $e');
+                            appendLogRaw('error: $e');
                           }
                           _debugController.clear();
                           setDialogState(() {});
@@ -585,17 +603,17 @@ class _InstallerScreenState extends State<InstallerScreen> {
                       onPressed: () async {
                         final cmd = _debugController.text;
                         if (cmd.trim().isEmpty) return;
-                        installerLog.add('> $cmd');
+                        appendLogRaw('> $cmd');
                         setDialogState(() {});
                         try {
                           final result = await Process.run('/bin/sh', ['-c', cmd]);
                           final out = result.stdout.toString().trim();
                           final err = result.stderr.toString().trim();
-                          if (out.isNotEmpty) installerLog.add(out);
-                          if (err.isNotEmpty) installerLog.add('stderr: $err');
-                          installerLog.add('exit: ${result.exitCode}');
+                          if (out.isNotEmpty) appendLogRaw(out);
+                          if (err.isNotEmpty) appendLogRaw('stderr: $err');
+                          appendLogRaw('exit: ${result.exitCode}');
                         } catch (e) {
-                          installerLog.add('error: $e');
+                          appendLogRaw('error: $e');
                         }
                         _debugController.clear();
                         setDialogState(() {});

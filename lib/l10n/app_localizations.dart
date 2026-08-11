@@ -2732,6 +2732,18 @@ abstract class AppLocalizations {
   /// **'Copy to clipboard'**
   String get copyToClipboard;
 
+  /// No description provided for @logFilePath.
+  ///
+  /// In en, this message translates to:
+  /// **'Log file: {path}'**
+  String logFilePath(String path);
+
+  /// No description provided for @revealLogFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Show in folder'**
+  String get revealLogFile;
+
   /// No description provided for @debugCommandHint.
   ///
   /// In en, this message translates to:
