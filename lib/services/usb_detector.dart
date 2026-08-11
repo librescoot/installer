@@ -915,26 +915,56 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
   /// Parse `ioreg -r -c IOUSBHostDevice -l` for the BSD disk number belonging
   /// to VID 0x0525 / PID 0xA4A5.
   ///
-  /// ioreg prints each device's properties followed, depth-first, by its
-  /// children, so a storage device's "BSD Name" always appears after that
-  /// device's own idVendor/idProduct lines and before any sibling device's.
-  /// Tracking the most recently seen VID/PID therefore attributes each disk
-  /// to the correct device even with other USB storage attached.
+  /// ioreg prints each node's properties followed, depth-first, by its
+  /// children, and indents every node by its depth in the tree. A device's
+  /// "BSD Name" therefore appears after that device's own idVendor/idProduct
+  /// lines and at a deeper indent, so a disk can be attributed to the device
+  /// that owns it even with other USB storage attached.
+  ///
+  /// The identity is dropped as soon as a node appears at or above the indent
+  /// of the node that published it, which is where that device's subtree ends.
+  /// Without that, a device publishing no descriptor properties of its own
+  /// would inherit the gadget's identity and hand the flasher its disk. An
+  /// identity that cannot be established stays unresolved, and the caller
+  /// refuses to pick a target rather than guess.
   @visibleForTesting
   int? parseIoregDiskNumber(String output) {
-    final vendorRe = RegExp(r'"idVendor"\s*=\s*(\d+)', caseSensitive: false);
-    final productRe = RegExp(r'"idProduct"\s*=\s*(\d+)', caseSensitive: false);
+    // ioreg prints these in decimal, but accept the hex form too: the rest of
+    // this file does, and misreading an id here costs a flash target.
+    final vendorRe =
+        RegExp(r'"idVendor"\s*=\s*(0x[0-9a-f]+|\d+)', caseSensitive: false);
+    final productRe =
+        RegExp(r'"idProduct"\s*=\s*(0x[0-9a-f]+|\d+)', caseSensitive: false);
     // Whole disks only: matches "disk8", never the "disk8s1" slice.
     final bsdRe = RegExp(r'"BSD Name"\s*=\s*"disk(\d+)"', caseSensitive: false);
 
     int? lastVendor;
     int? lastProduct;
+    int? nodeIndent;
+    int? identityIndent;
 
     for (final line in output.split('\n')) {
+      final header = line.indexOf('+-o ');
+      if (header >= 0) {
+        if (identityIndent != null && header <= identityIndent) {
+          lastVendor = null;
+          lastProduct = null;
+          identityIndent = null;
+        }
+        nodeIndent = header;
+        continue;
+      }
+
       final vendor = vendorRe.firstMatch(line);
-      if (vendor != null) lastVendor = int.tryParse(vendor.group(1)!);
+      if (vendor != null) {
+        lastVendor = int.tryParse(vendor.group(1)!);
+        identityIndent = nodeIndent;
+      }
       final product = productRe.firstMatch(line);
-      if (product != null) lastProduct = int.tryParse(product.group(1)!);
+      if (product != null) {
+        lastProduct = int.tryParse(product.group(1)!);
+        identityIndent = nodeIndent;
+      }
 
       final bsd = bsdRe.firstMatch(line);
       if (bsd != null &&
