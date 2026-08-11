@@ -393,43 +393,71 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
     return null;
   }
 
-  /// Check if a Windows disk is the system disk
+  /// Check if a Windows disk is the system disk.
+  ///
+  /// Asks the storage stack which disk carries boot and system, rather than
+  /// pattern-matching drive letters out of a text dump. Get-Disk answers it
+  /// directly; the CIM associator walk is there for the rare machine whose
+  /// Storage module is missing, and compares against the actual system drive
+  /// instead of assuming it is C:.
   Future<bool> _isWindowsSystemDisk(String deviceId) async {
+    // Anything we cannot name a disk number for is not something we are
+    // willing to write to.
+    final diskMatch = RegExp(r'PHYSICALDRIVE(\d+)').firstMatch(deviceId);
+    if (diskMatch == null) return true;
+
+    final diskNumber = int.parse(diskMatch.group(1)!);
+
+    // Disk 0 is the boot disk on essentially every Windows install, and the
+    // path guard in FlashService refuses it too. Never probe, never flash.
+    if (diskNumber == 0) return true;
+
     try {
-      // Get the disk number
-      final diskMatch = RegExp(r'PHYSICALDRIVE(\d+)').firstMatch(deviceId);
-      if (diskMatch == null) return true; // Err on the side of caution
-
-      final diskNumber = diskMatch.group(1);
-
-      // Check if this disk contains the Windows partition
       final result = await Process.run(
-        'wmic',
+        'powershell',
         [
-          'path',
-          'Win32_LogicalDiskToPartition',
-          'get',
-          'Antecedent,Dependent',
-          '/format:csv',
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          '''
+\$ErrorActionPreference = 'Stop'
+\$n = $diskNumber
+try {
+  \$disk = Get-Disk -Number \$n
+  if (\$disk.IsBoot -or \$disk.IsSystem) { 'system' } else { 'ok' }
+  exit
+} catch {}
+try {
+  \$drive = Get-CimInstance Win32_DiskDrive -Filter "Index=\$n"
+  if (-not \$drive) { 'unknown'; exit }
+  \$letters = \$drive |
+    Get-CimAssociatedInstance -ResultClassName Win32_DiskPartition |
+    Get-CimAssociatedInstance -ResultClassName Win32_LogicalDisk |
+    Select-Object -ExpandProperty DeviceID
+  if (\$letters -contains \$env:SystemDrive) { 'system' } else { 'ok' }
+} catch { 'unknown' }
+''',
         ],
-        // runInShell omitted: avoid cmd.exe mangling '&' in VID/PID strings
       );
 
-      if (result.exitCode != 0) return true; // Err on the side of caution
+      final verdict = result.stdout.toString().trim().toLowerCase();
+      if (result.exitCode == 0 && verdict == 'system') return true;
+      if (result.exitCode == 0 && verdict == 'ok') return false;
 
-      final output = _sanitizeWmicOutput(result.stdout.toString());
-
-      // Check if disk 0 (typically system disk)
-      if (diskNumber == '0') return true;
-
-      // Check if this disk has the C: drive
-      if (output.contains('Disk #$diskNumber') && output.contains('C:')) {
-        return true;
-      }
-
+      // An inconclusive probe used to report every disk as the system disk,
+      // which blocks the whole installer with nothing the user can do about
+      // it. Let it through: this disk is not disk 0, it matched the gadget's
+      // PNP ID to get here, and FlashService still has to agree on vendor,
+      // product, size and path before anything is written.
+      debugPrint(
+        'USB detector: system-disk check inconclusive for $deviceId '
+        '(exit ${result.exitCode}, output "$verdict"), '
+        'relying on the vendor, product, size and path guards',
+      );
       return false;
-    } catch (_) {
-      return true; // Err on the side of caution
+    } catch (e) {
+      debugPrint('USB detector: system-disk check failed for $deviceId: $e');
+      return false;
     }
   }
 
