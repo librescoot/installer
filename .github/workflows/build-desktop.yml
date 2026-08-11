@@ -33,9 +33,12 @@ jobs:
 
     # The `secrets` context is not available in step-level `if:` conditions,
     # so surface the signing secrets as booleans here and gate on `env`.
+    # Signing needs both halves, the certificate to import and the team id that
+    # names the identity, so gate on them together: importing a certificate no
+    # step can then use, or running codesign against an identity that was never
+    # imported, fails the job just as hard as no gate at all.
     env:
-      HAS_SIGNING_CERT: ${{ secrets.MACOS_CERTIFICATE != '' }}
-      HAS_TEAM_ID: ${{ secrets.APPLE_TEAM_ID != '' }}
+      HAS_SIGNING: ${{ secrets.MACOS_CERTIFICATE != '' && secrets.APPLE_TEAM_ID != '' }}
       HAS_NOTARY_KEY: ${{ secrets.APPLE_API_KEY != '' }}
 
     steps:
@@ -118,7 +121,7 @@ jobs:
       # absent, so forks (and PRs from forks) still produce an unsigned but
       # runnable build instead of failing the whole macOS job.
       - name: Import signing certificate
-        if: matrix.target == 'macos' && env.HAS_SIGNING_CERT == 'true'
+        if: matrix.target == 'macos' && env.HAS_SIGNING == 'true'
         env:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
@@ -149,7 +152,7 @@ jobs:
         run: flutter build windows --release --dart-define=AUTH_KEY=${{ secrets.AUTH_KEY }} --dart-define=APP_VERSION=${{ steps.version.outputs.describe }}
 
       - name: Sign macOS app
-        if: matrix.target == 'macos' && env.HAS_TEAM_ID == 'true'
+        if: matrix.target == 'macos' && env.HAS_SIGNING == 'true'
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
@@ -197,7 +200,7 @@ jobs:
           rm -rf "$DMG_DIR"
 
       - name: Notarize and staple DMG
-        if: matrix.target == 'macos' && env.HAS_NOTARY_KEY == 'true'
+        if: matrix.target == 'macos' && env.HAS_SIGNING == 'true' && env.HAS_NOTARY_KEY == 'true'
         env:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
