@@ -57,6 +57,47 @@ void main() {
 '''), 8);
   });
 
+  test('a device publishing no ids cannot inherit the gadget identity', () {
+    // The gadget enumerated but its media has not attached yet, and the next
+    // device declares no descriptor properties of its own. Its disk must not
+    // be read as the gadget's.
+    expect(detector.parseIoregDiskNumber('''
+  +-o USB download gadget  <class IOUSBHostDevice, id 0x1>
+    |   "idProduct" = 42149
+    |   "idVendor" = 1317
+  +-o SomeOtherDrive  <class IOUSBHostDevice, id 0x2>
+    |   "USB Product Name" = "Foreign"
+    | +-o Foreign Media  <class IOMedia, id 0x3>
+    |       "BSD Name" = "disk3"
+'''), isNull);
+  });
+
+  test('a foreign disk behind the same hub is not the gadget disk', () {
+    // The hub publishes ids, so a child that publishes none would otherwise
+    // fall back to whatever the previous child left behind.
+    expect(detector.parseIoregDiskNumber('''
++-o Hub  <class IOUSBHostDevice, id 0x1>
+  |   "idVendor" = 1111
+  |   "idProduct" = 2222
+  | +-o USB download gadget  <class IOUSBHostDevice, id 0x2>
+  |   |   "idVendor" = 1317
+  |   |   "idProduct" = 42149
+  | +-o SomeOtherDrive  <class IOUSBHostDevice, id 0x3>
+  |   | +-o Foreign Media  <class IOMedia, id 0x4>
+  |   |       "BSD Name" = "disk3"
+'''), isNull);
+  });
+
+  test('reads hex-formatted ids', () {
+    expect(detector.parseIoregDiskNumber('''
+  +-o USB download gadget  <class IOUSBHostDevice, id 0x1>
+    |   "idProduct" = 0xa4a5
+    |   "idVendor" = 0x525
+    | +-o Linux UMS disk 0 Media  <class IOMedia, id 0x2>
+    |       "BSD Name" = "disk8"
+'''), 8);
+  });
+
   test('returns null on empty or junk input', () {
     expect(detector.parseIoregDiskNumber(''), isNull);
     expect(detector.parseIoregDiskNumber('no usb devices here'), isNull);
