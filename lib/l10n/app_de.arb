@@ -284,7 +284,6 @@
   "deviceConnected": "Gerät verbunden",
   "connectYourDevice": "Gerät verbinden",
   "connectMdbViaUsb": "Verbinde das MDB per USB und warte auf die Erkennung",
-  "backButton": "Zurück",
   "configuringNetworkHeading": "Netzwerk wird konfiguriert",
   "settingUpNetwork": "Netzwerkschnittstelle wird eingerichtet...",
   "readyToConfigureNetwork": "Bereit, das Netzwerk für die Gerätekommunikation zu konfigurieren",

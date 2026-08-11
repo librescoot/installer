@@ -362,7 +362,6 @@
   "deviceConnected": "Device Connected",
   "connectYourDevice": "Connect Your Device",
   "connectMdbViaUsb": "Connect the MDB via USB and wait for detection",
-  "backButton": "Back",
   "configuringNetworkHeading": "Configuring Network",
   "settingUpNetwork": "Setting up network interface...",
   "readyToConfigureNetwork": "Ready to configure network for device communication",
