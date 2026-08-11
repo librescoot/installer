@@ -1011,6 +1011,31 @@ class AppLocalizationsDe extends AppLocalizations {
   String get cancelButton => 'Abbrechen';
 
   @override
+  String get confirmFlashTargetTitle => 'Ziel-Laufwerk bestätigen';
+
+  @override
+  String get confirmFlashTargetBody =>
+      'Windows konnte nicht bestätigen, dass dieses Laufwerk nicht dein Systemlaufwerk ist. Prüfe das Ziel vor dem Flashen.';
+
+  @override
+  String get confirmFlashTargetDetected => 'Erkanntes Librescoot-Gerät';
+
+  @override
+  String get confirmFlashTargetOthers =>
+      'Weitere USB-Laufwerke an diesem Rechner:';
+
+  @override
+  String get confirmFlashTargetInternalHidden =>
+      'Interne Laufwerke werden nicht angezeigt.';
+
+  @override
+  String get confirmFlashTargetAccept => 'Dieses Laufwerk flashen';
+
+  @override
+  String get flashTargetNotConfirmed =>
+      'Flashen abgebrochen: Das Ziel-Laufwerk wurde nicht bestätigt.';
+
+  @override
   String get flashDeviceButton => 'Gerät flashen';
 
   @override

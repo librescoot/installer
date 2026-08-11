@@ -1892,6 +1892,48 @@ abstract class AppLocalizations {
   /// **'Cancel'**
   String get cancelButton;
 
+  /// No description provided for @confirmFlashTargetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm the flash target'**
+  String get confirmFlashTargetTitle;
+
+  /// No description provided for @confirmFlashTargetBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Windows could not confirm this disk is not your system disk. Check the target before flashing.'**
+  String get confirmFlashTargetBody;
+
+  /// No description provided for @confirmFlashTargetDetected.
+  ///
+  /// In en, this message translates to:
+  /// **'Detected Librescoot device'**
+  String get confirmFlashTargetDetected;
+
+  /// No description provided for @confirmFlashTargetOthers.
+  ///
+  /// In en, this message translates to:
+  /// **'Other USB disks on this machine:'**
+  String get confirmFlashTargetOthers;
+
+  /// No description provided for @confirmFlashTargetInternalHidden.
+  ///
+  /// In en, this message translates to:
+  /// **'Internal disks are not shown.'**
+  String get confirmFlashTargetInternalHidden;
+
+  /// No description provided for @confirmFlashTargetAccept.
+  ///
+  /// In en, this message translates to:
+  /// **'Flash this disk'**
+  String get confirmFlashTargetAccept;
+
+  /// No description provided for @flashTargetNotConfirmed.
+  ///
+  /// In en, this message translates to:
+  /// **'Flashing cancelled: the target disk was not confirmed.'**
+  String get flashTargetNotConfirmed;
+
   /// No description provided for @flashDeviceButton.
   ///
   /// In en, this message translates to:

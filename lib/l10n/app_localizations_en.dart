@@ -1005,6 +1005,30 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cancelButton => 'Cancel';
 
   @override
+  String get confirmFlashTargetTitle => 'Confirm the flash target';
+
+  @override
+  String get confirmFlashTargetBody =>
+      'Windows could not confirm this disk is not your system disk. Check the target before flashing.';
+
+  @override
+  String get confirmFlashTargetDetected => 'Detected Librescoot device';
+
+  @override
+  String get confirmFlashTargetOthers => 'Other USB disks on this machine:';
+
+  @override
+  String get confirmFlashTargetInternalHidden =>
+      'Internal disks are not shown.';
+
+  @override
+  String get confirmFlashTargetAccept => 'Flash this disk';
+
+  @override
+  String get flashTargetNotConfirmed =>
+      'Flashing cancelled: the target disk was not confirmed.';
+
+  @override
   String get flashDeviceButton => 'Flash Device';
 
   @override
