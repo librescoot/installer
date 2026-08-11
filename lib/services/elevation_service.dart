@@ -63,18 +63,71 @@ class ElevationService {
     }
   }
 
+  /// Quote a single argument the way CommandLineToArgvW expects.
+  ///
+  /// Start-Process joins its -ArgumentList with spaces and adds no quoting of
+  /// its own, so an argument holding a space (the log file under "Librescoot
+  /// Installer", an image picked out of a folder with a space in its name)
+  /// would otherwise reach the elevated child as two arguments.
+  @visibleForTesting
+  static String quoteWindowsArg(String arg) {
+    if (!arg.contains(' ') && !arg.contains('\t') && !arg.contains('"')) {
+      return arg;
+    }
+    final buffer = StringBuffer('"');
+    var backslashes = 0;
+    for (final unit in arg.codeUnits) {
+      if (unit == 0x5C) {
+        backslashes++;
+        continue;
+      }
+      if (unit == 0x22) {
+        // Backslashes in front of a quote are doubled, then the quote escaped.
+        buffer.write('\\' * (backslashes * 2 + 1));
+        backslashes = 0;
+        buffer.writeCharCode(unit);
+        continue;
+      }
+      buffer.write('\\' * backslashes);
+      backslashes = 0;
+      buffer.writeCharCode(unit);
+    }
+    // A trailing backslash run would otherwise escape the closing quote.
+    buffer.write('\\' * (backslashes * 2));
+    buffer.write('"');
+    return buffer.toString();
+  }
+
   static Future<bool> _elevateWindows(String executable, List<String> args) async {
     // Use PowerShell Start-Process with -Verb RunAs for UAC elevation.
-    // ArgumentList wants an array of strings each individually quoted —
-    // joining them into one space-separated string breaks for any arg
-    // containing spaces (e.g. a path with spaces) and may cause
-    // Start-Process to silently fail. Build a real PowerShell array
-    // literal and use the call operator so the executable path is
-    // resolved before -Verb RunAs hands off to ShellExecuteEx.
+    // ArgumentList wants an array of strings, so build a real PowerShell
+    // array literal rather than one space-separated string, which lets the
+    // executable path be resolved before -Verb RunAs hands off to
+    // ShellExecuteEx.
     String psQuote(String s) => "'${s.replaceAll("'", "''")}'";
+
+    // The quotes quoteWindowsArg adds enter the command as $q rather than as
+    // literal characters: runInShell routes this through cmd.exe, which counts
+    // quotes and knows nothing about the backslash escaping Dart applies to
+    // the argument it passes on. With no double quote in the string, cmd.exe
+    // sees one clean quoted region and hands it to PowerShell untouched.
+    String psEmbed(String token) {
+      if (!token.contains('"')) return psQuote(token);
+      final parts = token.split('"');
+      final pieces = <String>[];
+      for (var i = 0; i < parts.length; i++) {
+        if (i > 0) pieces.add(r'$q');
+        if (parts[i].isNotEmpty) pieces.add(psQuote(parts[i]));
+      }
+      return '(${pieces.join('+')})';
+    }
+
     final psExe = psQuote(executable);
-    final psArgArray = args.isEmpty ? '@()' : '@(${args.map(psQuote).join(',')})';
+    final psArgArray = args.isEmpty
+        ? '@()'
+        : '@(${args.map((a) => psEmbed(quoteWindowsArg(a))).join(',')})';
     final psCmd =
+        r'$q=[char]34; '
         'Start-Process -FilePath $psExe -ArgumentList $psArgArray -Verb RunAs '
         '-ErrorAction Stop';
 
