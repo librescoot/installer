@@ -8,8 +8,33 @@ on:
   workflow_dispatch:
 
 jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Pure Dart, no platform channels and no bundled tooling, so one runner
+      # covers all three targets. The suite guards the disk-selection and
+      # flash-safety paths, which is where a wrong answer costs somebody their
+      # drive, so the builds below wait on it.
+      - name: Run tests
+        run: flutter test
+
   build:
     name: Build (${{ matrix.target }})
+    needs: test
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
