@@ -5,10 +5,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'l10n/app_localizations.dart';
 import 'screens/installer_screen.dart';
+import 'services/log_service.dart';
 import 'theme.dart';
 
 /// Global log buffer accessible from anywhere.
 final List<String> installerLog = [];
+
+/// Append a message to the in-app log and the on-disk log file. The in-app
+/// view gets a short time prefix; the file adds its own full timestamp.
+void appendLog(String message) {
+  final ts = DateTime.now().toIso8601String().substring(11, 19);
+  installerLog.add('$ts $message');
+  LogService.write(message);
+}
+
+/// Same, for continuation lines (stack frames, command output) that carry no
+/// time of their own.
+void appendLogRaw(String line) {
+  installerLog.add(line);
+  LogService.write(line);
+}
 
 /// Used by the global error handlers to surface a SnackBar from anywhere.
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
@@ -18,12 +34,11 @@ final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
 /// SnackBar so the user knows something went wrong but the app keeps running.
 /// Native crashes (FFI, signals) can't be caught here — only Dart errors.
 void reportUnhandledError(Object error, StackTrace? stack, {String? from}) {
-  final ts = DateTime.now().toIso8601String().substring(11, 19);
   final origin = from != null ? ' [$from]' : '';
-  installerLog.add('$ts ERROR$origin: $error');
+  appendLog('ERROR$origin: $error');
   if (stack != null) {
     for (final line in stack.toString().split('\n')) {
-      if (line.isNotEmpty) installerLog.add('  $line');
+      if (line.isNotEmpty) appendLogRaw('  $line');
     }
   }
   // Mirror to stderr/console so a terminal-launched run sees it too.
@@ -83,6 +98,10 @@ class LaunchArgs {
   /// Skip the DBC already-at-target-version check in the trampoline and
   /// flash unconditionally. For testing the full flash path.
   final bool forceDbcReflash;
+  /// Log file the unelevated process already opened. The elevated relaunch
+  /// appends to it instead of starting a second file, so one run produces one
+  /// log the user can hand over.
+  final String? logFile;
 
   LaunchArgs({
     this.channel,
@@ -94,10 +113,11 @@ class LaunchArgs {
     this.noOfflineMaps = false,
     this.dryRun = false,
     this.forceDbcReflash = false,
+    this.logFile,
   });
 
   factory LaunchArgs.fromArgs(List<String> args) {
-    String? channel, region, lang, mdbImage, dbcImage;
+    String? channel, region, lang, mdbImage, dbcImage, logFile;
     var autoStart = false;
     var noOfflineMaps = false;
     var dryRun = false;
@@ -108,6 +128,9 @@ class LaunchArgs {
       if (arg.startsWith('--lang=')) lang = arg.split('=')[1];
       if (arg.startsWith('--mdb-image=')) mdbImage = arg.split('=')[1];
       if (arg.startsWith('--dbc-image=')) dbcImage = arg.split('=')[1];
+      // Paths may legitimately contain '=', so take everything after the
+      // first one rather than splitting.
+      if (arg.startsWith('--log-file=')) logFile = arg.substring('--log-file='.length);
       if (arg == '--auto-start') autoStart = true;
       if (arg == '--no-offline-maps') noOfflineMaps = true;
       if (arg == '--dry-run') dryRun = true;
@@ -123,6 +146,7 @@ class LaunchArgs {
       noOfflineMaps: noOfflineMaps,
       dryRun: dryRun,
       forceDbcReflash: forceDbcReflash,
+      logFile: logFile,
     );
   }
 
@@ -146,6 +170,7 @@ class LaunchArgs {
         if (!wantsOfflineMaps) '--no-offline-maps',
         if (dryRun) '--dry-run',
         if (forceDbcReflash) '--force-dbc-reflash',
+        if (LogService.filePath != null) '--log-file=${LogService.filePath}',
         '--auto-start',
       ];
 }
@@ -185,14 +210,21 @@ void main(List<String> args) async {
     // Capture all debugPrint output into the global log
     final originalDebugPrint = debugPrint;
     debugPrint = (String? message, {int? wrapWidth}) {
-      if (message != null) {
-        final ts = DateTime.now().toIso8601String().substring(11, 19);
-        installerLog.add('$ts $message');
-      }
+      if (message != null) appendLog(message);
       originalDebugPrint(message, wrapWidth: wrapWidth);
     };
 
+    // Open the on-disk log early: anything logged before this is buffered by
+    // LogService and written out as soon as the file is there.
+    await LogService.init(
+      handoffPath: launchArgs.logFile,
+      version: appVersion,
+      locale: appLocale.value.languageCode,
+      args: args,
+    );
+
     debugPrint('Librescoot Installer $appVersion starting (lang=${appLocale.value.languageCode}, platform=${Platform.operatingSystem})');
+    debugPrint('Log file: ${LogService.filePath ?? 'unavailable'}');
 
     // Self-elevation no longer happens here; it's deferred until the user
     // actually clicks Start Installation. That way the user can browse the

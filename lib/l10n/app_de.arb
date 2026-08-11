@@ -359,6 +359,8 @@
   "mdbDisconnectedFlashingDbc": "MDB getrennt. DBC wird autonom geflasht...",
   "logDebugShell": "Log & Debug-Shell",
   "copyToClipboard": "In Zwischenablage kopieren",
+  "logFilePath": "Logdatei: {path}",
+  "revealLogFile": "Im Ordner anzeigen",
   "debugCommandHint": "Befehl im Installer-Kontext ausführen...",
   "mbOnDisk": "{size} MB belegt",
   "beforeImageLabel": "Vorher",

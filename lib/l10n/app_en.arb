@@ -458,6 +458,13 @@
 
   "logDebugShell": "Log & Debug Shell",
   "copyToClipboard": "Copy to clipboard",
+  "logFilePath": "Log file: {path}",
+  "@logFilePath": {
+    "placeholders": {
+      "path": { "type": "String" }
+    }
+  },
+  "revealLogFile": "Show in folder",
   "debugCommandHint": "Run a command in the installer context...",
   "mbOnDisk": "{size} MB on disk",
   "@mbOnDisk": {

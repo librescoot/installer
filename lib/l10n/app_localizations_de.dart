@@ -1161,6 +1161,14 @@ class AppLocalizationsDe extends AppLocalizations {
   String get copyToClipboard => 'In Zwischenablage kopieren';
 
   @override
+  String logFilePath(String path) {
+    return 'Logdatei: $path';
+  }
+
+  @override
+  String get revealLogFile => 'Im Ordner anzeigen';
+
+  @override
   String get debugCommandHint => 'Befehl im Installer-Kontext ausführen...';
 
   @override
