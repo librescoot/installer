@@ -35,7 +35,7 @@ dependencies:
   intl: any
 
   # SSH client for device communication
-  dartssh2: ^2.8.2
+  dartssh2: ^2.22.0
 
   # Windows API access for USB detection, network config
   win32: ^5.0.0
@@ -54,7 +54,7 @@ dependencies:
   archive: ^3.0.0
 
   # AES decryption for auth assets
-  pointycastle: ^3.9.1
+  pointycastle: ^4.0.0
 
   # HTTP client for GitHub API and firmware downloads
   http: ^1.2.0
