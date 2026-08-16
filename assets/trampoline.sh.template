@@ -1568,11 +1568,31 @@ if [ -f "$OSM_TILES_FILE" ]; then
   upload_tile "$OSM_TILES_FILE" "/maps/map.mbtiles" "display tiles" || TILE_ERRORS=\$((TILE_ERRORS + 1))
 fi
 if [ -f "$VALHALLA_TILES_FILE" ]; then
-  if upload_tile "$VALHALLA_TILES_FILE" "/valhalla/tiles.tar" "routing tiles"; then
-    dbc_ssh "systemctl restart valhalla" 2>/dev/null || true
-  else
-    TILE_ERRORS=\$((TILE_ERRORS + 1))
-  fi
+  case "$VALHALLA_TILES_FILE" in
+    *.zst)
+      # Valhalla mmaps the tar, so it has to land uncompressed. Decompressing on
+      # the DBC keeps the transfer about a third the size; zstd ships in the
+      # DBC image and ums-service already installs routing tiles this way.
+      if upload_tile "$VALHALLA_TILES_FILE" "/valhalla/tiles.tar.zst" "routing tiles"; then
+        if dbc_ssh "zstd -d -f -o /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar.zst && mv -f /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar && rm -f /data/valhalla/tiles.tar.zst"; then
+          dbc_ssh "systemctl restart valhalla" 2>/dev/null || true
+        else
+          log "ERROR: routing tile decompression failed"
+          dbc_ssh "rm -f /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar.zst" 2>/dev/null || true
+          TILE_ERRORS=\$((TILE_ERRORS + 1))
+        fi
+      else
+        TILE_ERRORS=\$((TILE_ERRORS + 1))
+      fi
+      ;;
+    *)
+      if upload_tile "$VALHALLA_TILES_FILE" "/valhalla/tiles.tar" "routing tiles"; then
+        dbc_ssh "systemctl restart valhalla" 2>/dev/null || true
+      else
+        TILE_ERRORS=\$((TILE_ERRORS + 1))
+      fi
+      ;;
+  esac
 fi
 
 # Stop DBC Python upload server if we started one

@@ -133,6 +133,11 @@ class Region {
   String get osmTilesFilename => 'tiles_$slug.mbtiles';
   String get osmTilesChecksumFilename => 'tiles_$slug.mbtiles.sha256';
   String get valhallaTilesFilename => 'valhalla_tiles_$slug.tar';
+
+  /// The zstd form of the routing tiles, about a third the size. The DBC
+  /// decompresses it, so preferring this shrinks both the download and the
+  /// upload over the vehicle's own network.
+  String get valhallaTilesCompressedFilename => 'valhalla_tiles_$slug.tar.zst';
   String get valhallaTilesChecksumFilename => 'valhalla_tiles_$slug.tar.sha256';
 
   /// Known regions, used as the offline fallback when the published tile list
