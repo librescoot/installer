@@ -137,6 +137,11 @@ class Region {
   String get osmTilesFilename => 'tiles_$slug.mbtiles';
   String get valhallaTilesFilename => 'valhalla_tiles_$slug.tar';
 
+  /// The zstd form of the routing tiles, about a third the size. The DBC
+  /// decompresses it, so preferring this shrinks both the download and the
+  /// upload over the vehicle's own network.
+  String get valhallaTilesCompressedFilename => 'valhalla_tiles_$slug.tar.zst';
+
   // No sidecar .sha256 asset is published alongside the tile files (checked
   // against the live osm-tiles/valhalla-tiles releases: only the tile itself
   // is uploaded). DownloadService verifies tile integrity from the sha256

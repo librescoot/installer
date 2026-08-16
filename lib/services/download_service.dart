@@ -361,11 +361,18 @@ class DownloadService {
         items.add(item);
       }
 
-      // Valhalla routing tiles
+      // Valhalla routing tiles. Prefer the zstd form, which is about a third
+      // the size; the DBC decompresses it during install, so this shrinks both
+      // the download and the upload over the vehicle's own network. Falls back
+      // to the plain tar for a region that has no compressed asset published.
       final valhallaAssets = await resolveTileAssets(_valhallaTilesRepo, 'valhalla_tiles_');
+      final wanted = valhallaAssets.any(
+              (a) => a['name'] == region.valhallaTilesCompressedFilename)
+          ? region.valhallaTilesCompressedFilename
+          : region.valhallaTilesFilename;
       for (final asset in valhallaAssets) {
         final name = asset['name'] as String;
-        if (name != region.valhallaTilesFilename) continue;
+        if (name != wanted) continue;
         final cached = File(p.join(cacheDir.path, name));
         final expectedSize = asset['size'] as int;
         final item = DownloadItem(

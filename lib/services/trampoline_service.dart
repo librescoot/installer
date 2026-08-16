@@ -43,6 +43,7 @@ class TrampolineService {
     required String dbcImagePath,
     Region? region,
     bool installTiles = false,
+    String? valhallaTilesFilename,
     String targetDbcVersion = '',
     bool forceDbcReflash = false,
   }) async {
@@ -54,7 +55,7 @@ class TrampolineService {
           ? '/data/installer/${region.osmTilesFilename}'
           : '',
       valhallaTilesFile: installTiles && region != null
-          ? '/data/installer/${region.valhallaTilesFilename}'
+          ? '/data/installer/${valhallaTilesFilename ?? region.valhallaTilesFilename}'
           : '',
       installTiles: installTiles,
       targetDbcVersion: targetDbcVersion,
@@ -320,7 +321,12 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       filesToUpload.add(MapEntry(osmTilesLocalPath, '/data/installer/${region.osmTilesFilename}'));
     }
     if (valhallaTilesLocalPath != null && region != null) {
-      filesToUpload.add(MapEntry(valhallaTilesLocalPath, '/data/installer/${region.valhallaTilesFilename}'));
+      // Keep whatever name was downloaded: the routing tiles may be the zstd
+      // form, and the trampoline decides what to do from the suffix.
+      final valhallaFilename =
+          File(valhallaTilesLocalPath).uri.pathSegments.last;
+      filesToUpload.add(
+          MapEntry(valhallaTilesLocalPath, '/data/installer/$valhallaFilename'));
     }
 
     final substeps = <Substep>[
@@ -474,6 +480,9 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       dbcImagePath: dbcRemotePath,
       region: region,
       installTiles: osmTilesLocalPath != null || valhallaTilesLocalPath != null,
+      valhallaTilesFilename: valhallaTilesLocalPath == null
+          ? null
+          : File(valhallaTilesLocalPath).uri.pathSegments.last,
       targetDbcVersion: targetDbcVersion,
       forceDbcReflash: forceDbcReflash,
     );
