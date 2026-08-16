@@ -13,9 +13,8 @@ import '../models/region.dart';
 class DownloadService {
   static const _osmTilesRepo = 'librescoot/osm-tiles';
   static const _valhallaTilesRepo = 'librescoot/valhalla-tiles';
-  static const _githubApi = 'https://api.github.com';
-  static const _latestManifestUrl =
-      'https://downloads.librescoot.org/releases/latest.json';
+  static const _manifestBase = 'https://downloads.librescoot.org/releases';
+  static const _latestManifestUrl = '$_manifestBase/latest.json';
 
   final http.Client _client;
   Map<String, dynamic>? _cachedLatest;
@@ -186,40 +185,46 @@ class DownloadService {
     final cacheDir = await getCacheDir();
     final cacheKey = repo.replaceAll('/', '_');
     final cacheFile = File(p.join(cacheDir.path, '$cacheKey-latest.json'));
+    final manifestUrl = '$_manifestBase/${repo.split('/').last}.json';
 
     // Try disk cache first
     if (await cacheFile.exists()) {
       final age = DateTime.now().difference(await cacheFile.lastModified());
       if (age.inHours < 1) {
-        final release = jsonDecode(await cacheFile.readAsString()) as Map<String, dynamic>;
-        return (release['assets'] as List).cast<Map<String, dynamic>>();
+        return _assetsFromCache(await cacheFile.readAsString());
       }
     }
 
     try {
-      final response = await _client.get(
-        Uri.parse('$_githubApi/repos/$repo/releases/tags/latest'),
-        headers: {'Accept': 'application/vnd.github.v3+json'},
-      );
+      final response = await _client.get(Uri.parse(manifestUrl));
       if (response.statusCode != 200) {
         // Fall back to stale cache
         if (await cacheFile.exists()) {
-          final release = jsonDecode(await cacheFile.readAsString()) as Map<String, dynamic>;
-          return (release['assets'] as List).cast<Map<String, dynamic>>();
+          return _assetsFromCache(await cacheFile.readAsString());
         }
-        throw Exception('GitHub API error for $repo: ${response.statusCode}');
+        throw Exception('manifest error for $repo: ${response.statusCode}');
       }
       await cacheFile.writeAsString(response.body);
-      final release = jsonDecode(response.body) as Map<String, dynamic>;
-      return (release['assets'] as List).cast<Map<String, dynamic>>();
+      return (jsonDecode(response.body) as List).cast<Map<String, dynamic>>();
     } catch (e) {
       // Fall back to stale cache on any network error
       if (await cacheFile.exists()) {
-        final release = jsonDecode(await cacheFile.readAsString()) as Map<String, dynamic>;
-        return (release['assets'] as List).cast<Map<String, dynamic>>();
+        return _assetsFromCache(await cacheFile.readAsString());
       }
       rethrow;
     }
+  }
+
+  /// Read a cached asset listing. The manifest is a plain list; a cache written
+  /// by an older build holds a GitHub release object instead, so accept both
+  /// rather than making an upgrade throw away tiles already downloaded.
+  static List<Map<String, dynamic>> _assetsFromCache(String body) {
+    final decoded = jsonDecode(body);
+    if (decoded is List) {
+      return decoded.cast<Map<String, dynamic>>();
+    }
+    final assets = (decoded as Map<String, dynamic>)['assets'] as List;
+    return assets.cast<Map<String, dynamic>>();
   }
 
   /// Derive the regions on offer from the published tile assets: every slug
@@ -342,7 +347,7 @@ class DownloadService {
         final expectedSize = asset['size'] as int;
         final item = DownloadItem(
           type: DownloadItemType.osmTiles,
-          url: asset['browser_download_url'] as String,
+          url: asset['url'] as String,
           filename: name,
           expectedSize: expectedSize,
           expectedSha256: _sha256FromAssetDigest(asset),
@@ -363,7 +368,7 @@ class DownloadService {
         final expectedSize = asset['size'] as int;
         final item = DownloadItem(
           type: DownloadItemType.valhallaTiles,
-          url: asset['browser_download_url'] as String,
+          url: asset['url'] as String,
           filename: name,
           expectedSize: expectedSize,
           expectedSha256: _sha256FromAssetDigest(asset),

@@ -64,6 +64,48 @@ void main() {
       expect(result.assets.length, 2);
     });
 
+    test('resolveTileAssets reads the per-repo manifest, not the GitHub API',
+        () async {
+      final dir = await DownloadService.getCacheDir();
+      for (final f in ['librescoot_osm-tiles-latest.json']) {
+        final c = File(p.join(dir.path, f));
+        if (await c.exists()) await c.delete();
+      }
+      final requested = <String>[];
+      final service = DownloadService(
+        client: http_testing.MockClient((request) async {
+          requested.add(request.url.toString());
+          if (request.url.host == 'api.github.com') {
+            return http.Response('should not be called', 500);
+          }
+          return http.Response(
+            jsonEncode([
+              {
+                'name': 'tiles_berlin_brandenburg.mbtiles',
+                'size': 208076800,
+                'sha256': 'abc',
+                'updated_at': '2026-08-12T16:26:27Z',
+                'url':
+                    'https://github.com/librescoot/osm-tiles/releases/download/'
+                        'tiles-20260812T162557Z/tiles_berlin_brandenburg.mbtiles',
+              },
+            ]),
+            200,
+          );
+        }),
+      );
+
+      final assets = await service.resolveTileAssets(
+          'librescoot/osm-tiles', 'tiles_');
+
+      expect(requested.single,
+          'https://downloads.librescoot.org/releases/osm-tiles.json');
+      expect(assets.single['name'], 'tiles_berlin_brandenburg.mbtiles');
+      // The tag has to come from the manifest: it names one immutable build,
+      // and a hardcoded 'latest' would silently serve a frozen release.
+      expect(assets.single['url'], contains('tiles-20260812T162557Z'));
+    });
+
     test('resolveRelease throws when the channel is absent', () async {
       final service = DownloadService(
         client: _manifestClient({
