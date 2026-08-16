@@ -10,12 +10,12 @@ import 'package:librescoot_installer/services/download_service.dart';
 import 'package:path/path.dart' as p;
 
 /// One release asset as it appears in the downloads.librescoot.org manifest.
-/// Firmware downloads read `url`; tiles read `browser_download_url`.
+/// Firmware and tiles both read `url`; the manifest has no
+/// `browser_download_url`, so the helper must not offer one either.
 Map<String, dynamic> _asset(String name, int size, {String? sha256}) => {
       'name': name,
       'size': size,
       'url': 'https://example.com/$name',
-      'browser_download_url': 'https://example.com/$name',
       if (sha256 != null) 'sha256': sha256,
     };
 
@@ -153,6 +153,55 @@ void main() {
       expect(items.length, 2);
       expect(items[0].type, DownloadItemType.mdbFirmware);
       expect(items[1].type, DownloadItemType.dbcFirmware);
+    });
+
+    test('tile items take their sha256 from the manifest', () async {
+      final dir = await DownloadService.getCacheDir();
+      for (final f in [
+        'librescoot_osm-tiles-latest.json',
+        'librescoot_valhalla-tiles-latest.json',
+      ]) {
+        final c = File(p.join(dir.path, f));
+        if (await c.exists()) await c.delete();
+      }
+      const osmSha = 'd5ffe7bc87e05be0bdecd6eec6907f39dea9a53a6fcbd31294d91afb';
+      final region = Region.all.firstWhere((r) => r.slug == 'berlin_brandenburg');
+      final service = DownloadService(
+        client: http_testing.MockClient((request) async {
+          if (request.url.path.endsWith('latest.json')) {
+            return http.Response(
+              jsonEncode({'testing': _release('testing-1', const [])}),
+              200,
+            );
+          }
+          final isOsm = request.url.path.endsWith('osm-tiles.json');
+          final name =
+              isOsm ? region.osmTilesFilename : region.valhallaTilesFilename;
+          return http.Response(
+            jsonEncode([
+              {
+                'name': name,
+                'size': 208076800,
+                'sha256': isOsm ? osmSha : 'other',
+                'url': 'https://example.com/tiles-20260812T162557Z/$name',
+              },
+            ]),
+            200,
+          );
+        }),
+      );
+
+      final items = await service.buildDownloadQueue(
+        channel: DownloadChannel.testing,
+        wantsOfflineMaps: true,
+        region: region,
+      );
+
+      // The manifest publishes a plain sha256 hex where the releases API
+      // published "digest": "sha256:<hex>". Reading only the latter leaves
+      // tiles unverified without failing anything.
+      final osm = items.firstWhere((i) => i.type == DownloadItemType.osmTiles);
+      expect(osm.expectedSha256, osmSha);
     });
 
     test('Region model generates correct filenames', () {

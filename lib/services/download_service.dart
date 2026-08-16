@@ -162,13 +162,15 @@ class DownloadService {
     return digest.toString();
   }
 
-  /// Extract the sha256 hex digest GitHub computes server-side for every
-  /// release asset (`"digest": "sha256:<hex>"`). Tile releases don't publish
-  /// a separate SHA256SUMS or sidecar checksum file, but this field is
-  /// populated on every asset already returned by the releases API, so it's
-  /// used as the source of truth for tile integrity instead. Returns null if
-  /// absent or not a sha256 digest.
-  static String? _sha256FromAssetDigest(Map<String, dynamic> asset) {
+  /// Extract an asset's sha256 as lower-case hex. Tile releases don't publish
+  /// a SHA256SUMS or sidecar checksum file, so this is the source of truth for
+  /// tile integrity. The manifest carries a plain `sha256` hex field; a disk
+  /// cache written by an older build holds GitHub's server-computed
+  /// `"digest": "sha256:<hex>"` instead, so accept both. Returns null if
+  /// neither is present or usable.
+  static String? _sha256FromAsset(Map<String, dynamic> asset) {
+    final sha = asset['sha256'] as String?;
+    if (sha != null && sha.isNotEmpty) return sha;
     final digest = asset['digest'] as String?;
     if (digest == null || !digest.startsWith('sha256:')) return null;
     final hex = digest.substring('sha256:'.length);
@@ -350,7 +352,7 @@ class DownloadService {
           url: asset['url'] as String,
           filename: name,
           expectedSize: expectedSize,
-          expectedSha256: _sha256FromAssetDigest(asset),
+          expectedSha256: _sha256FromAsset(asset),
         );
         if (await cached.exists() && await cached.length() == expectedSize) {
           item.localPath = cached.path;
@@ -371,7 +373,7 @@ class DownloadService {
           url: asset['url'] as String,
           filename: name,
           expectedSize: expectedSize,
-          expectedSha256: _sha256FromAssetDigest(asset),
+          expectedSha256: _sha256FromAsset(asset),
         );
         if (await cached.exists() && await cached.length() == expectedSize) {
           item.localPath = cached.path;
