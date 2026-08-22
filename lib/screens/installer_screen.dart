@@ -9,14 +9,21 @@ import 'package:url_launcher/url_launcher.dart';
 import '../main.dart'
     show appendLog, appendLogRaw, installerLog, launchArgs, showElevationRequiredDialog;
 import '../l10n/app_localizations.dart';
+import '../models/board_state.dart';
 import '../models/download_state.dart';
+import '../models/install_plan.dart';
 import '../models/installer_phase.dart';
+import '../models/mdb_boot_action.dart';
 import '../models/region.dart';
 import '../models/scooter_health.dart';
 import '../models/substep.dart';
 import '../models/trampoline_status.dart';
+import '../services/artifact_service.dart';
 import '../services/services.dart';
+import '../widgets/artifact_progress_panel.dart';
 import '../widgets/health_check_panel.dart';
+import '../widgets/brake_gesture.dart';
+import '../widgets/install_plan_panel.dart';
 import '../widgets/instruction_step.dart';
 import '../widgets/phase_sidebar.dart';
 import '../widgets/substep_list.dart';
@@ -69,20 +76,120 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _mdbBootStarted = false;
   bool _dbcPrepStarted = false;
   bool _dbcUploadReady = false; // upload done, waiting for "Begin flashing DBC"
+
+  /// Set when the CBB phase is left. The poll below sits in a wait loop for up
+  /// to three minutes, and the widget it belongs to is never unmounted, so
+  /// without this it keeps writing status over whatever screen replaced it and
+  /// applies its verdict long after the user has moved on.
+  bool _cbbPollAbandoned = false;
+
+  /// True while the laptop-to-MDB dashboard upload runs ahead of its own
+  /// phase. It stands in for [_isProcessing] there, which other phases read to
+  /// decide whether to start their own work.
+  bool _dbcStageInFlight = false;
   bool _reconnectStarted = false;
   final bool _showElevatedHandoff = false;
   bool _dbcFlashSimulateError = false;
+
+  /// Set when the user opens the manual power-cut section rather than using
+  /// the brake gesture. The installer cannot tell the two restarts apart from
+  /// the outside (both look like the USB gadget going away), so this is the
+  /// only signal for whether anything was actually unplugged, and therefore
+  /// whether the later screens should ask for it back.
+  bool _manualPowerCut = false;
+
+  /// True once the main pack is confirmed off, which is the precondition for
+  /// telling anyone to plug the CBB back in.
+  bool _mainPackOffForCbb = false;
+
+  /// The MDB artifact upload and mender run, tracked while they happen behind
+  /// the pairing and keycard screens. The gate at mdbArtifact waits on these
+  /// rather than starting the work itself.
+  bool _mdbStageStarted = false;
+  bool _mdbStageDone = false;
+  double _mdbStageProgress = 0;
+  String? _mdbStageError;
+
+  /// True while the nRF52 is restarting its radio after the no-whitelisting
+  /// advertising command, i.e. while a pairing attempt would fail.
+  bool _btAdvertisingSettling = false;
+
+  /// True once a trampoline was started that carries the finish with it.
+  /// The laptop must then not redo the settings restore, the cleanup or the
+  /// reboot: on the happy path it is not even connected, and after a
+  /// reconnect the device has already done all three.
+  bool _deviceFinishArmed = false;
   DeviceInfo? _mdbInfo;
-  bool _skipMdbFlash = false;
-  bool _skipDbcFlash = false;
+
+  /// What the user chose on the install-plan screen. Null until the health
+  /// check has probed both boards; every route into the flash phases sets it
+  /// first, except the shortcut that finds the MDB already in mass storage.
+  /// What the last on-device finish recorded, when there was one. Read at
+  /// connect so a run nobody watched can still say what it did.
+  String? _previousRunRecord;
+
+  /// The record's `finished` and `mdb` lines, when both are present. Null when
+  /// there is no record or it predates those fields.
+  ({String when, String version})? get _previousRun {
+    final raw = _previousRunRecord;
+    if (raw == null) return null;
+    String? field(String key) {
+      for (final line in raw.split('\n')) {
+        final t = line.trim();
+        if (t.startsWith('$key: ')) {
+          final v = t.substring(key.length + 2).trim();
+          return v.isEmpty ? null : v;
+        }
+      }
+      return null;
+    }
+
+    final when = field('finished');
+    final version = field('mdb');
+    if (when == null || version == null) return null;
+    return (when: when, version: version);
+  }
+
+  InstallPlan? _plan;
+  BoardState _mdbState = const BoardState(
+      board: Board.mdb, isLibrescoot: false, provenance: StateProvenance.unknown);
+  BoardState _dbcState = const BoardState(
+      board: Board.dbc, isLibrescoot: false, provenance: StateProvenance.unknown);
+
+  /// True between a stage-0 write and the artifact's reboot. Without it the
+  /// no-redis check in _autoConnectMdb would read the bootstrap image we just
+  /// wrote on purpose as a broken install and send the user back to flashing.
+  bool _expectMinimalMdb = false;
+
+  /// mender's stderr from a failed artifact install, null while it is going
+  /// well. Drives the retry / fall-back controls on the artifact screen.
+  String? _artifactError;
+  bool _artifactStarted = false;
   String? _radioGagaBackupPath;
   bool _flashConfirmed = false;
   final Map<String, int> _retryCounts = {};
   bool _btPairingActive = false;
   String? _blePinCode;
   bool _bleConnected = false;
+
+  /// Rising edges on the link seen since the pairing window opened.
+  ///
+  /// The radio holds one central at a time, and every advertising restart in
+  /// the firmware is guarded on there being no connection, so a device already
+  /// on the link prevents the next one from pairing. Presence alone therefore
+  /// says nothing: a bonded phone reconnects by itself. An edge after the
+  /// window opened is the closest the vehicle gets to reporting a pairing.
+  int _blePairedCount = 0;
   String? _bleMac;
   Timer? _blePinPollTimer;
+
+  /// Re-arms the open pairing window. The nRF advertises in bounded cycles and
+  /// puts the whitelist back when one ends, so a single command gives the user
+  /// less than a minute: long enough to miss while they are still hunting
+  /// through their phone's Bluetooth settings, and it fails silently when they
+  /// do. Re-sending well inside the cycle keeps the window open for as long as
+  /// the panel is.
+  Timer? _bleAdvRearmTimer;
   final ScrollController _phaseScrollController = ScrollController();
   bool _keycardLearning = false;
   int _keycardAuthorizedCountBefore = 0; // captured at Start, compared at Done
@@ -108,7 +215,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Completer<bool>? _unlockCompleter;
   bool _keepCache = false;
   bool _isCriticalOperation = false; // prevent quit during flash/upload
-  bool _awaitingFinishReboot = false;
+  bool _awaitingFinishHandover = false;
   Process? _caffeinateProcess; // macOS sleep prevention
 
   StreamSubscription<UsbDevice?>? _deviceSub;
@@ -257,6 +364,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     _deviceSub?.cancel();
     _usbDetector.stopMonitoring();
     _blePinPollTimer?.cancel();
+    _bleAdvRearmTimer?.cancel();
     _keycardToastTimer?.cancel();
     final stop = _keycardEventsStop;
     if (stop != null) {
@@ -332,6 +440,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
         phase != InstallerPhase.keycardSetup) {
       _keycardTearDown();
     }
+    if (phase == InstallerPhase.cbbReconnect) {
+      _cbbPollAbandoned = false;
+    } else if (leaving == InstallerPhase.cbbReconnect) {
+      _cbbPollAbandoned = true;
+    }
     if (phase == InstallerPhase.keycardSetup) {
       _onEnterKeycardSetup();
     }
@@ -367,9 +480,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// Park the two settings that interfere with a long-running install:
   /// auto-standby (would suspend the MDB mid-install) and the alarm (would
   /// trip on motion while we're working). Both are persisted by
-  /// settings-service, so they get explicitly wiped in [_onEnterFinish]
-  /// before we reapply the user's actual choices. Best-effort: older images
-  /// may not know these keys.
+  /// settings-service, so [_onEnterFinish] undoes them before we reapply the
+  /// user's actual choices: see [_resetPersistedSettings], which restores the
+  /// copy [_backupPersistedSettings] took on the routes that keep /data.
+  /// Best-effort: older images may not know these keys.
   Future<void> _disableInstallerHazards({required String label}) async {
     if (_isDryRun || !_sshService.isConnected) return;
     try {
@@ -397,17 +511,94 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
   }
 
-  /// Wipe the persisted settings file and bounce settings-service so the
-  /// installer-only overrides (auto-standby=0, alarm.enabled=false, etc.)
-  /// don't leak into the user's daily-driver state. Called before we
-  /// re-apply the user's actual choices in [_onEnterFinish].
-  Future<void> _resetPersistedSettings() async {
+  /// Where the pre-install copy of the persisted settings lives. Top level
+  /// of /data rather than /data/installer so it does not depend on that
+  /// directory surviving the run. Only the restore removes it: generic
+  /// cleanup used to, and a run that died between the park and the restore
+  /// then left the parked values looking like the user's own settings for
+  /// the next run to back up and faithfully put back.
+  static const _settingsBackupPath = '/data/settings.toml.preinstall';
+
+  /// Write-once snapshot of the settings as the first installer run ever
+  /// found them. Never overwritten, never deleted. It is the fallback when
+  /// an upgrade reaches the restore with no [_settingsBackupPath] to put
+  /// back: the user's settings from their last install beat the shipped
+  /// defaults as a guess, and both beat leaving ours in place.
+  static const _settingsDefaultPath = '/data/settings.toml.default';
+
+  /// Copy the persisted settings aside before the installer parks any of
+  /// them. Runs at connect time, before the first `lsc set`, so the copy is
+  /// the user's own state rather than ours. Idempotent: a second connect in
+  /// the same session must not overwrite the first copy with one that
+  /// already has our overrides baked in.
+  ///
+  /// A clean install reformats /data and takes this with it, which is
+  /// correct: there is nothing to restore on a board that was erased.
+  Future<void> _backupPersistedSettings() async {
     if (_isDryRun || !_sshService.isConnected) return;
     try {
       await _sshService.runCommand(
-        'rm -f /data/settings.toml && systemctl restart librescoot-settings',
+        'if [ -f /data/settings.toml ]; then '
+        'if [ ! -f $_settingsBackupPath ]; then '
+        'cp /data/settings.toml $_settingsBackupPath; fi; '
+        'if [ ! -f $_settingsDefaultPath ]; then '
+        'cp /data/settings.toml $_settingsDefaultPath; fi; '
+        'fi',
       );
-      debugPrint('UI: wiped /data/settings.toml + restarted librescoot-settings');
+      debugPrint('UI: settings backed up to $_settingsBackupPath');
+    } catch (e) {
+      debugPrint('UI: failed to back up persisted settings (ok): $e');
+    }
+  }
+
+  /// Drop the installer-only overrides (auto-standby=0, alarm.enabled=false)
+  /// so they don't leak into the user's daily-driver state. Called before we
+  /// re-apply the user's actual choices in [_onEnterFinish].
+  ///
+  /// How that is done depends on what happened to /data. A clean install or
+  /// a full image reformatted it, so the file on disk is ours and deleting
+  /// it restores the shipped defaults. An upgrade kept /data on purpose, and
+  /// the plan screen promises in both languages that it keeps settings,
+  /// keycards, maps and trips: `settings.schema.json` persists around sixty
+  /// keys there, including the cellular APN and SIM PIN, the dual-battery
+  /// hardware flag and the whole alarm group. Deleting the file would
+  /// silently undo the reason the user picked Upgrade, so restore the
+  /// pre-install copy instead.
+  Future<void> _resetPersistedSettings() async {
+    if (_isDryRun || !_sshService.isConnected) return;
+
+    // No plan means the legacy full-image route, which wipes /data anyway.
+    final action = _plan?.mdb.action;
+    final dataWasErased = action == BoardAction.cleanInstall ||
+        action == BoardAction.fullImage ||
+        action == null;
+
+    try {
+      if (dataWasErased) {
+        await _sshService.runCommand(
+          'rm -f /data/settings.toml $_settingsBackupPath && '
+          'systemctl restart librescoot-settings',
+        );
+        debugPrint('UI: wiped /data/settings.toml + restarted librescoot-settings');
+      } else {
+        // With no backup, the write-once snapshot is the next best source:
+        // the board's settings as the first installer run found them. With
+        // neither, reset only the two keys we park, to the shipped defaults
+        // from settings.schema.json. Deleting the file is the one thing that
+        // must not happen on any of the three.
+        await _sshService.runCommand(
+          'if [ -f $_settingsBackupPath ]; then '
+          'mv -f $_settingsBackupPath /data/settings.toml; '
+          'elif [ -f $_settingsDefaultPath ]; then '
+          'cp -f $_settingsDefaultPath /data/settings.toml; '
+          'else '
+          "lsc set scooter.auto-standby-seconds 900 >/dev/null 2>&1 || true; "
+          "lsc set alarm.enabled true >/dev/null 2>&1 || true; "
+          'fi; '
+          'systemctl restart librescoot-settings',
+        );
+        debugPrint('UI: restored pre-install settings + restarted librescoot-settings');
+      }
       // Give settings-service a moment to come back and re-publish defaults
       // before we HSET into the settings hash again.
       await Future.delayed(const Duration(seconds: 2));
@@ -421,28 +612,44 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// updates pull from the same track they just installed). Both are
   /// best-effort — failure is harmless, the user can fix from the dashboard.
   Future<void> _onEnterFinish() async {
+    // Read before the first await: reaching for the context after one is how
+    // a disposed widget turns a best-effort settings write into a crash.
+    final lang = Localizations.localeOf(context).languageCode;
+
     if (_isDryRun || !_sshService.isConnected) {
-      // Dry-run / no SSH: nothing to reboot, render the success screen
-      // immediately.
-      if (mounted) setState(() => _awaitingFinishReboot = false);
+      // Dry-run / no SSH: nothing to hand over, render the success screen
+      // immediately. On the autonomous path this is the normal case — the
+      // laptop is on the dashboard's port, or off the scooter entirely.
+      if (mounted) setState(() => _awaitingFinishHandover = false);
       return;
     }
 
-    if (mounted) setState(() => _awaitingFinishReboot = true);
+    // Connected, but the device may have closed the install out itself while
+    // we were unplugged, in which case redoing any of it is wrong: the
+    // settings backup is already consumed, so a second restore would put
+    // back the first-install snapshot, and a second handover is pure delay.
+    // The completion record is the device's own proof, not our assumption —
+    // an armed trampoline that failed never writes one, and that run does
+    // still need the laptop-side finish.
+    if (_deviceFinishArmed && await _deviceReportedFinished()) {
+      debugPrint('UI: device finished the install itself, skipping finish work');
+      if (mounted) setState(() => _awaitingFinishHandover = false);
+      return;
+    }
+
+    if (mounted) setState(() => _awaitingFinishHandover = true);
 
     // Kill the green success-blink (and the amber guard) before anything
-    // else. The reboot below should tear down the transient systemd-run
-    // units anyway, but if it doesn't fire (or doesn't fire promptly) this
-    // is what keeps the scooter from sitting in standby with the LP5562
+    // else. The vehicle-service restart below tears down the transient
+    // systemd-run units anyway, but if it doesn't fire (or doesn't fire
+    // promptly) this is what keeps the scooter from sitting in standby with the LP5562
     // blinking green until someone power-cycles it.
     await _stopBootLedBlink();
 
-    // Wipe first, then re-apply the user's choices: this drops our
-    // installer-only overrides (auto-standby=0, alarm.enabled=false) so the
-    // scooter behaves normally on next boot.
+    // Undo our overrides first, then re-apply the user's choices on top, so
+    // the scooter behaves normally on next boot.
     await _resetPersistedSettings();
 
-    final lang = Localizations.localeOf(context).languageCode;
     if (lang == 'en' || lang == 'de') {
       try {
         await _sshService.runCommand("lsc set dashboard.language '$lang'");
@@ -460,7 +667,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       debugPrint('UI: failed to persist ota channel: $e');
     }
 
-    // Wipe installer staging from /data before we kick off the reboot, so
+    // Wipe installer staging from /data before we hand the vehicle back, so
     // the user doesn't carry a few hundred MB of leftover image/tile files
     // around forever. Skipped in non-release builds so devs can poke at
     // the trampoline state after a failed run.
@@ -470,55 +677,89 @@ class _InstallerScreenState extends State<InstallerScreen> {
       debugPrint('UI: skipping MDB cleanup (non-release build)');
     }
 
-    // Reboot the MDB. The install path leaves several services stopped
-    // (librescoot-pm) and the PWM LED channels for the four blinkers
-    // deactivated (the trampoline drives them as a progress bar and clears
-    // activate=1 on cleanup), so the running system can't flash blinkers
-    // until a fresh boot re-initializes everything. A reboot here also picks
-    // up the lsc settings we just persisted. Timing is fine: the user is
-    // about to disconnect USB and physically reassemble the scooter, which
-    // takes longer than the MDB needs to come back up.
-    //
-    // Restoring usb0-policy=auto and rebooting have to happen in the same
-    // detached MDB-side shell. vehicle-service applies the policy change
-    // synchronously: with the DBC powered off (it is, by the end of
-    // onboot.sh) and keycards paired (the common path), usb0AutoEffective()
-    // returns true and SetUsb0Enabled(false) tears down the USB gadget —
-    // which is the SSH transport we're sitting on. Running it via nohup
-    // lets the shell outlive the disconnect long enough to sync and reboot.
+    // Put the vehicle back together without a reboot, the same way the
+    // trampoline's autonomous finish does. The install path leaves
+    // librescoot-pm stopped (every connect stops it, nothing else starts it)
+    // and leaves the four blinker PWM channels deactivated, so restarting
+    // vehicle-service is what re-claims them.
     try {
-      await _sshService.runCommand(
-        "nohup sh -c 'lsc set scooter.usb0-policy auto; sync; reboot' "
-        '>/dev/null 2>&1 </dev/null &',
-      );
-      debugPrint('UI: queued policy reset + reboot on MDB');
+      await _sshService.runCommand('systemctl start librescoot-pm');
+      await _sshService.runCommand('systemctl restart librescoot-vehicle');
+      debugPrint('UI: restarted power manager + vehicle-service');
     } catch (e) {
-      debugPrint('UI: failed to queue reboot on finish: $e');
+      debugPrint('UI: failed to restore services on finish: $e');
     }
 
-    // Poll the SSH transport until it dies — that's the signal the reboot
-    // command actually took effect. The detached shell sets usb0-policy=auto
-    // first; with the DBC off + keycards paired, vehicle-service tears down
-    // the USB gadget synchronously, so SSH drops well before the reboot
-    // itself completes. We do NOT wait for the MDB to come back: after
-    // reboot the scooter is in stand-by with policy=auto, so usb0 stays
-    // down until the user unlocks. The SSH drop is the only signal we get.
-    // 60s cap so a stuck reboot doesn't trap the user on the waiting screen.
+    // usb0-policy and the unlock go in one detached MDB-side shell.
+    // vehicle-service applies the policy change synchronously: with the DBC
+    // powered off and keycards paired, usb0AutoEffective() returns true and
+    // SetUsb0Enabled(false) tears down the USB gadget — the SSH transport
+    // we're sitting on. nohup lets the shell outlive that disconnect.
+    //
+    // The unlock is the success signal: a scooter that unlocks itself is a
+    // clearer message than an LED the owner has to find and interpret. The
+    // sleep gives vehicle-service its state machine back before asking for a
+    // transition, or the unlock lands before it is listening.
+    try {
+      await _sshService.runCommand(
+        "nohup sh -c 'lsc set scooter.usb0-policy auto; sleep 5; "
+        "redis-cli -h localhost lpush scooter:state unlock; sync' "
+        '>/dev/null 2>&1 </dev/null &',
+      );
+      debugPrint('UI: queued policy reset + unlock on MDB');
+    } catch (e) {
+      debugPrint('UI: failed to queue the finish handover: $e');
+    }
+
+    // The screen is waiting on the unlock, so watch for the unlock. Either
+    // outcome ends the wait:
+    //
+    //  - the vehicle leaves stand-by, which is the unlock landing. This is
+    //    the normal case, and usb0 comes back with it, so the link staying
+    //    up is not evidence that nothing happened.
+    //  - SSH dies and stays dead. Setting usb0-policy=auto tears the gadget
+    //    down synchronously, and on a board that does not unlock it never
+    //    returns, so the drop is all we get.
+    //
+    // 60s cap so a stuck handover doesn't trap the user on the wait screen.
     final deadline = DateTime.now().add(const Duration(seconds: 60));
     while (DateTime.now().isBefore(deadline)) {
       await Future.delayed(const Duration(seconds: 1));
       if (!mounted) return;
       try {
-        await _sshService.runCommand('echo ok').timeout(const Duration(seconds: 2));
+        final state = await _sshService
+            .runCommand('redis-cli -h localhost hget vehicle state')
+            .timeout(const Duration(seconds: 2));
+        final trimmed = state.trim();
+        if (trimmed.isNotEmpty && trimmed != 'stand-by') {
+          debugPrint('UI: vehicle is $trimmed — the unlock landed');
+          if (mounted) setState(() => _awaitingFinishHandover = false);
+          return;
+        }
       } catch (_) {
-        debugPrint('UI: MDB SSH dropped — reboot confirmed');
+        debugPrint('UI: MDB SSH dropped — handover confirmed');
         _sshService.disconnect();
-        if (mounted) setState(() => _awaitingFinishReboot = false);
+        if (mounted) setState(() => _awaitingFinishHandover = false);
         return;
       }
     }
-    debugPrint('UI: timed out waiting for MDB reboot, showing finish anyway');
-    if (mounted) setState(() => _awaitingFinishReboot = false);
+    debugPrint('UI: timed out waiting for the handover, showing finish anyway');
+    if (mounted) setState(() => _awaitingFinishHandover = false);
+  }
+
+  /// Whether the device wrote the completion record its autonomous finish
+  /// ends with. Any failure to ask counts as "no": redoing the finish is
+  /// wasteful, skipping one that never happened leaves the vehicle parked.
+  Future<bool> _deviceReportedFinished() async {
+    try {
+      final out = await _sshService
+          .runCommand('test -f /data/last-install && echo yes || echo no')
+          .timeout(const Duration(seconds: 10));
+      return out.trim() == 'yes';
+    } catch (e) {
+      debugPrint('UI: could not read the completion record ($e), finishing here');
+      return false;
+    }
   }
 
   void _setStatus(String message, {double? progress}) {
@@ -714,6 +955,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                       currentPhase: _currentPhase,
                       completedPhases: _completedPhases,
                       skippedPhases: _skippedPhases,
+                      upgradingSteps: _upgradingSteps,
                       downloadItems: _downloadState.items,
                     ),
                     Expanded(
@@ -721,18 +963,32 @@ class _InstallerScreenState extends State<InstallerScreen> {
                         children: [
                           Expanded(
                             child: LayoutBuilder(
-                              builder: (context, constraints) => Scrollbar(
-                                controller: _phaseScrollController,
-                                thumbVisibility: true,
-                                child: SingleChildScrollView(
+                              builder: (context, constraints) {
+                                // The plan screen scrolls its own board list
+                                // and pins Continue below it, which only
+                                // works against a bounded height. Inside the
+                                // outer scroll view it would grow to fit its
+                                // content instead and the button would
+                                // scroll off the bottom again.
+                                if (_currentPhase == InstallerPhase.installPlan) {
+                                  return Padding(
+                                    padding: const EdgeInsets.all(32),
+                                    child: _buildPhaseContent(l10n),
+                                  );
+                                }
+                                return Scrollbar(
                                   controller: _phaseScrollController,
-                                  padding: const EdgeInsets.all(32),
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(minHeight: constraints.maxHeight - 64),
-                                    child: Center(child: _buildPhaseContent(l10n)),
+                                  thumbVisibility: true,
+                                  child: SingleChildScrollView(
+                                    controller: _phaseScrollController,
+                                    padding: const EdgeInsets.all(32),
+                                    child: ConstrainedBox(
+                                      constraints: BoxConstraints(minHeight: constraints.maxHeight - 64),
+                                      child: Center(child: _buildPhaseContent(l10n)),
+                                    ),
                                   ),
-                                ),
-                              ),
+                                );
+                              },
                             ),
                           ),
                           _buildStatusBar(l10n),
@@ -820,11 +1076,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
       InstallerPhase.mdbConnect => _buildMdbConnect(l10n),
       InstallerPhase.resumeDetected => _buildResumeDetected(l10n),
       InstallerPhase.healthCheck => _buildHealthCheck(l10n),
-      InstallerPhase.batteryRemoval => _buildBatteryRemoval(l10n),
+      InstallerPhase.installPlan => _buildInstallPlan(l10n),
       InstallerPhase.mdbToUms => _buildMdbToUms(l10n),
       InstallerPhase.mdbFlash => _buildMdbFlash(l10n),
       InstallerPhase.scooterPrep => _buildScooterPrep(l10n),
       InstallerPhase.mdbBoot => _buildMdbBoot(l10n),
+      InstallerPhase.mdbArtifact => _buildMdbArtifact(l10n),
       InstallerPhase.cbbReconnect => _buildCbbReconnect(l10n),
       InstallerPhase.dbcPrep => _buildDbcPrep(l10n),
       InstallerPhase.dbcFlash => _buildDbcFlash(l10n),
@@ -992,12 +1249,21 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // shows progress while they read the warnings, and the Continue
     // button can gate on _downloadState.allReady. Microtask so we don't
     // mutate state during build.
-    if (!_downloadsKicked && !launchArgs.hasLocalImages) {
+    if (!_downloadsKicked && _downloadsFailed == null && !launchArgs.hasLocalImages) {
       Future.microtask(_kickoffDownloads);
     }
+    final missingAssets = _downloadState.missingRequiredTypes;
     final downloadsReady = _downloadState.allReady && _downloadState.items.isNotEmpty;
     final hasItems = _downloadState.items.isNotEmpty;
-    final waitingOnDownloads = !downloadsReady && hasItems;
+    final waitingOnDownloads =
+        !downloadsReady && hasItems && missingAssets.isEmpty;
+    // Nothing resolved at all. An empty queue used to read as "nothing to
+    // wait for" rather than "nothing resolved", so Continue stayed enabled
+    // and walked the user toward a flash with no firmware behind it. The
+    // requiredTypes gate does not catch this either: it is only populated
+    // after a successful resolve, so on the exception path it is empty and
+    // missingAssets passes.
+    final nothingResolved = !hasItems && !launchArgs.hasLocalImages;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1007,6 +1273,54 @@ class _InstallerScreenState extends State<InstallerScreen> {
         Text(l10n.noticesSubheading,
             style: TextStyle(color: Colors.grey.shade400)),
         const SizedBox(height: 24),
+
+        if (_downloadsFailed != null) ...[
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade900.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.shade700),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.cloud_off, color: Colors.orange),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(l10n.downloadsFailedHeading,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 15)),
+                      const SizedBox(height: 4),
+                      Text(l10n.downloadsFailedBody,
+                          style: TextStyle(
+                              fontSize: 13, color: Colors.grey.shade300)),
+                      const SizedBox(height: 6),
+                      SelectableText(_downloadsFailed!,
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'monospace',
+                              color: Colors.grey.shade400)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                FilledButton.icon(
+                  onPressed: () => setState(() {
+                    _downloadsFailed = null;
+                    _downloadsKicked = false;
+                  }),
+                  icon: const Icon(Icons.refresh),
+                  label: Text(l10n.downloadsRetry),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
 
         // Critical no-power-cycle warning: users keep yanking power
         // when they think things are stuck, which is what actually
@@ -1085,6 +1399,44 @@ class _InstallerScreenState extends State<InstallerScreen> {
             ],
           ),
         ),
+        if (missingAssets.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.red.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.red.shade400),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.report_problem, color: Colors.red.shade300, size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(l10n.releaseMissingAssetsTitle,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red.shade300,
+                          )),
+                      const SizedBox(height: 6),
+                      Text(
+                        l10n.releaseMissingAssetsBody(
+                          _downloadState.releaseTag ?? '',
+                          missingAssets.map((t) => _assetLabel(l10n, t)).join(', '),
+                        ),
+                        style: TextStyle(fontSize: 13, color: Colors.grey.shade200),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
 
         Row(
@@ -1117,17 +1469,20 @@ class _InstallerScreenState extends State<InstallerScreen> {
                   const SizedBox(width: 8),
                 ],
                 FilledButton.icon(
-                  onPressed: _isProcessing || waitingOnDownloads
+                  onPressed: _isProcessing ||
+                          waitingOnDownloads ||
+                          nothingResolved ||
+                          missingAssets.isNotEmpty
                       ? null
                       : _startDownloadsAndContinue,
-                  icon: waitingOnDownloads
+                  icon: waitingOnDownloads || nothingResolved
                       ? const SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(
                               strokeWidth: 2, color: Colors.white))
                       : const Icon(Icons.arrow_forward),
-                  label: Text(waitingOnDownloads
+                  label: Text(waitingOnDownloads || nothingResolved
                       ? l10n.noticesWaitingForDownloads
                       : l10n.noticesAcknowledgeButton),
                 ),
@@ -1138,6 +1493,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
       ],
     );
   }
+
+  String _assetLabel(AppLocalizations l10n, DownloadItemType type) =>
+      switch (type) {
+        DownloadItemType.mdbArtifact => l10n.assetMdbArtifact,
+        DownloadItemType.dbcArtifact => l10n.assetDbcArtifact,
+        DownloadItemType.mdbFirmware => l10n.assetMdbImage,
+        DownloadItemType.dbcFirmware => l10n.assetDbcImage,
+        _ => type.name,
+      };
 
   Widget _buildChannelSelector(AppLocalizations l10n) {
     final channelInfo = <DownloadChannel, ({String name, String desc})>{
@@ -1181,7 +1545,19 @@ class _InstallerScreenState extends State<InstallerScreen> {
     required bool selected,
   }) {
     return GestureDetector(
-      onTap: available ? () => setState(() => _downloadState.channel = channel) : null,
+      onTap: available
+          ? () => setState(() {
+                if (_downloadState.channel == channel) return;
+                _downloadState.channel = channel;
+                // The queue is built once, on entering Notices. Without
+                // this, coming back here to change channel would carry the
+                // old release's queue forward, and changing channel is the
+                // only way out of a release that is missing an asset the
+                // install needs.
+                _downloadsKicked = false;
+                _downloadsFailed = null;
+              })
+          : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.all(16),
@@ -1313,6 +1689,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   bool _downloadsKicked = false;
 
+  /// Why the last kick failed, or null. Holding the reason here is what stops
+  /// the retry: the kick is scheduled from build(), so re-arming
+  /// [_downloadsKicked] in the catch turned a failure into a loop that reran
+  /// as fast as the failing request resolved. A field log caught it at ~23
+  /// requests a second for 156s, which was most of the log.
+  String? _downloadsFailed;
+
   /// Build the download queue and start downloads in the background.
   /// Called when the user enters the Notices phase so the sidebar shows
   /// progress while they read the warnings; the Continue button on
@@ -1326,6 +1709,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
       if (launchArgs.hasLocalImages) {
         _setStatus(l10n.usingLocalFirmwareImages);
         final items = <DownloadItem>[];
+        // Only the boards whose flag was actually passed: a queue that
+        // claims the other board's image is coming is what made
+        // --dbc-image alone wait for an MDB download that never starts.
+        _downloadState.requiredTypes = {
+          if (launchArgs.mdbImage != null) DownloadItemType.mdbFirmware,
+          if (launchArgs.dbcImage != null) DownloadItemType.dbcFirmware,
+        };
         if (launchArgs.mdbImage != null) {
           items.add(DownloadItem(
             type: DownloadItemType.mdbFirmware,
@@ -1347,20 +1737,41 @@ class _InstallerScreenState extends State<InstallerScreen> {
         setState(() => _downloadState.items = items);
       } else {
         _setStatus(l10n.resolvingReleases);
+        // The tag is the target version every later check compares a board
+        // against, so it has to be recorded, not just used to pick assets.
+        // Reads the same in-memory manifest the queue build does.
+        final release = await _downloadService.resolveRelease(_downloadState.channel);
         final items = await _downloadService.buildDownloadQueue(
           channel: _downloadState.channel,
           region: _downloadState.selectedRegion,
           wantsOfflineMaps: _downloadState.wantsOfflineMaps,
         );
-        setState(() => _downloadState.items = items);
+        setState(() {
+          _downloadState.releaseTag = release.tag;
+          _downloadState.requiredTypes = DownloadState.defaultRequiredTypes;
+          _downloadState.items = items;
+        });
+        // A release that does not ship what the install needs has to say so
+        // here, on a screen with a Back button and a channel picker behind
+        // it, not at the artifact install or halfway through the DBC.
+        if (_downloadState.missingRequiredTypes.isNotEmpty) {
+          debugPrint('Downloads: release ${release.tag} is missing '
+              '${_downloadState.missingRequiredTypes}');
+          return;
+        }
         _downloadInBackground();
       }
     } catch (e) {
-      _setStatus(l10n.errorPrefix(e.toString()));
-      _downloadsKicked = false; // allow retry
+      // Deliberately NOT re-arming _downloadsKicked: the retry is the user's
+      // to ask for, via the button this failure puts on screen.
+      if (mounted) setState(() => _downloadsFailed = e.toString());
     } finally {
       if (mounted) {
-        _setStatus('');
+        // Leave a failure on screen. Clearing unconditionally was why the
+        // error only ever flickered: the catch set it and the finally wiped
+        // it on the next frame, so the user got a strobing status line and no
+        // readable reason.
+        if (_downloadsFailed == null) _setStatus('');
         setState(() => _isProcessing = false);
       }
     }
@@ -1619,14 +2030,24 @@ class _InstallerScreenState extends State<InstallerScreen> {
       try {
         final configured = await networkService.configureInterface(iface);
         if (!configured && !await networkService.isMdbReachable()) {
-          // macOS path: configureInterface returns false (no exception) when
-          // `networksetup -setmanual` fails for lack of admin. The macOS
-          // auth dialog is asynchronous — auto-retrying here just churns the
-          // UI through configuring/ssh-fail/retry cycles until the user
-          // clicks Allow. Stop and let them hit the retry button when ready.
-          _setStatus(l10n.networkConfigNeedsPermission);
-          setState(() => _isProcessing = false);
-          return;
+          // configureInterface returns false without throwing for two very
+          // different reasons, and only one of them is about permission.
+          //
+          // On macOS `networksetup -setmanual` fails for lack of admin, and
+          // the auth dialog is asynchronous, so auto-retrying churns the UI
+          // until the user clicks Allow. Stopping is right there.
+          //
+          // Everywhere else it means the board did not answer in the couple
+          // of seconds after the address was set, which is the ordinary state
+          // of a board that is still booting. Telling a Linux user that macOS
+          // wants permission is nonsense, and stopping on it strands them in
+          // front of a retry button for something that fixes itself.
+          if (Platform.isMacOS) {
+            _setStatus(l10n.networkConfigNeedsPermission);
+            setState(() => _isProcessing = false);
+            return;
+          }
+          _setStatus(l10n.waitingForMdb);
         }
       } on NetworkPrivilegeException catch (e) {
         _setStatus(l10n.errorPrefix(e.toString()));
@@ -1649,13 +2070,18 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // health screen (which shows a recovery banner) and on to re-flashing
       // the full firmware, bypassing every redis-backed step.
       if (!await _sshService.hasRedisStack()) {
-        debugPrint('SSH: MDB has no redis stack (incomplete image), routing to recovery re-flash');
+        debugPrint('SSH: MDB has no redis stack (bootstrap or incomplete image)');
         if (!mounted) return;
         setState(() {
           _mdbStackMissing = true;
-          _skipMdbFlash = false; // must re-flash; never offer to keep this image
           _isProcessing = false;
         });
+        if (_expectMinimalMdb) {
+          // We put this image here a minute ago. Carry on with the plan and
+          // install the artifact rather than offering to re-flash.
+          _setPhase(_beginMdbInstall());
+          return;
+        }
         _setStatus(l10n.incompleteImageStatus);
         _setPhase(InstallerPhase.healthCheck);
         return;
@@ -1668,14 +2094,47 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // forever. The leftovers prove an earlier session already passed the
       // gate, so skip it and clean up the masked services / error signals
       // before redoing the install.
+      //
+      // Testing for the files alone is not enough, and got this wrong on real
+      // hardware: a SUCCESSFUL run leaves trampoline-status behind too, so a
+      // healthy scooter was announced as an interrupted install, with no error
+      // to explain it, and the unlock gate was skipped on the strength of that.
+      // Read the verdict. Only a run that did not reach a verdict, or reached a
+      // failing one, is unfinished. A completion record is proof of the
+      // opposite and is reported rather than treated as damage.
       var resumingUnfinished = false;
+      String? previousRun;
       try {
         final leftover = await _sshService.runCommand(
           'ls /data/installer/trampoline-status /data/installer/trampoline.sh 2>/dev/null; true',
         );
-        resumingUnfinished = leftover.trim().isNotEmpty;
+        if (leftover.trim().isNotEmpty) {
+          // The first line is the verdict; anything else is detail.
+          final verdict = (await _sshService.runCommand(
+            'head -n 1 /data/installer/trampoline-status 2>/dev/null; true',
+          ))
+              .trim()
+              .toLowerCase();
+          resumingUnfinished = verdict != 'success';
+          debugPrint('SSH: leftovers found, verdict "$verdict", '
+              'resuming=$resumingUnfinished');
+        }
+        // Written by a finish that ran on the device, where nobody was here to
+        // read the outcome. Surfacing it is the whole point of writing it.
+        final record = (await _sshService.runCommand(
+          'cat /data/last-install 2>/dev/null; true',
+        ))
+            .trim();
+        if (record.isNotEmpty) {
+          previousRun = record;
+          debugPrint('SSH: previous run completed on the device: '
+              '${record.replaceAll('\n', ', ')}');
+        }
       } catch (e) {
         debugPrint('SSH: unfinished-install check failed (ok): $e');
+      }
+      if (mounted && previousRun != null) {
+        setState(() => _previousRunRecord = previousRun);
       }
 
       if (resumingUnfinished) {
@@ -1753,6 +2212,25 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// gadget, disables alarm/auto-standby, locks the scooter, and moves on
   /// to the health check.
   Future<void> _completeConnectionSetup(AppLocalizations l10n) async {
+    // A run that died between masking these and its own cleanup leaves them
+    // masked, and the consequence is not subtle: with bluetooth-service masked
+    // the main processor never reports boot to the nRF, whose watchdog then
+    // power-cycles the whole scooter about every two minutes. The board comes
+    // back with a new gadget MAC each time, so the host sees a fresh
+    // unconfigured interface, and every symptom points at the network rather
+    // than at a service that was never restarted. Clearing them costs nothing
+    // when they were already fine.
+    try {
+      await _sshService.reviveInstallerServices();
+      debugPrint('UI: cleared any leftover service masks');
+    } catch (e) {
+      debugPrint('UI: could not clear service masks (ok): $e');
+    }
+
+    // Before the first `lsc set` below, so the copy is the user's own
+    // settings and not ours. An upgrade puts it back at finish.
+    await _backupPersistedSettings();
+
     // Keep MDB USB gadget powered while the scooter is locked so we don't
     // lose RNDIS mid-flash. Best-effort: the key may not exist on older
     // images and `lsc set` returns non-zero in that case.
@@ -1793,6 +2271,17 @@ class _InstallerScreenState extends State<InstallerScreen> {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
     try {
+      // The screen promises the leftovers are dealt with, so deal with them:
+      // an abandoned trampoline is still armed for the next MDB reboot, and
+      // the services it masked are still masked.
+      _setStatus(l10n.resumeClearingLeftovers);
+      try {
+        await _sshService.disarmTrampolineOnboot();
+        await _sshService.reviveInstallerServices();
+        debugPrint('UI: disarmed the previous trampoline and revived services');
+      } catch (e) {
+        debugPrint('UI: could not clear the previous run (ok): $e');
+      }
       await _completeConnectionSetup(l10n);
     } catch (e) {
       _setStatus(l10n.sshConnectionFailed(e.toString()));
@@ -1975,6 +2464,64 @@ class _InstallerScreenState extends State<InstallerScreen> {
         v.contains('testing') || v.contains('stable');
   }
 
+  /// Read what the MDB is running. `mender-update show-artifact` is what
+  /// separates a bootstrap image from a full one: both report the same
+  /// os-release ID, but only the full image brings up a service stack, and
+  /// the artifact name carries the image recipe.
+  Future<BoardState> _detectMdbState() async {
+    final hasMender = await _sshService.hasMenderUpdate();
+    final artifact = hasMender ? await _sshService.menderArtifactName() : null;
+    final osRelease = await _sshService.readOsRelease();
+    final version = osRelease['VERSION_ID'] ?? _mdbInfo?.firmwareVersion;
+    // Probe the stack instead of trusting _mdbStackMissing. After the
+    // artifact's reboot that field still holds the answer the stage-0 board
+    // gave before the install, which would make every clean install look as
+    // if it had never left the bootstrap image.
+    final hasStack = await _sshService.hasRedisStack();
+    final minimal = (artifact ?? '').contains('minimal') || !hasStack;
+
+    return BoardState(
+      board: Board.mdb,
+      isLibrescoot: _isLibrescootFirmware,
+      provenance: StateProvenance.live,
+      version: version,
+      artifactName: artifact,
+      hasMender: hasMender,
+      isMinimalImage: minimal,
+    );
+  }
+
+  /// The DBC cannot be reached while the laptop occupies the MDB's only OTG
+  /// port, so its version is whatever the MDB last saw. Valkey on the MDB is
+  /// memory-only, so an MDB that rebooted since the DBC was last powered
+  /// reports nothing at all, which is indistinguishable from a stock DBC.
+  /// hasMender is assumed rather than probed; the trampoline finds out for
+  /// real and falls back to stage 0 on the spot.
+  Future<BoardState> _detectDbcState() async {
+    String? version;
+    try {
+      final hash = await _sshService.redisHgetall('version:dbc');
+      version = hash['version_id'];
+      final id = hash['id'] ?? '';
+      if (version != null && version.isNotEmpty && id.startsWith('librescoot')) {
+        return BoardState(
+          board: Board.dbc,
+          isLibrescoot: true,
+          provenance: StateProvenance.lastSeen,
+          version: version,
+          hasMender: true,
+        );
+      }
+    } catch (e) {
+      debugPrint('SSH: version:dbc read failed: $e');
+    }
+    return const BoardState(
+      board: Board.dbc,
+      isLibrescoot: false,
+      provenance: StateProvenance.unknown,
+    );
+  }
+
   bool get _isUntestedStockFirmware {
     if (_isLibrescootFirmware) return false;
     final v = _mdbInfo?.firmwareVersion ?? '';
@@ -2000,23 +2547,45 @@ class _InstallerScreenState extends State<InstallerScreen> {
       Future.microtask(_runHealthCheck);
     }
 
-    void proceed() {
-      if (_skipMdbFlash) {
-        // Mark all MDB flash phases as skipped
-        for (final phase in MajorStep.mdbFlash.phases) {
-          _skippedPhases.add(phase);
-        }
-        if (_skipDbcFlash) {
-          for (final phase in MajorStep.dbcFlash.phases) {
-            _skippedPhases.add(phase);
-          }
-          _setPhase(InstallerPhase.bluetoothPairing);
-        } else {
-          _setPhase(InstallerPhase.cbbReconnect);
-        }
-      } else {
-        _setPhase(InstallerPhase.batteryRemoval);
+    Future<void> proceed() async {
+      // Two SSH round trips: without the guard a double click fires both
+      // probes twice and lands on the plan screen twice.
+      if (_isProcessing) return;
+      // Local images leave the plan screen nothing to choose between, so
+      // skip it and let _startPlan seed the full-image plan itself.
+      if (launchArgs.hasLocalImages) {
+        _startPlan();
+        return;
       }
+      setState(() => _isProcessing = true);
+      final target = _downloadState.releaseTag;
+      final BoardState mdb;
+      final BoardState dbc;
+      try {
+        mdb = await _detectMdbState();
+        dbc = await _detectDbcState();
+      } catch (e) {
+        // Both probes swallow their own SSH errors, so this is belt and
+        // braces: leaving _isProcessing set would disable the only buttons
+        // on this screen and strand the user here.
+        if (!mounted) return;
+        _setStatus(l10n.errorPrefix(e.toString()));
+        setState(() => _isProcessing = false);
+        return;
+      }
+      if (!mounted) return;
+      setState(() {
+        _mdbState = mdb;
+        _dbcState = dbc;
+        _plan = InstallPlan.defaults(
+          mdb: mdb,
+          dbc: dbc,
+          targetVersion: target,
+          installTiles: _downloadState.wantsOfflineMaps,
+        );
+      });
+      // _setPhase clears _isProcessing.
+      _setPhase(InstallerPhase.installPlan);
     }
 
     return Center(
@@ -2029,6 +2598,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
           if (_mdbInfo != null)
             Text(l10n.firmwareVersionDisplay(_mdbInfo!.firmwareVersion),
                 style: TextStyle(color: Colors.grey.shade400)),
+          // A run that finished on the device had nobody watching it. This is
+          // the only place its outcome reaches a human.
+          if (_previousRun != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              l10n.previousRunSummary(
+                  _previousRun!.when, _previousRun!.version),
+              style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+            ),
+          ],
           const SizedBox(height: 8),
           Text(l10n.verifyingReadiness,
               style: TextStyle(color: Colors.grey.shade400)),
@@ -2127,56 +2706,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
               ),
             ),
 
-          // Librescoot detected: offer to skip MDB reflash. Never when the
-          // image is incomplete (a minimal rootfs reports as Librescoot but
-          // must be re-flashed, not kept).
-          if (_scooterHealth != null && _isLibrescootFirmware && !_mdbStackMissing) ...[
-            const SizedBox(height: 24),
-            Container(
-              width: 400,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: kAccent.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: kAccent.withValues(alpha: 0.3)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(l10n.librescootFirmwareDetected,
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: kAccent)),
-                  const SizedBox(height: 12),
-                  CheckboxListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(l10n.skipMdbReflash),
-                    subtitle: Text(l10n.keepCurrentMdbFirmware),
-                    value: _skipMdbFlash,
-                    onChanged: (v) => setState(() => _skipMdbFlash = v ?? false),
-                  ),
-                  CheckboxListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(l10n.skipDbcFlashOption),
-                    subtitle: Text(l10n.onlyFlashMdbSkipDbc),
-                    value: _skipDbcFlash,
-                    onChanged: (v) => setState(() => _skipDbcFlash = v ?? false),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
           const SizedBox(height: 24),
           if (_mdbStackMissing)
             FilledButton.icon(
-              onPressed: proceed,
+              onPressed: _isProcessing ? null : () => proceed(),
               icon: const Icon(Icons.build),
               label: Text(l10n.reflashToRecover),
             ),
           if (!_mdbStackMissing && _scooterHealth != null && _scooterHealth!.allOk)
             FilledButton.icon(
-              onPressed: proceed,
+              onPressed: _isProcessing ? null : () => proceed(),
               icon: const Icon(Icons.arrow_forward),
               label: Text(l10n.continueButton),
             ),
@@ -2193,7 +2732,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             ),
             const SizedBox(height: 8),
             TextButton(
-              onPressed: proceed,
+              onPressed: _isProcessing ? null : () => proceed(),
               child: Text(l10n.proceedAtOwnRisk,
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
             ),
@@ -2264,80 +2803,77 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
 
-  Widget _buildBatteryRemoval(AppLocalizations l10n) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(l10n.batteryRemovalHeading,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 24),
-          if (_scooterHealth?.batteryPresent == true) ...[
-            InstructionStep(
-              number: 1,
-              title: l10n.seatboxOpening,
-              description: l10n.seatboxOpeningDesc,
-            ),
-            InstructionStep(
-              number: 2,
-              title: l10n.removeMainBattery,
-              description: l10n.removeMainBatteryDesc,
-            ),
-            const SizedBox(height: 16),
-            if (!_isProcessing)
-              FilledButton(
-                onPressed: _openSeatboxAndWaitForBattery,
-                child: Text(l10n.openSeatbox),
-              ),
-            if (_isProcessing) ...[
-              const CircularProgressIndicator(),
-              const SizedBox(height: 8),
-              Text(_statusMessage, style: TextStyle(color: Colors.grey.shade400)),
-            ],
-          ] else ...[
-            const Icon(Icons.check_circle, size: 48, color: kAccent),
-            const SizedBox(height: 16),
-            Text(l10n.mainBatteryAlreadyRemoved),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () => _setPhase(InstallerPhase.mdbToUms),
-              icon: const Icon(Icons.arrow_forward),
-              label: Text(l10n.continueButton),
-            ),
-          ],
-        ],
-      ),
+  Widget _buildInstallPlan(AppLocalizations l10n) {
+    return InstallPlanPanel(
+      plan: _plan!,
+      mdbState: _mdbState,
+      dbcState: _dbcState,
+      targetVersion: _downloadState.releaseTag ?? '',
+      onChanged: (p) => setState(() => _plan = p),
+      onContinue: _startPlan,
     );
   }
 
-  Future<void> _openSeatboxAndWaitForBattery() async {
-    final l10n = AppLocalizations.of(context)!;
-    setState(() => _isProcessing = true);
-    if (_isDryRun) {
-      _setStatus('[DRY RUN] Simulating battery removal...');
-      await Future.delayed(const Duration(seconds: 1));
-      setState(() { _scooterHealth?.batteryPresent = false; _isProcessing = false; });
+  /// Turn the chosen plan into a route through the phases. Every branch has
+  /// to leave the wizard somewhere it can continue from: a board left alone
+  /// skips its phases outright, an upgrade skips only the sdimg write, and a
+  /// plan that does nothing at all cannot get here (the panel disables
+  /// Continue for it).
+  void _startPlan() {
+    // --mdb-image / --dbc-image supply full sdimgs and no artifacts, so the
+    // only thing a plan can mean there is the legacy full-image path.
+    if (launchArgs.hasLocalImages) {
+      // One action per flag, not both for either. Seeding fullImage for the
+      // board whose image was never passed dead-ends: --mdb-image alone hit
+      // the DBC asset guard, --dbc-image alone waited forever for an MDB
+      // firmware download that was never queued. Tiles are off because the
+      // local-image queue holds no tile items either.
+      _plan = InstallPlan(
+        mdb: BoardPlan(
+          board: Board.mdb,
+          action: launchArgs.mdbImage != null
+              ? BoardAction.fullImage
+              : BoardAction.leave,
+        ),
+        dbc: BoardPlan(
+          board: Board.dbc,
+          action: launchArgs.dbcImage != null
+              ? BoardAction.fullImage
+              : BoardAction.leave,
+        ),
+        installTiles: false,
+      );
+    }
+    final plan = _plan!;
+    _skippedPhases.clear();
+
+    if (!plan.needsMdbWork) {
+      _skippedPhases.addAll(MajorStep.mdbFlash.phases);
+    } else if (!plan.needsMdbStage0) {
+      // An upgrade skips everything the sdimg write needs: no u-boot UMS,
+      // no CBB dance.
+      _skippedPhases.addAll([
+        InstallerPhase.mdbToUms,
+        InstallerPhase.mdbFlash,
+        InstallerPhase.scooterPrep,
+        InstallerPhase.mdbBoot,
+      ]);
+    }
+    if (!plan.needsHandoff) {
+      _skippedPhases.addAll(MajorStep.dbcFlash.phases);
+    }
+
+    if (plan.needsMdbStage0) {
+      _expectMinimalMdb = plan.mdb.action == BoardAction.cleanInstall;
       _setPhase(InstallerPhase.mdbToUms);
-      return;
+    } else if (plan.needsMdbWork) {
+      _setPhase(_beginMdbInstall());
+    } else if (plan.needsHandoff) {
+      _beginBackgroundUploads();
+      _setPhase(InstallerPhase.bluetoothPairing);
+    } else {
+      _setPhase(InstallerPhase.bluetoothPairing);
     }
-    _setStatus(l10n.openingSeatbox);
-    await _sshService.openSeatbox();
-
-    _setStatus(l10n.waitingForBatteryRemoval);
-    debugPrint('Battery: waiting for depart on battery:0');
-    while (await _sshService.isBatteryPresent()) {
-      await Future.delayed(const Duration(seconds: 2));
-      if (!mounted) return;
-    }
-    debugPrint('Battery: depart detected on battery:0');
-    await _sshService.logScooterStats('battery-removed');
-
-    _setStatus(l10n.batteryRemoved);
-    setState(() {
-      _scooterHealth?.batteryPresent = false;
-      _isProcessing = false;
-    });
-    _setPhase(InstallerPhase.mdbToUms);
   }
   Widget _buildMdbToUms(AppLocalizations l10n) {
     if (!_mdbToUmsStarted && !_isProcessing) {
@@ -2383,6 +2919,27 @@ class _InstallerScreenState extends State<InstallerScreen> {
     );
   }
 
+  /// Best-effort: the reboot moments later deactivates the pack regardless,
+  /// so a board that will not answer is not a reason to stop the install.
+  Future<void> _deactivateMainBattery() async {
+    if (_isDryRun) return;
+    try {
+      await _sshService.deactivateMainBattery();
+      final deadline = DateTime.now().add(const Duration(seconds: 30));
+      while (DateTime.now().isBefore(deadline)) {
+        if (!await _sshService.isMainBatteryActive()) {
+          debugPrint('Battery: main pack deactivated via seatbox-open');
+          await _sshService.logScooterStats('main-battery-deactivated');
+          return;
+        }
+        await Future.delayed(const Duration(seconds: 1));
+      }
+      debugPrint('Battery: still active after 30s, the UMS reboot will do it');
+    } catch (e) {
+      debugPrint('Battery: could not deactivate the main pack (ok): $e');
+    }
+  }
+
   Future<void> _configureMdbUms() async {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
@@ -2393,6 +2950,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
       return;
     }
     try {
+      // Turn the main pack off before the board goes away. The UMS reboot
+      // deactivates it either way, but only by the pack noticing the MDB has
+      // stopped talking and timing out, which takes as long as it takes and
+      // leaves the contactors closed until it does. Saying so explicitly is
+      // both faster and the same outcome the old battery-removal step bought
+      // with a seatbox that cannot be closed again from software.
+      _setStatus(l10n.deactivatingMainBattery);
+      await _deactivateMainBattery();
+
       _setStatus(l10n.uploadingBootloaderTools);
       await _sshService.configureMassStorageMode();
 
@@ -2707,6 +3273,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
         debugPrint('Flash: user confirmed $devicePath as the target');
       }
 
+      // Linux has no verdict from the enumeration itself, so ask now, with the
+      // resolved path in hand. Anything mounted on the disk answers this
+      // without needing to know which disk is which.
+      final linuxVerdict = Platform.isLinux
+          ? await _usbDetector.linuxSystemDiskVerdict(devicePath)
+          : null;
+      if (linuxVerdict != null) {
+        debugPrint('Flash: linux system-disk verdict for $devicePath: '
+            '${linuxVerdict.name}');
+      }
       final safetyCheck = flashService.validateDevice(
         devicePath: devicePath,
         sizeBytes: target?.sizeBytes,
@@ -2714,6 +3290,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         isSystemDisk: target?.isSystemDisk ?? false,
         vendorId: target?.vendorId ?? 0,
         productId: target?.productId ?? 0,
+        systemDiskVerdict: linuxVerdict ?? SystemDiskVerdict.unknown,
       );
       if (!safetyCheck.passed) {
         debugPrint('Flash: safety check failed: ${safetyCheck.errors.join('; ')}');
@@ -2782,6 +3359,20 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // opened. Detector was resumed by _setCritical(false) above.
       _setStatus('$diagnosis\n\nWaiting for the device to be re-detected...');
       final back = await _waitForMassStorageDevice(timeout: const Duration(seconds: 60));
+
+      // A board that comes back as a network device booted the image, which
+      // means the write that "failed" had already finished. Retrying then
+      // waits forever for a mass-storage device that is never coming, and the
+      // user is stuck in front of a flash screen for a flash that is done.
+      if (!back && _device?.mode == DeviceMode.ethernet) {
+        debugPrint('Flash: board booted the image, treating the flash as done');
+        _setStatus(l10n.mdbFlashComplete);
+        setState(() => _mdbFlashStarted = false);
+        await Future.delayed(const Duration(seconds: 1));
+        _setPhase(InstallerPhase.scooterPrep);
+        return;
+      }
+
       if (!back) {
         _setStatus('$diagnosis\n\nDevice did not come back within 60s. '
             'Replug the USB (or, as a last resort, power-cycle the MDB) '
@@ -2821,6 +3412,58 @@ class _InstallerScreenState extends State<InstallerScreen> {
         Text(l10n.scooterPrepSubheading,
             style: TextStyle(color: Colors.grey.shade400)),
         const SizedBox(height: 24),
+
+        // The brake gesture is the primary route because it reaches the same
+        // outcome without the seatbox: no main battery to lift out, no CBB to
+        // unplug, no pole to unbolt, and so none of the ways those go wrong.
+        // The nRF52 sees the brake line directly, which is why it still works
+        // with the main processor parked in the bootloader.
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.cyan.shade900.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.cyan.shade800),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l10n.brakeResetHeading,
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 6),
+              Text(l10n.brakeResetIntro,
+                  style: TextStyle(color: Colors.grey.shade300, height: 1.4)),
+              const SizedBox(height: 18),
+              const BrakeGesturePacer(),
+              const SizedBox(height: 14),
+              Text(l10n.brakeResetAfterNote,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Kept, not replaced: a scooter whose levers are already apart for
+        // other work, or one where the gesture does not take, still needs the
+        // route that always works.
+        Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            title: Text(l10n.scooterPrepManualFallback,
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade400)),
+            // Opening it is the signal. A false positive costs a step the user
+            // can ignore; a false negative hides the one instruction they
+            // needed, so err toward remembering.
+            onExpansionChanged: (open) {
+              if (open && !_manualPowerCut) {
+                setState(() => _manualPowerCut = true);
+              }
+            },
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: EdgeInsets.zero,
+            expandedCrossAxisAlignment: CrossAxisAlignment.start,
+            children: [
         InstructionStep(
           number: 1,
           title: l10n.disconnectCbb,
@@ -2858,6 +3501,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
             ],
           ),
         ),
+            ],
+          ),
+        ),
         const SizedBox(height: 24),
         Align(
           alignment: Alignment.centerRight,
@@ -2882,13 +3528,23 @@ class _InstallerScreenState extends State<InstallerScreen> {
         children: [
           Text(l10n.waitingForMdbBoot,
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          InstructionStep(
-            number: 1,
-            title: l10n.reconnectAuxPole,
-            description: l10n.reconnectAuxPoleDesc,
-            imageAsset: 'assets/images/lsi-unu_scooter_aux_connected.jpg',
-          ),
+          const SizedBox(height: 8),
+          // Only the manual route unplugs anything, and the installer cannot
+          // tell the two restarts apart from outside, so this follows what the
+          // user actually chose. Asking for an AUX pole back from someone who
+          // used the brake gesture sends them looking for a screw they never
+          // undid.
+          if (_manualPowerCut)
+            InstructionStep(
+              number: 1,
+              title: l10n.reconnectAuxPole,
+              description: l10n.reconnectAuxPoleDesc,
+              imageAsset: 'assets/images/lsi-unu_scooter_aux_connected.jpg',
+            )
+          else
+            Text(l10n.mdbBootRestartingNote,
+                style: TextStyle(color: Colors.grey.shade400),
+                textAlign: TextAlign.center),
           const SizedBox(height: 16),
           Text(l10n.dbcLedHint,
               style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
@@ -2921,17 +3577,39 @@ class _InstallerScreenState extends State<InstallerScreen> {
     if (_isDryRun) {
       _setStatus('[DRY RUN] Simulating MDB boot...');
       await Future.delayed(const Duration(seconds: 2));
-      _setPhase(InstallerPhase.cbbReconnect);
+      _setPhase(_beginMdbInstall());
       return;
     }
 
-    _setStatus(l10n.waitingForUsbDevice);
-    while (_device == null) {
+    // A board still in mass storage has not been restarted yet: that is the
+    // state a successful flash leaves it in, and the restart is what ends it.
+    // Only a board that goes away and comes BACK as mass storage failed to
+    // take the image, so wait for it to leave before judging the mode, or a
+    // correctly written board gets re-written at the moment its power is
+    // pulled.
+    //
+    // A board that is already anything else has restarted, whether or not this
+    // screen saw it happen. Waiting for it to disappear then would be waiting
+    // for something that is already done.
+    var sawRestart = false;
+    while (true) {
+      final action =
+          mdbBootActionFor(mode: _device?.mode, sawRestart: sawRestart);
+      if (action == MdbBootAction.proceed || action == MdbBootAction.reflash) {
+        break;
+      }
+      _setStatus(action == MdbBootAction.waitForRestart
+          ? l10n.waitingForMdbRestart
+          : l10n.waitingForUsbDevice);
+      // Leaving mass storage, or leaving the bus at all, is the restart.
+      if (_device?.mode != DeviceMode.massStorage) sawRestart = true;
       await Future.delayed(const Duration(seconds: 1));
       if (!mounted) return;
+      if (_currentPhase != InstallerPhase.mdbBoot) return;
     }
 
-    if (_device?.mode == DeviceMode.massStorage) {
+    if (mdbBootActionFor(mode: _device?.mode, sawRestart: sawRestart) ==
+        MdbBootAction.reflash) {
       _setStatus(l10n.mdbStillUms);
       setState(() {
         _isProcessing = false;
@@ -3005,32 +3683,160 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // the next 10–20 minutes of DBC flash + BT pairing + keycard setup
       // don't put the MDB into suspend or honk the alarm at the workshop.
       // All three get reset at finish — see _resetPersistedSettings.
-      try {
-        await _sshService.runCommand('lsc set scooter.usb0-policy always-on');
-        debugPrint('UI: scooter.usb0-policy=always-on (mdb-boot)');
-      } catch (e) {
-        debugPrint('UI: failed to set scooter.usb0-policy=always-on at mdb-boot (ok): $e');
+      //
+      // All of them are redis writes, and the image running right now is the
+      // stage-0 bootstrap one whenever the artifact phase is what comes next,
+      // which has no redis for them to reach. Skip them in that case and let
+      // the artifact phase run them after its reboot. Note this is not the
+      // same test as _expectMinimalMdb: the shortcut that finds the board
+      // already in mass storage also writes a stage-0 image without ever
+      // setting that flag.
+      if (!_mdbArtifactPending) {
+        try {
+          await _sshService.runCommand('lsc set scooter.usb0-policy always-on');
+          debugPrint('UI: scooter.usb0-policy=always-on (mdb-boot)');
+        } catch (e) {
+          debugPrint('UI: failed to set scooter.usb0-policy=always-on at mdb-boot (ok): $e');
+        }
+        await _disableInstallerHazards(label: 'mdb-boot');
       }
-      await _disableInstallerHazards(label: 'mdb-boot');
 
-      // Restore radio-gaga config if we backed it up
+      // Restore radio-gaga config if we backed it up. It lands in /data, and
+      // a board that just took a stage-0 image is still resizing and mounting
+      // that: restoreRadioGagaConfig would mkdir -p and upload into the
+      // rootfs directory the real partition is about to shadow, then report
+      // success. Wait for the mount first.
       if (_radioGagaBackupPath != null) {
         _setStatus(l10n.restoringConfig);
+        await _waitForDataPartition();
+        if (!mounted) return;
         final restored = await _sshService.restoreRadioGagaConfig(_radioGagaBackupPath!);
         if (restored) {
           debugPrint('UI: radio-gaga config restored to /data/radio-gaga/');
         }
       }
 
-      if (_skipDbcFlash) {
-        _setPhase(InstallerPhase.bluetoothPairing);
-      } else {
-        _setPhase(InstallerPhase.cbbReconnect);
-      }
+      _setPhase(_beginMdbInstall());
     } catch (e) {
       _setStatus(l10n.sshReconnectionFailed(e.toString()));
     }
     setState(() { _isProcessing = false; _mdbBootStarted = false; });
+  }
+
+  /// What the trampoline needs to close the install out without the laptop.
+  /// Everything here is settled by the time the dashboard files are staged:
+  /// the plan on the plan screen, the language on the welcome screen, the
+  /// channel with the download queue, and the keycards two phases ago.
+  DeviceFinish _buildDeviceFinish() {
+    final lang = Localizations.localeOf(context).languageCode;
+    final artifact = _downloadState.artifactFor(Board.mdb);
+    return DeviceFinish(
+      onDevice: true,
+      // No plan means the mass-storage shortcut, which writes a full image
+      // and so erases /data. That is the non-upgrade branch, same as a clean
+      // install: there are no settings left worth restoring.
+      mdbAction: _plan?.mdb.action ?? BoardAction.fullImage,
+      mdbTargetVersion: artifact == null
+          ? ''
+          : _downloadState.releaseTag ??
+              _versionFromArtifactFilename(artifact.filename) ??
+              '',
+      // Anything outside the two the dashboard ships would be a settings key
+      // it cannot honour, so leave it unset and let the default stand.
+      language: (lang == 'en' || lang == 'de') ? lang : '',
+      otaChannel: _downloadState.channel.name,
+      // Only safe with a master card on file. Without one, a keycard-service
+      // started behind the user's back re-enters auto-master-learn and
+      // teaches in whatever card is tapped first.
+      startKeycard: _keycardMasterCount > 0,
+    );
+  }
+
+  /// Where the CBB step hands off. There are two ways into it and they arrive
+  /// from opposite sides of the pairing block: after the artifact gate, where
+  /// pairing is already behind us, and straight from the plan screen when
+  /// there is no MDB work at all, where it has not happened yet. Sending the
+  /// second case onward would skip pairing and keycards for a dashboard-only
+  /// install.
+  InstallerPhase get _phaseAfterCbbReconnect => (_plan?.needsHandoff ?? true)
+      ? InstallerPhase.dbcPrep
+      : InstallerPhase.finish;
+
+  /// Where the artifact gate hands off once the board is on the new version.
+  InstallerPhase get _phaseAfterMdbInstall => _phaseBeforeDbcWork;
+
+  /// The dashboard work, or the CBB step first when there is a disconnection
+  /// to undo.
+  ///
+  /// Only the manual power cut asks the user to unplug the CBB, and only that
+  /// route has anything to check afterwards. On every other route the CBB has
+  /// not been touched since the health check said it was fine, so the screen
+  /// has nothing to say and stands between the user and the upload progress.
+  InstallerPhase get _phaseBeforeDbcWork {
+    if (!(_plan?.needsHandoff ?? true)) return InstallerPhase.finish;
+    return _manualPowerCut
+        ? InstallerPhase.cbbReconnect
+        : InstallerPhase.dbcPrep;
+  }
+
+  /// Where the pairing block hands off. Bluetooth and keycards run before
+  /// the dashboard is flashed, because the trampoline stops and masks
+  /// librescoot-bluetooth and librescoot-keycard for the whole of its run
+  /// and the laptop is unplugged by then: a pairing window opened after
+  /// TrampolineService.start() has no services behind it. With no dashboard
+  /// work in the plan there is no trampoline either, so the laptop-side
+  /// finish takes over directly.
+  InstallerPhase get _phaseAfterKeycardSetup {
+    // The gate first, whenever there is artifact work to collect. It is where
+    // the background install is waited on and the single reboot happens.
+    if (_mdbArtifactPending || _mdbStageStarted) return InstallerPhase.mdbArtifact;
+    return _phaseBeforeDbcWork;
+  }
+
+  /// Where a freshly flashed MDB goes next. Stage 0 writes a bootstrap image
+  /// that still needs the artifact on top; the full sdimg of the fall-back
+  /// path already carries the firmware, so it goes straight on. With no plan
+  /// at all (the shortcut that finds the board already in mass storage) the
+  /// image written was the stage-0 one, so the artifact is still due.
+  /// Whether the board still needs the firmware artifact on top. No plan at
+  /// all means the mass storage shortcut, which writes a stage-0 image and so
+  /// still needs one.
+  bool get _mdbArtifactPending => _plan?.needsMdbArtifact ?? true;
+
+  /// Send the user to the interactive work and start the machine work behind
+  /// it. Everything the artifact install needs is known by now, and nothing it
+  /// does requires anyone to be watching.
+  InstallerPhase _beginMdbInstall() {
+    _beginBackgroundUploads();
+    return InstallerPhase.bluetoothPairing;
+  }
+
+  /// Start every laptop-to-MDB transfer behind whatever screen the user is on.
+  ///
+  /// Everything these need is settled once the plan is confirmed and none of
+  /// it requires anyone watching, so they run under the pairing and keycard
+  /// screens. The artifact goes first and the dashboard files follow, one
+  /// transfer at a time: they share a single SSH session. The dashboard files
+  /// land in /data, which survives the reboot the artifact gate performs.
+  ///
+  /// Only laptop-to-MDB transfers belong here. Moving anything on to the
+  /// dashboard is the trampoline's work and cannot begin until the cable has
+  /// been swapped.
+  void _beginBackgroundUploads() {
+    if (_mdbArtifactPending) {
+      unawaited(_stageMdbArtifact().whenComplete(_beginBackgroundDbcUpload));
+    } else {
+      _beginBackgroundDbcUpload();
+    }
+  }
+
+  void _beginBackgroundDbcUpload() {
+    if (!mounted) return;
+    if (!(_plan?.needsHandoff ?? true)) return;
+    if (_dbcPrepStarted) return;
+    _dbcPrepStarted = true;
+    _dbcStageInFlight = true;
+    unawaited(_uploadDbcFiles());
   }
 
   Future<bool> _pingMdb() async {
@@ -3091,12 +3897,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
     debugPrint('CBB: waiting for insert on cb-battery');
     for (var i = 0; i < _cbbPollIterations; i++) {
-      if (!mounted) return false;
+      if (!mounted || _cbbPollAbandoned) {
+        debugPrint('CBB: poll dropped, the phase moved on');
+        return false;
+      }
       if (await _sshService.isCbbPresent()) {
         debugPrint('CBB: insert detected on cb-battery');
         return true;
       }
-      if (!mounted) return false;
+      if (!mounted || _cbbPollAbandoned) return false;
       if (i + 1 == _cbbNoticeAfterIterations && !_cbbWaitNoticeShown) {
         setState(() => _cbbWaitNoticeShown = true);
       }
@@ -3107,15 +3916,512 @@ class _InstallerScreenState extends State<InstallerScreen> {
     return false;
   }
 
+  Widget _buildMdbArtifact(AppLocalizations l10n) {
+    if (!_artifactStarted && !_isProcessing) {
+      _artifactStarted = true;
+      Future.microtask(_runMdbArtifactInstall);
+    }
+    // While the background work is still going this panel is the only thing
+    // the user is waiting on, so show its progress rather than an idle bar.
+    final staging = _mdbStageStarted && !_mdbStageDone && _mdbStageError == null;
+    return ArtifactProgressPanel(
+      status: staging ? l10n.artifactStagingInBackground : _statusMessage,
+      progress: staging ? _mdbStageProgress : _progress,
+      error: _artifactError ?? _mdbStageError,
+      onRetry: () {
+        setState(() {
+          _artifactError = null;
+          _artifactStarted = false;
+        });
+      },
+      onFallBackToFullImage: _fallBackToFullImage,
+    );
+  }
+
+  /// Wait for /data to be mounted and grown. A board that has just taken a
+  /// stage-0 image resizes its data partition on first boot, and until
+  /// data.mount has run, `df /data` answers for the root filesystem instead,
+  /// which would make the free-space preflight meaningless.
+  Future<void> _waitForDataPartition() async {
+    for (var i = 0; i < 60; i++) {
+      try {
+        final out = await _sshService.runCommand(
+            'grep -q " /data " /proc/mounts && echo mounted; true');
+        if (out.trim() == 'mounted') return;
+      } catch (e) {
+        debugPrint('SSH: /data mount probe failed: $e');
+      }
+      await Future.delayed(const Duration(seconds: 5));
+      if (!mounted) return;
+    }
+    debugPrint('SSH: /data still not mounted after 5 minutes, continuing anyway');
+  }
+
+  /// Wait for the board to come back after a reboot we issued, and
+  /// re-establish SSH. Unlike _waitForMdbBoot this does not set a phase: the
+  /// caller is mid-install and decides where to go next.
+  Future<void> _reconnectAfterReboot(AppLocalizations l10n) async {
+    // Let the board actually go down first. reboot() returns as soon as the
+    // command is accepted, so connecting immediately would land on the system
+    // that is about to disappear.
+    await Future.delayed(const Duration(seconds: 15));
+
+    // Only log a status line when it changes: this loop runs for up to five
+    // minutes and _setStatus appends to the installer log every time.
+    String? shown;
+    void status(String message) {
+      if (shown == message) return;
+      shown = message;
+      _setStatus(message);
+    }
+
+    status(l10n.configuringNetwork);
+    final networkService = NetworkService();
+    final deadline = DateTime.now().add(const Duration(minutes: 5));
+    NetworkPrivilegeException? privilegeError;
+    while (DateTime.now().isBefore(deadline)) {
+      if (!mounted) return;
+
+      // Reconfigure on every pass rather than once on a timer. The reboot
+      // tears down the USB ethernet interface, so at any single early moment
+      // the interface is either the dying pre-reboot one or not there at all,
+      // and on Linux+NetworkManager the replacement comes back as a fresh
+      // enxXXXX carrying neither our unmanaged flag nor 192.168.7.50. A
+      // one-shot call therefore configures nothing that survives, and nothing
+      // would ever configure the interface the board actually comes back on.
+      // configureInterface no-ops once the board answers, so repeating it is
+      // cheap.
+      final iface = await networkService.findLibrescootInterface();
+      if (iface != null) {
+        try {
+          await networkService.configureInterface(iface);
+          privilegeError = null;
+        } on NetworkPrivilegeException catch (e) {
+          // Not fatal on the spot: the macOS auth dialog is asynchronous, so
+          // a later pass often succeeds. Held on to so a loop that runs out
+          // reports the real reason instead of a bare timeout.
+          privilegeError = e;
+          debugPrint('Network: post-reboot configure needs privileges: $e');
+        }
+      }
+
+      // The connection attempt is not gated on the USB detector.
+      // _setCritical paused it for the duration of the install, so _device is
+      // frozen at whatever the last poll left there, and a frozen null would
+      // suppress every attempt for the full five minutes on a board that came
+      // back fine.
+      status(iface == null ? l10n.waitingForUsbDevice : l10n.reconnectingSsh);
+      try {
+        final info = await _sshService.connectToMdb();
+        if (!mounted) return;
+        setState(() => _mdbInfo = info);
+        return;
+      } catch (e) {
+        debugPrint('SSH: post-reboot connect not ready: $e');
+      }
+
+      await Future.delayed(const Duration(seconds: 5));
+    }
+    if (privilegeError != null) {
+      throw _LocalizedInstallException(l10n.errorPrefix(privilegeError.toString()));
+    }
+    throw _LocalizedInstallException(l10n.artifactRebootTimeout);
+  }
+
+  /// The version component of a release asset name, e.g.
+  /// `librescoot-unu-mdb-1.2.1.mender` -> `1.2.1`. The image recipes build
+  /// the asset name and the board's VERSION_ID from the same variable, so
+  /// this is what a board has to report once the artifact is actually
+  /// running. Only a fallback: the release tag says the same thing and is
+  /// what the rest of the flow compares against.
+  static String? _versionFromArtifactFilename(String filename) =>
+      RegExp(r'^librescoot-unu-(?:mdb|dbc)-(.+)\.mender$')
+          .firstMatch(filename)
+          ?.group(1);
+
+  /// Upload the artifact and run mender, without rebooting. Kicked off as soon
+  /// as the board is up and left to run while the user pairs a phone and
+  /// enrols keycards, because those are the only two things in the flow that
+  /// need a human and this is the longest thing that does not.
+  ///
+  /// The reboot is deliberately not here: it belongs to the gate, after both
+  /// the machine work and the human work are done, so the board goes down once
+  /// and at a moment nobody is mid-tap.
+  Future<void> _stageMdbArtifact() async {
+    if (_mdbStageStarted) return;
+    _mdbStageStarted = true;
+    final l10n = AppLocalizations.of(context)!;
+
+    if (_isDryRun) {
+      for (var pct = 0; pct <= 100; pct += 20) {
+        if (!mounted) return;
+        setState(() => _mdbStageProgress = pct / 100);
+        await Future.delayed(const Duration(milliseconds: 120));
+      }
+      if (mounted) setState(() => _mdbStageDone = true);
+      return;
+    }
+
+    final item = _downloadState.artifactFor(Board.mdb);
+    if (item == null) {
+      if (mounted) setState(() => _mdbStageError = l10n.artifactNoneDownloaded);
+      return;
+    }
+
+    try {
+      if (item.localPath == null) {
+        while (item.localPath == null) {
+          await Future.delayed(const Duration(seconds: 1));
+          if (!mounted) return;
+          if (_downloadState.error != null) {
+            throw Exception(_downloadState.error);
+          }
+        }
+      }
+
+      final artifacts = ArtifactService(_sshService, TrampolineService(_sshService));
+      await _waitForDataPartition();
+      if (!mounted) return;
+
+      final preflight = await artifacts.preflight(
+        board: Board.mdb,
+        artifactBytes: item.expectedSize,
+        assetName: item.filename,
+      );
+      if (!preflight.ok) {
+        throw _LocalizedInstallException(_preflightMessage(l10n, preflight));
+      }
+
+      await artifacts.stage(
+        board: Board.mdb,
+        localPath: item.localPath!,
+        onProgress: (sent, total) {
+          if (mounted && total > 0) {
+            // Upload is the first half of the bar, mender the second.
+            setState(() => _mdbStageProgress = (sent / total) * 0.5);
+          }
+        },
+      );
+      if (!mounted) return;
+
+      await artifacts.install(
+        board: Board.mdb,
+        assetName: item.filename,
+        onProgress: (pct) {
+          if (mounted) setState(() => _mdbStageProgress = 0.5 + (pct / 100) * 0.5);
+        },
+      );
+      if (mounted) setState(() { _mdbStageDone = true; _mdbStageProgress = 1; });
+    } catch (e) {
+      if (mounted) setState(() => _mdbStageError = e.toString());
+    }
+  }
+
+  Future<void> _runMdbArtifactInstall() async {
+    final l10n = AppLocalizations.of(context)!;
+
+    if (_isDryRun) {
+      setState(() { _isProcessing = true; _artifactError = null; });
+      for (var pct = 0; pct <= 100; pct += 10) {
+        _setStatus('[DRY RUN] ${l10n.artifactInstalling(pct)}', progress: pct / 100);
+        await Future.delayed(const Duration(milliseconds: 150));
+        if (!mounted) return;
+      }
+      _expectMinimalMdb = false;
+      _setPhase(_phaseAfterMdbInstall);
+      return;
+    }
+
+    final item = _downloadState.artifactFor(Board.mdb);
+    if (item == null) {
+      setState(() {
+        _artifactError = l10n.artifactNoneDownloaded;
+        _isProcessing = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isProcessing = true;
+      _artifactError = null;
+    });
+    try {
+      // Collect the work that has been running behind the pairing screens.
+      // Nothing on the vehicle is written after this point except the reboot,
+      // so this is the last moment where waiting costs the user anything.
+      var alreadyInstalled = false;
+      if (_mdbStageStarted) {
+        _setCritical(true);
+        while (!_mdbStageDone && _mdbStageError == null) {
+          await Future.delayed(const Duration(milliseconds: 500));
+          if (!mounted) return;
+        }
+        if (_mdbStageError != null) {
+          throw _LocalizedInstallException(_mdbStageError!);
+        }
+        alreadyInstalled = true;
+      }
+      // The artifact is first in the download queue, but an upgrade reaches
+      // this phase without flashing anything, so it can still be in flight.
+      // Waiting beats failing with "nothing was downloaded" at 90%.
+      if (item.localPath == null) {
+        _setStatus(l10n.waitingForDownloads);
+        while (item.localPath == null) {
+          await Future.delayed(const Duration(seconds: 1));
+          if (!mounted) return;
+          if (_downloadState.error != null) {
+            throw Exception(_downloadState.error);
+          }
+        }
+      }
+
+      // From here on it is several hundred megabytes over the wire and then a
+      // mender run with a 30 minute ceiling. On the clean-install route the
+      // slot currently running is the stage-0 bootstrap image, so a window
+      // close or a laptop sleep in the middle leaves a vehicle with no
+      // service stack. The download wait above is deliberately outside this:
+      // nothing on the vehicle is being written yet.
+      _setCritical(true);
+
+      // Everything from here to the reboot is what the background job has
+      // already done. Repeating it is not merely wasteful: mender refuses an
+      // install while one is pending, so clearing that first would commit an
+      // update that has never booted, which is the one thing an A/B scheme
+      // exists to prevent.
+      if (!alreadyInstalled) {
+        final artifacts = ArtifactService(_sshService, TrampolineService(_sshService));
+
+        await _waitForDataPartition();
+        if (!mounted) return;
+
+        // preflight takes assetName so it can discount an artifact already at
+        // the seed path: after a dropped link the file is often already there,
+        // and counting its full size as space still needed would refuse a retry
+        // that would in fact succeed.
+        final preflight = await artifacts.preflight(
+          board: Board.mdb,
+          artifactBytes: item.expectedSize,
+          assetName: item.filename,
+        );
+        if (!preflight.ok) throw _LocalizedInstallException(_preflightMessage(l10n, preflight));
+
+        _setStatus(l10n.artifactStaging, progress: 0);
+        await artifacts.stage(
+          board: Board.mdb,
+          localPath: item.localPath!,
+          onProgress: (sent, total) => _setStatus(l10n.artifactStaging,
+              progress: total > 0 ? sent / total : 0),
+        );
+
+        await artifacts.install(
+          board: Board.mdb,
+          assetName: item.filename,
+          onProgress: (pct) =>
+              _setStatus(l10n.artifactInstalling(pct), progress: pct / 100),
+        );
+      }
+
+      // The dashboard image and the map tiles upload in the background behind
+      // the pairing screens, and they run after this artifact in the same
+      // chain, so they are usually still transferring when the user finishes
+      // enrolling cards. Rebooting underneath them kills the transfer and the
+      // SSH session carrying it, which on any plan with tiles is not a race
+      // that is sometimes lost but the ordinary case.
+      if (_dbcStageInFlight) {
+        _setStatus(l10n.waitingForDbcUpload);
+        while (_dbcStageInFlight) {
+          await Future.delayed(const Duration(seconds: 1));
+          if (!mounted) return;
+        }
+      }
+
+      // The reboot is ours: a rootfs that comes back and answers SSH has
+      // proven itself, u-boot has already rolled back if it did not, and any
+      // DBC work should run from the version the user asked for.
+      await _sshService.reboot();
+      _expectMinimalMdb = false;
+      await _reconnectAfterReboot(l10n);
+      if (!mounted) return;
+
+      _setStatus(l10n.artifactVerifying);
+      final after = await _detectMdbState();
+      if (!mounted) return;
+      setState(() {
+        _mdbState = after;
+        _mdbStackMissing = after.isMinimalImage;
+      });
+
+      // A board that answers SSH has not proven anything on its own: u-boot
+      // rolls back a rootfs that never commits, and the rolled-back board
+      // answers just as happily on the old version. On the clean-install
+      // route it comes back on stage 0, with no valkey, no lsc and no
+      // python3, and starting the trampoline there fails an hour later with
+      // a red LED. Both readings therefore have to be checked, not just
+      // taken. The error panel offers Retry and the full-image fall-back.
+      if (after.isMinimalImage) {
+        throw _LocalizedInstallException(l10n.artifactStillMinimal);
+      }
+      final target =
+          _downloadState.releaseTag ?? _versionFromArtifactFilename(item.filename);
+      if (!InstallPlan.versionsMatch(after.version, target)) {
+        throw _LocalizedInstallException(l10n.artifactVersionMismatch(
+          after.version?.trim().isNotEmpty == true
+              ? after.version!.trim()
+              : l10n.unknown,
+          target ?? l10n.unknown,
+        ));
+      }
+
+      // Only now: on a stage-0 image there was no redis for these to reach.
+      try {
+        await _sshService.runCommand('lsc set scooter.usb0-policy always-on');
+        debugPrint('UI: scooter.usb0-policy=always-on (post-artifact)');
+      } catch (e) {
+        debugPrint('UI: failed to set scooter.usb0-policy=always-on at post-artifact (ok): $e');
+      }
+      await _disableInstallerHazards(label: 'post-artifact');
+
+      _setCritical(false);
+      _setPhase(_phaseAfterMdbInstall);
+    } catch (e) {
+      _setCritical(false);
+      if (!mounted) return;
+      setState(() {
+        _artifactError = e.toString();
+        _isProcessing = false;
+      });
+    }
+  }
+
+  String _preflightMessage(AppLocalizations l10n, ArtifactPreflight preflight) =>
+      switch (preflight.problem) {
+        ArtifactPreflightProblem.noMender => l10n.artifactPreflightNoMender,
+        ArtifactPreflightProblem.notEnoughSpace =>
+          l10n.artifactPreflightNoSpace(preflight.freeMiB, preflight.neededMiB),
+        ArtifactPreflightProblem.otaInProgress =>
+          l10n.artifactPreflightOtaBusy(preflight.otaStatus ?? ''),
+        null => '',
+      };
+
+  /// The one action that needs a download the plan did not queue. Offered
+  /// only after a failure.
+  Future<void> _fallBackToFullImage() async {
+    final l10n = AppLocalizations.of(context)!;
+
+    // An upgrade is the one action that keeps /data. The full image erases
+    // it, so this button silently trades away the settings, keycards,
+    // offline maps and trip history the upgrade route exists to preserve.
+    // Say so before doing it. A clean install was going to wipe /data
+    // anyway, so it gets no dialog.
+    if (_plan?.mdb.action == BoardAction.upgrade) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(l10n.fallBackWipeTitle),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(child: Text(l10n.fallBackWipeBody)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(l10n.cancelButton),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(l10n.fallBackWipeConfirm),
+            ),
+          ],
+        ),
+      );
+      // Cancelling leaves _artifactError set, so the user lands back on the
+      // error panel with Retry still on offer.
+      if (confirmed != true || !mounted) return;
+    }
+
+    // The shortcut that finds the board already in mass storage never passes
+    // the plan screen, so there may be no plan to amend. Seed one from what
+    // we know: without it _phaseAfterMdbFlash would not see the fullImage
+    // action, route back into the artifact phase, and loop through the same
+    // failure forever.
+    final plan = _plan ??
+        InstallPlan.defaults(
+          mdb: _mdbState,
+          dbc: _dbcState,
+          targetVersion: _downloadState.releaseTag,
+          installTiles: _downloadState.wantsOfflineMaps,
+        );
+    setState(() {
+      _plan = plan.withMdb(plan.mdb.withAction(BoardAction.fullImage));
+      _artifactError = null;
+      _artifactStarted = false;
+      _expectMinimalMdb = false;
+      _isProcessing = true;
+      // An upgrade marked these skipped on the way in; we are about to walk
+      // through all of them after all.
+      _skippedPhases.removeAll(MajorStep.mdbFlash.phases);
+    });
+    _setStatus(l10n.waitingForDownloads, progress: 0);
+    try {
+      // Only the MDB. Promoting the DBC too would swap its 54 MiB stage-0
+      // image for a 424 MiB one over the slow link and then install the
+      // artifact on top regardless, which is about an extra hour of work
+      // nobody asked for.
+      final items = await _downloadService.buildDownloadQueue(
+        channel: _downloadState.channel,
+        region: _downloadState.selectedRegion,
+        wantsOfflineMaps: _downloadState.wantsOfflineMaps,
+        fullImageBoards: const {Board.mdb},
+      );
+      if (!mounted) return;
+      setState(() {
+        _downloadState.requiredTypes = DownloadState.defaultRequiredTypes;
+        _downloadState.items = items;
+      });
+      await _downloadService.downloadAll(
+        _downloadState.items,
+        onProgress: (item, bytes, total) {
+          if (mounted) setState(() {});
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _artifactError = e.toString();
+        _isProcessing = false;
+      });
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _isProcessing = false);
+    _setPhase(InstallerPhase.mdbToUms);
+  }
+
   Widget _buildCbbReconnect(AppLocalizations l10n) {
     // Auto-check CBB on enter: poll for up to 3 minutes
     if (!_cbbAutoCheckStarted && !_isProcessing) {
       _cbbAutoCheckStarted = true;
       Future.microtask(() async {
         if (mounted) setState(() => _isProcessing = true);
+
+        // Nobody gets told to reconnect the CBB while the main pack is live.
+        // That is the same ordering the disconnect step warns about, run
+        // backwards, and the new flow walks straight into it: the pack is
+        // deactivated before the UMS reboot, and vehicle-service switches it
+        // back on when the full image comes up.
+        if (_manualPowerCut && !_isDryRun) {
+          _setStatus(l10n.turningMainBatteryOff);
+          await _deactivateMainBattery();
+        }
+        if (mounted) setState(() => _mainPackOffForCbb = true);
+
         _setStatus(l10n.checkingCbb);
         final detected = await _pollForCbb(l10n);
-        if (!mounted) return;
+        // Proceeding without the CBB is a decision the user can make while
+        // this is still waiting, and it moves the phase on. The verdict is
+        // stale in that case and would put _cbbDetected back to false.
+        if (!mounted || _cbbPollAbandoned) return;
         setState(() {
           _cbbDetected = detected;
           _isProcessing = false;
@@ -3127,29 +4433,46 @@ class _InstallerScreenState extends State<InstallerScreen> {
             debugPrint('Battery: insert detected on battery:0');
             await _sshService.logScooterStats('cbb-and-battery-reconnected');
           }
+          // The pack goes back on before we leave: the dashboard flash wants
+          // the vehicle whole, and vehicle-service is what the trampoline
+          // drives the dashboard through.
+          if (_manualPowerCut && !_isDryRun) {
+            _setStatus(l10n.turningMainBatteryOn);
+            try {
+              await _sshService.reactivateMainBattery();
+            } catch (e) {
+              debugPrint('Battery: could not reactivate the main pack (ok): $e');
+            }
+          }
           if (mounted) {
             setState(() => _batteryDetected = bat);
-            if (bat) _setPhase(InstallerPhase.dbcPrep);
+            if (bat) _setPhase(_phaseAfterCbbReconnect);
           }
         }
       });
     }
 
+    // Only the manual power cut unplugs the CBB, so only that route is told to
+    // plug it back in. The battery step then carries whichever number is left.
+    final showCbbStep = _manualPowerCut && _mainPackOffForCbb;
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(l10n.reconnectCbbHeading,
+          Text(_manualPowerCut ? l10n.reconnectCbbHeading : l10n.checkingCbbAndBattery,
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 24),
 
-          // Step 1: Reconnect CBB
-          InstructionStep(
-            number: 1,
-            title: l10n.reconnectCbbStep,
-            description: l10n.reconnectCbbStepDesc,
-            imageAsset: 'assets/images/lsi-unu_scooter_cbb_connected.jpg',
-          ),
+          // The check below runs either way: a CBB missing for some other
+          // reason still matters before the dashboard flash.
+          if (showCbbStep)
+            InstructionStep(
+              number: 1,
+              title: l10n.reconnectCbbStep,
+              description: l10n.reconnectCbbStepDesc,
+              imageAsset: 'assets/images/lsi-unu_scooter_cbb_connected.jpg',
+            ),
           if (_cbbDetected)
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -3175,7 +4498,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                   setState(() => _isProcessing = true);
                   _setStatus(l10n.checkingCbb);
                   final detected = await _pollForCbb(l10n);
-                  if (!mounted) return;
+                  if (!mounted || _cbbPollAbandoned) return;
                   if (detected) {
                     setState(() { _cbbDetected = true; _isProcessing = false; });
                     _setStatus('');
@@ -3190,45 +4513,59 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
           const SizedBox(height: 16),
 
-          // Step 2: Insert battery (greyed out until CBB connected)
-          Opacity(
-            opacity: _cbbDetected ? 1.0 : 0.4,
-            child: Column(
+          // Nothing in this install takes the main pack out, so there is no
+          // step to give here. The pack is only reported, and only spoken
+          // about when it is missing, which does block the dashboard flash.
+          if (_cbbDetected && _batteryDetected)
+            Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                InstructionStep(
-                  number: 2,
-                  title: l10n.insertMainBatteryStep,
-                  description: l10n.insertMainBatteryStepDesc,
-                ),
-                if (_cbbDetected) ...[
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: _sshService.isConnected ? () async {
-                          try { await _sshService.runCommand('lsc open'); } catch (_) {}
-                        } : null,
-                        icon: const Icon(Icons.lock_open, size: 18),
-                        label: Text(l10n.openSeatboxButton),
-                      ),
-                    ],
-                  ),
-                  if (_batteryDetected)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.check_circle, size: 16, color: kAccent),
-                          const SizedBox(width: 8),
-                          Text(l10n.batteryDetected, style: const TextStyle(color: kAccent, fontSize: 13)),
-                        ],
-                      ),
-                    ),
-                ],
+                const Icon(Icons.check_circle, size: 16, color: kAccent),
+                const SizedBox(width: 8),
+                Text(l10n.batteryDetected,
+                    style: const TextStyle(color: kAccent, fontSize: 13)),
               ],
+            )
+          else if (_cbbDetected)
+            Container(
+              width: 400,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.orangeAccent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border:
+                    Border.all(color: Colors.orangeAccent.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.battery_alert,
+                      size: 28, color: Colors.orangeAccent),
+                  const SizedBox(height: 10),
+                  Text(l10n.mainBatteryMissingHeading,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orangeAccent)),
+                  const SizedBox(height: 6),
+                  Text(l10n.mainBatteryMissingHint,
+                      textAlign: TextAlign.center,
+                      style:
+                          TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: _sshService.isConnected
+                        ? () async {
+                            try {
+                              await _sshService.runCommand('lsc open');
+                            } catch (_) {}
+                          }
+                        : null,
+                    icon: const Icon(Icons.lock_open, size: 18),
+                    label: Text(l10n.openSeatboxButton),
+                  ),
+                ],
+              ),
             ),
-          ),
 
           const SizedBox(height: 16),
           if (_isProcessing) ...[
@@ -3246,7 +4583,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                   await _sshService.logScooterStats('cbb-and-battery-reconnected');
                   setState(() { _batteryDetected = true; _isProcessing = false; });
                   await Future.delayed(const Duration(seconds: 1));
-                  if (mounted) _setPhase(InstallerPhase.dbcPrep);
+                  if (mounted) _setPhase(_phaseAfterCbbReconnect);
                 } else {
                   _setStatus(l10n.cbbNotDetected);
                   setState(() => _isProcessing = false);
@@ -3256,7 +4593,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             ),
             const SizedBox(height: 12),
             TextButton(
-              onPressed: () => _setPhase(InstallerPhase.dbcPrep),
+              onPressed: () => _setPhase(_phaseAfterCbbReconnect),
               child: Text(l10n.proceedWithoutCbb,
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
             ),
@@ -3274,8 +4611,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
     );
   }
 
+  bool _dbcPrepBlocked = false;
+
   Widget _buildDbcPrep(AppLocalizations l10n) {
-    if (!_dbcPrepStarted && !_isProcessing) {
+    // The upload usually started while the user was pairing, so this phase
+    // mostly displays work already in flight rather than kicking it off.
+    final busy = _isProcessing || _dbcStageInFlight;
+    if (!_dbcPrepStarted && !busy) {
       _dbcPrepStarted = true;
       Future.microtask(_uploadDbcFiles);
     }
@@ -3310,27 +4652,44 @@ class _InstallerScreenState extends State<InstallerScreen> {
               const SizedBox(height: 20),
               Center(
                 child: FilledButton.icon(
-                  onPressed: _isProcessing ? null : _startTrampoline,
+                  onPressed: busy ? null : _startTrampoline,
                   icon: const Icon(Icons.bolt),
                   label: Text(l10n.dbcReadyButton),
                 ),
               ),
-            ] else if (!_isProcessing) ...[
+            ] else if (!busy) ...[
               const SizedBox(height: 16),
               Center(
-                child: FilledButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _dbcPrepStarted = false;
-                      _dbcPrepSubsteps = const [];
-                    });
-                    Future.microtask(() {
-                      setState(() => _dbcPrepStarted = true);
-                      _uploadDbcFiles();
-                    });
-                  },
-                  icon: const Icon(Icons.refresh),
-                  label: Text(l10n.retryDbcPrep),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _dbcPrepStarted = false;
+                          _dbcStageInFlight = false;
+                          _dbcPrepBlocked = false;
+                          _dbcPrepSubsteps = const [];
+                        });
+                        Future.microtask(() {
+                          setState(() => _dbcPrepStarted = true);
+                          _uploadDbcFiles();
+                        });
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: Text(l10n.retryDbcPrep),
+                    ),
+                    if (_dbcPrepBlocked)
+                      TextButton(
+                        onPressed: () {
+                          setState(() => _dbcPrepBlocked = false);
+                          _setPhase(InstallerPhase.finish);
+                        },
+                        child: Text(l10n.skipToFinish),
+                      ),
+                  ],
                 ),
               ),
             ],
@@ -3342,16 +4701,23 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   Future<void> _uploadDbcFiles() async {
     final l10n = AppLocalizations.of(context)!;
-    setState(() => _isProcessing = true);
+    if (!_dbcStageInFlight) setState(() => _isProcessing = true);
     _setCritical(true);
 
-    setState(() => _dbcUploadReady = false);
+    setState(() {
+      _dbcUploadReady = false;
+      _dbcPrepBlocked = false;
+    });
 
     if (_isDryRun) {
       _setStatus('[DRY RUN] Simulating DBC upload...');
       await Future.delayed(const Duration(seconds: 1));
       _setCritical(false);
-      setState(() { _isProcessing = false; _dbcUploadReady = true; });
+      setState(() {
+        _isProcessing = false;
+        _dbcStageInFlight = false;
+        _dbcUploadReady = true;
+      });
       return;
     }
 
@@ -3366,18 +4732,70 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     try {
       final trampolineService = TrampolineService(_sshService);
-      final dbcItem = _downloadState.itemOfType(DownloadItemType.dbcFirmware);
+      final dbcImage = _downloadState.imageFor(Board.dbc);
+      final dbcArtifact = _downloadState.artifactFor(Board.dbc);
       final osmItem = _downloadState.itemOfType(DownloadItemType.osmTiles);
       final valhallaItem = _downloadState.itemOfType(DownloadItemType.valhallaTiles);
 
       final dbcBmapItem = _downloadState.itemOfType(DownloadItemType.dbcBmap);
 
+      // No plan means the shortcut that found the board already in mass
+      // storage: it never passes the plan screen and writes a stage-0 image,
+      // so the DBC gets what a clean install gets, image then artifact.
+      final needsDbcStage0 = _plan?.needsDbcStage0 ?? true;
+      // A full sdimg already carries its firmware, so that one action wants
+      // no artifact on top. Upgrade and clean install both do.
+      final dbcAction = _plan?.dbc.action;
+      final needsDbcArtifact = dbcAction == null ||
+          dbcAction == BoardAction.upgrade ||
+          dbcAction == BoardAction.cleanInstall;
+
+      // uploadAll reads the mode off the stage-0 image: an image means flash,
+      // no image means upgrade. Passing one for an upgrade would silently
+      // turn a job that keeps /data into a full re-flash, so the path goes in
+      // only when the plan asked for stage 0.
+      final dbcImagePath = needsDbcStage0 ? dbcImage?.localPath : null;
+      final dbcArtifactPath = needsDbcArtifact ? dbcArtifact?.localPath : null;
+
+      // A file the plan needs and the queue never produced would otherwise
+      // decide the mode by accident: a missing image reads as "upgrade", and
+      // a missing artifact as "tiles only". Both would report success having
+      // left the board alone.
+      final missing = needsDbcStage0 && dbcImagePath == null
+          ? l10n.dbcImageMissing
+          : needsDbcArtifact && dbcArtifactPath == null
+              ? l10n.artifactNoneDownloaded
+              : null;
+      if (missing != null) {
+        _setCritical(false);
+        _setStatus(missing);
+        // Retry re-runs the same check against the same queue, so on its own
+        // it is a loop. The main board is already done by this point, so
+        // finishing without the dashboard is a real outcome rather than a
+        // failure, and the finish screen offers redoing the rest.
+        setState(() {
+          _isProcessing = false;
+          _dbcStageInFlight = false;
+          _dbcPrepBlocked = true;
+        });
+        return;
+      }
+
       await trampolineService.uploadAll(
-        dbcImageLocalPath: dbcItem!.localPath!,
-        dbcBmapLocalPath: dbcBmapItem?.localPath,
+        dbcImageLocalPath: dbcImagePath,
+        dbcBmapLocalPath: needsDbcStage0 ? dbcBmapItem?.localPath : null,
+        dbcArtifactLocalPath: dbcArtifactPath,
+        // What the trampoline checks the DBC against after its reboot: the
+        // installer cannot see that board, so this is the only thing
+        // standing between a rolled-back install and a success report.
+        dbcTargetVersion: dbcArtifact == null
+            ? null
+            : _downloadState.releaseTag ??
+                _versionFromArtifactFilename(dbcArtifact.filename),
         osmTilesLocalPath: osmItem?.localPath,
         valhallaTilesLocalPath: valhallaItem?.localPath,
         region: _downloadState.selectedRegion,
+        finish: _buildDeviceFinish(),
         onProgress: (status, progress) {
           _setStatus(status, progress: progress);
         },
@@ -3394,12 +4812,19 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // instructions only appear on the next screen, after the trampoline
       // has started, so nobody can swap the cable before start() runs.
       _setCritical(false);
-      setState(() { _isProcessing = false; _dbcUploadReady = true; });
+      setState(() {
+        _isProcessing = false;
+        _dbcStageInFlight = false;
+        _dbcUploadReady = true;
+      });
     } catch (e) {
       _setCritical(false);
       _setStatus(l10n.uploadError(e.toString()));
       debugPrint('DBC prep error: $e');
-      setState(() => _isProcessing = false);
+      setState(() {
+        _isProcessing = false;
+        _dbcStageInFlight = false;
+      });
       // Don't reset _dbcPrepStarted: retry button handles that
     }
   }
@@ -3425,6 +4850,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     try {
       _setStatus(l10n.startingTrampoline);
       await TrampolineService(_sshService).start();
+      _deviceFinishArmed = true;
       _setCritical(false);
       setState(() => _isProcessing = false);
       await Future.delayed(const Duration(seconds: 1));
@@ -3445,6 +4871,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
   List<Substep> _reconnectSubsteps = const [];
   DateTime? _reconnectRndisWaitStart;
   DateTime? _reconnectStatusWaitStart;
+  /// How long the reconnect phase waits for a verdict before saying it does
+  /// not have one. The slowest thing on the far side is a dashboard first
+  /// boot resizing its filesystem, which is minutes, not tens of them.
+  static const _reconnectStatusCeiling = Duration(minutes: 15);
+
   bool _reconnectShowDiagnostics = false;
   String? _reconnectDiagnostics;
 
@@ -3468,6 +4899,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
             children: [
               Text(l10n.dbcFlashSwapCablesTitle,
                   style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 8),
+              // The scooter is already counting. It waits a few minutes for
+              // the dashboard to answer on the cable the user is about to
+              // plug in, and then gives up: worth saying, because the screen
+              // otherwise reads as untimed and the plug is a screw-lock
+              // mini-B in a footwell.
+              Text(l10n.dbcFlashSwapCablesDeadline,
+                  style: TextStyle(fontSize: 13, color: Colors.orange.shade200),
                   textAlign: TextAlign.center),
               const SizedBox(height: 20),
               // Move the same MDB USB plug from the laptop cable to the DBC
@@ -3540,111 +4980,87 @@ class _InstallerScreenState extends State<InstallerScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(l10n.dbcFlashInProgress,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                    fontSize: 24, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
+            Text(l10n.dbcFlashDurationHeadline,
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade400),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 20),
+
+            // One instruction, then the two things that can end it. The LED
+            // legend and the blinker diagram that used to sit here said the
+            // same things a third time, and the dashboard now shows its own
+            // progress, so the only thing left worth saying is what to wait
+            // for and what each outcome looks like.
+            Text(l10n.dbcFlashSequence,
+                style: TextStyle(
+                    fontSize: 14, color: Colors.grey.shade300, height: 1.45)),
+            const SizedBox(height: 18),
+
+            // A key for reading the scooter, not a status display: the
+            // laptop is unplugged and knows nothing about the blinkers. It
+            // stays because the blinkers are the one progress indicator still
+            // visible while the dashboard reboots and its own screen is dark,
+            // and the user needs to know what the four of them mean.
             Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.14),
-                border: Border.all(color: Colors.orange.shade700, width: 2),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.schedule, color: Colors.orange.shade300, size: 24),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          l10n.dbcFlashDurationHeadline,
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.orange.shade100,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    l10n.ledAmberWaitNotice,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.orange.shade100,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(14),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 color: const Color(0xFF1A1A1A),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.grey.shade800),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(l10n.watchLightsForProgress,
-                      style: TextStyle(color: Colors.grey.shade300, fontSize: 13)),
-                  const SizedBox(height: 8),
-                  _ledSignal(l10n.ledBootAmber, l10n.ledBootAmberMeaning),
-                  _blinkerPhases(l10n),
-                  _ledSignal(l10n.ledBootGreen, l10n.ledBootGreenMeaning),
-                  _ledSignal(l10n.ledBootRedError, l10n.ledBootRedMeaning),
-                ],
+              child: _blinkerPhases(l10n),
+            ),
+            const SizedBox(height: 18),
+            _outcomeRow(
+              icon: Icons.lock_open,
+              colour: Colors.greenAccent,
+              text: l10n.dbcFlashDoneSignal,
+            ),
+            const SizedBox(height: 12),
+            _outcomeRow(
+              icon: Icons.warning_amber_rounded,
+              colour: Colors.redAccent,
+              text: l10n.dbcFlashFailSignal,
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Icon(Icons.power_off, size: 18, color: Colors.orange.shade300),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(l10n.dbcFlashDoNotDisconnect,
+                      style: TextStyle(
+                          fontSize: 13, color: Colors.orange.shade200)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+            Center(
+              child: FilledButton.icon(
+                onPressed: () {
+                  _dbcFlashSimulateError = false;
+                  _setPhase(InstallerPhase.finish);
+                },
+                icon: const Icon(Icons.arrow_forward),
+                label: Text(l10n.dbcFlashAllDone),
               ),
             ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                const SizedBox(width: 10),
-                Flexible(
-                  child: Text(
-                    _statusMessage.isEmpty
-                        ? l10n.waitingForMdbToReconnect
-                        : _statusMessage,
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              alignment: WrapAlignment.center,
-              children: [
-                FilledButton.icon(
-                  onPressed: () {
-                    _dbcFlashSimulateError = false;
-                    _setPhase(InstallerPhase.reconnect);
-                  },
-                  icon: const Icon(Icons.check_circle, color: Colors.green),
-                  label: Text(l10n.ledIsGreen),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () {
-                    _dbcFlashSimulateError = true;
-                    _setPhase(InstallerPhase.reconnect);
-                  },
-                  icon: const Icon(Icons.error, color: Colors.red),
-                  label: Text(l10n.ledIsRed),
-                ),
-              ],
+            const SizedBox(height: 8),
+            Center(
+              child: TextButton(
+                onPressed: () {
+                  _dbcFlashSimulateError = true;
+                  _setPhase(InstallerPhase.reconnect);
+                },
+                child: Text(l10n.dbcFlashSomethingWrong,
+                    style:
+                        TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+              ),
             ),
           ],
         ),
@@ -3689,30 +5105,23 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
   }
 
-  Widget _ledSignal(String signal, String meaning) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(width: 8),
-          const Padding(
-            padding: EdgeInsets.only(top: 3),
-            child: Icon(Icons.circle, size: 8, color: kAccent),
-          ),
-          const SizedBox(width: 8),
-          Expanded(flex: 3, child: Text(signal, style: const TextStyle(fontSize: 13))),
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 2,
-            child: Text(
-              meaning,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-              textAlign: TextAlign.right,
-            ),
-          ),
-        ],
-      ),
+  /// One of the two ways the install can end, stated the way the user will
+  /// see it happen rather than as an LED colour to decode.
+  Widget _outcomeRow({
+    required IconData icon,
+    required Color colour,
+    required String text,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20, color: colour),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(text,
+              style: TextStyle(fontSize: 14, color: colour, height: 1.4)),
+        ),
+      ],
     );
   }
 
@@ -3835,21 +5244,25 @@ class _InstallerScreenState extends State<InstallerScreen> {
                       label: Text(l10n.retryVerification),
                     ),
                     OutlinedButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _dbcPrepStarted = false;
-                          _reconnectStarted = false;
-                          _reconnectShowDiagnostics = false;
-                          _reconnectDiagnostics = null;
-                          _reconnectSubsteps = const [];
-                        });
-                        _setPhase(InstallerPhase.dbcPrep);
-                      },
+                      onPressed: () => _returnToDbcPrep(),
                       icon: const Icon(Icons.replay),
                       label: Text(l10n.retryDbcFlash),
                     ),
+                    // The DBC's version is a last-seen guess, so a plan that
+                    // said Upgrade can meet a board with no mender layout.
+                    // Retrying the flash renders the same upgrade-mode
+                    // trampoline and fails the same way; the way out is stage
+                    // 0, which the queue already holds. Offered only where it
+                    // is a change: a plan that already says clean install has
+                    // nothing to switch to.
+                    if (_plan?.dbc.action == BoardAction.upgrade)
+                      OutlinedButton.icon(
+                        onPressed: () => _cleanInstallDbcAfterFailure(l10n),
+                        icon: const Icon(Icons.restart_alt),
+                        label: Text(l10n.dbcCleanInstallButton),
+                      ),
                     TextButton(
-                      onPressed: () => _setPhase(InstallerPhase.bluetoothPairing),
+                      onPressed: () => _setPhase(InstallerPhase.finish),
                       child: Text(l10n.skipToFinish),
                     ),
                   ],
@@ -3860,6 +5273,66 @@ class _InstallerScreenState extends State<InstallerScreen> {
         ),
       ),
     );
+  }
+
+  /// Major steps the sidebar should title "Upgrade" rather than "Flash".
+  /// Nothing before the plan screen is an upgrade, so an empty set until
+  /// then is the right answer.
+  ///
+  /// The MDB's step is mdbInstall, not mdbFlash: mdbFlash prepares the board
+  /// for a raw write and is the step an upgrade skips, so it keeps its own
+  /// name. mdbInstall is where the upgrade happens.
+  Set<MajorStep> get _upgradingSteps => {
+        if (_plan?.mdb.action == BoardAction.upgrade) MajorStep.mdbInstall,
+        if (_plan?.dbc.action == BoardAction.upgrade) MajorStep.dbcFlash,
+      };
+
+  /// Go back to the prep phase and re-stage everything for another
+  /// trampoline run, whatever the plan now says.
+  void _returnToDbcPrep() {
+    setState(() {
+      _dbcPrepStarted = false;
+      _dbcPrepBlocked = false;
+      _dbcUploadReady = false;
+      _reconnectStarted = false;
+      _reconnectShowDiagnostics = false;
+      _reconnectDiagnostics = null;
+      _reconnectSubsteps = const [];
+    });
+    _setPhase(InstallerPhase.dbcPrep);
+  }
+
+  /// Switch the DBC to a clean install after the upgrade route failed on it,
+  /// then go round again. Costs a second cable swap and the stage-0 write;
+  /// the minimal image is already in the queue, so nothing is downloaded.
+  Future<void> _cleanInstallDbcAfterFailure(AppLocalizations l10n) async {
+    final plan = _plan;
+    if (plan == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.dbcCleanInstallTitle),
+        content: SizedBox(
+          width: 480,
+          child: SingleChildScrollView(child: Text(l10n.dbcCleanInstallBody)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l10n.cancelButton),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l10n.dbcCleanInstallConfirm),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() =>
+        _plan = plan.withDbc(plan.dbc.withAction(BoardAction.cleanInstall)));
+    _returnToDbcPrep();
   }
 
   Widget _buildReconnectDiagnosticsPanel(AppLocalizations l10n) {
@@ -3985,7 +5458,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         return;
       }
       _setStatus('[DRY RUN] DBC flash successful!');
-      _setPhase(InstallerPhase.bluetoothPairing);
+      _setPhase(InstallerPhase.finish);
       return;
     }
 
@@ -4032,10 +5505,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
     setStep('ssh', SubstepState.done);
 
     setStep('hazards', SubstepState.active);
-    // Freshly-flashed image boots with default settings (alarm.enabled=true,
-    // auto-standby=900s). With the scooter locked + stood up on the lift in
-    // the workshop, alarm-service will arm and trip on any vibration during
-    // bluetooth pairing or keycard setup. Disable both before either phase.
+    // The dashboard flash rebooted the main board, which brings the shipped
+    // settings back (alarm.enabled=true, auto-standby=900s). With the scooter
+    // locked and stood up on a lift, alarm-service arms and trips on any
+    // vibration, and auto-standby drops the link we just spent minutes
+    // waiting for. Park both again for whatever is left of the run.
     await _disableInstallerHazards(label: 'reconnect');
     setStep('hazards', SubstepState.done);
 
@@ -4051,7 +5525,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
     final pollStart = DateTime.now();
     while (true) {
       status = await _sshService.readTrampolineStatus();
-      if (status.result != TrampolineResult.unknown) break;
+      // `running` is as much a reason to keep polling as an absent file: the
+      // trampoline writes it before the reboot that starts the dashboard
+      // work, so it means "not finished", not "finished well".
+      if (status.result != TrampolineResult.unknown &&
+          status.result != TrampolineResult.running) {
+        break;
+      }
       final elapsed = DateTime.now().difference(pollStart).inSeconds;
       debugPrint('Trampoline: status still unknown after ${elapsed}s, waiting...');
       _setStatus(l10n.readingTrampolineStatusElapsed(elapsed));
@@ -4060,6 +5540,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
       if (elapsed >= 300 && !_reconnectShowDiagnostics) {
         await _surfaceReconnectDiagnostics(l10n);
       }
+      // A ceiling, because a poll with no end is worse than a wrong verdict:
+      // it tells the user nothing, offers nothing, and cannot be distinguished
+      // from a device still working. Anything the trampoline could still be
+      // doing fits inside this, so past it the answer is that we do not know,
+      // and the unknown branch below says so and hands the decision over.
+      if (elapsed >= _reconnectStatusCeiling.inSeconds) {
+        debugPrint('Trampoline: giving up on the status after ${elapsed}s');
+        status = TrampolineStatus(result: TrampolineResult.unknown);
+        break;
+      }
       await Future.delayed(const Duration(seconds: 5));
       if (!mounted) return;
       if (_currentPhase != InstallerPhase.reconnect) return;
@@ -4067,13 +5557,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
     _reconnectStatusWaitStart = null;
     setStep('status', SubstepState.done);
 
-    // Re-stop librescoot-keycard in case onboot.sh on the DBC-side flash
-    // brought it back up. We deliberately keep it stopped through bluetooth
-    // pairing so a stray tap can't silently teach in a master card. The
-    // keycard-setup phase starts it again after disengaging auto-master-learn.
-    try {
-      await _sshService.runCommand('systemctl stop librescoot-keycard 2>/dev/null; true');
-    } catch (_) {}
+    // librescoot-keycard is deliberately left alone here. This used to stop
+    // it, because keycard setup came after the dashboard flash and a stray
+    // tap before it could silently teach in a master card. Setup now runs
+    // two phases earlier, so by the time anyone reaches this screen a master
+    // exists and the running service is the one the finish screen's own
+    // "unlock with a keycard you registered" step depends on.
 
     if (status.result == TrampolineResult.success) {
       // The green success-blink onboot.sh started means "safe to swap the
@@ -4082,9 +5571,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // the cue has done its job — stop it now instead of letting it run
       // decoratively through pairing + keycard setup.
       await _stopBootLedBlink();
-      _setStatus(l10n.dbcFlashSuccessful);
+      // Say which version actually landed when the trampoline reported one.
+      // It is absent on a tiles-only job and on any status file written
+      // before the field existed, so the bare verdict stays the fallback.
+      final landedVersion = status.dbcVersion;
+      _setStatus(landedVersion == null
+          ? l10n.dbcFlashSuccessful
+          : l10n.dbcInstallSuccessfulVersion(landedVersion));
       await Future.delayed(const Duration(seconds: 2));
-      _setPhase(InstallerPhase.bluetoothPairing);
+      _setPhase(InstallerPhase.finish);
     } else if (status.result == TrampolineResult.error) {
       // Quiet the failure indicators (red blink + hazards) now that we're
       // about to surface the actual error to the user. The helper also
@@ -4096,6 +5591,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
         );
       } catch (_) {}
       _setStatus(l10n.dbcFlashFailed(status.message ?? ''));
+      // Into our own log before the dialog, because the dialog is the only
+      // copy the user gets and it dies when they close it. A field report
+      // that carries the verdict without the evidence behind it cannot
+      // distinguish a dashboard that was pingable-but-not-ready from one that
+      // was never on the bus, which are different bugs with different fixes.
+      await _captureTrampolineEvidence(status.errorLog);
       if (mounted && status.errorLog != null) {
         showDialog(
           context: context,
@@ -4114,11 +5615,46 @@ class _InstallerScreenState extends State<InstallerScreen> {
       setState(() => _isProcessing = false);
     } else {
       _setStatus(l10n.trampolineStatusUnknown);
+      // The unknown branch used to log nothing at all, which is the worst
+      // case to be told nothing about: we have a status file we could not
+      // make sense of, and the file itself is the only thing that explains why.
+      await _captureTrampolineEvidence(status.message);
       setState(() => _isProcessing = false);
     }
   }
 
+  /// Put the trampoline's own account of a failure into the installer log,
+  /// and fetch the journal alongside it. The status file carries the step
+  /// markers and the lsusb dump; the journal carries what systemd saw, which
+  /// is the half that explains a script that died rather than failed.
+  Future<void> _captureTrampolineEvidence(String? errorLog) async {
+    if (errorLog != null && errorLog.trim().isNotEmpty) {
+      appendLogRaw('--- trampoline status file ---');
+      appendLogRaw(errorLog.trimRight());
+      appendLogRaw('--- end trampoline status file ---');
+    }
+    if (_isDryRun || !_sshService.isConnected) return;
+    try {
+      final journal = await _sshService
+          .runCommand(
+            'tail -n 200 /data/installer/trampoline-journal.log 2>/dev/null; true',
+          )
+          .timeout(const Duration(seconds: 20));
+      if (journal.trim().isNotEmpty) {
+        appendLogRaw('--- trampoline journal (last 200 lines) ---');
+        appendLogRaw(journal.trimRight());
+        appendLogRaw('--- end trampoline journal ---');
+      }
+    } catch (e) {
+      debugPrint('UI: could not fetch the trampoline journal (ok): $e');
+    }
+  }
+
   Widget _buildBluetoothPairing(AppLocalizations l10n) {
+    // Poll from the moment the panel opens, not from Start: the state that
+    // matters most (someone already holds the link) is true before the user
+    // touches anything.
+    if (_blePinPollTimer == null) _startBlePinPolling();
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -4156,6 +5692,35 @@ class _InstallerScreenState extends State<InstallerScreen> {
           const SizedBox(height: 24),
 
           if (!_btPairingActive) ...[
+            // A phone that is already bonded reconnects by itself, and the
+            // radio takes one central at a time, so the user can arrive here
+            // with the link already spoken for. Pressing Start would then look
+            // like it did nothing at all.
+            if (_bleConnected) ...[
+              Container(
+                width: 400,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.orangeAccent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: Colors.orangeAccent.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline,
+                        size: 20, color: Colors.orangeAccent),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(l10n.bleLinkHeldHint,
+                          style: TextStyle(
+                              fontSize: 13, color: Colors.grey.shade400)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             FilledButton.icon(
               onPressed: _startBluetoothPairing,
               icon: const Icon(Icons.bluetooth_searching),
@@ -4170,28 +5735,59 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
           if (_btPairingActive) ...[
             const SizedBox(height: 16),
-            if (_bleConnected)
-              Container(
-                width: 400,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-                ),
-                child: Column(
+            if (_btAdvertisingSettling)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.bluetooth_connected, size: 32, color: Colors.green),
-                    const SizedBox(height: 12),
-                    Text(l10n.bleAlreadyConnected,
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
-                    const SizedBox(height: 8),
-                    Text(l10n.bleAlreadyConnectedHint,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+                    const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(l10n.blePreparingRadio,
+                          style: TextStyle(
+                              fontSize: 13, color: Colors.grey.shade400)),
+                    ),
                   ],
                 ),
-              )
+              ),
+            if (_bleConnected)
+              // One link, two meanings: an edge since the window opened is a
+              // device that just paired, a link that was already taken is the
+              // reason nothing else can.
+              Builder(builder: (_) {
+                final paired = _blePairedCount > 0;
+                final colour = paired ? Colors.green : Colors.orangeAccent;
+                return Container(
+                  width: 400,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: colour.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: colour.withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(paired ? Icons.bluetooth_connected : Icons.info_outline,
+                          size: 32, color: colour),
+                      const SizedBox(height: 12),
+                      Text(paired ? l10n.blePairedHeading : l10n.bleLinkHeldHeading,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, color: colour)),
+                      const SizedBox(height: 8),
+                      Text(paired ? l10n.blePairedHint : l10n.bleLinkHeldHint,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 13, color: Colors.grey.shade400)),
+                    ],
+                  ),
+                );
+              })
             else
               Container(
                 width: 400,
@@ -4247,19 +5843,75 @@ class _InstallerScreenState extends State<InstallerScreen> {
     );
   }
 
+  /// How long the nRF52 needs after an advertising restart before a pairing
+  /// attempt takes. The command restarts the radio; an attempt made into that
+  /// window fails, and the user is left retrying a pair that cannot work.
+  static const _bleAdvertisingSettle = Duration(seconds: 15);
+
+  /// Vehicle state as it stood before the pairing window forced `parked`,
+  /// restored when the window closes.
+  String? _stateBeforePairing;
+
   Future<void> _startBluetoothPairing() async {
     try {
-      await _sshService.redisLpush('scooter:state', 'unlock');
-      debugPrint('UI: scooter unlocked for BT pairing');
+      // The nRF grants a re-pairing request only while the vehicle reads
+      // parked; in stand-by it leaves the request unanswered and the peer
+      // manager refuses. The install runs with the scooter locked, so the
+      // window is opened here and closed again in _stopBluetoothPairing.
+      if (!_isDryRun) {
+        try {
+          _stateBeforePairing = await _sshService.getVehicleState();
+          if (_stateBeforePairing != 'parked') {
+            await _sshService.forceVehicleState('parked');
+            debugPrint('UI: vehicle state -> parked for the pairing window '
+                '(was $_stateBeforePairing)');
+          }
+        } catch (e) {
+          debugPrint('UI: could not open the pairing state gate (ok): $e');
+        }
+      }
+      // Pairing normally needs the vehicle unlocked, and this used to unlock
+      // it for exactly that reason. It cannot any more: the phase now runs
+      // ahead of the trampoline, so a pairing window the user walks away from
+      // would leave the vehicle unlocked for the whole autonomous run. The
+      // no-whitelisting restart overrides the unlock gate instead, so a locked
+      // scooter pairs and its state is never touched.
+      await _sshService.redisLpush(
+          'scooter:bluetooth', 'advertising-restart-no-whitelisting');
+      debugPrint('UI: BLE advertising restarted without whitelisting');
+      _startBleAdvRearm();
       setState(() {
+        // Edges only count from here, so a link that was already up reads as
+        // held rather than as a pairing this window produced.
+        _blePairedCount = 0;
         _btPairingActive = true;
+        _btAdvertisingSettling = true;
         _blePinCode = null;
       });
       _startBlePinPolling();
+      await Future.delayed(_bleAdvertisingSettle);
+      if (mounted) setState(() => _btAdvertisingSettling = false);
     } catch (e) {
-      debugPrint('UI: failed to unlock scooter: $e');
-      _setStatus('Failed to unlock scooter: $e');
+      debugPrint('UI: failed to restart BLE advertising: $e');
+      _setStatus('Failed to start pairing: $e');
     }
+  }
+
+  /// Keep re-issuing the no-whitelisting restart while the pairing panel is
+  /// open. Harmless to repeat: the firmware ignores it outright once something
+  /// is connected, which is exactly when we no longer need it.
+  void _startBleAdvRearm() {
+    _bleAdvRearmTimer?.cancel();
+    _bleAdvRearmTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
+      if (!mounted || !_btPairingActive) return;
+      try {
+        await _sshService.redisLpush(
+            'scooter:bluetooth', 'advertising-restart-no-whitelisting');
+        debugPrint('UI: re-armed the BLE pairing window');
+      } catch (e) {
+        debugPrint('UI: failed to re-arm the BLE pairing window (ok): $e');
+      }
+    });
   }
 
   void _startBlePinPolling() {
@@ -4270,10 +5922,17 @@ class _InstallerScreenState extends State<InstallerScreen> {
         return;
       }
       try {
-        final connected = await _sshService.redisHget('ble', 'connected');
-        final isConnected = connected == 'true';
+        // bluetooth-service writes `status` (connected/disconnected) from
+        // the nRF's own link state.
+        final status = await _sshService.redisHget('ble', 'status');
+        final isConnected = status == 'connected';
         if (isConnected != _bleConnected) {
-          setState(() => _bleConnected = isConnected);
+          setState(() {
+            if (isConnected && !_bleConnected && _btPairingActive) {
+              _blePairedCount++;
+            }
+            _bleConnected = isConnected;
+          });
         }
 
         final pin = await _sshService.redisHget('ble', 'pin-code');
@@ -4292,14 +5951,32 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _stopBluetoothPairing() async {
     _blePinPollTimer?.cancel();
     _blePinPollTimer = null;
+    _bleAdvRearmTimer?.cancel();
+    _bleAdvRearmTimer = null;
     try {
-      await _sshService.redisLpush('scooter:state', 'lock');
-      debugPrint('UI: scooter locked after BT pairing');
+      // Put the whitelist back. Leaving the radio open to anything is not a
+      // state to hand a vehicle back in, and the device just bonded is on the
+      // whitelist, so it keeps working.
+      await _sshService.redisLpush(
+          'scooter:bluetooth', 'advertising-start-with-whitelisting');
+      debugPrint('UI: BLE advertising restored to whitelisting');
     } catch (e) {
-      debugPrint('UI: failed to lock scooter: $e');
+      debugPrint('UI: failed to restore BLE whitelisting: $e');
+    }
+    // Hand the key back to vehicle-service.
+    final before = _stateBeforePairing;
+    _stateBeforePairing = null;
+    if (before != null && before != 'parked' && !_isDryRun) {
+      try {
+        await _sshService.forceVehicleState(before);
+        debugPrint('UI: vehicle state restored to $before after pairing');
+      } catch (e) {
+        debugPrint('UI: could not restore vehicle state (ok): $e');
+      }
     }
     setState(() {
       _btPairingActive = false;
+      _btAdvertisingSettling = false;
       _blePinCode = null;
       _bleConnected = false;
     });
@@ -4658,7 +6335,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         if (!mounted) return;
         await _keycardTearDown();
         if (!mounted) return;
-        _setPhase(InstallerPhase.finish);
+        _setPhase(_phaseAfterKeycardSetup);
       });
     } else if (payload.startsWith('rejected:already-authorized:')) {
       _keycardShowToast(l10n.keycardMasterStageRejectedToast, Colors.redAccent);
@@ -4691,7 +6368,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     await _keycardTearDown();
     if (!mounted) return;
     if (advance) {
-      _setPhase(InstallerPhase.finish);
+      _setPhase(_phaseAfterKeycardSetup);
     } else {
       setState(() {
         _keycardStage = _KeycardStage.cardsReview;
@@ -4750,7 +6427,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       await _stopKeycardLearning(advance: false);
     }
     await _keycardTearDown();
-    if (mounted) _setPhase(InstallerPhase.finish);
+    if (mounted) _setPhase(_phaseAfterKeycardSetup);
   }
 
   Widget _buildKeycardSetup(AppLocalizations l10n) {
@@ -4811,7 +6488,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         ),
         const SizedBox(height: 24),
         FilledButton.icon(
-          onPressed: () => _setPhase(InstallerPhase.finish),
+          onPressed: () => _setPhase(_phaseAfterKeycardSetup),
           icon: const Icon(Icons.arrow_forward),
           label: Text(l10n.keycardEntryContinueButton),
         ),
@@ -4946,7 +6623,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         ),
         const SizedBox(height: 16),
         FilledButton.icon(
-          onPressed: () => _setPhase(InstallerPhase.finish),
+          onPressed: () => _setPhase(_phaseAfterKeycardSetup),
           icon: const Icon(Icons.arrow_forward),
           label: Text(l10n.keycardCardsStageContinueButton),
         ),
@@ -5088,23 +6765,23 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Widget _buildFinish(AppLocalizations l10n) {
-    if (_awaitingFinishReboot) {
+    if (_awaitingFinishHandover) {
       return Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.restart_alt, size: 56, color: kAccent),
+              const Icon(Icons.lock_open, size: 56, color: kAccent),
               const SizedBox(height: 20),
               Text(
-                l10n.finishRebootingTitle,
+                l10n.finishHandoverTitle,
                 style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
               Text(
-                l10n.finishRebootingBody,
+                l10n.finishHandoverBody,
                 style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
                 textAlign: TextAlign.center,
               ),
@@ -5278,11 +6955,32 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   Future<void> _cleanupMdb() async {
     if (!_sshService.isConnected) return;
+    // The staging directory is also where the trampoline's own log, status and
+    // journal live, and it is the only account of what happened while the
+    // laptop was unplugged. Pull it into this installer's log before deleting
+    // anything, so a run that needs explaining still can be.
+    String? status;
+    try {
+      status = await _sshService
+          .runCommand('cat /data/installer/trampoline-status 2>/dev/null; true')
+          .timeout(const Duration(seconds: 15));
+    } catch (_) {}
+    await _captureTrampolineEvidence(status);
     try {
       // /data/installer/ holds everything this installer stages. The
       // legacy rm -f list below covers leftovers from installers that
       // wrote directly to /data/ — harmless once those versions are gone,
       // but cheap to keep for now so upgraders don't accumulate orphans.
+      // settings.toml.preinstall and .default are deliberately not in it:
+      // the restore owns the first and nothing owns the second.
+      await _sshService.runCommand(
+        'if [ -d /data/installer ]; then '
+        '  rm -rf /data/last-install-log; mkdir -p /data/last-install-log; '
+        '  for f in trampoline.log trampoline-status trampoline-journal.log; do '
+        r'    [ -f "/data/installer/$f" ] && cp "/data/installer/$f" /data/last-install-log/; '
+        '  done; '
+        'fi; true',
+      );
       await _sshService.runCommand(
         'rm -rf /data/installer; '
         'rm -f /data/librescoot-unu-*.sdimg.gz /data/librescoot-unu-*.sdimg.bmap '
@@ -5295,6 +6993,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
         'rm -rf /data/fwtools',
       );
       debugPrint('Cleanup: removed installer staging from MDB');
+      // Keep the small diagnostic files on the device too. They cost a few
+      // hundred kilobytes against the hundreds of megabytes swept above, and
+      // they are what a later visit reads when the user says it went wrong.
+      debugPrint('Cleanup: trampoline log preserved at /data/last-install-log');
     } catch (e) {
       debugPrint('Cleanup: MDB cleanup failed: $e');
     }
@@ -5307,6 +7009,18 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _setStatus(l10n.deletedCache((freed / 1024 / 1024).toStringAsFixed(0)));
     }
   }
+}
+
+/// An install failure whose message is already in the user's language.
+/// [toString] is the message itself because the artifact screen renders
+/// `e.toString()` straight into the same slot as mender's stderr.
+class _LocalizedInstallException implements Exception {
+  _LocalizedInstallException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }
 
 class _ManualPasswordDialog extends StatefulWidget {

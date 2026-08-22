@@ -4,10 +4,21 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
+import '../models/install_plan.dart';
 import '../models/region.dart';
 import '../models/substep.dart';
 import '../models/trampoline_status.dart';
 import 'ssh_service.dart';
+
+/// Directory component of [remotePath], or null when the path has no `/`
+/// and so nothing to create ahead of an upload (a bare filename lands
+/// wherever the SSH session's own working directory already puts it).
+String? remoteDirOf(String remotePath) {
+  final slash = remotePath.lastIndexOf('/');
+  if (slash < 0) return null;
+  final dir = remotePath.substring(0, slash);
+  return dir.isEmpty ? null : dir;
+}
 
 class TrampolineService {
   final SshService _ssh;
@@ -15,17 +26,46 @@ class TrampolineService {
 
   TrampolineService(this._ssh);
 
-  /// Generate the trampoline script from template with actual paths.
-  Future<String> generateScript({
+  /// Pure substitution, split out of [generateScript] so it can be tested
+  /// without the asset bundle.
+  ///
+  /// Throws [ArgumentError] for the one combination the template cannot
+  /// turn into real work: upgrade mode with no artifact and tiles off. That
+  /// would render a script which waits for the cable swap, reboots the MDB,
+  /// and reports success having installed nothing.
+  static String renderTemplate(
+    String template, {
+    required bool upgradeMode,
     required String dbcImagePath,
+    required String dbcMenderPath,
+    String dbcTargetVersion = '',
     Region? region,
     bool installTiles = false,
     String? valhallaTilesFilename,
-  }) async {
-    var template = await rootBundle.loadString('assets/trampoline.sh.template');
+    // The autonomous finish. When [finishOnDevice] is true the trampoline does
+    // the work the finish phase would otherwise do over the laptop link, so the
+    // user never has to reconnect on the happy path. Every value it needs is
+    // known before the cable swap, which is why they can be baked in here.
+    DeviceFinish finish = DeviceFinish.laptop,
+  }) {
+    if (upgradeMode && dbcMenderPath.isEmpty && !installTiles) {
+      throw ArgumentError(
+        'upgradeMode is true but dbcMenderPath is empty and installTiles is '
+        'false: there is nothing for the trampoline to do',
+      );
+    }
 
-    template = template
+    return template
+        .replaceAll('{{MODE}}', upgradeMode ? 'upgrade' : 'flash')
         .replaceAll('{{DBC_IMAGE_PATH}}', dbcImagePath)
+        .replaceAll('{{DBC_MENDER_PATH}}', dbcMenderPath)
+        .replaceAll('{{DBC_TARGET_VERSION}}', dbcTargetVersion)
+        .replaceAll('{{FINISH_ON_DEVICE}}', finish.onDevice ? 'true' : 'false')
+        .replaceAll('{{MDB_ACTION}}', finish.mdbAction.name)
+        .replaceAll('{{MDB_TARGET_VERSION}}', finish.mdbTargetVersion)
+        .replaceAll('{{FINISH_LANGUAGE}}', finish.language)
+        .replaceAll('{{FINISH_CHANNEL}}', finish.otaChannel)
+        .replaceAll('{{START_KEYCARD}}', finish.startKeycard ? 'true' : 'false')
         .replaceAll('{{INSTALL_TILES}}', installTiles ? 'true' : 'false')
         .replaceAll(
           '{{OSM_TILES_FILE}}',
@@ -39,8 +79,37 @@ class TrampolineService {
               ? '/data/installer/${valhallaTilesFilename ?? region.valhallaTilesFilename}'
               : '',
         );
+  }
 
-    return template;
+  /// Generate the trampoline script from the bundled template.
+  ///
+  /// [dbcImagePath] is empty in upgrade mode, where no stage-0 image is
+  /// written. [dbcMenderPath] is empty when the DBC gets no artifact, which
+  /// is the tiles-only job. [dbcTargetVersion] is the VERSION_ID the DBC has
+  /// to report once the artifact is live; empty leaves the trampoline with
+  /// only "did anything change at all" to go on.
+  Future<String> generateScript({
+    required bool upgradeMode,
+    String dbcImagePath = '',
+    String dbcMenderPath = '',
+    String dbcTargetVersion = '',
+    Region? region,
+    bool installTiles = false,
+    String? valhallaTilesFilename,
+    DeviceFinish finish = DeviceFinish.laptop,
+  }) async {
+    final template = await rootBundle.loadString('assets/trampoline.sh.template');
+    return renderTemplate(
+      template,
+      finish: finish,
+      upgradeMode: upgradeMode,
+      dbcImagePath: dbcImagePath,
+      dbcMenderPath: dbcMenderPath,
+      dbcTargetVersion: dbcTargetVersion,
+      region: region,
+      installTiles: installTiles,
+      valhallaTilesFilename: valhallaTilesFilename,
+    );
   }
 
   /// Check if a remote file exists and matches the local file's md5.
@@ -63,6 +132,18 @@ class TrampolineService {
         final localResult = await Process.run('md5sum', [localPath]);
         if (localResult.exitCode != 0) return false;
         localMd5 = localResult.stdout.toString().split(' ').first.trim().toLowerCase();
+      }
+
+      // A file that is not there yet is the normal case on a first upload,
+      // not a failure worth an exception line per file. Ask separately so the
+      // absent case answers "no match" quietly and the catch below stays for
+      // things that actually went wrong.
+      final present = (await _ssh.runCommand(
+        '[ -f "$remotePath" ] && echo yes || echo no',
+      )).trim();
+      if (present != 'yes') {
+        debugPrint('Trampoline: $remotePath not on the device yet, will upload');
+        return false;
       }
 
       // Get remote md5 (large files can take a while)
@@ -244,6 +325,34 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     }
   }
 
+  /// Upload one local file to [remotePath] on the MDB over HTTP PUT, using
+  /// the device's data-server when it answers and a bootstrapped Python
+  /// server when it does not. Skips the transfer when the remote file already
+  /// matches by md5, which makes a retry after a dropped link cheap.
+  ///
+  /// Public because artifact staging needs exactly this and there is no
+  /// reason for a second implementation of it.
+  Future<void> uploadFile(
+    String localPath,
+    String remotePath, {
+    void Function(int sent, int total)? onProgress,
+  }) async {
+    final dir = remoteDirOf(remotePath);
+    if (dir != null) {
+      await _ssh.runCommand('mkdir -p "$dir"');
+    }
+    if (await _remoteFileMatches(localPath, remotePath)) {
+      debugPrint('Trampoline: $remotePath already matches, skipping upload');
+      return;
+    }
+    await _startUploadServer();
+    try {
+      await _uploadViaHttp(localPath, remotePath, onProgress: onProgress);
+    } finally {
+      await _stopUploadServer();
+    }
+  }
+
   /// Upload DBC image, tiles, and trampoline script to MDB.
   ///
   /// Everything we stage lives under /data/installer/ so cleanup at finish
@@ -256,14 +365,33 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
   /// [onSubsteps] is the structured form used by the UI to render a
   /// checklist (✓/⟳/○ per step). Both are called; passing only one is fine.
   Future<void> uploadAll({
-    required String dbcImageLocalPath,
+    String? dbcImageLocalPath,
     String? dbcBmapLocalPath,
+    String? dbcArtifactLocalPath,
+    String? dbcTargetVersion,
+    DeviceFinish finish = DeviceFinish.laptop,
     String? osmTilesLocalPath,
     String? valhallaTilesLocalPath,
     Region? region,
     void Function(String status, double progress)? onProgress,
     void Function(List<Substep> steps)? onSubsteps,
   }) async {
+    // ums-service is enabled with Restart=always and takes the OTG UDC away
+    // from g_ether whenever it switches to mass-storage mode. That tears down
+    // usb0 and with it this SSH session, mid-upload, for a transfer measured
+    // in hundreds of megabytes. The trampoline masks it too, but only after
+    // the laptop is unplugged, which leaves this window unprotected. The
+    // finish unmasks and starts it again.
+    try {
+      await _ssh.runCommand(
+        'systemctl stop librescoot-ums 2>/dev/null; '
+        'systemctl mask librescoot-ums 2>/dev/null; '
+        'ifconfig usb0 192.168.7.1 netmask 255.255.255.0 up 2>/dev/null; true',
+      );
+    } catch (e) {
+      debugPrint('Trampoline: could not park ums-service (ok): $e');
+    }
+
     // Ensure the staging dir exists before any SFTP/HTTP upload — SFTP open
     // won't create parents, and the HTTP fallback's os.makedirs is cheap
     // but only kicks in on the first PUT.
@@ -271,12 +399,23 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
 
     final filesToUpload = <MapEntry<String, String>>[];
 
-    final dbcFilename = File(dbcImageLocalPath).uri.pathSegments.last;
-    filesToUpload.add(MapEntry(dbcImageLocalPath, '/data/installer/$dbcFilename'));
+    if (dbcImageLocalPath != null) {
+      final dbcFilename = File(dbcImageLocalPath).uri.pathSegments.last;
+      filesToUpload.add(MapEntry(dbcImageLocalPath, '/data/installer/$dbcFilename'));
+    }
 
     if (dbcBmapLocalPath != null) {
       final bmapFilename = File(dbcBmapLocalPath).uri.pathSegments.last;
       filesToUpload.add(MapEntry(dbcBmapLocalPath, '/data/installer/$bmapFilename'));
+    }
+
+    // The DBC artifact is staged in /data/installer next to the image rather
+    // than in /data/ota/dbc: it is going to the *other* board, and the
+    // trampoline is what puts it at the seed path over there.
+    if (dbcArtifactLocalPath != null) {
+      final artifactFilename = File(dbcArtifactLocalPath).uri.pathSegments.last;
+      filesToUpload.add(
+          MapEntry(dbcArtifactLocalPath, '/data/installer/$artifactFilename'));
     }
 
     if (osmTilesLocalPath != null && region != null) {
@@ -295,8 +434,10 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       Substep(id: 'check', label: 'Check existing files'),
       for (final e in filesToUpload)
         Substep(id: 'up:${e.value}', label: 'Upload ${File(e.key).uri.pathSegments.last}'),
-      Substep(id: 'flasher', label: 'Upload flasher tool'),
-      Substep(id: 'fwtools', label: 'Upload DBC bootloader tools'),
+      if (dbcImageLocalPath != null)
+        Substep(id: 'flasher', label: 'Upload flasher tool'),
+      if (dbcImageLocalPath != null)
+        Substep(id: 'fwtools', label: 'Upload DBC bootloader tools'),
       Substep(id: 'script', label: 'Upload trampoline script'),
     ];
     void setStep(String id, SubstepState state, {String? detail}) {
@@ -390,56 +531,73 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       }
     }
 
-    // Upload ARM flasher binary for DBC flash (has bmap + progress support)
-    setStep('flasher', SubstepState.active);
-    onProgress?.call('Uploading flasher...', 0.94);
-    try {
-      final flasherAsset = await rootBundle.load('assets/tools/librescoot-flasher-linux-arm');
-      debugPrint('Trampoline: loaded flasher-linux-arm (${flasherAsset.lengthInBytes} bytes)');
-      await _ssh.uploadFile(
-        flasherAsset.buffer.asUint8List(),
-        '/data/installer/librescoot-flasher',
-      );
-      await _ssh.runCommand('chmod +x /data/installer/librescoot-flasher');
-      setStep('flasher', SubstepState.done);
-    } catch (e) {
-      debugPrint('Trampoline: failed to upload ARM flasher: $e');
-      setStep('flasher', SubstepState.failed, detail: e.toString());
-    }
+    // The flasher and fw_setenv/fw_env tools are only needed to write the
+    // stage-0 image, so an upgrade (no dbcImageLocalPath) skips both and
+    // never pushes tools it will never run.
+    if (dbcImageLocalPath != null) {
+      // Upload ARM flasher binary for DBC flash (has bmap + progress support)
+      setStep('flasher', SubstepState.active);
+      onProgress?.call('Uploading flasher...', 0.94);
+      try {
+        final flasherAsset = await rootBundle.load('assets/tools/librescoot-flasher-linux-arm');
+        debugPrint('Trampoline: loaded flasher-linux-arm (${flasherAsset.lengthInBytes} bytes)');
+        await _ssh.uploadFile(
+          flasherAsset.buffer.asUint8List(),
+          '/data/installer/librescoot-flasher',
+        );
+        await _ssh.runCommand('chmod +x /data/installer/librescoot-flasher');
+        setStep('flasher', SubstepState.done);
+      } catch (e) {
+        debugPrint('Trampoline: failed to upload ARM flasher: $e');
+        setStep('flasher', SubstepState.failed, detail: e.toString());
+      }
 
-    // Upload stock DBC fw_setenv binary + DBC-specific fw_env config
-    setStep('fwtools', SubstepState.active);
-    onProgress?.call('Uploading DBC tools...', 0.96);
-    try {
-      await _ssh.runCommand('mkdir -p /data/installer/fwtools/stock-dbc');
+      // Upload stock DBC fw_setenv binary + DBC-specific fw_env config
+      setStep('fwtools', SubstepState.active);
+      onProgress?.call('Uploading DBC tools...', 0.96);
+      try {
+        await _ssh.runCommand('mkdir -p /data/installer/fwtools/stock-dbc');
 
-      final stockFwSetenv = await rootBundle.load('assets/tools/fw_setenv-dbc');
-      debugPrint('Trampoline: loaded fw_setenv-dbc (${stockFwSetenv.lengthInBytes} bytes)');
-      await _ssh.uploadFile(
-        stockFwSetenv.buffer.asUint8List(),
-        '/data/installer/fwtools/stock-dbc/fw_setenv',
-      );
-      await _ssh.runCommand('chmod +x /data/installer/fwtools/stock-dbc/fw_setenv');
+        final stockFwSetenv = await rootBundle.load('assets/tools/fw_setenv-dbc');
+        debugPrint('Trampoline: loaded fw_setenv-dbc (${stockFwSetenv.lengthInBytes} bytes)');
+        await _ssh.uploadFile(
+          stockFwSetenv.buffer.asUint8List(),
+          '/data/installer/fwtools/stock-dbc/fw_setenv',
+        );
+        await _ssh.runCommand('chmod +x /data/installer/fwtools/stock-dbc/fw_setenv');
 
-      final dbcFwEnvConfig = await rootBundle.load('assets/tools/fw_env-dbc.config');
-      await _ssh.uploadFile(
-        dbcFwEnvConfig.buffer.asUint8List(),
-        '/data/installer/fwtools/stock-dbc/fw_env.config',
-      );
-      setStep('fwtools', SubstepState.done);
-    } catch (e) {
-      debugPrint('Trampoline: failed to upload DBC tools: $e');
-      setStep('fwtools', SubstepState.failed, detail: e.toString());
+        final dbcFwEnvConfig = await rootBundle.load('assets/tools/fw_env-dbc.config');
+        await _ssh.uploadFile(
+          dbcFwEnvConfig.buffer.asUint8List(),
+          '/data/installer/fwtools/stock-dbc/fw_env.config',
+        );
+        setStep('fwtools', SubstepState.done);
+      } catch (e) {
+        debugPrint('Trampoline: failed to upload DBC tools: $e');
+        setStep('fwtools', SubstepState.failed, detail: e.toString());
+      }
     }
 
     // Always regenerate the trampoline script (small, config may have changed)
     setStep('script', SubstepState.active);
     debugPrint('Trampoline: generating and uploading trampoline script...');
     onProgress?.call('Uploading trampoline script...', 0.98);
-    final dbcRemotePath = '/data/installer/$dbcFilename';
+    // A stage-0 image means this is a flash job; no image means upgrade,
+    // where the artifact goes straight through the on-device update queue.
+    final upgradeMode = dbcImageLocalPath == null;
+    final dbcRemotePath = dbcImageLocalPath == null
+        ? ''
+        : '/data/installer/${File(dbcImageLocalPath).uri.pathSegments.last}';
+    final dbcMenderRemotePath = dbcArtifactLocalPath == null
+        ? ''
+        : '/data/installer/${File(dbcArtifactLocalPath).uri.pathSegments.last}';
 
     final script = await generateScript(
+      upgradeMode: upgradeMode,
       dbcImagePath: dbcRemotePath,
+      dbcMenderPath: dbcMenderRemotePath,
+      dbcTargetVersion: dbcTargetVersion ?? '',
+      finish: finish,
       region: region,
       installTiles: osmTilesLocalPath != null || valhallaTilesLocalPath != null,
       valhallaTilesFilename: valhallaTilesLocalPath == null
@@ -463,9 +621,39 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
 
   /// Start the trampoline script on MDB in background.
   Future<void> start() async {
+    // A leftover trampoline from an abandoned run would race this one over the
+    // USB role and the dashboard's power. The pattern is bracketed so pgrep and
+    // pkill cannot match their own command line, and the kill is its own
+    // command because a combined one would carry the pattern in the launcher's
+    // arguments and take the launcher with it.
     await _ssh.runCommand(
+      "pkill -f 'installer/[t]rampoline.sh' 2>/dev/null; true",
+    );
+    // An old status file reads as this run's verdict if the arming below fails
+    // silently, so it goes before anything can be believed.
+    await _ssh.runCommand(
+      'rm -f /data/installer/trampoline-status; '
       'nohup /data/installer/trampoline.sh > /data/installer/trampoline-stdout.log 2>&1 &',
     );
+
+    // nohup backgrounds the process, so the launching shell reports success
+    // whether or not it survived. Without this check a trampoline that never
+    // started is indistinguishable from one still working, and the user has
+    // already swapped the cable by the time anyone could tell.
+    for (var attempt = 0; attempt < 5; attempt++) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (await isRunning()) return;
+    }
+    throw Exception('Trampoline did not start on the MDB');
+  }
+
+  /// Whether a trampoline process is running on the MDB. The bracketed pattern
+  /// keeps pgrep from matching its own command line.
+  Future<bool> isRunning() async {
+    final pid = (await _ssh.runCommand(
+      "pgrep -f 'installer/[t]rampoline.sh' 2>/dev/null; true",
+    )).trim();
+    return pid.isNotEmpty;
   }
 
   /// Read trampoline status (call after reconnecting to MDB).

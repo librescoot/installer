@@ -14,12 +14,17 @@ class PhaseSidebar extends StatelessWidget {
     required this.currentPhase,
     required this.completedPhases,
     this.skippedPhases = const {},
+    this.upgradingSteps = const {},
     this.downloadItems = const [],
   });
 
   final InstallerPhase currentPhase;
   final Set<InstallerPhase> completedPhases;
   final Set<InstallerPhase> skippedPhases;
+
+  /// Major steps whose board the plan is upgrading rather than flashing.
+  /// Only changes the wording; the phases themselves are the same.
+  final Set<MajorStep> upgradingSteps;
   final List<DownloadItem> downloadItems;
 
   @override
@@ -90,6 +95,7 @@ class PhaseSidebar extends StatelessWidget {
                     isActive: major.isActive(currentPhase),
                     isCompleted: major.isCompleted(currentPhase),
                     isSkipped: major.phases.every((p) => skippedPhases.contains(p)),
+                    isUpgrade: upgradingSteps.contains(major),
                     l10n: l10n,
                   ),
                   // Show substeps only for the active major step
@@ -123,12 +129,14 @@ class _MajorStepItem extends StatelessWidget {
     required this.isCompleted,
     required this.l10n,
     this.isSkipped = false,
+    this.isUpgrade = false,
   });
 
   final MajorStep step;
   final bool isActive;
   final bool isCompleted;
   final bool isSkipped;
+  final bool isUpgrade;
   final AppLocalizations l10n;
 
   @override
@@ -187,7 +195,9 @@ class _MajorStepItem extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              isSkipped ? '${step.localizedTitle(l10n)} (${l10n.majorStepSkippedSuffix})' : step.localizedTitle(l10n),
+              isSkipped
+                  ? '${step.localizedTitle(l10n, upgrade: isUpgrade)} (${l10n.majorStepSkippedSuffix})'
+                  : step.localizedTitle(l10n, upgrade: isUpgrade),
               style: TextStyle(
                 color: textColor,
                 fontSize: 14,
@@ -292,6 +302,8 @@ class _DownloadStatus extends StatelessWidget {
   final List<DownloadItem> items;
 
   static const _labels = {
+    DownloadItemType.mdbArtifact: 'MDB Artifact',
+    DownloadItemType.dbcArtifact: 'DBC Artifact',
     DownloadItemType.mdbFirmware: 'MDB',
     DownloadItemType.mdbBmap: 'Bmap',
     DownloadItemType.dbcFirmware: 'DBC',

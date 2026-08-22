@@ -7,6 +7,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 
+import '../models/board_state.dart';
 import '../models/download_state.dart';
 import '../models/region.dart';
 
@@ -41,13 +42,14 @@ class DownloadService {
 
     final cacheDir = await getCacheDir();
     final cacheFile = File(p.join(cacheDir.path, 'latest.json'));
-    if (await cacheFile.exists()) {
-      final age = DateTime.now().difference(await cacheFile.lastModified());
-      if (age.inHours < 1) {
-        _cachedLatest =
-            jsonDecode(await cacheFile.readAsString()) as Map<String, dynamic>;
-        return _cachedLatest!;
-      }
+    // An unreadable cache is treated as absent rather than thrown: a captive
+    // portal's login page returns HTTP 200 and used to be written here
+    // verbatim, after which every retry and every later launch re-threw on the
+    // same garbage with no way to clear it from inside the app.
+    final fresh = await _readCachedManifest(cacheFile, maxAge: const Duration(hours: 1));
+    if (fresh != null) {
+      _cachedLatest = fresh;
+      return _cachedLatest!;
     }
 
     const delays = [Duration.zero, Duration(seconds: 2), Duration(seconds: 5)];
@@ -60,8 +62,12 @@ class DownloadService {
             .get(Uri.parse(_latestManifestUrl))
             .timeout(const Duration(seconds: 10));
         if (response.statusCode == 200) {
+          // Parse before caching. A body that is not the manifest must not
+          // reach the disk, or it outlives the network problem that produced
+          // it.
+          final parsed = jsonDecode(response.body) as Map<String, dynamic>;
           await cacheFile.writeAsString(response.body);
-          _cachedLatest = jsonDecode(response.body) as Map<String, dynamic>;
+          _cachedLatest = parsed;
           return _cachedLatest!;
         }
         debugPrint('latest.json fetch HTTP ${response.statusCode} '
@@ -72,10 +78,10 @@ class DownloadService {
       }
     }
 
-    if (await cacheFile.exists()) {
+    final stale = await _readCachedManifest(cacheFile);
+    if (stale != null) {
       debugPrint('latest.json: network unavailable, using stale on-disk cache');
-      _cachedLatest =
-          jsonDecode(await cacheFile.readAsString()) as Map<String, dynamic>;
+      _cachedLatest = stale;
       return _cachedLatest!;
     }
 
@@ -132,6 +138,43 @@ class DownloadService {
     final tag = entry['tag_name'] as String;
     final assets = (entry['assets'] as List).cast<Map<String, dynamic>>();
     return (tag: tag, assets: assets);
+  }
+
+  /// Read the on-disk manifest cache, or null if it is missing, too old, or
+  /// not parseable. Unparseable is deliberately the same as missing: the
+  /// caller falls through to the network and then to the bundled snapshot,
+  /// and a bad cache file gets overwritten by the next good fetch.
+  Future<Map<String, dynamic>?> _readCachedManifest(
+    File cacheFile, {
+    Duration? maxAge,
+  }) async {
+    try {
+      if (!await cacheFile.exists()) return null;
+      if (maxAge != null) {
+        final age = DateTime.now().difference(await cacheFile.lastModified());
+        if (age >= maxAge) return null;
+      }
+      return jsonDecode(await cacheFile.readAsString()) as Map<String, dynamic>;
+    } catch (e) {
+      debugPrint('latest.json: on-disk cache unusable ($e), ignoring it');
+      return null;
+    }
+  }
+
+  /// The sha256 for a tile asset, from whichever field carries it.
+  ///
+  /// The tile manifests publish a plain `sha256`; a disk cache written by an
+  /// older build holds GitHub's server-computed `"digest": "sha256:<hex>"`
+  /// instead, so both are accepted. Returns null when neither is usable: an
+  /// empty remainder would pass the not-null gate below and then mismatch
+  /// every good download.
+  static String? _sha256FromAsset(Map<String, dynamic> asset) {
+    final sha = asset['sha256'] as String?;
+    if (sha != null && sha.isNotEmpty) return sha;
+    final digest = asset['digest'] as String?;
+    if (digest == null || !digest.startsWith('sha256:')) return null;
+    final hex = digest.substring('sha256:'.length);
+    return hex.isEmpty ? null : hex;
   }
 
   /// Stream-hash a file's sha256, returning lower-case hex.
@@ -246,11 +289,19 @@ class DownloadService {
     return slugs;
   }
 
-  /// Build the full download queue based on channel, region, and offline preference.
+  /// Build the full download queue based on channel, region, and offline
+  /// preference.
+  ///
+  /// [fullImageBoards] names the boards that want the legacy full sdimg
+  /// instead of the stage-0 minimal one. Per board rather than a single
+  /// flag: a main-board fall-back that also promoted the dashboard would
+  /// swap 54 MiB of stage 0 for 424 MiB over the slow link and then install
+  /// the artifact on top anyway, which is about an extra hour for nothing.
   Future<List<DownloadItem>> buildDownloadQueue({
     required DownloadChannel channel,
     Region? region,
     required bool wantsOfflineMaps,
+    Set<Board> fullImageBoards = const {},
   }) async {
     final items = <DownloadItem>[];
     final cacheDir = await getCacheDir();
@@ -260,21 +311,34 @@ class DownloadService {
     for (final asset in release.assets) {
       final name = asset['name'] as String;
       if (!name.contains('unu-')) continue;
-      // Minimal bootstrap images ship in the same release; they must never
-      // be picked up as full MDB/DBC firmware.
-      if (name.contains('-minimal-')) continue;
+      // Deltas need a matching base artifact on the device and boot tarballs
+      // are applied from the new rootfs at first start, so neither is ever
+      // fetched here.
+      if (name.endsWith('.delta') || name.contains('-boot-')) continue;
 
-      final bool isBmap = name.endsWith('.sdimg.bmap');
-      final bool isFirmware = name.endsWith('.sdimg.gz');
-      if (!isFirmware && !isBmap) continue;
+      final isMinimal = name.contains('-minimal-');
+      final isArtifact = name.endsWith('.mender');
+      final isImage = name.endsWith('.sdimg.gz');
+      final isBmap = name.endsWith('.sdimg.bmap');
+
+      if (!isArtifact && !isImage && !isBmap) continue;
+
+      final bool isMdb = name.contains('unu-mdb-');
+      if (!isMdb && !name.contains('unu-dbc-')) continue;
+
+      // The stage-0 image is the minimal one. The full sdimg is only fetched
+      // for a board whose failure path asked for it, and never carries an
+      // artifact.
+      final wantsFull = fullImageBoards.contains(isMdb ? Board.mdb : Board.dbc);
+      if ((isImage || isBmap) && isMinimal == wantsFull) continue;
 
       final DownloadItemType type;
-      if (name.contains('unu-mdb-')) {
-        type = isBmap ? DownloadItemType.mdbBmap : DownloadItemType.mdbFirmware;
-      } else if (name.contains('unu-dbc-')) {
-        type = isBmap ? DownloadItemType.dbcBmap : DownloadItemType.dbcFirmware;
+      if (isArtifact) {
+        type = isMdb ? DownloadItemType.mdbArtifact : DownloadItemType.dbcArtifact;
+      } else if (isBmap) {
+        type = isMdb ? DownloadItemType.mdbBmap : DownloadItemType.dbcBmap;
       } else {
-        continue;
+        type = isMdb ? DownloadItemType.mdbFirmware : DownloadItemType.dbcFirmware;
       }
 
       final cached = File(p.join(cacheDir.path, name));
@@ -313,6 +377,7 @@ class DownloadService {
           url: asset['url'] as String,
           filename: name,
           expectedSize: expectedSize,
+          expectedSha256: _sha256FromAsset(asset),
         );
         if (await cached.exists() && await cached.length() == expectedSize) {
           item.localPath = cached.path;
@@ -340,6 +405,7 @@ class DownloadService {
           url: asset['url'] as String,
           filename: name,
           expectedSize: expectedSize,
+          expectedSha256: _sha256FromAsset(asset),
         );
         if (await cached.exists() && await cached.length() == expectedSize) {
           item.localPath = cached.path;
@@ -376,13 +442,19 @@ class DownloadService {
     final sink = partFile.openWrite();
     var downloaded = 0;
 
-    await for (final chunk in response.stream) {
-      sink.add(chunk);
-      downloaded += chunk.length;
-      item.bytesDownloaded = downloaded;
-      onProgress?.call(downloaded, item.expectedSize);
+    // The close belongs in a finally: a stream that throws part-way through
+    // otherwise leaks the handle, and on Windows keeps the .part file locked
+    // against the retry that follows.
+    try {
+      await for (final chunk in response.stream) {
+        sink.add(chunk);
+        downloaded += chunk.length;
+        item.bytesDownloaded = downloaded;
+        onProgress?.call(downloaded, item.expectedSize);
+      }
+    } finally {
+      await sink.close();
     }
-    await sink.close();
 
     // Verify size
     if (await partFile.length() != item.expectedSize) {

@@ -1,0 +1,222 @@
+import 'package:flutter/material.dart';
+
+import '../l10n/app_localizations.dart';
+import '../models/board_state.dart';
+import '../models/install_plan.dart';
+
+/// The per-board decision screen. Replaces the two skip checkboxes on the
+/// health check with one line per board saying what will happen to it.
+class InstallPlanPanel extends StatelessWidget {
+  const InstallPlanPanel({
+    super.key,
+    required this.plan,
+    required this.mdbState,
+    required this.dbcState,
+    required this.targetVersion,
+    required this.onChanged,
+    required this.onContinue,
+  });
+
+  final InstallPlan plan;
+  final BoardState mdbState;
+  final BoardState dbcState;
+  final String targetVersion;
+  final ValueChanged<InstallPlan> onChanged;
+  final VoidCallback onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640),
+        // Heading and the Continue button stay pinned outside the scroll
+        // region; only the board cards and warnings scroll. Continue is the
+        // one control that confirms an irreversible action, so it must never
+        // be scrolled off the bottom where a short or unmaximised window
+        // could hide it with no cue. `mainAxisSize.min` on the outer Column
+        // plus `Flexible` (loose fit) on the inner scroll view means the
+        // panel still hugs its content and stays visually centered when
+        // everything fits (SingleChildScrollView reports its child's own
+        // size when that fits the available space), and only grows to fill
+        // the available height, with the middle section scrolling, when it
+        // does not: the button never ends up floating far below short
+        // content.
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(l10n.installPlanHeading,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 24, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text(l10n.installPlanIntro(targetVersion),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 24),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _boardCard(context, l10n, l10n.boardMdb, mdbState,
+                        plan.mdb, (p) => onChanged(plan.withMdb(p))),
+                    const SizedBox(height: 12),
+                    _boardCard(context, l10n, l10n.boardDbc, dbcState,
+                        plan.dbc, (p) => onChanged(plan.withDbc(p))),
+                    if (plan.installTiles && !plan.needsDbcWork)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Text(l10n.planTilesNeedDbcHandoff,
+                            style: Theme.of(context).textTheme.bodySmall),
+                      ),
+                    if (plan.dbcWorkStrandedOn(mdbState))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Text(l10n.planDbcNeedsLibrescootMdb,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: Colors.orange.shade300)),
+                      ),
+                    if (plan.isNoOp)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Text(l10n.planNothingToDo,
+                            style: Theme.of(context).textTheme.bodySmall),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: plan.isNoOp || plan.dbcWorkStrandedOn(mdbState)
+                  ? null
+                  : onContinue,
+              child: Text(l10n.continueButton),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _boardCard(
+    BuildContext context,
+    AppLocalizations l10n,
+    String title,
+    BoardState state,
+    BoardPlan boardPlan,
+    ValueChanged<BoardPlan> onBoardChanged,
+  ) {
+    assert(state.board == boardPlan.board,
+        'state and boardPlan must describe the same board');
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Text(_versionLabel(l10n, state),
+                style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 12),
+            // RadioListTile's own groupValue/onChanged were deprecated after
+            // Flutter 3.32 and this checkout is 3.41.9, so selection state
+            // lives on the enclosing RadioGroup and an unavailable option is
+            // turned off with `enabled` rather than a null callback.
+            RadioGroup<BoardAction>(
+              groupValue: boardPlan.action,
+              onChanged: (v) {
+                if (v != null) onBoardChanged(boardPlan.withAction(v));
+              },
+              child: Column(
+                children: [
+                  for (final action in const [
+                    BoardAction.upgrade,
+                    BoardAction.cleanInstall,
+                    BoardAction.leave,
+                  ])
+                    RadioListTile<BoardAction>(
+                      value: action,
+                      enabled: !(action == BoardAction.upgrade &&
+                              !boardPlan.canUpgrade) &&
+                          !_leavingStockMdbIsPointless(action, state),
+                      title: Text(_actionLabel(l10n, action)),
+                      // A disabled option explains itself in place. The
+                      // reason used to sit at the bottom of the card, below
+                      // the fold on a short window, so the user met a greyed
+                      // out choice with nothing saying why.
+                      subtitle: Text(
+                        _leavingStockMdbIsPointless(action, state)
+                            ? l10n.actionLeaveBlockedStockMdb
+                            : action == BoardAction.upgrade &&
+                                    boardPlan.blocker != null
+                                ? _blockerLabel(l10n, boardPlan.blocker!)
+                                : _actionDetail(l10n, action, state.board),
+                      ),
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _versionLabel(AppLocalizations l10n, BoardState state) {
+    final version = state.version;
+    if (version == null || version.isEmpty) return l10n.boardVersionUnknown;
+    return state.provenance == StateProvenance.lastSeen
+        ? l10n.boardVersionLastSeen(version)
+        : l10n.boardVersionCurrent(version);
+  }
+
+  String _actionLabel(AppLocalizations l10n, BoardAction action) =>
+      switch (action) {
+        BoardAction.upgrade => l10n.actionUpgrade,
+        BoardAction.cleanInstall => l10n.actionCleanInstall,
+        BoardAction.leave => l10n.actionLeave,
+        BoardAction.fullImage => l10n.artifactFallBackToFullImage,
+      };
+
+  /// What each action costs, per board. Settings, keycards and trips all live
+  /// on the main board; the dashboard's own storage holds the offline maps and
+  /// nothing else, so wiping it loses only those, and only until the maps are
+  /// written back.
+  String _actionDetail(
+          AppLocalizations l10n, BoardAction action, Board board) =>
+      switch ((action, board)) {
+        (BoardAction.upgrade, Board.dbc) => l10n.actionUpgradeDetailDbc,
+        (BoardAction.cleanInstall, Board.dbc) ||
+        (BoardAction.fullImage, Board.dbc) =>
+          l10n.actionCleanInstallDetailDbc,
+        (BoardAction.upgrade, _) => l10n.actionUpgradeDetail,
+        (BoardAction.cleanInstall, _) || (BoardAction.fullImage, _) =>
+          l10n.actionCleanInstallDetail,
+        (BoardAction.leave, _) => l10n.actionLeaveDetail,
+      };
+
+  /// Leaving a stock main board alone leads nowhere. The dashboard is only
+  /// reachable through it and the tools that do the reaching are Librescoot's,
+  /// so with the MDB untouched there is no dashboard work and no tiles either,
+  /// and the only remaining plan is to do nothing at all. Better to take the
+  /// option away here than to let it be chosen and refuse the whole plan later.
+  bool _leavingStockMdbIsPointless(BoardAction action, BoardState state) =>
+      action == BoardAction.leave &&
+      state.board == Board.mdb &&
+      !state.isLibrescoot;
+
+  String _blockerLabel(AppLocalizations l10n, UpgradeBlocker blocker) =>
+      switch (blocker) {
+        UpgradeBlocker.notLibrescoot => l10n.upgradeBlockedNotLibrescoot,
+        UpgradeBlocker.stateUnknown => l10n.upgradeBlockedStateUnknown,
+        UpgradeBlocker.minimalImage => l10n.upgradeBlockedMinimalImage,
+        UpgradeBlocker.noMender => l10n.upgradeBlockedNoMender,
+      };
+}

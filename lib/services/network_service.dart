@@ -70,6 +70,21 @@ class NetworkService {
     return result;
   }
 
+  /// Whether `ip addr add` refused because the address is already on the
+  /// interface, which means the interface is configured and the call has
+  /// nothing left to do.
+  ///
+  /// iproute2 words this two ways: the kernel's EEXIST surfaces as
+  /// "RTNETLINK answers: File exists", and its own validation reports
+  /// "Error: ipv4: Address already assigned." A reconnect after the board
+  /// reboots hits the second one, and reading it as a failure makes a
+  /// correctly configured link look unconfigured.
+  @visibleForTesting
+  static bool addressAlreadyAssigned(String stderr) {
+    final s = stderr.toLowerCase();
+    return s.contains('file exists') || s.contains('already assigned');
+  }
+
   /// Check if MDB is reachable
   Future<bool> isMdbReachable() async {
     try {
@@ -447,7 +462,7 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
         ['addr', 'add', '$targetIp/24', 'dev', iface.name],
       );
       if (result.exitCode != 0 &&
-          !result.stderr.toString().contains('File exists')) {
+          !addressAlreadyAssigned(result.stderr.toString())) {
         debugPrint('Network: ip addr add failed: ${result.stderr}');
         return false;
       }

@@ -446,6 +446,57 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
   /// directly; the CIM associator walk is there for the rare machine whose
   /// Storage module is missing, and compares against the actual system drive
   /// instead of assuming it is C:.
+  /// Whether a Linux block device carries a mounted filesystem.
+  ///
+  /// Linux had no verdict at all, so the only guard was refusing /dev/sda
+  /// outright. On a laptop that boots from NVMe, sda is simply the first USB
+  /// disk attached, which is exactly what the scooter enumerates as, and the
+  /// refusal blocked the one device the user is trying to flash.
+  ///
+  /// The test is where a partition is mounted, not whether it is mounted at
+  /// all. A desktop auto-mounts whatever appears, and the scooter's own boot
+  /// partition shows up under the removable-media roots seconds after it
+  /// enters mass storage, so "has a mount" would refuse the exact device the
+  /// user is trying to flash. A mount anywhere else is a disk the machine is
+  /// living on.
+  Future<SystemDiskVerdict> linuxSystemDiskVerdict(String diskPath,
+      {String mountsPath = '/proc/mounts'}) async {
+    final base = diskPath.startsWith('/dev/') ? diskPath.substring(5) : diskPath;
+    if (base.isEmpty) return SystemDiskVerdict.systemDisk;
+    try {
+      final mounts = await File(mountsPath).readAsString();
+      // sda matches sda and sda1..sdaN, and must not match sdaa or sdb.
+      final owned = RegExp('^${RegExp.escape(base)}' r'(p?\d+)?$');
+      for (final line in mounts.split('\n')) {
+        final fields = line.split(' ');
+        if (fields.length < 2) continue;
+        final source = fields[0];
+        if (!source.startsWith('/dev/')) continue;
+        if (!owned.hasMatch(source.substring(5))) continue;
+        if (_isRemovableMountPoint(fields[1])) continue;
+        return SystemDiskVerdict.systemDisk;
+      }
+      return SystemDiskVerdict.notSystem;
+    } catch (e) {
+      // Unable to tell is not permission to write: the caller keeps its
+      // conservative path rules when the answer is unknown.
+      debugPrint('USB detector: could not read $mountsPath ($e)');
+      return SystemDiskVerdict.unknown;
+    }
+  }
+
+  /// Where a desktop parks media it auto-mounted, as opposed to the paths a
+  /// running system is built out of. Mount points arrive octal-escaped, so a
+  /// space in a volume label shows up as \\040.
+  static bool _isRemovableMountPoint(String mountPoint) {
+    final p = mountPoint.replaceAll(r'\040', ' ');
+    return p.startsWith('/media/') ||
+        p.startsWith('/run/media/') ||
+        p.startsWith('/mnt/') ||
+        p == '/media' ||
+        p == '/mnt';
+  }
+
   Future<SystemDiskVerdict> _windowsSystemDiskVerdict(String deviceId) async {
     // Anything we cannot name a disk number for is not something we are
     // willing to write to.

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import '../models/scooter_health.dart';
 import '../models/trampoline_status.dart';
+import 'device_probe.dart';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -45,6 +46,28 @@ class SshService {
   static const String sshUser = 'root';
   static const Duration connectionTimeout = Duration(seconds: 10);
   static const int maxManualPasswordAttempts = 3;
+
+  /// Retries for a connection that dies before authentication ever happens.
+  /// Doubling from one second, so the ladder spans about a minute: longer than
+  /// any reboot this installer performs takes to bring sshd back.
+  static const int maxPreAuthRetries = 6;
+
+  /// Whether a failure hit the transport rather than the credential.
+  ///
+  /// dartssh2 raises [SSHAuthAbortError] when the connection closes before
+  /// authentication completes, which is what sshd looks like in the seconds
+  /// after a reboot. It arrives on the same path as a genuine rejection, so
+  /// the two have to be told apart before the credential ladder advances.
+  @visibleForTesting
+  static bool isPreAuthDrop(Object e) {
+    if (e is SSHAuthAbortError) return true;
+    if (e is SocketException) return true;
+    if (e is TimeoutException) return true;
+    final text = e.toString();
+    return text.contains('Connection closed before authentication') ||
+        text.contains('Connection reset') ||
+        text.contains('Software caused connection abort');
+  }
 
   SSHClient? _client;
   Map<String, String>? _deviceConfig;
@@ -170,7 +193,11 @@ class SshService {
       // -u: interpret the stamp as UTC, independent of the device's timezone.
       cmds.add('date -u -s "$stamp" >/dev/null 2>&1 || true');
       cmds.add('hwclock -w -u 2>/dev/null || true');
-      await runCommand(cmds.join('; '), timeout: const Duration(seconds: 15));
+      // 60s, not 15: a freshly flashed board is busy on its first boot and
+      // has been seen taking a minute just to offer SFTP. A clock that is
+      // wrong on a board about to write date-stamped logs is worth waiting
+      // for, and this is best-effort anyway.
+      await runCommand(cmds.join('; '), timeout: const Duration(seconds: 60));
       debugPrint('SSH: synced device time to ${stamp}Z, tz=${tz ?? '(unknown)'}');
     } catch (e) {
       debugPrint('SSH: device time sync failed (non-fatal): $e');
@@ -215,6 +242,7 @@ class SshService {
     var authVersion = 'v1.20';
     var stage = 0; // 0 = empty, 1 = bundled, 2 = manual
     var manualAttempts = 0;
+    var preAuthRetries = 0;
     String? manualPassword;
 
     while (true) {
@@ -230,6 +258,10 @@ class SshService {
       _client = SSHClient(
         socket,
         username: sshUser,
+        // Idle for minutes at a time while the user pairs a phone or teaches
+        // in keycards; without this the far end can drop the session and the
+        // next command fails for no visible reason.
+        keepAliveInterval: const Duration(seconds: 5),
         onPasswordRequest: () {
           String pw;
           if (stage == 0) {
@@ -258,7 +290,12 @@ class SshService {
       );
 
       try {
-        await _client!.authenticated;
+        // dartssh2 completes this when the handshake finishes and never if the
+        // far end accepts the socket and then says nothing. Without a bound
+        // that is an unrecoverable hang rather than a failure: the retry below
+        // only sees exceptions, so a stalled handshake never reaches it and
+        // the screen sits on "reconnecting" for as long as anyone waits.
+        await _client!.authenticated.timeout(connectionTimeout);
         debugPrint('SSH: authentication successful');
         _lastHost = host;
         _lastPassword = attemptedPassword ?? '';
@@ -267,6 +304,17 @@ class SshService {
         debugPrint('SSH: authentication failed: $e');
         _client?.close();
         _client = null;
+
+        // Not a rejected credential: a host that is not answering yet. Hold
+        // the stage and the password where they are and come back.
+        if (isPreAuthDrop(e) && preAuthRetries < maxPreAuthRetries) {
+          preAuthRetries++;
+          final backoff = Duration(seconds: 1 << (preAuthRetries - 1));
+          debugPrint('SSH: dropped before authentication, retry '
+              '$preAuthRetries/$maxPreAuthRetries in ${backoff.inSeconds}s');
+          await Future.delayed(backoff);
+          continue;
+        }
 
         if (stage == 0) {
           if (bannerVersionSeen != 'v1.20') {
@@ -523,8 +571,16 @@ class SshService {
       }
     }();
 
-    await Future.wait([stdoutDone, stderrDone, session.done])
-        .timeout(timeout);
+    try {
+      await Future.wait([stdoutDone, stderrDone, session.done])
+          .timeout(timeout);
+    } catch (_) {
+      // A timed-out session stays open otherwise, and every stalled command
+      // costs another channel until the connection hits its limit and stops
+      // accepting new ones.
+      session.close();
+      rethrow;
+    }
 
     final exitCode = session.exitCode;
     if (exitCode != null && exitCode != 0) {
@@ -535,6 +591,131 @@ class SshService {
     }
 
     return stdout.toString();
+  }
+
+  /// Run [command], handing stdout and stderr to the callbacks as the bytes
+  /// arrive. Unlike [runCommand] this returns the exit code instead of
+  /// throwing, because callers here want to distinguish mender's own failure
+  /// from a transport failure and want its stderr verbatim.
+  ///
+  /// [timeout] has to cover a full artifact install, which writes several
+  /// hundred megabytes to eMMC on a slow SoC.
+  Future<({int exitCode, String stdout, String stderr})> runStreaming(
+    String command, {
+    void Function(String chunk)? onStdout,
+    void Function(String chunk)? onStderr,
+    Duration timeout = const Duration(minutes: 30),
+  }) async {
+    if (_client == null) {
+      if (_lastPassword == null) throw Exception('Not connected');
+      await _reconnect();
+    }
+
+    final session = await _client!.execute(command);
+    final stdout = StringBuffer();
+    final stderr = StringBuffer();
+
+    final stdoutDone = () async {
+      await for (final data in session.stdout) {
+        final chunk = utf8.decode(data, allowMalformed: true);
+        stdout.write(chunk);
+        onStdout?.call(chunk);
+      }
+    }();
+    final stderrDone = () async {
+      await for (final data in session.stderr) {
+        final chunk = utf8.decode(data, allowMalformed: true);
+        stderr.write(chunk);
+        onStderr?.call(chunk);
+      }
+    }();
+
+    // A timeout used to throw straight out of here, leaving the session open,
+    // the remote command running and both drain futures pending. A retry then
+    // started a second mender-update install against a board where the first
+    // still held the lock. SIGTERM first so mender gets a chance to unwind,
+    // then close the channel either way; killing the session ends both
+    // streams, which is what lets the drains finish.
+    try {
+      await Future.wait([stdoutDone, stderrDone, session.done]).timeout(timeout);
+    } catch (e) {
+      try {
+        session.kill(SSHSignal.TERM);
+      } catch (killError) {
+        debugPrint('SSH: could not signal the remote command: $killError');
+      }
+      session.close();
+      // The drains are still listening on streams that are about to end.
+      // Swallow whatever they finish with: the error being reported is [e],
+      // and an unhandled one from here would take the isolate down instead.
+      unawaited(stdoutDone.catchError((_) {}));
+      unawaited(stderrDone.catchError((_) {}));
+      rethrow;
+    }
+
+    return (
+      exitCode: session.exitCode ?? -1,
+      stdout: stdout.toString(),
+      stderr: stderr.toString(),
+    );
+  }
+
+  /// True when the board carries a usable mender client. The oldest images in
+  /// the field may not, which is the one thing that makes an upgrade
+  /// impossible on an otherwise healthy Librescoot board.
+  Future<bool> hasMenderUpdate() async {
+    try {
+      final out = await runCommand('command -v mender-update 2>/dev/null; true');
+      return out.trim().isNotEmpty;
+    } catch (e) {
+      debugPrint('SSH: mender-update probe failed: $e');
+      return false;
+    }
+  }
+
+  Future<int?> freeBytesOn(String path) async {
+    try {
+      return parseDfFreeBytes(await runCommand('df -kP ${_shellEscape(path)}'));
+    } catch (e) {
+      debugPrint('SSH: df probe failed: $e');
+      return null;
+    }
+  }
+
+  /// Size in bytes of a remote file, or null when it does not exist or the
+  /// probe could not be read. A preflight uses this to see whether an
+  /// artifact is already sitting at its seed path from an earlier attempt,
+  /// so a retry only has to account for the shortfall.
+  Future<int?> remoteFileSizeBytes(String path) async {
+    try {
+      final out = await runCommand(
+          'stat -c%s ${_shellEscape(path)} 2>/dev/null; true');
+      final trimmed = out.trim();
+      return trimmed.isEmpty ? null : int.tryParse(trimmed);
+    } catch (e) {
+      debugPrint('SSH: file size probe failed for $path: $e');
+      return null;
+    }
+  }
+
+  Future<String?> menderArtifactName() async {
+    try {
+      final out = await runCommand('mender-update show-artifact 2>/dev/null; true');
+      final name = out.trim();
+      return name.isEmpty ? null : name;
+    } catch (e) {
+      debugPrint('SSH: show-artifact failed: $e');
+      return null;
+    }
+  }
+
+  Future<Map<String, String>> readOsRelease() async {
+    try {
+      return parseOsRelease(await runCommand('cat /etc/os-release 2>/dev/null; true'));
+    } catch (e) {
+      debugPrint('SSH: os-release read failed: $e');
+      return const {};
+    }
   }
 
   /// Re-establish the SSH session using the credentials that worked on the
@@ -568,6 +749,7 @@ class SshService {
       timeout: connectionTimeout,
     );
     final client = SSHClient(
+        keepAliveInterval: const Duration(seconds: 5),
       socket,
       username: sshUser,
       onPasswordRequest: () => pw,
@@ -1029,6 +1211,56 @@ class SshService {
     return redisHget('vehicle', 'state');
   }
 
+  /// Write `vehicle[state]` and publish it, without going through
+  /// vehicle-service's own transitions.
+  ///
+  /// bluetooth-service watches this hash and forwards the value to the nRF52,
+  /// which derives its BLE advertising mode from it: `parked` permits pairing
+  /// with a device it already holds a bond for, `stand-by` does not. Setting
+  /// it here opens that gate for the length of the pairing window without
+  /// releasing the handlebar lock or arming the motor. vehicle-service owns
+  /// the key and overwrites it on its next real transition, so every caller
+  /// puts the previous value back when it is done.
+  /// Disarm a trampoline left over from a run that did not finish.
+  ///
+  /// The trampoline installs /data/onboot.sh and lets the boot path re-run it
+  /// up to three times, so an abandoned run stays armed: the next MDB reboot
+  /// executes the old script against the old staging directory. This is the
+  /// same retirement the trampoline performs on its own completion, including
+  /// putting back a pre-existing onboot.sh if one was displaced.
+  Future<void> disarmTrampolineOnboot() async {
+    await runCommand(
+      'if [ -f /data/installer/onboot.sh.bak ]; then '
+      '  mv /data/installer/onboot.sh.bak /data/onboot.sh; '
+      'else '
+      '  rm -f /data/onboot.sh; '
+      'fi; '
+      'rm -f /data/installer/onboot-tries; true',
+    );
+  }
+
+  /// Undo the masking the trampoline applies, and start what it stopped.
+  ///
+  /// A run that died between masking and its own cleanup leaves these masked,
+  /// which makes the vehicle unable to read a keycard or answer Bluetooth.
+  /// keycard is started too: by this point a master card exists, or the
+  /// installer's own keycard phase will handle teaching one in.
+  Future<void> reviveInstallerServices() async {
+    await runCommand(
+      'systemctl unmask librescoot-keycard keycard-service '
+      'librescoot-bluetooth librescoot-ums 2>/dev/null; '
+      'systemctl start librescoot-bluetooth 2>/dev/null; '
+      'systemctl start librescoot-ums 2>/dev/null; '
+      'systemctl start librescoot-keycard 2>/dev/null || '
+      'systemctl start keycard-service 2>/dev/null; true',
+    );
+  }
+
+  Future<void> forceVehicleState(String state) async {
+    await runCommand('redis-cli hset vehicle state $state >/dev/null; '
+        'redis-cli publish vehicle state >/dev/null; true');
+  }
+
   /// Probe whether the connected MDB is running a full image with the redis
   /// stack. A minimal/bootstrap rootfs (e.g. flashed by mistake) answers SSH
   /// but ships no redis-cli, so every redis-backed step (the parked-state
@@ -1037,12 +1269,21 @@ class SshService {
   /// caller can route straight to re-flash instead of getting wedged.
   Future<bool> hasRedisStack() async {
     try {
+      // redis-cli alone no longer separates a full image from a bootstrap one:
+      // the bootstrap image ships valkey so bluetooth-service can run during
+      // pairing. vehicle-service is what every redis-backed step here actually
+      // depends on. Without it there is no vehicle state to read, no state
+      // machine to lock, and nothing that can answer an unlock, so a probe
+      // that says yes leaves the installer waiting for a transition that
+      // cannot happen.
       final out = await runCommand(
-        'command -v redis-cli >/dev/null 2>&1 && echo yes || echo no',
+        'command -v redis-cli >/dev/null 2>&1 || { echo no; exit 0; }; '
+        'systemctl list-unit-files 2>/dev/null '
+        '| grep -q "^librescoot-vehicle" && echo yes || echo no',
       );
       return out.trim() == 'yes';
     } catch (e) {
-      debugPrint('SSH: redis-cli probe failed: $e');
+      debugPrint('SSH: full-image probe failed: $e');
       return false;
     }
   }
@@ -1079,6 +1320,51 @@ class SshService {
     await redisLpush('scooter:seatbox', 'open');
   }
 
+  /// Turn the main battery off without touching the seatbox, by telling
+  /// battery-service the latch is open. It answers by opening the pack's BMS
+  /// contactors, which is electrically what lifting the pack out would do.
+  ///
+  /// vehicle-service is stopped first because it owns the real latch state and
+  /// would re-assert `closed` on its next publish, re-activating the pack
+  /// under us. It comes back on the reboot into UMS, which is moments away.
+  ///
+  /// The value has to be exactly `open` or `closed`: the stock C parser
+  /// rejects anything else.
+  Future<void> deactivateMainBattery() async {
+    await runCommand(
+      'systemctl stop vehicle-service librescoot-vehicle 2>/dev/null; true',
+    );
+    await runCommand(
+      "redis-cli hset vehicle seatbox:lock open >/dev/null && "
+      "redis-cli publish vehicle seatbox:lock >/dev/null",
+    );
+  }
+
+  /// Undo [deactivateMainBattery]. battery-service is what opens and closes the
+  /// contactors: it subscribes to `vehicle seatbox:lock` and gates on the hash
+  /// field (battery-service service.go:163, reader.go:122), so saying the latch
+  /// is closed again is what brings the pack back.
+  ///
+  /// vehicle-service is restarted because we stopped it, and it owns the real
+  /// latch and the dashboard the trampoline later drives. It is not the thing
+  /// that switches the pack.
+  Future<void> reactivateMainBattery() async {
+    await runCommand(
+      "redis-cli hset vehicle seatbox:lock closed >/dev/null; "
+      "redis-cli publish vehicle seatbox:lock >/dev/null; true",
+    );
+    await runCommand(
+      'systemctl start vehicle-service librescoot-vehicle 2>/dev/null; true',
+    );
+  }
+
+  /// Whether the main pack still has its contactors closed. `present` stays
+  /// true throughout, because the pack never went anywhere.
+  Future<bool> isMainBatteryActive() async {
+    final state = await redisHget('battery:0', 'state');
+    return state == 'active';
+  }
+
   /// Check if CBB is connected.
   Future<bool> isCbbPresent() async {
     final present = await redisHget('cb-battery', 'present');
@@ -1094,23 +1380,28 @@ class SshService {
   /// Download a remote file's contents via cat. Returns null if the file doesn't exist.
   Future<Uint8List?> downloadFile(String remotePath) async {
     if (_client == null) throw Exception('Not connected');
+    SSHSession? session;
     try {
-      final session = await _client!.execute('cat ${_shellEscape(remotePath)}');
+      session = await _client!.execute('cat ${_shellEscape(remotePath)}');
       final chunks = <int>[];
       final stdoutDone = () async {
-        await for (final data in session.stdout) {
+        await for (final data in session!.stdout) {
           chunks.addAll(data);
         }
       }();
       // Must drain stderr to prevent the session from blocking
       final stderrDone = () async {
-        await for (final _ in session.stderr) {}
+        await for (final _ in session!.stderr) {}
       }();
       await Future.wait([stdoutDone, stderrDone, session.done])
           .timeout(const Duration(seconds: 30));
       if (session.exitCode != 0) return null;
       return Uint8List.fromList(chunks);
     } catch (_) {
+      // Swallowing the error is deliberate (a missing file is a null), but the
+      // session has to go regardless: a timeout here otherwise leaks a channel
+      // per attempt.
+      session?.close();
       return null;
     }
   }
@@ -1285,11 +1576,22 @@ class SshService {
   /// Read the trampoline status file from MDB.
   Future<TrampolineStatus> readTrampolineStatus() async {
     try {
-      final content = await runCommand('cat /data/installer/trampoline-status 2>/dev/null');
-      if (content.trim().isEmpty) {
-        return TrampolineStatus(result: TrampolineResult.unknown);
+      final content =
+          await runCommand('cat /data/installer/trampoline-status 2>/dev/null');
+      if (content.trim().isNotEmpty) return TrampolineStatus.parse(content);
+
+      // The status file lives in the staging directory, and a device that
+      // finished the install on its own sweeps that directory as its last act.
+      // Its completion record is what survives, and a run that got far enough
+      // to write one is a run that succeeded.
+      final record =
+          await runCommand('cat /data/last-install 2>/dev/null');
+      if (record.trim().isNotEmpty &&
+          record.contains(RegExp(r'^result:\s*success', multiLine: true))) {
+        return TrampolineStatus.parse(
+            record.replaceFirst(RegExp(r'^result:\s*'), ''));
       }
-      return TrampolineStatus.parse(content);
+      return TrampolineStatus(result: TrampolineResult.unknown);
     } catch (_) {
       return TrampolineStatus(result: TrampolineResult.unknown);
     }

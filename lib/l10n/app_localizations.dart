@@ -98,18 +98,6 @@ abstract class AppLocalizations {
     Locale('en'),
   ];
 
-  /// No description provided for @appTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Librescoot Installer'**
-  String get appTitle;
-
-  /// No description provided for @elevationWarning.
-  ///
-  /// In en, this message translates to:
-  /// **'Running without administrator privileges. Some operations may fail.'**
-  String get elevationWarning;
-
   /// No description provided for @phaseWelcomeTitle.
   ///
   /// In en, this message translates to:
@@ -161,7 +149,7 @@ abstract class AppLocalizations {
   /// No description provided for @phaseResumeDetectedTitle.
   ///
   /// In en, this message translates to:
-  /// **'Resume'**
+  /// **'Previous attempt'**
   String get phaseResumeDetectedTitle;
 
   /// No description provided for @phaseResumeDetectedDescription.
@@ -181,18 +169,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Verify scooter readiness'**
   String get phaseHealthCheckDescription;
-
-  /// No description provided for @phaseBatteryRemovalTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Remove Battery'**
-  String get phaseBatteryRemovalTitle;
-
-  /// No description provided for @phaseBatteryRemovalDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Open seatbox, remove main battery'**
-  String get phaseBatteryRemovalDescription;
 
   /// No description provided for @phaseMdbToUmsTitle.
   ///
@@ -329,13 +305,25 @@ abstract class AppLocalizations {
   /// No description provided for @majorStepMdbFlash.
   ///
   /// In en, this message translates to:
-  /// **'Flash MDB'**
+  /// **'Prepare MDB'**
   String get majorStepMdbFlash;
+
+  /// No description provided for @majorStepPairing.
+  ///
+  /// In en, this message translates to:
+  /// **'Pairing & Cards'**
+  String get majorStepPairing;
+
+  /// No description provided for @majorStepMdbInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Install MDB'**
+  String get majorStepMdbInstall;
 
   /// No description provided for @majorStepDbcFlash.
   ///
   /// In en, this message translates to:
-  /// **'Flash DBC'**
+  /// **'Install DBC'**
   String get majorStepDbcFlash;
 
   /// No description provided for @majorStepFinish.
@@ -416,6 +404,24 @@ abstract class AppLocalizations {
   /// **'If something looks stuck, gives no feedback, or behaves weirdly: PAUSE and ask in Discord first. Do NOT pull the AUX battery, do NOT disconnect the CBB, do NOT yank USB, do NOT reboot the scooter or your laptop. The installer can recover from almost any state. But only if you don\'t intervene. Power-cycling mid-flash is what bricks scooters.'**
   String get noPowerCycleWarningBody;
 
+  /// No description provided for @downloadsFailedHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not reach the download server'**
+  String get downloadsFailedHeading;
+
+  /// No description provided for @downloadsFailedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Check the laptop\'s internet connection, then try again. You can also continue offline if you already have the firmware cached.'**
+  String get downloadsFailedBody;
+
+  /// No description provided for @downloadsRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get downloadsRetry;
+
   /// No description provided for @noticesHeading.
   ///
   /// In en, this message translates to:
@@ -475,12 +481,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Requesting administrator privileges...'**
   String get requestingAdminPrivileges;
-
-  /// No description provided for @quitButton.
-  ///
-  /// In en, this message translates to:
-  /// **'Quit'**
-  String get quitButton;
 
   /// No description provided for @firmwareChannel.
   ///
@@ -590,12 +590,6 @@ abstract class AppLocalizations {
   /// **'Four screws to remove. PH2 Phillips from factory, H4 hex or Torx if serviced by a good shop.'**
   String get removeFootwellCoverDesc;
 
-  /// No description provided for @removeFootwellCoverImage.
-  ///
-  /// In en, this message translates to:
-  /// **'[Photo: footwell cover with screw locations highlighted]'**
-  String get removeFootwellCoverImage;
-
   /// No description provided for @unscrewUsbCable.
   ///
   /// In en, this message translates to:
@@ -607,12 +601,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Disconnect the internal DBC USB cable from the MDB board. Use a flat head or PH1 screwdriver.'**
   String get unscrewUsbCableDesc;
-
-  /// No description provided for @unscrewUsbCableImage.
-  ///
-  /// In en, this message translates to:
-  /// **'[Photo: USB Mini-B connector on MDB, close-up]'**
-  String get unscrewUsbCableImage;
 
   /// No description provided for @connectLaptopUsb.
   ///
@@ -656,12 +644,6 @@ abstract class AppLocalizations {
   /// **'Checking RNDIS driver...'**
   String get checkingRndisDriver;
 
-  /// No description provided for @installingRndisDriver.
-  ///
-  /// In en, this message translates to:
-  /// **'Installing RNDIS driver...'**
-  String get installingRndisDriver;
-
   /// No description provided for @configuringNetwork.
   ///
   /// In en, this message translates to:
@@ -701,20 +683,20 @@ abstract class AppLocalizations {
   /// No description provided for @resumeFoundBody.
   ///
   /// In en, this message translates to:
-  /// **'A previous installation on this scooter did not finish. The unlock step has been skipped and disabled services were re-enabled. Continuing will run the installation again from the beginning.'**
+  /// **'A previous installation on this scooter did not finish. Continuing clears what it left behind: the onboot script it armed is disarmed, and the services it stopped are started again. The installation then runs from the beginning; nothing is resumed.'**
   String get resumeFoundBody;
+
+  /// No description provided for @resumeClearingLeftovers.
+  ///
+  /// In en, this message translates to:
+  /// **'Clearing what the previous run left behind...'**
+  String get resumeClearingLeftovers;
 
   /// No description provided for @resumeFoundLastError.
   ///
   /// In en, this message translates to:
   /// **'Last recorded error:'**
   String get resumeFoundLastError;
-
-  /// No description provided for @unlockTimeout.
-  ///
-  /// In en, this message translates to:
-  /// **'Timed out waiting for scooter to be unlocked. Unlock and retry.'**
-  String get unlockTimeout;
 
   /// No description provided for @awaitingUnlockHeading.
   ///
@@ -932,65 +914,11 @@ abstract class AppLocalizations {
   /// **'Without the main battery, the 12V auxiliary battery will drain faster. The scooter may shut down during extended operations.'**
   String get riskNoBattery;
 
-  /// No description provided for @batteryRemovalHeading.
-  ///
-  /// In en, this message translates to:
-  /// **'Battery Removal'**
-  String get batteryRemovalHeading;
-
-  /// No description provided for @seatboxOpening.
-  ///
-  /// In en, this message translates to:
-  /// **'Seatbox is opening...'**
-  String get seatboxOpening;
-
-  /// No description provided for @seatboxOpeningDesc.
-  ///
-  /// In en, this message translates to:
-  /// **'The seatbox will open automatically.'**
-  String get seatboxOpeningDesc;
-
-  /// No description provided for @removeMainBattery.
-  ///
-  /// In en, this message translates to:
-  /// **'Remove the main battery'**
-  String get removeMainBattery;
-
-  /// No description provided for @removeMainBatteryDesc.
-  ///
-  /// In en, this message translates to:
-  /// **'Lift the main battery (Fahrakku) out of the seatbox.'**
-  String get removeMainBatteryDesc;
-
   /// No description provided for @openSeatbox.
   ///
   /// In en, this message translates to:
   /// **'Open Seatbox'**
   String get openSeatbox;
-
-  /// No description provided for @mainBatteryAlreadyRemoved.
-  ///
-  /// In en, this message translates to:
-  /// **'Main battery already removed'**
-  String get mainBatteryAlreadyRemoved;
-
-  /// No description provided for @openingSeatbox.
-  ///
-  /// In en, this message translates to:
-  /// **'Opening seatbox...'**
-  String get openingSeatbox;
-
-  /// No description provided for @waitingForBatteryRemoval.
-  ///
-  /// In en, this message translates to:
-  /// **'Waiting for battery removal...'**
-  String get waitingForBatteryRemoval;
-
-  /// No description provided for @batteryRemoved.
-  ///
-  /// In en, this message translates to:
-  /// **'Battery removed!'**
-  String get batteryRemoved;
 
   /// No description provided for @configuringMdbBootloader.
   ///
@@ -1058,12 +986,6 @@ abstract class AppLocalizations {
   /// **'Waiting for MDB firmware download...'**
   String get waitingForMdbFirmware;
 
-  /// No description provided for @noDevicePath.
-  ///
-  /// In en, this message translates to:
-  /// **'Error: no device path available'**
-  String get noDevicePath;
-
   /// No description provided for @mdbFlashComplete.
   ///
   /// In en, this message translates to:
@@ -1130,12 +1052,6 @@ abstract class AppLocalizations {
   /// **'Remove ONLY the positive pole (outermost, the red cable and pole) to avoid risk of inverting polarity. This will remove power from the MDB; the USB connection will disappear.'**
   String get disconnectAuxPoleDesc;
 
-  /// No description provided for @disconnectAuxPoleImage.
-  ///
-  /// In en, this message translates to:
-  /// **'[Photo: AUX battery poles, positive (red/outermost) highlighted]'**
-  String get disconnectAuxPoleImage;
-
   /// No description provided for @auxDisconnectWarning.
   ///
   /// In en, this message translates to:
@@ -1145,14 +1061,122 @@ abstract class AppLocalizations {
   /// No description provided for @doneCbbAuxDisconnected.
   ///
   /// In en, this message translates to:
-  /// **'Done. I disconnected CBB and AUX'**
+  /// **'Done, the scooter is restarting'**
   String get doneCbbAuxDisconnected;
+
+  /// No description provided for @brakeResetHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Restart the scooter'**
+  String get brakeResetHeading;
+
+  /// No description provided for @brakeResetIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Squeeze and hold both brake levers. Every ten seconds, let go of the right one for about a second, then squeeze it again. After the fourth hold, just let go. The scooter cuts its own power and boots again.'**
+  String get brakeResetIntro;
+
+  /// No description provided for @brakeResetAfterNote.
+  ///
+  /// In en, this message translates to:
+  /// **'The USB connection disappears the moment the power drops. That is expected, and the installer waits for the board to come back.'**
+  String get brakeResetAfterNote;
+
+  /// No description provided for @brakePacerStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start the timer'**
+  String get brakePacerStart;
+
+  /// No description provided for @brakePacerStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop'**
+  String get brakePacerStop;
+
+  /// No description provided for @brakePacerRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'Run it again'**
+  String get brakePacerRestart;
+
+  /// No description provided for @brakePacerDone.
+  ///
+  /// In en, this message translates to:
+  /// **'That is the pattern. Let go now. The scooter cuts its own power in a few seconds and comes back on its own.'**
+  String get brakePacerDone;
+
+  /// No description provided for @brakeDiagramBlipLegend.
+  ///
+  /// In en, this message translates to:
+  /// **'Right lever released for about a second'**
+  String get brakeDiagramBlipLegend;
+
+  /// No description provided for @brakeDiagramEndLegend.
+  ///
+  /// In en, this message translates to:
+  /// **'Just let go at {seconds} seconds'**
+  String brakeDiagramEndLegend(int seconds);
+
+  /// No description provided for @brakeBandBothHeld.
+  ///
+  /// In en, this message translates to:
+  /// **'Left lever held down throughout'**
+  String get brakeBandBothHeld;
+
+  /// No description provided for @brakeBlipRight.
+  ///
+  /// In en, this message translates to:
+  /// **'Right lever off, now'**
+  String get brakeBlipRight;
+
+  /// No description provided for @brakeLeftStaysHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The left lever stays squeezed the whole time.'**
+  String get brakeLeftStaysHint;
+
+  /// No description provided for @brakeLeadInLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Squeeze both brakes in'**
+  String get brakeLeadInLabel;
+
+  /// No description provided for @brakeLeadInHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Step over to the handlebars and put a hand on each lever.'**
+  String get brakeLeadInHint;
+
+  /// No description provided for @brakeKeepHolding.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold both brakes'**
+  String get brakeKeepHolding;
+
+  /// No description provided for @scooterPrepManualFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Or cut the power by hand'**
+  String get scooterPrepManualFallback;
+
+  /// No description provided for @deactivatingMainBattery.
+  ///
+  /// In en, this message translates to:
+  /// **'Turning the main battery off...'**
+  String get deactivatingMainBattery;
 
   /// No description provided for @waitingForMdbBoot.
   ///
   /// In en, this message translates to:
   /// **'Waiting for MDB Boot'**
   String get waitingForMdbBoot;
+
+  /// No description provided for @mdbBootRestartingNote.
+  ///
+  /// In en, this message translates to:
+  /// **'The scooter is restarting on its own. This takes a minute or two.'**
+  String get mdbBootRestartingNote;
 
   /// No description provided for @reconnectAuxPole.
   ///
@@ -1177,6 +1201,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'MDB still in UMS mode. Flash may not have taken. Retrying...'**
   String get mdbStillUms;
+
+  /// No description provided for @waitingForMdbRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the scooter to restart...'**
+  String get waitingForMdbRestart;
 
   /// No description provided for @mdbDetectedNetwork.
   ///
@@ -1217,20 +1247,8 @@ abstract class AppLocalizations {
   /// No description provided for @reconnectCbbHeading.
   ///
   /// In en, this message translates to:
-  /// **'Reconnect CBB & Battery'**
+  /// **'Reconnect the CBB'**
   String get reconnectCbbHeading;
-
-  /// No description provided for @reconnectCbb.
-  ///
-  /// In en, this message translates to:
-  /// **'Reinstall the main battery and reconnect the CBB'**
-  String get reconnectCbb;
-
-  /// No description provided for @reconnectCbbDesc.
-  ///
-  /// In en, this message translates to:
-  /// **'Put the main battery back in the seatbox and plug the CBB cable back in. The scooter needs full power for the DBC flash.'**
-  String get reconnectCbbDesc;
 
   /// No description provided for @verifyCbbConnection.
   ///
@@ -1244,17 +1262,23 @@ abstract class AppLocalizations {
   /// **'Verify battery'**
   String get verifyBatteryPresence;
 
+  /// No description provided for @turningMainBatteryOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Turning the main battery off first...'**
+  String get turningMainBatteryOff;
+
+  /// No description provided for @turningMainBatteryOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Turning the main battery back on...'**
+  String get turningMainBatteryOn;
+
   /// No description provided for @checkingCbb.
   ///
   /// In en, this message translates to:
   /// **'Checking CBB...'**
   String get checkingCbb;
-
-  /// No description provided for @cbbConnected.
-  ///
-  /// In en, this message translates to:
-  /// **'CBB connected!'**
-  String get cbbConnected;
 
   /// No description provided for @waitingForCbb.
   ///
@@ -1316,6 +1340,12 @@ abstract class AppLocalizations {
   /// **'Swap USB to the DBC'**
   String get dbcFlashSwapCablesTitle;
 
+  /// No description provided for @dbcFlashSwapCablesDeadline.
+  ///
+  /// In en, this message translates to:
+  /// **'The scooter is already waiting for the dashboard. It gives up after a few minutes, so do this now rather than later. No need to rush the screws.'**
+  String get dbcFlashSwapCablesDeadline;
+
   /// No description provided for @disconnectUsbFromLaptop.
   ///
   /// In en, this message translates to:
@@ -1340,59 +1370,11 @@ abstract class AppLocalizations {
   /// **'Plug the internal DBC USB cable into the MDB port. Don\'t screw it in yet.'**
   String get reconnectDbcUsbToMdbDesc;
 
-  /// No description provided for @mdbFlashingDbcAutonomously.
-  ///
-  /// In en, this message translates to:
-  /// **'The MDB is now flashing the DBC autonomously.'**
-  String get mdbFlashingDbcAutonomously;
-
-  /// No description provided for @watchLightsForProgress.
-  ///
-  /// In en, this message translates to:
-  /// **'Watch the scooter lights for progress:'**
-  String get watchLightsForProgress;
-
-  /// No description provided for @ledFrontRingPulse.
-  ///
-  /// In en, this message translates to:
-  /// **'Front ring breathing'**
-  String get ledFrontRingPulse;
-
-  /// No description provided for @ledFrontRingPulseMeaning.
-  ///
-  /// In en, this message translates to:
-  /// **'Preparing DBC (configuring bootloader, waiting for connection)'**
-  String get ledFrontRingPulseMeaning;
-
-  /// No description provided for @ledFrontRingSolid.
-  ///
-  /// In en, this message translates to:
-  /// **'Front ring glows briefly'**
-  String get ledFrontRingSolid;
-
-  /// No description provided for @ledFrontRingSolidMeaning.
-  ///
-  /// In en, this message translates to:
-  /// **'Flash complete. Success!'**
-  String get ledFrontRingSolidMeaning;
-
-  /// No description provided for @disconnectCbbImage.
-  ///
-  /// In en, this message translates to:
-  /// **'[Photo: CBB connector location in footwell]'**
-  String get disconnectCbbImage;
-
   /// No description provided for @ledBlinkerProgress.
   ///
   /// In en, this message translates to:
   /// **'Blinkers light up in turn'**
   String get ledBlinkerProgress;
-
-  /// No description provided for @ledBlinkerProgressMeaning.
-  ///
-  /// In en, this message translates to:
-  /// **'Overall progress: Prep → Flash → Reboot → Maps'**
-  String get ledBlinkerProgressMeaning;
 
   /// No description provided for @blinkerPosFL.
   ///
@@ -1433,7 +1415,7 @@ abstract class AppLocalizations {
   /// No description provided for @blinkerStepRestart.
   ///
   /// In en, this message translates to:
-  /// **'Restart MDB & DBC'**
+  /// **'Restart DBC'**
   String get blinkerStepRestart;
 
   /// No description provided for @blinkerStepMaps.
@@ -1441,42 +1423,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Upload maps'**
   String get blinkerStepMaps;
-
-  /// No description provided for @ledBootGreen.
-  ///
-  /// In en, this message translates to:
-  /// **'Dashboard LED blinking green'**
-  String get ledBootGreen;
-
-  /// No description provided for @ledBootGreenMeaning.
-  ///
-  /// In en, this message translates to:
-  /// **'Success. Reconnect laptop'**
-  String get ledBootGreenMeaning;
-
-  /// No description provided for @ledRearLightSolid.
-  ///
-  /// In en, this message translates to:
-  /// **'All four blinkers (hazards) flashing'**
-  String get ledRearLightSolid;
-
-  /// No description provided for @ledRearLightSolidMeaning.
-  ///
-  /// In en, this message translates to:
-  /// **'Error. Reconnect laptop to see log; the indicators stop once you reconnect'**
-  String get ledRearLightSolidMeaning;
-
-  /// No description provided for @bootLedGreenReconnect.
-  ///
-  /// In en, this message translates to:
-  /// **'LED blinking green'**
-  String get bootLedGreenReconnect;
-
-  /// No description provided for @rearLightCheckError.
-  ///
-  /// In en, this message translates to:
-  /// **'LED blinking red, hazards flashing'**
-  String get rearLightCheckError;
 
   /// No description provided for @verifyingDbcInstallation.
   ///
@@ -1513,6 +1459,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'DBC flash successful!'**
   String get dbcFlashSuccessful;
+
+  /// No description provided for @dbcInstallSuccessfulVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'DBC install successful, now running {version}'**
+  String dbcInstallSuccessfulVersion(String version);
 
   /// No description provided for @dbcFlashFailed.
   ///
@@ -1598,12 +1550,6 @@ abstract class AppLocalizations {
   /// **'Use one of the keycards you registered, or unlock via Bluetooth.'**
   String get unlockScooterDesc;
 
-  /// No description provided for @deleteCachedDownloads.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete cached downloads ({sizeMb} MB)'**
-  String deleteCachedDownloads(String sizeMb);
-
   /// No description provided for @deletedCache.
   ///
   /// In en, this message translates to:
@@ -1652,174 +1598,6 @@ abstract class AppLocalizations {
   /// **'Routing Tiles'**
   String get downloadRoutingTiles;
 
-  /// No description provided for @homeAppTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Librescoot Installer'**
-  String get homeAppTitle;
-
-  /// No description provided for @notElevated.
-  ///
-  /// In en, this message translates to:
-  /// **'Not elevated'**
-  String get notElevated;
-
-  /// No description provided for @selectFirmwareStep.
-  ///
-  /// In en, this message translates to:
-  /// **'Select Firmware'**
-  String get selectFirmwareStep;
-
-  /// No description provided for @connectDeviceStep.
-  ///
-  /// In en, this message translates to:
-  /// **'Connect Device'**
-  String get connectDeviceStep;
-
-  /// No description provided for @configureNetworkStep.
-  ///
-  /// In en, this message translates to:
-  /// **'Configure Network'**
-  String get configureNetworkStep;
-
-  /// No description provided for @prepareDeviceStep.
-  ///
-  /// In en, this message translates to:
-  /// **'Prepare Device'**
-  String get prepareDeviceStep;
-
-  /// No description provided for @flashFirmwareStep.
-  ///
-  /// In en, this message translates to:
-  /// **'Flash Firmware'**
-  String get flashFirmwareStep;
-
-  /// No description provided for @completeStep.
-  ///
-  /// In en, this message translates to:
-  /// **'Complete'**
-  String get completeStep;
-
-  /// No description provided for @selectFirmwareImage.
-  ///
-  /// In en, this message translates to:
-  /// **'Select Firmware Image'**
-  String get selectFirmwareImage;
-
-  /// No description provided for @selectFirmwareHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Choose a .sdimg.gz, .sdimg, .wic.gz, .wic, or .img firmware file to flash'**
-  String get selectFirmwareHint;
-
-  /// No description provided for @selectFile.
-  ///
-  /// In en, this message translates to:
-  /// **'Select File'**
-  String get selectFile;
-
-  /// No description provided for @changeFile.
-  ///
-  /// In en, this message translates to:
-  /// **'Change File'**
-  String get changeFile;
-
-  /// No description provided for @deviceConnected.
-  ///
-  /// In en, this message translates to:
-  /// **'Device Connected'**
-  String get deviceConnected;
-
-  /// No description provided for @connectYourDevice.
-  ///
-  /// In en, this message translates to:
-  /// **'Connect Your Device'**
-  String get connectYourDevice;
-
-  /// No description provided for @connectMdbViaUsb.
-  ///
-  /// In en, this message translates to:
-  /// **'Connect the MDB via USB and wait for detection'**
-  String get connectMdbViaUsb;
-
-  /// No description provided for @configuringNetworkHeading.
-  ///
-  /// In en, this message translates to:
-  /// **'Configuring Network'**
-  String get configuringNetworkHeading;
-
-  /// No description provided for @settingUpNetwork.
-  ///
-  /// In en, this message translates to:
-  /// **'Setting up network interface...'**
-  String get settingUpNetwork;
-
-  /// No description provided for @readyToConfigureNetwork.
-  ///
-  /// In en, this message translates to:
-  /// **'Ready to configure network for device communication'**
-  String get readyToConfigureNetwork;
-
-  /// No description provided for @configureNetworkButton.
-  ///
-  /// In en, this message translates to:
-  /// **'Configure Network'**
-  String get configureNetworkButton;
-
-  /// No description provided for @preparingDevice.
-  ///
-  /// In en, this message translates to:
-  /// **'Preparing Device'**
-  String get preparingDevice;
-
-  /// No description provided for @readyToPrepare.
-  ///
-  /// In en, this message translates to:
-  /// **'Ready to Prepare'**
-  String get readyToPrepare;
-
-  /// No description provided for @prepareForFlashing.
-  ///
-  /// In en, this message translates to:
-  /// **'Prepare for Flashing'**
-  String get prepareForFlashing;
-
-  /// No description provided for @flashingFirmware.
-  ///
-  /// In en, this message translates to:
-  /// **'Flashing Firmware'**
-  String get flashingFirmware;
-
-  /// No description provided for @startFlashing.
-  ///
-  /// In en, this message translates to:
-  /// **'Start Flashing'**
-  String get startFlashing;
-
-  /// No description provided for @installationComplete.
-  ///
-  /// In en, this message translates to:
-  /// **'Installation Complete!'**
-  String get installationComplete;
-
-  /// No description provided for @installationCompleteDesc.
-  ///
-  /// In en, this message translates to:
-  /// **'Your device has been successfully flashed.\nIt will reboot automatically.'**
-  String get installationCompleteDesc;
-
-  /// No description provided for @flashAnotherDevice.
-  ///
-  /// In en, this message translates to:
-  /// **'Flash Another Device'**
-  String get flashAnotherDevice;
-
-  /// No description provided for @flashDryRun.
-  ///
-  /// In en, this message translates to:
-  /// **'Flash Dry Run'**
-  String get flashDryRun;
-
   /// No description provided for @safetyCheckFailed.
   ///
   /// In en, this message translates to:
@@ -1831,60 +1609,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Cannot flash this device due to safety concerns:'**
   String get cannotFlashSafety;
-
-  /// No description provided for @okButton.
-  ///
-  /// In en, this message translates to:
-  /// **'OK'**
-  String get okButton;
-
-  /// No description provided for @confirmFlashOperation.
-  ///
-  /// In en, this message translates to:
-  /// **'Confirm Flash Operation'**
-  String get confirmFlashOperation;
-
-  /// No description provided for @aboutToWriteFirmware.
-  ///
-  /// In en, this message translates to:
-  /// **'You are about to write firmware to:'**
-  String get aboutToWriteFirmware;
-
-  /// No description provided for @deviceLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Device'**
-  String get deviceLabel;
-
-  /// No description provided for @pathLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Path'**
-  String get pathLabel;
-
-  /// No description provided for @sizeLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Size'**
-  String get sizeLabel;
-
-  /// No description provided for @firmwareLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Firmware:'**
-  String get firmwareLabel;
-
-  /// No description provided for @warningsLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Warnings:'**
-  String get warningsLabel;
-
-  /// No description provided for @eraseWarning.
-  ///
-  /// In en, this message translates to:
-  /// **'This will ERASE ALL DATA on the device. This action cannot be undone.'**
-  String get eraseWarning;
 
   /// No description provided for @cancelButton.
   ///
@@ -1934,131 +1658,11 @@ abstract class AppLocalizations {
   /// **'Flashing cancelled: the target disk was not confirmed.'**
   String get flashTargetNotConfirmed;
 
-  /// No description provided for @flashDeviceButton.
-  ///
-  /// In en, this message translates to:
-  /// **'Flash Device'**
-  String get flashDeviceButton;
-
-  /// No description provided for @installingUsbDriver.
-  ///
-  /// In en, this message translates to:
-  /// **'Installing USB driver...'**
-  String get installingUsbDriver;
-
-  /// No description provided for @usbDriverInstalled.
-  ///
-  /// In en, this message translates to:
-  /// **'USB driver installed successfully'**
-  String get usbDriverInstalled;
-
-  /// No description provided for @driverInstallFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Driver install failed: {error}'**
-  String driverInstallFailed(String error);
-
-  /// No description provided for @autoLoadedFirmware.
-  ///
-  /// In en, this message translates to:
-  /// **'Auto-loaded firmware from current directory'**
-  String get autoLoadedFirmware;
-
-  /// No description provided for @deviceDisconnected.
-  ///
-  /// In en, this message translates to:
-  /// **'Device disconnected. Reconnect/wait for mass storage mode.'**
-  String get deviceDisconnected;
-
-  /// No description provided for @waitingForMdbNetwork.
-  ///
-  /// In en, this message translates to:
-  /// **'Waiting for MDB network to settle...'**
-  String get waitingForMdbNetwork;
-
-  /// No description provided for @findingNetworkInterface.
-  ///
-  /// In en, this message translates to:
-  /// **'Finding network interface...'**
-  String get findingNetworkInterface;
-
-  /// No description provided for @couldNotFindInterface.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not find USB network interface'**
-  String get couldNotFindInterface;
-
-  /// No description provided for @networkConfigured.
-  ///
-  /// In en, this message translates to:
-  /// **'Network configured successfully'**
-  String get networkConfigured;
-
-  /// No description provided for @selectFirmwareFileError.
-  ///
-  /// In en, this message translates to:
-  /// **'Please select a .sdimg.gz, .sdimg, .wic.gz, .wic, or .img file'**
-  String get selectFirmwareFileError;
-
-  /// No description provided for @errorOpeningFilePicker.
-  ///
-  /// In en, this message translates to:
-  /// **'Error opening file picker: {error}'**
-  String errorOpeningFilePicker(String error);
-
-  /// No description provided for @configuringBootloader.
-  ///
-  /// In en, this message translates to:
-  /// **'Configuring bootloader for mass storage mode...'**
-  String get configuringBootloader;
-
-  /// No description provided for @rebootingDevice.
-  ///
-  /// In en, this message translates to:
-  /// **'Rebooting device...'**
-  String get rebootingDevice;
-
-  /// No description provided for @waitingForMassStorage.
-  ///
-  /// In en, this message translates to:
-  /// **'Waiting for device to reboot in mass storage mode...'**
-  String get waitingForMassStorage;
-
-  /// No description provided for @deviceReadyForFlashing.
-  ///
-  /// In en, this message translates to:
-  /// **'Device ready for flashing'**
-  String get deviceReadyForFlashing;
-
-  /// No description provided for @selectFirmwareDialogTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Select Firmware Image'**
-  String get selectFirmwareDialogTitle;
-
-  /// No description provided for @connectedTo.
-  ///
-  /// In en, this message translates to:
-  /// **'Connected to: {host}\nFirmware: {firmware}\nSerial: {serial}'**
-  String connectedTo(String host, String firmware, String serial);
-
-  /// No description provided for @connectedToFirmware.
-  ///
-  /// In en, this message translates to:
-  /// **'Connected to {version}'**
-  String connectedToFirmware(String version);
-
   /// No description provided for @unknown.
   ///
   /// In en, this message translates to:
   /// **'Unknown'**
   String get unknown;
-
-  /// No description provided for @modeLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Mode: {mode}'**
-  String modeLabel(String mode);
 
   /// No description provided for @backingUpConfig.
   ///
@@ -2072,12 +1676,6 @@ abstract class AppLocalizations {
   /// **'Device configuration backed up'**
   String get configBackedUp;
 
-  /// No description provided for @noConfigFound.
-  ///
-  /// In en, this message translates to:
-  /// **'No device configuration found to back up'**
-  String get noConfigFound;
-
   /// No description provided for @restoringConfig.
   ///
   /// In en, this message translates to:
@@ -2089,18 +1687,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Health check failed: {error}'**
   String healthCheckFailed(String error);
-
-  /// No description provided for @flashError.
-  ///
-  /// In en, this message translates to:
-  /// **'Flash error: {error}'**
-  String flashError(String error);
-
-  /// No description provided for @flashComplete.
-  ///
-  /// In en, this message translates to:
-  /// **'Flash complete!'**
-  String get flashComplete;
 
   /// No description provided for @errorPrefix.
   ///
@@ -2119,12 +1705,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Skip offline maps'**
   String get skipOfflineMaps;
-
-  /// No description provided for @skipOfflineMapsHint.
-  ///
-  /// In en, this message translates to:
-  /// **'You can install maps later by re-running the installer'**
-  String get skipOfflineMapsHint;
 
   /// No description provided for @bluetoothPairingHeading.
   ///
@@ -2147,8 +1727,14 @@ abstract class AppLocalizations {
   /// No description provided for @startPairing.
   ///
   /// In en, this message translates to:
-  /// **'Unlock and start pairing'**
+  /// **'Start pairing'**
   String get startPairing;
+
+  /// No description provided for @blePreparingRadio.
+  ///
+  /// In en, this message translates to:
+  /// **'Restarting the Bluetooth radio, wait for this before pairing.'**
+  String get blePreparingRadio;
 
   /// No description provided for @skipPairing.
   ///
@@ -2159,7 +1745,7 @@ abstract class AppLocalizations {
   /// No description provided for @pairingActive.
   ///
   /// In en, this message translates to:
-  /// **'Scooter unlocked'**
+  /// **'Ready to pair'**
   String get pairingActive;
 
   /// No description provided for @pairingActiveHint.
@@ -2180,17 +1766,29 @@ abstract class AppLocalizations {
   /// **'Enter this PIN on your device to complete pairing.'**
   String get blePinHint;
 
-  /// No description provided for @bleAlreadyConnected.
+  /// No description provided for @blePairedHeading.
   ///
   /// In en, this message translates to:
-  /// **'A device is already connected'**
-  String get bleAlreadyConnected;
+  /// **'Device paired'**
+  String get blePairedHeading;
 
-  /// No description provided for @bleAlreadyConnectedHint.
+  /// No description provided for @blePairedHint.
   ///
   /// In en, this message translates to:
-  /// **'You can pair additional devices or press Done to continue.'**
-  String get bleAlreadyConnectedHint;
+  /// **'To pair another device, disconnect this one on the device itself first. The scooter holds only one Bluetooth connection at a time.'**
+  String get blePairedHint;
+
+  /// No description provided for @bleLinkHeldHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'A device is holding the connection'**
+  String get bleLinkHeldHeading;
+
+  /// No description provided for @bleLinkHeldHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The scooter holds only one Bluetooth connection at a time, and it will not advertise while one is up. Disconnect it on the connected device before pairing a new one.'**
+  String get bleLinkHeldHint;
 
   /// No description provided for @keycardLearningHeading.
   ///
@@ -2384,12 +1982,6 @@ abstract class AppLocalizations {
   /// **'[DRY RUN] Simulate already-authorized rejection'**
   String get keycardSimulateRejectedTapButton;
 
-  /// No description provided for @willAskForElevation.
-  ///
-  /// In en, this message translates to:
-  /// **'Start Installation (will ask for elevation)'**
-  String get willAskForElevation;
-
   /// No description provided for @installationContinuesInNewWindow.
   ///
   /// In en, this message translates to:
@@ -2486,35 +2078,359 @@ abstract class AppLocalizations {
   /// **'Keep cached downloads'**
   String get keepCachedDownloads;
 
-  /// No description provided for @librescootFirmwareDetected.
+  /// No description provided for @phaseInstallPlanTitle.
   ///
   /// In en, this message translates to:
-  /// **'Librescoot firmware detected'**
-  String get librescootFirmwareDetected;
+  /// **'Install Plan'**
+  String get phaseInstallPlanTitle;
 
-  /// No description provided for @skipMdbReflash.
+  /// No description provided for @phaseInstallPlanDescription.
   ///
   /// In en, this message translates to:
-  /// **'Skip MDB reflash'**
-  String get skipMdbReflash;
+  /// **'Choose what happens to each board'**
+  String get phaseInstallPlanDescription;
 
-  /// No description provided for @keepCurrentMdbFirmware.
+  /// No description provided for @phaseMdbArtifactTitle.
   ///
   /// In en, this message translates to:
-  /// **'Keep current MDB firmware'**
-  String get keepCurrentMdbFirmware;
+  /// **'MDB Update'**
+  String get phaseMdbArtifactTitle;
 
-  /// No description provided for @skipDbcFlashOption.
+  /// No description provided for @phaseMdbArtifactDescription.
   ///
   /// In en, this message translates to:
-  /// **'Skip DBC flash'**
-  String get skipDbcFlashOption;
+  /// **'Install the firmware artifact'**
+  String get phaseMdbArtifactDescription;
 
-  /// No description provided for @onlyFlashMdbSkipDbc.
+  /// No description provided for @majorStepMdbUpgrade.
   ///
   /// In en, this message translates to:
-  /// **'Only flash MDB, skip DBC entirely'**
-  String get onlyFlashMdbSkipDbc;
+  /// **'Upgrade MDB'**
+  String get majorStepMdbUpgrade;
+
+  /// No description provided for @majorStepDbcUpgrade.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade DBC'**
+  String get majorStepDbcUpgrade;
+
+  /// No description provided for @installPlanHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'What should the installer do?'**
+  String get installPlanHeading;
+
+  /// No description provided for @installPlanIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick an action for each board. Target version: {version}'**
+  String installPlanIntro(String version);
+
+  /// No description provided for @boardMdb.
+  ///
+  /// In en, this message translates to:
+  /// **'MDB (main board)'**
+  String get boardMdb;
+
+  /// No description provided for @boardDbc.
+  ///
+  /// In en, this message translates to:
+  /// **'DBC (dashboard)'**
+  String get boardDbc;
+
+  /// No description provided for @boardVersionCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Currently {version}'**
+  String boardVersionCurrent(String version);
+
+  /// No description provided for @boardVersionLastSeen.
+  ///
+  /// In en, this message translates to:
+  /// **'Last seen running {version}'**
+  String boardVersionLastSeen(String version);
+
+  /// No description provided for @previousRunSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Last install finished {when}, leaving {version}'**
+  String previousRunSummary(String when, String version);
+
+  /// No description provided for @boardVersionUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Version unknown'**
+  String get boardVersionUnknown;
+
+  /// No description provided for @actionUpgrade.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade'**
+  String get actionUpgrade;
+
+  /// No description provided for @actionUpgradeDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Keeps settings, keycards, maps and trips'**
+  String get actionUpgradeDetail;
+
+  /// No description provided for @actionCleanInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Clean install'**
+  String get actionCleanInstall;
+
+  /// No description provided for @actionCleanInstallDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Erases settings, keycards, maps and trips'**
+  String get actionCleanInstallDetail;
+
+  /// No description provided for @actionUpgradeDetailDbc.
+  ///
+  /// In en, this message translates to:
+  /// **'Keeps the offline maps'**
+  String get actionUpgradeDetailDbc;
+
+  /// No description provided for @actionCleanInstallDetailDbc.
+  ///
+  /// In en, this message translates to:
+  /// **'Erases the offline maps only'**
+  String get actionCleanInstallDetailDbc;
+
+  /// No description provided for @actionLeave.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave alone'**
+  String get actionLeave;
+
+  /// No description provided for @actionLeaveDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'This board is not touched'**
+  String get actionLeaveDetail;
+
+  /// No description provided for @upgradeBlockedNotLibrescoot.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade needs Librescoot already installed'**
+  String get upgradeBlockedNotLibrescoot;
+
+  /// No description provided for @upgradeBlockedStateUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade needs a known version on this board'**
+  String get upgradeBlockedStateUnknown;
+
+  /// No description provided for @upgradeBlockedMinimalImage.
+  ///
+  /// In en, this message translates to:
+  /// **'This board is running a bootstrap image and has to be installed'**
+  String get upgradeBlockedMinimalImage;
+
+  /// No description provided for @upgradeBlockedNoMender.
+  ///
+  /// In en, this message translates to:
+  /// **'This board has no update client, so it can only be reinstalled'**
+  String get upgradeBlockedNoMender;
+
+  /// No description provided for @planTilesNeedDbcHandoff.
+  ///
+  /// In en, this message translates to:
+  /// **'Refreshing map tiles needs the DBC cable swap, even with the DBC left alone'**
+  String get planTilesNeedDbcHandoff;
+
+  /// No description provided for @actionLeaveBlockedStockMdb.
+  ///
+  /// In en, this message translates to:
+  /// **'A stock main board has to be installed before anything else can be done'**
+  String get actionLeaveBlockedStockMdb;
+
+  /// No description provided for @planDbcNeedsLibrescootMdb.
+  ///
+  /// In en, this message translates to:
+  /// **'The dashboard can only be reached through the MDB, and the tools that reach it are part of Librescoot. Install the MDB in this run, or leave the dashboard alone.'**
+  String get planDbcNeedsLibrescootMdb;
+
+  /// No description provided for @planNothingToDo.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing selected. Pick at least one action to continue.'**
+  String get planNothingToDo;
+
+  /// No description provided for @releaseMissingAssetsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'This release cannot be installed'**
+  String get releaseMissingAssetsTitle;
+
+  /// No description provided for @releaseMissingAssetsBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The {tag} release does not publish everything the installer needs: {assets}. Go back and pick a different channel, or wait for a release that has them.'**
+  String releaseMissingAssetsBody(String tag, String assets);
+
+  /// No description provided for @assetMdbArtifact.
+  ///
+  /// In en, this message translates to:
+  /// **'the MDB firmware artifact'**
+  String get assetMdbArtifact;
+
+  /// No description provided for @assetDbcArtifact.
+  ///
+  /// In en, this message translates to:
+  /// **'the DBC firmware artifact'**
+  String get assetDbcArtifact;
+
+  /// No description provided for @assetMdbImage.
+  ///
+  /// In en, this message translates to:
+  /// **'the MDB system image'**
+  String get assetMdbImage;
+
+  /// No description provided for @assetDbcImage.
+  ///
+  /// In en, this message translates to:
+  /// **'the DBC system image'**
+  String get assetDbcImage;
+
+  /// No description provided for @artifactStaging.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading firmware artifact...'**
+  String get artifactStaging;
+
+  /// No description provided for @artifactInstalling.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing firmware ({percent}%)'**
+  String artifactInstalling(int percent);
+
+  /// No description provided for @artifactVerifying.
+  ///
+  /// In en, this message translates to:
+  /// **'Verifying installed version...'**
+  String get artifactVerifying;
+
+  /// No description provided for @waitingForDbcUpload.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the dashboard transfer to finish...'**
+  String get waitingForDbcUpload;
+
+  /// No description provided for @artifactStillMinimal.
+  ///
+  /// In en, this message translates to:
+  /// **'The MDB came back on the bootstrap image, so the firmware artifact did not take. Retry, or write the full image instead.'**
+  String get artifactStillMinimal;
+
+  /// No description provided for @artifactVersionMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'The MDB still reports {found} after the reboot, not {expected}. The install was rolled back, so nothing was changed. Retry, or write the full image instead.'**
+  String artifactVersionMismatch(String found, String expected);
+
+  /// No description provided for @artifactInstallFailedHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Firmware install failed'**
+  String get artifactInstallFailedHeading;
+
+  /// No description provided for @artifactStagingInBackground.
+  ///
+  /// In en, this message translates to:
+  /// **'Finishing the firmware install...'**
+  String get artifactStagingInBackground;
+
+  /// No description provided for @artifactNoneDownloaded.
+  ///
+  /// In en, this message translates to:
+  /// **'No firmware artifact was downloaded for this board.'**
+  String get artifactNoneDownloaded;
+
+  /// No description provided for @dbcImageMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'The DBC system image this plan needs is missing.'**
+  String get dbcImageMissing;
+
+  /// No description provided for @artifactRebootTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'The MDB did not come back after the reboot.'**
+  String get artifactRebootTimeout;
+
+  /// No description provided for @artifactPreflightNoMender.
+  ///
+  /// In en, this message translates to:
+  /// **'This board has no update client, so it cannot take a firmware artifact.'**
+  String get artifactPreflightNoMender;
+
+  /// No description provided for @artifactPreflightOtaBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'The scooter is running its own update right now ({status}). Let it finish and reboot, then retry.'**
+  String artifactPreflightOtaBusy(String status);
+
+  /// No description provided for @artifactPreflightNoSpace.
+  ///
+  /// In en, this message translates to:
+  /// **'Not enough space in /data: {freeMiB} MiB free, {neededMiB} MiB needed.'**
+  String artifactPreflightNoSpace(int freeMiB, int neededMiB);
+
+  /// No description provided for @artifactRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get artifactRetry;
+
+  /// No description provided for @artifactFallBackToFullImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Write the full image instead'**
+  String get artifactFallBackToFullImage;
+
+  /// No description provided for @fallBackWipeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'This erases the scooter\'s data'**
+  String get fallBackWipeTitle;
+
+  /// No description provided for @fallBackWipeBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Writing the full image reformats the data partition. Settings, paired keycards, offline maps and trip history are all lost, and the scooter comes back as if it were new. The upgrade you started would have kept them.\n\nRetrying the firmware artifact keeps the data. Only write the full image if the artifact keeps failing.'**
+  String get fallBackWipeBody;
+
+  /// No description provided for @fallBackWipeConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Erase and write the full image'**
+  String get fallBackWipeConfirm;
+
+  /// No description provided for @dbcCleanInstallButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Erase the DBC and install from scratch'**
+  String get dbcCleanInstallButton;
+
+  /// No description provided for @dbcCleanInstallTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'This erases the DBC'**
+  String get dbcCleanInstallTitle;
+
+  /// No description provided for @dbcCleanInstallBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The dashboard\'s last known version is only what the main board saw the last time the two were powered together, so a board the plan treated as upgradable may have no update client at all. Installing from scratch writes the bootstrap image first, which reformats the DBC\'s data partition and loses its offline maps. Anything on the main board, including settings, paired keycards and trip history, is untouched.\n\nThis needs another cable swap: the installer stages the files, you screw the dashboard cable back onto the main board, and the rest runs unattended.'**
+  String get dbcCleanInstallBody;
+
+  /// No description provided for @dbcCleanInstallConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Erase and install the DBC'**
+  String get dbcCleanInstallConfirm;
 
   /// No description provided for @firmwareVersionDisplay.
   ///
@@ -2540,17 +2456,17 @@ abstract class AppLocalizations {
   /// **'Plug the CBB cable back into the connector in the footwell. Without the CBB, the MDB could shut down during flashing.'**
   String get reconnectCbbStepDesc;
 
-  /// No description provided for @insertMainBatteryStep.
+  /// No description provided for @mainBatteryMissingHeading.
   ///
   /// In en, this message translates to:
-  /// **'Insert the main battery'**
-  String get insertMainBatteryStep;
+  /// **'No main battery detected'**
+  String get mainBatteryMissingHeading;
 
-  /// No description provided for @insertMainBatteryStepDesc.
+  /// No description provided for @mainBatteryMissingHint.
   ///
   /// In en, this message translates to:
-  /// **'Put the main battery back in the seatbox. Without it, the CBB or 12V auxiliary battery could run empty during flashing, which may cause the MDB or DBC to shut down.'**
-  String get insertMainBatteryStepDesc;
+  /// **'The dashboard flash draws from the main pack. Put it back in the seatbox before continuing.'**
+  String get mainBatteryMissingHint;
 
   /// No description provided for @cbbDetected.
   ///
@@ -2582,65 +2498,23 @@ abstract class AppLocalizations {
   /// **'Waiting for USB disconnect...'**
   String get waitingForUsbDisconnect;
 
-  /// No description provided for @dbcWillCyclePower.
-  ///
-  /// In en, this message translates to:
-  /// **'The DBC will turn on and off multiple times during this process. Do not disconnect the USB cable between MDB and DBC.'**
-  String get dbcWillCyclePower;
-
-  /// No description provided for @ledBootAmber.
-  ///
-  /// In en, this message translates to:
-  /// **'Dashboard LED amber'**
-  String get ledBootAmber;
-
-  /// No description provided for @ledBootAmberMeaning.
-  ///
-  /// In en, this message translates to:
-  /// **'Flashing in progress'**
-  String get ledBootAmberMeaning;
-
-  /// No description provided for @ledBootRedError.
-  ///
-  /// In en, this message translates to:
-  /// **'Dashboard LED blinking red'**
-  String get ledBootRedError;
-
-  /// No description provided for @ledBootRedMeaning.
-  ///
-  /// In en, this message translates to:
-  /// **'Error. Reconnect laptop to check log; the indicators stop once you reconnect'**
-  String get ledBootRedMeaning;
-
-  /// No description provided for @flashingTakesAbout10Min.
-  ///
-  /// In en, this message translates to:
-  /// **'Once the dashboard LED is blinking (green or red), and only then, reconnect the laptop USB cable.'**
-  String get flashingTakesAbout10Min;
-
   /// No description provided for @dbcFlashDurationHeadline.
   ///
   /// In en, this message translates to:
-  /// **'The DBC flash can take 10–20 minutes.'**
+  /// **'The DBC flash can take 10 to 20 minutes.'**
   String get dbcFlashDurationHeadline;
 
-  /// No description provided for @dbcFlashDurationDetail.
+  /// No description provided for @finishHandoverTitle.
   ///
   /// In en, this message translates to:
-  /// **'The DBC will turn on and off several times during this process — that is normal. Do not unplug anything until the dashboard LED is blinking green or red.'**
-  String get dbcFlashDurationDetail;
+  /// **'Finishing the install…'**
+  String get finishHandoverTitle;
 
-  /// No description provided for @finishRebootingTitle.
+  /// No description provided for @finishHandoverBody.
   ///
   /// In en, this message translates to:
-  /// **'Rebooting scooter…'**
-  String get finishRebootingTitle;
-
-  /// No description provided for @finishRebootingBody.
-  ///
-  /// In en, this message translates to:
-  /// **'Waiting for the MDB to drop the USB link before completing the install.'**
-  String get finishRebootingBody;
+  /// **'Stay with the scooter until it unlocks itself. Then you can unplug the USB cable.'**
+  String get finishHandoverBody;
 
   /// No description provided for @networkConfigNeedsPermission.
   ///
@@ -2648,29 +2522,47 @@ abstract class AppLocalizations {
   /// **'macOS is asking for permission to change network settings. Click Allow in the system dialog, then hit Retry.'**
   String get networkConfigNeedsPermission;
 
-  /// No description provided for @waitingForMdbToReconnect.
+  /// No description provided for @waitingForMdb.
   ///
   /// In en, this message translates to:
-  /// **'Waiting for MDB to reconnect...'**
-  String get waitingForMdbToReconnect;
+  /// **'Waiting for the MDB...'**
+  String get waitingForMdb;
 
-  /// No description provided for @ledIsGreen.
+  /// No description provided for @dbcFlashAllDone.
   ///
   /// In en, this message translates to:
-  /// **'LED blinking green'**
-  String get ledIsGreen;
+  /// **'Continue to the last step'**
+  String get dbcFlashAllDone;
 
-  /// No description provided for @ledIsRed.
+  /// No description provided for @dbcFlashSequence.
   ///
   /// In en, this message translates to:
-  /// **'LED blinking red'**
-  String get ledIsRed;
+  /// **'From here the scooter carries on by itself: it writes the image to the dashboard, restarts it and copies the maps over. Progress is shown on the dashboard screen. Stay with the scooter until one of these two things happens.'**
+  String get dbcFlashSequence;
 
-  /// No description provided for @ledAmberWaitNotice.
+  /// No description provided for @dbcFlashDoNotDisconnect.
   ///
   /// In en, this message translates to:
-  /// **'Most important: do NOT disconnect USB or power while this is running. While the dashboard LED is amber/orange, flashing is still in progress. Hands off, don\'t click anything. The LED will start blinking once it\'s done: green = success, red = error. Only continue once it\'s blinking.'**
-  String get ledAmberWaitNotice;
+  /// **'Do not disconnect USB or power while this runs.'**
+  String get dbcFlashDoNotDisconnect;
+
+  /// No description provided for @dbcFlashDoneSignal.
+  ///
+  /// In en, this message translates to:
+  /// **'Done: the scooter unlocks itself. That is the signal, there is nothing else to wait for.'**
+  String get dbcFlashDoneSignal;
+
+  /// No description provided for @dbcFlashFailSignal.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed: the hazards come on and the dashboard LED blinks red. Plug USB back into the MDB and fetch the log here.'**
+  String get dbcFlashFailSignal;
+
+  /// No description provided for @dbcFlashSomethingWrong.
+  ///
+  /// In en, this message translates to:
+  /// **'LED blinking red: reconnect USB and fetch the log'**
+  String get dbcFlashSomethingWrong;
 
   /// No description provided for @phaseKeycardSetupTitle.
   ///
@@ -2695,24 +2587,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'MDB detected in UMS mode. Skipping to flash.'**
   String get mdbDetectedUmsSkipping;
-
-  /// No description provided for @waitingForMdbToReboot.
-  ///
-  /// In en, this message translates to:
-  /// **'Waiting for MDB to reboot...'**
-  String get waitingForMdbToReboot;
-
-  /// No description provided for @mdbDetectedWaitingForSsh.
-  ///
-  /// In en, this message translates to:
-  /// **'MDB detected, waiting for SSH...'**
-  String get mdbDetectedWaitingForSsh;
-
-  /// No description provided for @reconnectedToMdb.
-  ///
-  /// In en, this message translates to:
-  /// **'Reconnected to MDB'**
-  String get reconnectedToMdb;
 
   /// No description provided for @verifyingBootloaderConfig.
   ///

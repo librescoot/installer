@@ -7,6 +7,7 @@ import 'package:path/path.dart' as path;
 
 import '../l10n/app_localizations.dart';
 import 'disk_arbitration_service.dart';
+import 'usb_detector.dart' show SystemDiskVerdict;
 
 /// Progress callback for flashing operations
 typedef ProgressCallback = void Function(double progress, String status);
@@ -125,6 +126,7 @@ class FlashService {
     required bool isSystemDisk,
     required int vendorId,
     required int productId,
+    SystemDiskVerdict systemDiskVerdict = SystemDiskVerdict.unknown,
   }) {
     final errors = <String>[];
     final warnings = <String>[];
@@ -189,9 +191,17 @@ class FlashService {
       if (devicePath.trim().isEmpty || !devicePath.startsWith('/dev/')) {
         errors.add('Invalid Linux device path: $devicePath');
       }
-      // Never allow sda (typically system)
-      if (devicePath.endsWith('/dev/sda') || devicePath == '/dev/sda') {
-        errors.add('DANGER: Cannot flash /dev/sda (likely system disk)');
+      // sda is not inherently the system disk. On a laptop that boots from
+      // NVMe it is simply the first USB disk attached, which is what the
+      // scooter enumerates as, so refusing it outright blocked the only
+      // device the user was trying to flash. It is refused when the storage
+      // stack could not be asked (systemDiskVerdict unknown), because then
+      // the name is the only evidence there is; a disk with anything mounted
+      // on it is refused above regardless of name.
+      if (devicePath == '/dev/sda' &&
+          systemDiskVerdict != SystemDiskVerdict.notSystem) {
+        errors.add('DANGER: /dev/sda could not be confirmed as the scooter. '
+            'Refusing, because it is commonly the system disk.');
       }
       // Never allow nvme0n1 (system NVMe)
       if (devicePath.contains('nvme0n1')) {
@@ -880,10 +890,30 @@ class FlashService {
       if (exitCode == 126) {
         throw Exception('Authorization was dismissed: flash incomplete');
       }
-      throw Exception('Flash failed: $out');
+      throw Exception('Flash failed: ${_humanFlashError(out)}');
     }
 
     onProgress?.call(1.0, 'Flash complete');
+  }
+
+  /// Strip the flasher's machine-readable protocol lines out of a failure.
+  ///
+  /// The raw output carries a `Bmap: … (14% of …)` line describing how much of
+  /// the image is mapped, which people read as "it failed at 14%". It is not
+  /// progress, and the percentage that matters is already spelled out by the
+  /// explanation below. Keeps the ERROR line and anything that is not one of
+  /// the protocol markers.
+  @visibleForTesting
+  static String humanFlashErrorForTest(String raw) => _humanFlashError(raw);
+
+  static String _humanFlashError(String raw) {
+    final kept = raw
+        .split('\n')
+        .where((l) => !RegExp(r'^\s*(TOTAL:|PHASE:|PROGRESS:|Bmap:)').hasMatch(l))
+        .map((l) => l.trimRight())
+        .where((l) => l.isNotEmpty)
+        .toList();
+    return kept.isEmpty ? raw.trim() : kept.join('\n');
   }
 
   /// Copy the flasher out of an AppImage's per-user FUSE mount (which a
