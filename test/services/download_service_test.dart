@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart' as http_testing;
+import 'package:librescoot_installer/models/board_state.dart';
 import 'package:librescoot_installer/models/download_state.dart';
 import 'package:librescoot_installer/models/region.dart';
 import 'package:librescoot_installer/services/download_service.dart';
@@ -149,16 +150,142 @@ void main() {
       final items = await service.buildDownloadQueue(
         channel: DownloadChannel.testing,
         wantsOfflineMaps: false,
+        fullImageBoards: const {Board.mdb, Board.dbc},
       );
-      expect(items.length, 2);
-      expect(items[0].type, DownloadItemType.mdbFirmware);
-      expect(items[1].type, DownloadItemType.dbcFirmware);
+      expect(items.length, 3);
+      expect(items[0].type, DownloadItemType.mdbArtifact);
+      expect(items[1].type, DownloadItemType.mdbFirmware);
+      expect(items[2].type, DownloadItemType.dbcFirmware);
     });
 
     test('Region model generates correct filenames', () {
       final region = Region.all.firstWhere((r) => r.slug == 'berlin_brandenburg');
       expect(region.osmTilesFilename, 'tiles_berlin_brandenburg.mbtiles');
       expect(region.valhallaTilesFilename, 'valhalla_tiles_berlin_brandenburg.tar');
+    });
+
+    List<Map<String, dynamic>> fullRelease() => [
+          _asset('librescoot-unu-mdb-v1.2.1.sdimg.gz', 330203000),
+          _asset('librescoot-unu-mdb-v1.2.1.sdimg.bmap', 5000),
+          _asset('librescoot-unu-mdb-minimal-v1.2.1.sdimg.gz', 54100000),
+          _asset('librescoot-unu-mdb-minimal-v1.2.1.sdimg.bmap', 5000),
+          _asset('librescoot-unu-mdb-v1.2.1.mender', 162700000),
+          _asset('librescoot-unu-mdb-v1.2.1.delta', 200000),
+          _asset('librescoot-unu-mdb-boot-v1.2.1.tar.gz', 8600000),
+          _asset('librescoot-unu-dbc-v1.2.1.sdimg.gz', 444618207),
+          _asset('librescoot-unu-dbc-v1.2.1.sdimg.bmap', 5766),
+          _asset('librescoot-unu-dbc-minimal-v1.2.1.sdimg.gz', 56716530),
+          _asset('librescoot-unu-dbc-minimal-v1.2.1.sdimg.bmap', 6166),
+          _asset('librescoot-unu-dbc-v1.2.1.mender', 220542976),
+          _asset('librescoot-unu-dbc-v1.2.1.delta', 231405),
+          _asset('librescoot-unu-dbc-boot-v1.2.1.tar.gz', 10065759),
+        ];
+
+    test('by default queues artifacts and minimal images, not full sdimgs',
+        () async {
+      final service = DownloadService(
+        client: _manifestClient({'stable': _release('v1.2.1', fullRelease())}),
+      );
+      final items = await service.buildDownloadQueue(
+        channel: DownloadChannel.stable,
+        wantsOfflineMaps: false,
+      );
+      final names = items.map((i) => i.filename).toList();
+
+      expect(names, contains('librescoot-unu-mdb-v1.2.1.mender'));
+      expect(names, contains('librescoot-unu-dbc-v1.2.1.mender'));
+      expect(names, contains('librescoot-unu-mdb-minimal-v1.2.1.sdimg.gz'));
+      expect(names, contains('librescoot-unu-dbc-minimal-v1.2.1.sdimg.bmap'));
+      expect(names, isNot(contains('librescoot-unu-mdb-v1.2.1.sdimg.gz')));
+      expect(names, isNot(contains('librescoot-unu-dbc-v1.2.1.sdimg.gz')));
+      expect(names, isNot(contains('librescoot-unu-mdb-v1.2.1.delta')));
+      expect(names, isNot(contains('librescoot-unu-mdb-boot-v1.2.1.tar.gz')));
+    });
+
+    test('the default queue is 471 MiB, not 739 MiB', () async {
+      final service = DownloadService(
+        client: _manifestClient({'stable': _release('v1.2.1', fullRelease())}),
+      );
+      final items = await service.buildDownloadQueue(
+        channel: DownloadChannel.stable,
+        wantsOfflineMaps: false,
+      );
+      final total = items.fold<int>(0, (a, i) => a + i.expectedSize);
+      expect(total, lessThan(520 * 1000 * 1000));
+    });
+
+    test('artifacts sort ahead of images so they download first', () async {
+      final service = DownloadService(
+        client: _manifestClient({'stable': _release('v1.2.1', fullRelease())}),
+      );
+      final items = await service.buildDownloadQueue(
+        channel: DownloadChannel.stable,
+        wantsOfflineMaps: false,
+      );
+      final firstImage =
+          items.indexWhere((i) => i.filename.endsWith('.sdimg.gz'));
+      final lastArtifact =
+          items.lastIndexWhere((i) => i.filename.endsWith('.mender'));
+      expect(lastArtifact, lessThan(firstImage));
+    });
+
+    test('fullImageBoards swaps the minimal images for the full ones', () async {
+      final service = DownloadService(
+        client: _manifestClient({'stable': _release('v1.2.1', fullRelease())}),
+      );
+      final items = await service.buildDownloadQueue(
+        channel: DownloadChannel.stable,
+        wantsOfflineMaps: false,
+        fullImageBoards: const {Board.mdb, Board.dbc},
+      );
+      final names = items.map((i) => i.filename).toList();
+
+      expect(names, contains('librescoot-unu-mdb-v1.2.1.sdimg.gz'));
+      expect(names, contains('librescoot-unu-dbc-v1.2.1.sdimg.bmap'));
+      expect(names, isNot(contains('librescoot-unu-mdb-minimal-v1.2.1.sdimg.gz')));
+      expect(names, contains('librescoot-unu-mdb-v1.2.1.mender'),
+          reason: 'the artifact is still what gets installed');
+    });
+
+    test('a main-board fall-back leaves the dashboard on its stage-0 image',
+        () async {
+      final service = DownloadService(
+        client: _manifestClient({'stable': _release('v1.2.1', fullRelease())}),
+      );
+      final items = await service.buildDownloadQueue(
+        channel: DownloadChannel.stable,
+        wantsOfflineMaps: false,
+        fullImageBoards: const {Board.mdb},
+      );
+      final names = items.map((i) => i.filename).toList();
+
+      expect(names, contains('librescoot-unu-mdb-v1.2.1.sdimg.gz'));
+      expect(names, contains('librescoot-unu-mdb-v1.2.1.sdimg.bmap'));
+      expect(names, isNot(contains('librescoot-unu-mdb-minimal-v1.2.1.sdimg.gz')));
+
+      expect(names, contains('librescoot-unu-dbc-minimal-v1.2.1.sdimg.gz'),
+          reason: 'the dashboard did not fall back, so it keeps stage 0');
+      expect(names, contains('librescoot-unu-dbc-minimal-v1.2.1.sdimg.bmap'));
+      expect(names, isNot(contains('librescoot-unu-dbc-v1.2.1.sdimg.gz')));
+    });
+
+    test('a release without artifacts still yields a usable image queue',
+        () async {
+      final service = DownloadService(
+        client: _manifestClient({
+          'stable': _release('v1.0.0', [
+            _asset('librescoot-unu-mdb-v1.0.0.sdimg.gz', 141215162),
+            _asset('librescoot-unu-dbc-v1.0.0.sdimg.gz', 197006162),
+          ])
+        }),
+      );
+      final items = await service.buildDownloadQueue(
+        channel: DownloadChannel.stable,
+        wantsOfflineMaps: false,
+        fullImageBoards: const {Board.mdb, Board.dbc},
+      );
+      expect(items.map((i) => i.type),
+          containsAll([DownloadItemType.mdbFirmware, DownloadItemType.dbcFirmware]));
     });
   });
 
@@ -205,12 +332,12 @@ void main() {
   group('Region.detectSlugFromIp', () {
     test('maps a German region_code to its slug', () async {
       final client = http_testing.MockClient((request) async {
-        expect(request.url.host, 'ipwho.is');
+        expect(request.url.host, 'ip-api.com');
         return http.Response(
             jsonEncode({
-              'success': true,
-              'country_code': 'DE',
-              'region_code': 'BY',
+              'status': 'success',
+              'countryCode': 'DE',
+              'region': 'BY',
             }),
             200);
       });
@@ -221,9 +348,9 @@ void main() {
       for (final code in ['BE', 'BB']) {
         final client = http_testing.MockClient((request) async => http.Response(
             jsonEncode({
-              'success': true,
-              'country_code': 'DE',
-              'region_code': code,
+              'status': 'success',
+              'countryCode': 'DE',
+              'region': code,
             }),
             200));
         expect(await Region.detectSlugFromIp(client: client),
@@ -234,9 +361,9 @@ void main() {
     Future<String?> detect(String country, String? region) {
       final client = http_testing.MockClient((request) async => http.Response(
           jsonEncode({
-            'success': true,
-            'country_code': country,
-            if (region != null) 'region_code': region,
+            'status': 'success',
+            'countryCode': country,
+            if (region != null) 'region': region,
           }),
           200));
       return Region.detectSlugFromIp(client: client);
@@ -263,7 +390,7 @@ void main() {
 
     test('returns null when the lookup is unsuccessful', () async {
       final client = http_testing.MockClient((request) async =>
-          http.Response(jsonEncode({'success': false}), 200));
+          http.Response(jsonEncode({'status': 'fail'}), 200));
       expect(await Region.detectSlugFromIp(client: client), isNull);
     });
   });
