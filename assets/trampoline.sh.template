@@ -6,7 +6,19 @@ INSTALLER_DIR="/data/installer"
 STATUS_FILE="$INSTALLER_DIR/trampoline-status"
 LOG_FILE="$INSTALLER_DIR/trampoline.log"
 PHASE_FILE="$INSTALLER_DIR/trampoline-phase"
+MODE="{{MODE}}"                        # flash = write the stage-0 image first, upgrade = artifact only
 DBC_IMAGE="{{DBC_IMAGE_PATH}}"
+DBC_MENDER="{{DBC_MENDER_PATH}}"       # .mender staged on the MDB, empty when the DBC gets no artifact
+DBC_TARGET="{{DBC_TARGET_VERSION}}"    # VERSION_ID the DBC has to report once the artifact is live
+# Autonomous finish. When true, onboot does the work the installer's finish
+# phase would otherwise do over the laptop link, so the user never has to plug
+# back in on the happy path. Everything it needs is known before the cable swap.
+FINISH_ON_DEVICE="{{FINISH_ON_DEVICE}}"   # true = do not wait for the laptop
+MDB_ACTION="{{MDB_ACTION}}"               # upgrade | cleanInstall | fullImage | leave
+MDB_TARGET="{{MDB_TARGET_VERSION}}"       # VERSION_ID the MDB should be on, for the record
+FINISH_LANGUAGE="{{FINISH_LANGUAGE}}"     # dashboard.language to persist, empty to skip
+FINISH_CHANNEL="{{FINISH_CHANNEL}}"       # lsc ota channel to persist, empty to skip
+START_KEYCARD="{{START_KEYCARD}}"         # true when keycard setup already ran
 DBC_BMAP="${DBC_IMAGE%.sdimg.gz}.sdimg.bmap"
 DBC_IP="192.168.7.2"
 BOOT_AREA_BLOCKS=6
@@ -15,6 +27,10 @@ OSM_TILES_FILE="{{OSM_TILES_FILE}}"
 VALHALLA_TILES_FILE="{{VALHALLA_TILES_FILE}}"
 
 mkdir -p "$INSTALLER_DIR"
+# A previous run's DBC version must not survive into this one's status file:
+# the second layer writes it again only after it really installed an artifact,
+# so a leftover would report a version this run never verified.
+rm -f "$INSTALLER_DIR/dbc-version"
 
 log() { echo "$(date '+%H:%M:%S') $1" >> "$LOG_FILE"; }
 
@@ -67,7 +83,9 @@ BOOTLED_BLINK_UNIT="librescoot-bootled-blink"
 bootled_blink_red() {
   bootled_blink_stop
   systemd-run --unit="$BOOTLED_BLINK_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
-    while true; do
+    n=0
+    while [ $n -lt 2250 ]; do
+      n=$((n + 1))
       i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
       i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
       i2cset -f -y 2 0x30 0x04 0xFF 2>/dev/null
@@ -82,7 +100,9 @@ bootled_blink_red() {
 bootled_blink_green() {
   bootled_blink_stop
   systemd-run --unit="$BOOTLED_BLINK_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
-    while true; do
+    n=0
+    while [ $n -lt 12 ]; do
+      n=$((n + 1))
       i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
       i2cset -f -y 2 0x30 0x03 0xFF 2>/dev/null
       i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
@@ -251,8 +271,12 @@ signal_error() {
       done
       sleep 0.5
     done
+    # Dark, but still claimable: duty 0 leaves the channel active so
+    # vehicle-service can drive the blinkers again. Deactivating instead
+    # leaves them dead until a re-init, and the give-up path starts
+    # bluetooth afterwards, so the scooter can be unlocked and ridden.
     for ch in 3 4 6 7; do
-      /usr/bin/ioctl /dev/pwm_led$ch 0x00007549 -v 0 2>/dev/null
+      /usr/bin/ioctl /dev/pwm_led$ch 0x0000754A -v 0 2>/dev/null
     done
   '
 }
@@ -260,9 +284,10 @@ signal_error_stop() {
   systemctl stop "${HAZARDS_UNIT}.service" 2>/dev/null
   [ -f /data/error-hazards.pid ] && kill "$(cat /data/error-hazards.pid)" 2>/dev/null
   rm -f /data/error-hazards.pid
+  # Duty 0 only: the channel stays claimable so vehicle-service can drive the
+  # blinkers. Deactivating leaves them dead until something re-inits them.
   for ch in 3 4 6 7; do
     /usr/bin/ioctl /dev/pwm_led$ch 0x0000754A -v 0 2>/dev/null
-    /usr/bin/ioctl /dev/pwm_led$ch 0x00007549 -v 0 2>/dev/null
   done
 }
 
@@ -296,6 +321,25 @@ role_write() {
 # the MDB stuck in host mode with the laptop unable to see it. So:
 # verify the role actually flipped and usb0 came up, retrying a few
 # times. Returns 0 only on confirmed gadget mode.
+# Force the host controller to look for a device again.
+#
+# Switching to host with the cable already seated gives the port no connect
+# event, so the controller never enumerates what is sitting on it. Unbinding
+# and rebinding re-initialises it and makes it enumerate whatever is attached,
+# which is what physically replugging the cable achieves.
+usb_host_rescan() {
+  local drv=/sys/bus/platform/drivers/ci_hdrc
+  [ -d "$drv" ] || { log "  no ci_hdrc driver directory, cannot rescan"; return 1; }
+  log "  rebinding the USB host controller to force enumeration"
+  echo ci_hdrc.0 > "$drv/unbind" 2>/dev/null
+  sleep 2
+  echo ci_hdrc.0 > "$drv/bind" 2>/dev/null
+  sleep 3
+  role_write host || true
+  sleep 2
+  log "  rescan done, role=$(cat "$ROLE_PATH" 2>/dev/null) $(lsusb 2>/dev/null | grep 0525 || echo 'still no 0525 device')"
+}
+
 restore_gadget() {
   log "Restoring gadget mode..."
   if [ "$(cat "$ROLE_PATH" 2>/dev/null)" = "gadget" ] \
@@ -471,6 +515,10 @@ probe_for_laptop_then_restore_host() {
 
 fail() {
   log "ERROR: $1"
+  # journalctl -f outlives this script otherwise: it is a child of the SSH
+  # session scope, not a service cgroup, so an abandoned failure keeps
+  # appending to the journal file until the disk notices.
+  [ -n "$JOURNAL_PID" ] && kill $JOURNAL_PID 2>/dev/null
   echo "error: $1" > "$STATUS_FILE"
   cat "$LOG_FILE" >> "$STATUS_FILE"
   # Status must survive a rescue reboot, so flush it early. Backgrounded:
@@ -549,6 +597,77 @@ wait_dbc_ssh() {
 # (VID 15a2) — that's a hard-brick that requires imx_usb_loader to rescue
 # and is out of scope for this installer.
 # Calls fail() if neither UMS nor SDP is on the bus.
+# Dashboard power, without lsc.
+#
+# lsc talks to vehicle-service, and neither is in the bootstrap image: it
+# carries eleven packages and those are not among them. That matters because
+# the whole point of staging this work early is to run it before the MDB has
+# been rebooted into the full image.
+#
+# The line itself is gpiochip1 offset 18, global GPIO 50, which vehicle-service
+# drives via libgpiod as "dashboard_power" (vehicle-service
+# internal/hardware/constants.go). It is a request into the nRF52 rather than a
+# rail we switch ourselves, so asserting it is all we have to do.
+#
+# lsc is still preferred when it exists. On the full image vehicle-service holds
+# the line through libgpiod and a sysfs export would fail with EBUSY, so going
+# around it there would be both rude and broken.
+DBC_POWER_GPIO=50
+
+dbc_gpio_ready() {
+  [ -d "/sys/class/gpio/gpio$DBC_POWER_GPIO" ] && return 0
+  echo "$DBC_POWER_GPIO" > /sys/class/gpio/export 2>/dev/null || true
+  sleep 1
+  [ -d "/sys/class/gpio/gpio$DBC_POWER_GPIO" ] || return 1
+  echo out > "/sys/class/gpio/gpio$DBC_POWER_GPIO/direction" 2>/dev/null || true
+  return 0
+}
+
+# $1: 1 to power the dashboard, 0 to cut it.
+dbc_power_set() {
+  if command -v lsc >/dev/null 2>&1; then
+    if [ "$1" = "1" ]; then
+      lsc --redis-addr localhost:6379 dbc on >> "$LOG_FILE" 2>&1 && return 0
+    else
+      lsc --redis-addr localhost:6379 dbc off >> "$LOG_FILE" 2>&1 && return 0
+    fi
+    log "  lsc dbc power failed, falling back to the GPIO"
+  fi
+  dbc_gpio_ready || { log "  WARNING: could not claim the dashboard power GPIO"; return 1; }
+  echo "$1" > "/sys/class/gpio/gpio$DBC_POWER_GPIO/value" 2>/dev/null
+}
+
+dbc_power_on()  { dbc_power_set 1; }
+dbc_power_off() { dbc_power_set 0; }
+
+# Power the dashboard and wait for it to answer. Replaces lsc dbc on-wait,
+# which additionally waits on dashboard[ready] in redis; a ping is the part
+# that matters here and the part that works with no vehicle-service running.
+# $1: seconds to wait, default 90.
+dbc_power_on_wait() {
+  local deadline="${1:-90}" elapsed=0
+  dbc_power_on
+  while [ "$elapsed" -lt "$deadline" ]; do
+    ping -c 1 -W 2 "$DBC_IP" >/dev/null 2>&1 && return 0
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+  return 1
+}
+
+# Cut power and wait for it to actually go, so a following power-on is a real
+# cycle rather than a no-op. Replaces lsc dbc off-wait.
+dbc_power_off_wait() {
+  local deadline="${1:-30}" elapsed=0
+  dbc_power_off
+  while [ "$elapsed" -lt "$deadline" ]; do
+    ping -c 1 -W 1 "$DBC_IP" >/dev/null 2>&1 || return 0
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+  return 1
+}
+
 probe_dbc_or_fail() {
   rmmod g_ether 2>/dev/null || true
   sleep 1
@@ -810,12 +929,34 @@ WATCHDOG_RECOVER
 chmod +x "$INSTALLER_DIR/watchdog-recover.sh"
 
 echo "" > "$LOG_FILE"
+
+# Claim the status file before doing anything with it. It is never truncated
+# otherwise, so a run that dies before reaching fail() (killed, wedged, power
+# cut, a watchdog that missed it) leaves the previous run's verdict on disk and
+# the installer reads that as this run's outcome. Writing "running" here means
+# an unfinished run reads as unfinished, which is what it is.
+{
+  echo "running"
+  # The parser takes the verdict off line 1 and reads key: value after it, so
+  # this rides along for free and gives a returning installer something to
+  # compare against when it wants to know whether a verdict is this run's.
+  echo "started: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+} > "$STATUS_FILE"
+
 log "=========================================="
 log "Trampoline started"
+log "  MODE=$MODE"
 log "  DBC_IMAGE=$DBC_IMAGE"
+log "  DBC_MENDER=$DBC_MENDER"
 log "  INSTALL_TILES=$INSTALL_TILES"
 log "  OSM=$OSM_TILES_FILE"
 log "  VALHALLA=$VALHALLA_TILES_FILE"
+# The finish config decides whether the device closes the install out itself
+# or hands back to the laptop, and it is invisible in the log otherwise: a
+# run that quietly handed back looks exactly like one that finished.
+log "  FINISH_ON_DEVICE=$FINISH_ON_DEVICE"
+log "  FINISH_LANGUAGE=$FINISH_LANGUAGE CHANNEL=$FINISH_CHANNEL START_KEYCARD=$START_KEYCARD"
+log "  MDB_ACTION=$MDB_ACTION MDB_TARGET=$MDB_TARGET"
 log "=========================================="
 
 # Log all errors, always: route every command's stderr into the log so no
@@ -860,26 +1001,65 @@ bootled amber
 # that re-asserts amber every 2s so any stray write loses within a tick.
 bootled_guard_start
 
+# Reject a MODE we do not recognise before anything else runs. The value comes
+# from a template placeholder, so a script the installer never rendered lands
+# here with the placeholder still in it, is not equal to "flash", takes the
+# upgrade path, finds no artifact and reports success without ever having
+# touched the DBC. This check sits here rather than next to the declaration
+# because fail() is not defined until further down and its red blink needs the
+# LP5562 init just above.
+case "$MODE" in
+  flash|upgrade) log "Mode: $MODE" ;;
+  *) fail "unrecognised install mode: $MODE" ;;
+esac
+
 # Capture system journal in background for debugging
 journalctl -f --no-pager >> "$INSTALLER_DIR/trampoline-journal.log" 2>&1 &
 JOURNAL_PID=$!
-
-# Arm the host-mode stall watchdog. Inert while the role is gadget, so
-# arming this early is free; it covers every host-mode stint from here on.
-trampoline_watchdog_start
 
 # Phase 0 — Prep: front ring breathes, FL blinker breathes.
 set_progress_phase 0
 breathe_start 1
 
-# Verify image
-[ -f "$DBC_IMAGE" ] || fail "DBC image not found: $DBC_IMAGE"
-log "Image: $(ls -lh "$DBC_IMAGE" | awk '{print $5}')"
+if [ "$MODE" = "flash" ]; then
+  # Arm the host-mode stall watchdog. Inert while the role is gadget, so
+  # arming this early is free; it covers every host-mode stint from here on.
+  # Only flash mode ever enters host mode, so an upgrade never arms it.
+  trampoline_watchdog_start
+
+  # Verify image
+  [ -f "$DBC_IMAGE" ] || fail "DBC image not found: $DBC_IMAGE"
+  log "Image: $(ls -lh "$DBC_IMAGE" | awk '{print $5}')"
+fi
+
+# Same treatment for the artifact, in both modes: a path the renderer asked
+# for but did not stage is a hard stop. Catching it here costs the user
+# nothing; catching it in onboot.sh costs them an MDB reboot and a cable swap
+# first. onboot.sh checks again because the reboot sits between the two.
+if [ -n "$DBC_MENDER" ]; then
+  [ -f "$DBC_MENDER" ] || fail "DBC artifact not found: $DBC_MENDER"
+  log "Artifact: $(ls -lh "$DBC_MENDER" | awk '{print $5}')"
+fi
 
 # Step 1: Wait for laptop disconnect
 step_begin "Step 1: wait for laptop disconnect"
-while cat /sys/class/udc/ci_hdrc.0/state 2>/dev/null | grep -q configured; do sleep 1; done
-log "Laptop disconnected"
+# Debounced: this port never reports "not attached", it cycles through
+# default and addressed while re-enumerating, so a single non-configured
+# sample can be an RNDIS blip with the laptop still plugged in. Acting on one
+# flips the controller to host mode under a live laptop. Three consecutive
+# seconds costs nothing against a cable swap that takes several.
+UDC_STATE=/sys/class/udc/ci_hdrc.0/state
+GONE_NEEDED=3
+GONE=0
+while [ "$GONE" -lt "$GONE_NEEDED" ]; do
+  if grep -q "configured" "$UDC_STATE" 2>/dev/null; then
+    GONE=0
+  else
+    GONE=$((GONE + 1))
+  fi
+  sleep 1
+done
+log "Laptop disconnected (debounced)"
 step_end
 
 # Step 2: Re-init g_ether for DBC
@@ -892,22 +1072,54 @@ ifconfig usb0 192.168.7.1 netmask 255.255.255.0 up 2>/dev/null || true
 log "  usb0 ready"
 step_end
 
+# Steps 3-7 are stage 0: power the DBC into u-boot mass storage, flip the MDB
+# to USB host and write the disk image to the DBC's eMMC. An upgrade already
+# has a booted DBC and only needs the artifact install in onboot.sh, so it
+# skips the lot and goes straight to step 8.
+if [ "$MODE" = "flash" ]; then
+
 # Step 3: Power on DBC
 step_begin "Step 3: power on DBC"
 DBC_ALREADY_UMS=""
 
-lsc --redis-addr localhost:6379 dbc on-wait >> "$LOG_FILE" 2>&1
+dbc_power_on_wait
 if [ $? -ne 0 ]; then
-  log "  DBC on-wait failed, checking USB state..."
-  probe_dbc_or_fail
+  # Not proof the DBC is dead, and not a reason to abort on its own. on-wait
+  # waits for dashboard[ready] to read true and then verifies with a ping, all
+  # inside its own 60s default, and this point in the flow is where the user is
+  # still swapping the USB plug across. A board that is merely booting slowly,
+  # or one whose cable is not in yet, misses that window while being perfectly
+  # healthy. Probing is the destructive option (it drops g_ether and flips the
+  # MDB to USB host), so it stays the last resort, after the wait below.
+  log "  DBC on-wait returned non-zero, falling through to the reachability check"
 fi
 
 if [ "$DBC_ALREADY_UMS" != "yes" ]; then
-  # Quick ping check — if DBC isn't even pingable, don't waste time on SSH
-  if ! ping -c 1 -W 3 $DBC_IP >/dev/null 2>&1; then
-    log "  DBC not pingable after on-wait, checking USB state..."
+  # This wait is the cable swap. The DBC is only reachable once the user has
+  # moved the MDB's single USB plug off the laptop and onto the internal DBC
+  # cable: a screw-lock mini-B, in a footwell, by hand. Step 6 already budgets
+  # 300s for the same swap and says so in its comment; step 3 needs the swap
+  # to have happened too and used to allow one packet, which put a stopwatch
+  # on the user that nothing told them about.
+  #
+  # A dead DBC now takes the full window to report, which is the trade step 6
+  # already made. The blinker progress bar covers the wait.
+  DBC_PINGED=""
+  PING_ELAPSED=0
+  while [ $PING_ELAPSED -lt 240 ]; do
+    if ping -c 1 -W 2 $DBC_IP >/dev/null 2>&1; then
+      DBC_PINGED="yes"
+      break
+    fi
+    sleep 2
+    PING_ELAPSED=$((PING_ELAPSED + 2))
+    [ $((PING_ELAPSED % 30)) -eq 0 ] && log "  waiting for the DBC (${PING_ELAPSED}s, swap the USB cable if you have not)"
+  done
+  if [ "$DBC_PINGED" != "yes" ]; then
+    log "  DBC not pingable after ${PING_ELAPSED}s, checking USB state..."
     probe_dbc_or_fail
   fi
+  log "  DBC is reachable after ${PING_ELAPSED}s"
 fi
 step_end
 
@@ -926,7 +1138,7 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
     # Check if DBC is still reachable
     if ! ping -c 1 -W 2 $DBC_IP >/dev/null 2>&1; then
       log "  DBC not reachable, turning on..."
-      lsc --redis-addr localhost:6379 dbc on-wait >> "$LOG_FILE" 2>&1 || true
+      dbc_power_on_wait || true
       wait_dbc_ssh 30 || { log "  DBC SSH failed after on-wait"; continue; }
     fi
 
@@ -984,8 +1196,8 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
     log "  rebooting DBC (soft reboot, then forced power cycle)..."
     dbc_ssh 'reboot &' >> "$LOG_FILE" 2>&1 || log "  reboot failed"
     sleep 10
-    lsc --redis-addr localhost:6379 dbc off-wait --force >> "$LOG_FILE" 2>&1 || log "  forced DBC off failed"
-    lsc --redis-addr localhost:6379 dbc on >> "$LOG_FILE" 2>&1 || log "  DBC power-on failed"
+    dbc_power_off_wait || log "  forced DBC off failed"
+    dbc_power_on || log "  DBC power-on failed"
     sleep 3
 
     STEP4_OK="yes"
@@ -1032,6 +1244,7 @@ DBC_DEV=""
 # Earlier host-mode stints (step 3 probe) would otherwise pollute it.
 STEP6_JNL_START=$(wc -l < "$INSTALLER_DIR/trampoline-journal.log" 2>/dev/null || echo 0)
 STEP6_REPOWERED=""
+STEP6_RESCANNED=""
 while [ $ELAPSED -lt $TIMEOUT ]; do
   DBC_DEV="$(find_dbc_block_device 2>/dev/null)" && break
   ELAPSED=$((ELAPSED + 2))
@@ -1041,11 +1254,24 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
   # Halfway nudge: re-power the DBC once. Recovers a DBC that hung before
   # reaching UMS; bootcmd is armed with bootdelay=0, so a healthy DBC just
   # lands back in UMS. Harmless if the cable simply isn't connected yet.
-  if [ $ELAPSED -ge $((TIMEOUT / 2)) ] && [ -z "$STEP6_REPOWERED" ]; then
+  # First and most likely cause: the cable was plugged into the dashboard
+  # while the controller was still a gadget, and the switch to host gave the
+  # port no connect event to act on. Rescan early, because this is the normal
+  # sequence rather than a fault.
+  if [ $ELAPSED -ge 12 ] && [ -z "$STEP6_RESCANNED" ]; then
+    STEP6_RESCANNED="yes"
+    log "  nothing on the bus yet, rescanning..."
+    usb_host_rescan || true
+  fi
+  # Then the device side: re-power the dashboard, which recovers one that hung
+  # before reaching UMS. bootcmd is armed with bootdelay=0, so a healthy one
+  # lands straight back in UMS.
+  if [ $ELAPSED -ge $((TIMEOUT / 3)) ] && [ -z "$STEP6_REPOWERED" ]; then
     STEP6_REPOWERED="yes"
-    log "  halfway through the wait, re-powering DBC once..."
-    lsc --redis-addr localhost:6379 dbc off-wait --force >> "$LOG_FILE" 2>&1 || log "  DBC off failed"
-    lsc --redis-addr localhost:6379 dbc on >> "$LOG_FILE" 2>&1 || log "  DBC on failed"
+    log "  still nothing, re-powering the dashboard once..."
+    dbc_power_off_wait || log "  DBC off failed"
+    dbc_power_on || log "  DBC on failed"
+    STEP6_RESCANNED=""
   fi
   sleep 2
 done
@@ -1154,6 +1380,17 @@ done
 log "DBC flash complete"
 step_end
 
+fi  # end of MODE = flash
+
+# Prep is over in both modes. Flash mode already stopped the front ring at
+# step 7 so it was dark during the write; an upgrade never reached that line,
+# so stop it here. Both calls are idempotent, so flash mode pays nothing.
+# set_progress_phase 1 deliberately stays inside the guard above: phase 1
+# means "flashing", and an upgrade never flashes, so showing it would make
+# the blinker bar say something untrue.
+breathe_stop
+led_off 1
+
 # Flash done — advance to phase 2 (FL/FR filled, RR breathing). onboot.sh
 # reads PHASE_FILE after the MDB reboot and re-lights the same segments
 # before continuing to phase 3.
@@ -1172,7 +1409,7 @@ step_begin "Step 8: post-flash cleanup"
 log "  syncing..."
 sync
 log "  turning off DBC..."
-lsc --redis-addr localhost:6379 dbc off-wait 2>/dev/null || true
+dbc_power_off_wait || true
 
 # Write /data/onboot.sh on MDB — runs automatically on next boot via
 # librescoot-onboot.service (ConditionPathExists=/data/onboot.sh). The
@@ -1193,12 +1430,140 @@ DBC_IP="192.168.7.2"
 STATUS_FILE="$INSTALLER_DIR/trampoline-status"
 PHASE_FILE="$INSTALLER_DIR/trampoline-phase"
 mkdir -p "$INSTALLER_DIR"
+ONBOOT
+# The heredoc above is quoted, so onboot.sh inherits nothing from us. Close the
+# quoting for these lines to bake the values in, then reopen it so the rest of
+# the script keeps its literal $.
+#
+# Every substituted value onboot.sh reads at runtime has to appear here. One
+# left out is empty there, and an empty string fails every test quietly: the
+# autonomous finish is guarded on FINISH_ON_DEVICE = "true", so omitting it
+# skipped the settings restore, the completion record, the sweep and the
+# reboot on every run, while the LED still went green.
+cat >> /data/onboot.sh << ONBOOT_VARS
+DBC_MENDER="$DBC_MENDER"
+DBC_TARGET="$DBC_TARGET"
+MODE="$MODE"
+FINISH_ON_DEVICE="$FINISH_ON_DEVICE"
+FINISH_LANGUAGE="$FINISH_LANGUAGE"
+FINISH_CHANNEL="$FINISH_CHANNEL"
+START_KEYCARD="$START_KEYCARD"
+MDB_ACTION="$MDB_ACTION"
+MDB_TARGET="$MDB_TARGET"
+ONBOOT_VARS
+cat >> /data/onboot.sh << 'ONBOOT'
 
 log() { echo "$(date '+%H:%M:%S') $1" >> "$LOG"; }
 # Log all errors, always: every command's stderr appends to the log.
 exec 2>>"$LOG"
 dbc_ssh() { local t=0; while [ $t -lt 3 ]; do ssh -y -y root@$DBC_IP "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
 dbc_scp() { local t=0; while [ $t -lt 3 ]; do scp "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
+
+# dbc_ssh with a ceiling on how long the remote command may take.
+#
+# The bound is applied here and not on the dashboard: its image has no timeout
+# binary, so wrapping the remote command in one fails instantly with "timeout:
+# not found" and takes the install with it. This side is the MDB, which has
+# one. $1 is seconds, the rest is the command.
+dbc_ssh_bounded() {
+  local secs="$1"; shift
+  local t=0
+  while [ $t -lt 3 ]; do
+    timeout "$secs" ssh -y -y root@$DBC_IP "$@" && return 0
+    t=$((t+1)); sleep 3
+  done
+  return 1
+}
+
+# The dashboard's own screen, used as a progress display.
+#
+# Nothing owns the framebuffer while the install runs: the dashboard UI is not
+# started yet, so the console getty sits there showing a login prompt. Stop it,
+# clear the screen and hide the cursor, then write our own lines. getty comes
+# back on its own after a reboot, so this is re-run each time the board boots.
+DBC_CONSOLE=/dev/tty1
+dbc_console_init() {
+  # Escape sequences rather than setterm: setterm is util-linux and the
+  # bootstrap image does not carry it, so it was never the path that ran.
+  # \033[?25l hides the cursor, \033[2J clears, \033[H homes it.
+  dbc_ssh "systemctl stop getty@tty1 2>/dev/null;
+           printf '\033[?25l\033[2J\033[H' > $DBC_CONSOLE 2>/dev/null;
+           printf 'Librescoot wird installiert\n\n' > $DBC_CONSOLE" \
+    2>/dev/null || log "  (could not claim the dashboard console)"
+}
+
+# $1: the line to show. Best-effort throughout: the console is a courtesy and
+# never a reason to fail an install.
+dbc_say() {
+  dbc_ssh "printf '  %s\n' \"$1\" > $DBC_CONSOLE" 2>/dev/null || true
+}
+
+# What a failure puts on the dashboard. The laptop is unplugged by now, so
+# this screen and the LEDs are the whole report, and the screen is the only
+# one of the two that can say what actually went wrong.
+dbc_fail_say() {
+  dbc_say ""
+  dbc_say "Installation fehlgeschlagen"
+  dbc_say "$1"
+  dbc_say ""
+  dbc_say "USB-Kabel zurueck auf das MDB stecken und im"
+  dbc_say "Installer auf dem Laptop weitermachen."
+}
+
+# Dashboard power. Same definitions as the trampoline half, repeated for the
+# same reason log() and dbc_ssh() above are: the heredoc is quoted, so nothing
+# crosses into this script. Keep the two copies in step.
+DBC_POWER_GPIO=50
+
+dbc_gpio_ready() {
+  [ -d "/sys/class/gpio/gpio$DBC_POWER_GPIO" ] && return 0
+  echo "$DBC_POWER_GPIO" > /sys/class/gpio/export 2>/dev/null || true
+  sleep 1
+  [ -d "/sys/class/gpio/gpio$DBC_POWER_GPIO" ] || return 1
+  echo out > "/sys/class/gpio/gpio$DBC_POWER_GPIO/direction" 2>/dev/null || true
+  return 0
+}
+
+# $1: 1 to power the dashboard, 0 to cut it.
+dbc_power_set() {
+  if command -v lsc >/dev/null 2>&1; then
+    if [ "$1" = "1" ]; then
+      lsc --redis-addr localhost:6379 dbc on >> "$LOG" 2>&1 && return 0
+    else
+      lsc --redis-addr localhost:6379 dbc off >> "$LOG" 2>&1 && return 0
+    fi
+    log "  lsc dbc power failed, falling back to the GPIO"
+  fi
+  dbc_gpio_ready || { log "  WARNING: could not claim the dashboard power GPIO"; return 1; }
+  echo "$1" > "/sys/class/gpio/gpio$DBC_POWER_GPIO/value" 2>/dev/null
+}
+
+dbc_power_on()  { dbc_power_set 1; }
+dbc_power_off() { dbc_power_set 0; }
+
+# $1: seconds to wait, default 90.
+dbc_power_on_wait() {
+  local deadline="${1:-90}" elapsed=0
+  dbc_power_on
+  while [ "$elapsed" -lt "$deadline" ]; do
+    ping -c 1 -W 2 "$DBC_IP" >/dev/null 2>&1 && return 0
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+  return 1
+}
+
+# $1: seconds to wait, default 30.
+dbc_power_off_wait() {
+  local deadline="${1:-30}" elapsed=0
+  dbc_power_off
+  while [ "$elapsed" -lt "$deadline" ]; do
+    ping -c 1 -W 1 "$DBC_IP" >/dev/null 2>&1 || return 0
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+  return 1
+}
 
 # Re-light the blinker progress bar FIRST, before the slower service stops
 # and LP5562 init below, so the bar returns as early as possible after the
@@ -1252,6 +1617,12 @@ systemctl stop librescoot-bluetooth 2>/dev/null || true
 systemctl mask librescoot-bluetooth 2>/dev/null || true
 systemctl stop librescoot-ums 2>/dev/null || true
 systemctl mask librescoot-ums 2>/dev/null || true
+# pm-service is stopped rather than masked, so it comes back on any boot. On
+# the reboot path into this script that means it is running for the artifact
+# install and the tile copy, free to suspend or hibernate the board mid
+# transfer and leave the status stuck at running on a dark scooter. The finish
+# restarts it deliberately by rebooting.
+systemctl stop librescoot-pm 2>/dev/null || true
 
 # Initialize the LP5562 (RAG boot LED on i2c-2 @ 0x30) for direct PWM
 # control. After this, registers 0x02/0x03/0x04 are amber/green/red PWM.
@@ -1313,7 +1684,9 @@ bootled_blink_stop() {
 bootled_blink_green() {
   bootled_blink_stop
   systemd-run --unit="$BOOTLED_BLINK_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
-    while true; do
+    n=0
+    while [ $n -lt 12 ]; do
+      n=$((n + 1))
       i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
       i2cset -f -y 2 0x30 0x03 0xFF 2>/dev/null
       i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
@@ -1328,7 +1701,9 @@ bootled_blink_green() {
 bootled_blink_red() {
   bootled_blink_stop
   systemd-run --unit="$BOOTLED_BLINK_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
-    while true; do
+    n=0
+    while [ $n -lt 2250 ]; do
+      n=$((n + 1))
       i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
       i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
       i2cset -f -y 2 0x30 0x04 0xFF 2>/dev/null
@@ -1394,11 +1769,235 @@ i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
 i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
 bootled_guard_start
 
-# Restore original onboot.sh if backed up, otherwise delete ourselves
-if [ -f "$INSTALLER_DIR/onboot.sh.bak" ]; then
-  mv "$INSTALLER_DIR/onboot.sh.bak" /data/onboot.sh
-else
-  rm -f /data/onboot.sh
+# Do NOT delete ourselves here. onboot.sh used to remove itself before doing any
+# work, so a crash after this point left the vehicle with keycard, bluetooth and
+# ums masked, pm stopped, and nothing that would ever run again to undo it: a
+# scooter nobody can unlock and no light saying why. Retiring the script is now
+# the last act of the success branch (and of the give-up branch below), so an
+# interrupted run is simply retried on the next boot.
+#
+# Bounded, so a script that crashes every time cannot loop forever. On the last
+# attempt we stop protecting the install and start protecting the owner: unmask
+# what we masked, so the vehicle can at least be unlocked, and go red.
+# Retiring the script is deliberately a function, so both the success branch and
+# the give-up branch stop it running again, and nothing else does.
+retire_onboot() {
+  if [ -f "$INSTALLER_DIR/onboot.sh.bak" ]; then
+    mv "$INSTALLER_DIR/onboot.sh.bak" /data/onboot.sh
+  else
+    rm -f /data/onboot.sh
+  fi
+  rm -f "$INSTALLER_DIR/onboot-tries"
+}
+
+ONBOOT_TRIES=$(cat "$INSTALLER_DIR/onboot-tries" 2>/dev/null || echo 0)
+ONBOOT_TRIES=$((ONBOOT_TRIES + 1))
+echo "$ONBOOT_TRIES" > "$INSTALLER_DIR/onboot-tries"
+log "Onboot attempt $ONBOOT_TRIES/3"
+# Everything that turns a finished install into a scooter the user can ride
+# away on: settings, the choices from the welcome screen, the completion
+# record a returning laptop reads, and the reboot that puts back what the
+# install stopped.
+#
+# Defined here rather than beside its use: the generated script runs top to
+# bottom and the shortcut success below calls this long before the tail of
+# the file is reached.
+device_finish() {
+    # ---- Autonomous finish ------------------------------------------------
+    # Everything here is what the installer's finish phase would otherwise do
+    # over the laptop link. Doing it on the device is what lets the user walk
+    # away after the cable swap. Every input was known before the swap.
+    #
+    # Order matters: restore the settings first, then write the user's choices
+    # on top. Reversed, the restore clobbers the choices.
+    if [ "$FINISH_ON_DEVICE" = "true" ]; then
+      log "Finishing on device"
+
+      # Mirrors the installer's own branch. An upgrade promised to keep the
+      # user's settings, so the pre-install copy goes back. A clean install or
+      # a full image erased /data by design, so there is nothing to keep and
+      # the file must go rather than carry stale values into a fresh system.
+      # With no backup on an upgrade, fall back to settings.toml.default, the
+      # write-once snapshot the installer takes the first time it ever touches
+      # a board, and only then to the two shipped defaults. Deleting the file
+      # is the one thing that must not happen on that path.
+      # Leave alone keeps /data exactly as upgrade does, and both had their
+      # settings parked by the installer at connect time: auto-standby off and
+      # the alarm disabled, written before any plan existed. Restoring is the
+      # only thing that puts those back, so both take the same arm. Doing
+      # nothing here hands back a scooter with its alarm silently off.
+      case "$MDB_ACTION" in
+        upgrade|leave)
+          if [ -f /data/settings.toml.preinstall ]; then
+            mv -f /data/settings.toml.preinstall /data/settings.toml
+            log "  restored the pre-install settings"
+          elif [ -f /data/settings.toml.default ]; then
+            cp -f /data/settings.toml.default /data/settings.toml
+            log "  no backup, restored the first-install snapshot"
+          else
+            lsc set scooter.auto-standby-seconds 900 >/dev/null 2>&1 || true
+            lsc set alarm.enabled true >/dev/null 2>&1 || true
+            log "  no backup found, reset the two parked keys to defaults"
+          fi
+          ;;
+        *)
+          rm -f /data/settings.toml /data/settings.toml.preinstall
+          log "  wiped settings (action=$MDB_ACTION erased /data anyway)"
+          ;;
+      esac
+      systemctl restart librescoot-settings 2>/dev/null || true
+      # Let settings-service come back and republish before writing into it.
+      sleep 2
+
+      [ -n "$FINISH_LANGUAGE" ] && {
+        lsc set dashboard.language "$FINISH_LANGUAGE" >/dev/null 2>&1 &&
+          log "  dashboard.language=$FINISH_LANGUAGE" ||
+          log "  WARNING: could not persist dashboard.language"
+      }
+      [ -n "$FINISH_CHANNEL" ] && {
+        lsc ota channel "$FINISH_CHANNEL" >/dev/null 2>&1 &&
+          log "  ota channel=$FINISH_CHANNEL" ||
+          log "  WARNING: could not persist the OTA channel"
+      }
+
+      # Sweep our staging directory. This is also what stops the next connect
+      # reading the leftovers as an interrupted install. /data/ota is NOT
+      # touched: the artifact there is the delta base for a later OTA.
+      # The result record is what a later connect reads back instead.
+      {
+        echo "result: success"
+        echo "mode: $MODE"
+        echo "finished: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+        echo "mdb: $MDB_TARGET"
+        echo "dbc: $(cat "$INSTALLER_DIR/dbc-version" 2>/dev/null)"
+      } > /data/last-install
+      log "  wrote /data/last-install"
+    fi
+
+    # The verdict stays on the first line: the installer keys off that alone.
+    # The fields after it are optional, so an empty dbc-version (no artifact
+    # was staged) just renders as a value-less line the parser ignores.
+    {
+      echo "success"
+      echo "mode: $MODE"
+      echo "mdb: $MDB_TARGET"
+      echo "dbc: $(cat "$INSTALLER_DIR/dbc-version" 2>/dev/null)"
+      [ "$TILES_SKIPPED" = "yes" ] && echo "tiles: skipped, the dashboard did not come back in time"
+    } > "$STATUS_FILE"
+    cat "$LOG" >> "$STATUS_FILE"
+    # All MDB<->DBC work is done (image flashed, tiles uploaded, DBC powered
+    # off). Now and only now signal the user it's safe to swap the MDB's
+    # single USB port back to the laptop.
+    # Phase 4: all four segments filled, no active breathing.
+    relight_progress 4
+    # Stop the LED guard before starting the green blink, otherwise the
+    # guard re-asserts amber every 2s and we get an ugly amber/green flicker.
+    bootled_guard_stop
+    bootled_blink_green
+    # Let the completed bar register, then fade it out so it doesn't sit lit.
+    sleep 1
+    fade_progress_off
+    # The install is over, so the board runs what a board runs. A service left
+    # stopped here stays stopped: there is no laptop attached any more and no
+    # reboot coming to start it by other means, and the last instruction the
+    # owner was given ("unlock with a keycard you registered") needs the reader.
+    systemctl unmask librescoot-keycard keycard-service 2>/dev/null || true
+    systemctl start librescoot-keycard 2>/dev/null || systemctl start keycard-service 2>/dev/null || true
+    log "  started keycard-service"
+    # Unmask + start bluetooth — the installer's bluetoothPairing phase
+    # needs it running. No equivalent "wait for explicit start" concern.
+    systemctl unmask librescoot-bluetooth 2>/dev/null || true
+    systemctl start librescoot-bluetooth 2>/dev/null || true
+    # Re-enable UMS now that all USB-host work on the OTG UDC is done.
+    #
+    # ums-service builds its 1 GiB backing store with dd if=/dev/zero as the
+    # first thing it does, before it answers anything. On eMMC that is most of
+    # a minute of solid writes with the service unresponsive, landing exactly
+    # where the user reconnects. It only checks whether the file exists, so a
+    # sparse one made here is accepted and the dd never runs.
+    if [ ! -f /data/usb.drive ]; then
+      log "  pre-creating the UMS backing store"
+      if truncate -s 1G /data/usb.drive 2>/dev/null &&
+         mkfs.fat -F 32 /data/usb.drive >/dev/null 2>&1; then
+        log "  UMS backing store ready"
+      else
+        log "  could not pre-create it, ums-service will build its own"
+        rm -f /data/usb.drive
+      fi
+    fi
+    systemctl unmask librescoot-ums 2>/dev/null || true
+    systemctl start librescoot-ums 2>/dev/null || true
+
+    if [ "$FINISH_ON_DEVICE" = "true" ]; then
+      # Sweep last, so nothing above depends on what we are deleting, and so a
+      # crash before this point still leaves the log for a returning laptop.
+      # /data/ota is left alone deliberately: its artifact is the delta base.
+      # Retire before the sweep: retire_onboot restores a user's displaced
+      # /data/onboot.sh from $INSTALLER_DIR/onboot.sh.bak, and deleting the
+      # directory first leaves it nothing to restore from.
+      log "  retiring the onboot script"
+      retire_onboot
+      rm -rf "$INSTALLER_DIR"
+      # The reboot restores librescoot-pm, which is stopped on every connect and
+      # by this script and started by nothing else; applies usb0-policy in a
+      # shell that survives the gadget teardown it causes; and tears down the
+      # transient green-blink unit, which is what bounds the LED without a timer.
+      #
+      # It gets its own unit for the same reason every other detached loop here
+      # does: this script is about to exit, and a backgrounded subshell dies
+      # with the service cgroup that started it. Losing it means pm-service
+      # never comes back, usb0-policy is never applied, and the LED blinks
+      # green until someone pulls the power.
+      # Success is signalled by the scooter becoming usable. An LED the owner
+      # has to find and interpret is a worse message than a vehicle that
+      # unlocks, and it cannot be left blinking at nobody.
+      #
+      # This used to reboot, which restored pm-service, applied the usb0
+      # policy and tore down the blink unit in one go. A reboot comes back
+      # locked, so each of those is done directly instead. Restarting
+      # vehicle-service also re-claims the PWM channels the progress bar
+      # borrowed, without which the blinkers stay dark.
+      bootled_blink_stop
+      lsc set scooter.usb0-policy auto >/dev/null 2>&1 ||
+        log "  WARNING: could not restore usb0-policy"
+      systemctl start librescoot-pm 2>/dev/null ||
+        log "  WARNING: could not start librescoot-pm"
+      systemctl restart librescoot-vehicle 2>/dev/null ||
+        log "  WARNING: could not restart vehicle-service"
+      sync
+      # Give vehicle-service its state machine back before asking for a
+      # transition, or the unlock lands before it is listening.
+      sleep 5
+      if redis-cli -h localhost lpush scooter:state unlock >/dev/null 2>&1; then
+        dbc_say ""
+      dbc_say "Fertig. Der Roller entsperrt sich jetzt."
+      log "  unlocked: the install is done and the scooter is usable"
+      else
+        log "  WARNING: could not unlock, the owner has to use a keycard"
+      fi
+    else
+      retire_onboot
+    fi
+}
+
+if [ "$ONBOOT_TRIES" -gt 3 ]; then
+  log "ERROR: onboot has failed 3 times, giving up and restoring service"
+  retire_onboot
+  systemctl unmask librescoot-keycard keycard-service 2>/dev/null || true
+  systemctl unmask librescoot-bluetooth 2>/dev/null || true
+  systemctl start librescoot-bluetooth 2>/dev/null || true
+  systemctl unmask librescoot-ums 2>/dev/null || true
+  systemctl start librescoot-ums 2>/dev/null || true
+  {
+    echo "error: the post-reboot stage failed $((ONBOOT_TRIES - 1)) times and was abandoned"
+    echo "mode: $MODE"
+  } > "$STATUS_FILE"
+  cat "$LOG" >> "$STATUS_FILE" 2>/dev/null
+  dbc_fail_say "Der Teil nach dem Neustart ist mehrfach gescheitert."
+  bootled_guard_stop
+  bootled_blink_red
+  hazards_30s
+  exit 1
 fi
 
 # Brief wait for MDB services to settle — historically 20 s. Most of that
@@ -1411,7 +2010,11 @@ while [ $WAITED -lt 30 ]; do
   WAITED=$((WAITED + 1))
   sleep 1
 done
-log "  redis ready after ${WAITED}s"
+if redis-cli -h localhost ping >/dev/null 2>&1; then
+  log "  redis ready after ${WAITED}s"
+else
+  log "  WARNING: redis never answered in ${WAITED}s, continuing anyway"
+fi
 
 # Keep trying dbc on-wait until it succeeds — DBC may restart several times
 log "  powering on DBC (may take multiple attempts)..."
@@ -1419,7 +2022,7 @@ ATTEMPTS=0
 while [ $ATTEMPTS -lt 5 ]; do
   ATTEMPTS=$((ATTEMPTS + 1))
   log "  dbc on-wait attempt $ATTEMPTS..."
-  lsc --redis-addr localhost:6379 dbc on-wait 2>/dev/null && break
+  dbc_power_on_wait && break
   log "  attempt $ATTEMPTS failed, retrying..."
   sleep 5
 done
@@ -1438,7 +2041,7 @@ while [ $STABLE -lt 10 ] && [ $ELAPSED -lt 300 ]; do
     if [ $STABLE -gt 0 ]; then
       log "  ping dropped after ${STABLE}s stable — DBC rebooting, waiting 5s then turning on..."
       sleep 5
-      lsc --redis-addr localhost:6379 dbc on 2>/dev/null || true
+      dbc_power_on || true
     fi
     STABLE=0
   fi
@@ -1466,49 +2069,49 @@ while [ $ELAPSED -lt 300 ]; do
   ssh -y -y root@$DBC_IP 'echo ok' >/dev/null && break
   if ! ping -c 1 -W 2 $DBC_IP >/dev/null 2>&1 && [ $((ELAPSED % 20)) -eq 0 ]; then
     log "  DBC unreachable — re-asserting power (lsc dbc on)"
-    lsc --redis-addr localhost:6379 dbc on >/dev/null 2>&1 || true
+    dbc_power_on || true
   fi
   ELAPSED=$((ELAPSED + 5))
   sleep 5
 done
 
 if [ $ELAPSED -ge 300 ]; then
-  log "WARNING: DBC not reachable after 300s — skipping tiles"
-  echo "success" > "$STATUS_FILE"
-  cat "$LOG" >> "$STATUS_FILE"
-  lsc --redis-addr localhost:6379 dbc off 2>/dev/null || true
-  # No tiles to do, jump straight to all-done.
-  relight_progress 4
-  bootled_guard_stop
-  bootled_blink_green
-  # Let the completed bar register, then fade it out so it doesn't sit lit.
-  sleep 1
-  fade_progress_off
-  systemctl unmask librescoot-keycard keycard-service 2>/dev/null || true
-  systemctl unmask librescoot-bluetooth 2>/dev/null || true
-  systemctl start librescoot-bluetooth 2>/dev/null || true
-  systemctl unmask librescoot-ums 2>/dev/null || true
-  systemctl start librescoot-ums 2>/dev/null || true
+  if [ -n "$DBC_MENDER" ]; then
+    log "ERROR: DBC not reachable after 300s, artifact not installed"
+    echo "error: DBC not reachable, artifact not installed" > "$STATUS_FILE"
+    cat "$LOG" >> "$STATUS_FILE"
+    # Power the DBC down like the success branch below does, so a failed
+    # install does not leave it drawing on the aux battery indefinitely.
+    dbc_fail_say "Das Display hat sich nach dem Flashen nicht gemeldet."
+    dbc_power_off || true
+    bootled_guard_stop
+    bootled_blink_red
+    hazards_30s
+    exit 1
+  fi
+  # The artifact is on; the dashboard just did not come back in time for the
+  # maps. That is a finished install missing its maps, so it takes the same
+  # finish as every other success: the settings restore, the completion record
+  # the returning laptop reads, and the reboot are all still owed.
+  log "WARNING: DBC not reachable after 300s, skipping tiles"
+  TILES_SKIPPED="yes"
+  dbc_power_off || true
+  device_finish
   exit 0
 fi
 log "  DBC reachable"
-ONBOOT
+dbc_console_init
 
-# Append tile installation commands with actual paths
-if [ "$INSTALL_TILES" = "true" ]; then
-  cat >> /data/onboot.sh << TILES
-# DBC connection is up — now advance to phase 3 (BL breathing = "maps"). From
-# here a slow BL blinker means the tile copy itself is slow, not a connection
-# problem.
-relight_progress 3
-dbc_ssh "mkdir -p /data/maps /data/valhalla" || log "WARNING: mkdir failed"
-
-# Detect whether DBC has data-server running (new firmware) or needs the
-# Python fallback (older firmware). data-server identifies itself via the
-# Server response header. Both servers are rooted at /data, so the URL
-# layout is identical either way.
+# Make sure something on the DBC can take a PUT under /data. data-server
+# identifies itself via the Server response header; older DBC images have
+# none, so fall back to a small Python PUT server. Both are rooted at /data,
+# so the URL layout is identical. Call this again after any DBC reboot: a
+# reboot takes the Python fallback with it, and only the caller knows when
+# one happened.
 DBC_PYTHON_STARTED="no"
-if curl -sSI "http://\$DBC_IP:8080/" 2>/dev/null | grep -qi "^Server: librescoot-data-server"; then
+ensure_dbc_upload_server() {
+DBC_PYTHON_STARTED="no"
+if curl -sSI --connect-timeout 10 --max-time 20 "http://$DBC_IP:8080/" 2>/dev/null | grep -qi "^Server: librescoot-data-server"; then
   log "  DBC has data-server running"
 else
   log "  DBC lacks data-server, starting Python fallback..."
@@ -1543,29 +2146,280 @@ PYEOF
 nohup python3 /tmp/upload_srv.py > /dev/null 2>&1 &' && DBC_PYTHON_STARTED="yes" || log "WARNING: failed to start DBC upload server"
   sleep 2
 fi
+}  # end of ensure_dbc_upload_server; body is unindented because the PYEOF
+   # heredoc terminator and the Python source below it are column-sensitive.
+ensure_dbc_upload_server
 
-TILE_ERRORS=0
-
-upload_tile() {
-  local src="\$1" dst="\$2" name="\$3"
+# Upload one file to the DBC. $2 is the path under /data, so
+# upload_to_dbc /x/y.mender /ota/dbc/y.mender writes /data/ota/dbc/y.mender.
+# Lives here rather than in the appended tile block because the artifact
+# install below needs it whether or not tiles were selected.
+upload_to_dbc() {
+  local src="$1" dst="$2" name="$3"
   local attempt=0
-  while [ \$attempt -lt 3 ]; do
-    attempt=\$((attempt + 1))
-    log "  uploading \$name (attempt \$attempt/3)..."
-    if curl -T "\$src" "http://\$DBC_IP:8080\$dst" 2>>"\$LOG"; then
-      log "  \$name done"
+  while [ $attempt -lt 3 ]; do
+    attempt=$((attempt + 1))
+    log "  uploading $name (attempt $attempt/3)..."
+    # -f so an HTTP 405/5xx is a failure. Without it curl exits 0 on an
+    # error response and we would log the upload as done, only finding out
+    # when mender cannot find the file.
+    if curl -f -T "$src" --connect-timeout 15 \
+         --speed-limit 10240 --speed-time 120 \
+         "http://$DBC_IP:8080$dst" 2>>"$LOG"; then
+      log "  $name done"
       return 0
     fi
-    log "  \$name upload failed, restarting DBC..."
-    lsc --redis-addr localhost:6379 dbc on-wait 2>/dev/null || true
+    log "  $name upload failed, restarting DBC..."
+    dbc_power_on_wait || true
+    # The power cycle took any Python fallback server with it, and on a clean
+    # install that fallback is the only PUT endpoint the DBC has, so attempts
+    # 2 and 3 cannot succeed without bringing it back.
+    ensure_dbc_upload_server
     sleep 5
   done
-  log "ERROR: \$name upload failed after 3 attempts"
+  log "ERROR: $name upload failed after 3 attempts"
   return 1
 }
 
+# Bail out of the artifact install. Takes back any command we queued on
+# scooter:update:dbc (it is a persistent queue, so one nobody consumed gets
+# popped by the next update-service that ever starts on this board and
+# reinstalls the artifact behind the user's back), powers the DBC down so a
+# failed install does not sit draining the aux battery, and leaves the red
+# blink and hazards for whoever comes back to the vehicle. $1 becomes the
+# status file's first line and must start with "error: ".
+DBC_UPDATE_CMD=""
+artifact_fail() {
+  log "ERROR: $1"
+  dbc_fail_say "$1"
+  if [ -n "$DBC_UPDATE_CMD" ]; then
+    redis-cli -h localhost lrem scooter:update:dbc 0 "$DBC_UPDATE_CMD" >/dev/null 2>&1 || true
+    DBC_UPDATE_CMD=""
+  fi
+  echo "$1" > "$STATUS_FILE"
+  cat "$LOG" >> "$STATUS_FILE"
+  dbc_power_off || true
+  bootled_guard_stop
+  bootled_blink_red
+  hazards_30s
+  exit 1
+}
+
+# Install the DBC artifact, if one was staged. This runs in both modes: a
+# clean install has just written the stage-0 image and the DBC is booted into
+# it, and an upgrade skipped straight here. /data survives a mender install,
+# so tiles copied afterwards are unaffected by the reboot below.
+if [ -n "$DBC_MENDER" ]; then
+  # The trampoline body checked this before it rebooted the MDB, but the
+  # reboot sits between the two. An artifact that was asked for and is not
+  # here is an error, never "no artifact was requested".
+  [ -f "$DBC_MENDER" ] || artifact_fail "error: DBC artifact missing on the MDB: $DBC_MENDER"
+
+  relight_progress 3
+  DBC_ART_NAME=$(basename "$DBC_MENDER")
+  DBC_ART_PATH="/data/ota/dbc/$DBC_ART_NAME"
+  log "Installing DBC artifact $DBC_ART_NAME"
+  dbc_say "Firmware wird installiert, das dauert ein paar Minuten"
+
+  # What the board runs right now, so a reboot that changes nothing can be
+  # told from one that installed something. Read before anything is written.
+  DBC_VER_BEFORE=$(ssh -y -y root@$DBC_IP 'grep ^VERSION_ID= /etc/os-release' 2>/dev/null | cut -d= -f2 | tr -d '"')
+  DBC_ART_BEFORE=$(ssh -y -y root@$DBC_IP 'mender-update show-artifact' 2>/dev/null | head -n 1 | tr -d '\r')
+  log "  DBC currently runs ${DBC_VER_BEFORE:-unknown} (artifact ${DBC_ART_BEFORE:-unknown})"
+
+  dbc_ssh "mkdir -p /data/ota/dbc" || log "WARNING: mkdir /data/ota/dbc failed"
+
+  # A full /data on the DBC would otherwise surface as three failed curl
+  # attempts with a power cycle between each, ending ten minutes later in a
+  # message about the transfer rather than about the disk. Same 64 MiB
+  # margin the MDB's own preflight uses.
+  DBC_ART_BYTES=$(stat -c %s "$DBC_MENDER" 2>/dev/null || wc -c < "$DBC_MENDER")
+  DBC_NEED_KB=$((DBC_ART_BYTES / 1024 + 65536))
+  DBC_FREE_KB=$(ssh -y -y root@$DBC_IP 'df -kP /data' 2>/dev/null | awk 'NR==2 {print $4}')
+  case "$DBC_FREE_KB" in
+    ''|*[!0-9]*)
+      log "  could not read DBC free space, transferring anyway"
+      ;;
+    *)
+      log "  DBC /data has ${DBC_FREE_KB}K free, needs ${DBC_NEED_KB}K"
+      if [ "$DBC_FREE_KB" -lt "$DBC_NEED_KB" ]; then
+        artifact_fail "error: not enough space on the DBC: ${DBC_FREE_KB}K free in /data, ${DBC_NEED_KB}K needed for $DBC_ART_NAME"
+      fi
+      ;;
+  esac
+
+  if ! upload_to_dbc "$DBC_MENDER" "/ota/dbc/$DBC_ART_NAME" "DBC artifact"; then
+    artifact_fail "error: failed to transfer the DBC artifact"
+  fi
+
+  DBC_OTA_OK="no"
+  if [ "$MODE" = "upgrade" ]; then
+    # The board already runs update-service, so hand the artifact to it: it
+    # checks the artifact fits the target slot before running mender, and it
+    # applies the boot assets from the new rootfs at first start. It listens
+    # on the MDB's redis, not the DBC's.
+    #
+    # Flash mode deliberately does not do this. A stage-0 board has no
+    # update-service to answer, and scooter:update:dbc is a persistent queue,
+    # so the command would simply sit there until the rootfs we are about to
+    # install boots one, which would then reinstall the same artifact minutes
+    # after the installer told the user the job was done.
+    DBC_UPDATE_CMD="update-from-file:$DBC_ART_PATH"
+    redis-cli -h localhost hset ota status:dbc "" >/dev/null 2>&1 || true
+    redis-cli -h localhost lpush scooter:update:dbc "$DBC_UPDATE_CMD" >/dev/null 2>&1 || true
+
+    DBC_OTA_VERDICT="timeout"
+    DBC_OTA_DRAINED="no"
+    WAITED=0
+    while [ $WAITED -lt 900 ]; do
+      ST=$(redis-cli -h localhost hget ota status:dbc 2>/dev/null)
+      case "$ST" in
+        pending-reboot|success) DBC_OTA_VERDICT="ok"; break ;;
+        error*|failed*) DBC_OTA_VERDICT="refused"; break ;;
+      esac
+      # Nothing picked the command up within 60s, so nothing is listening.
+      # Take it back out of the queue before falling back to mender, or it
+      # outlives this script.
+      if [ "$DBC_OTA_DRAINED" = "no" ] && [ $WAITED -ge 60 ] && [ -z "$ST" ]; then
+        DBC_OTA_DRAINED="yes"
+        # lrem prints how many it removed. A redis that is not answering prints
+        # nothing, which is not "0" and so used to read as "someone else took
+        # it": the script then waited out the full handshake timeout and blamed
+        # the artifact. Ask redis whether it is there before reading its answer.
+        LREM_OUT="$(redis-cli -h localhost lrem scooter:update:dbc 0 "$DBC_UPDATE_CMD" 2>/dev/null)"
+        if ! redis-cli -h localhost ping >/dev/null 2>&1; then
+          log "  redis is not answering, cannot hand off to update-service"
+          DBC_UPDATE_CMD=""
+          DBC_OTA_VERDICT="absent"
+          break
+        fi
+        if [ "$LREM_OUT" = "0" ]; then
+          # It was popped between two polls after all, so an update-service
+          # does exist here. Keep waiting rather than becoming a second
+          # writer on the same slot.
+          log "  queued command was consumed between polls, staying on the handshake"
+        else
+          DBC_UPDATE_CMD=""
+          DBC_OTA_VERDICT="absent"
+          break
+        fi
+      fi
+      WAITED=$((WAITED + 5))
+      sleep 5
+    done
+
+    case "$DBC_OTA_VERDICT" in
+      ok)
+        DBC_OTA_OK="yes"
+        DBC_UPDATE_CMD=""
+        log "  update-service reports: $ST"
+        ;;
+      absent)
+        log "  no update-service response, installing with mender directly"
+        ;;
+      refused)
+        # update-service has already judged this artifact unfit for the
+        # target slot. Calling mender ourselves would reinstall exactly what
+        # it refused and would skip the boot assets it applies at first start.
+        artifact_fail "error: DBC update-service refused the artifact: $ST"
+        ;;
+      *)
+        # 900s with the handshake still in progress. The install may well be
+        # in flight, so a direct mender call here would be a second writer.
+        artifact_fail "error: DBC artifact install timed out after 900s (status: ${ST:-none})"
+        ;;
+    esac
+  fi
+
+  if [ "$DBC_OTA_OK" != "yes" ]; then
+    log "  running mender-update install on the DBC"
+    if ! dbc_ssh_bounded 900 "mender-update install $DBC_ART_PATH"; then
+      artifact_fail "error: DBC artifact install failed"
+    fi
+  fi
+
+  dbc_say "Firmware installiert, Display startet neu"
+  log "  rebooting DBC into the new rootfs"
+  dbc_ssh 'sync; reboot &' >> "$LOG" 2>&1 || log "  DBC reboot command failed"
+  sleep 20
+  ELAPSED=0
+  while [ $ELAPSED -lt 300 ]; do
+    ssh -y -y root@$DBC_IP 'echo ok' >/dev/null 2>&1 && break
+    if ! ping -c 1 -W 2 $DBC_IP >/dev/null 2>&1 && [ $((ELAPSED % 20)) -eq 0 ]; then
+      dbc_power_on || true
+    fi
+    ELAPSED=$((ELAPSED + 5))
+    sleep 5
+  done
+  if [ $ELAPSED -ge 300 ]; then
+    artifact_fail "error: DBC did not come back after the artifact install"
+  fi
+  # Nothing here has proven the install took. u-boot rolls back a rootfs that
+  # never commits, and the rolled-back board answers SSH on the old version
+  # exactly as happily. An unreadable version is a failure too: written out
+  # empty it renders as an absent dbc: line and the screen falls back to a
+  # bare success message.
+  DBC_VER=$(ssh -y -y root@$DBC_IP 'grep ^VERSION_ID= /etc/os-release' 2>/dev/null | cut -d= -f2 | tr -d '"')
+  DBC_ART_AFTER=$(ssh -y -y root@$DBC_IP 'mender-update show-artifact' 2>/dev/null | head -n 1 | tr -d '\r')
+  log "  DBC now runs ${DBC_VER:-unknown} (artifact ${DBC_ART_AFTER:-unknown})"
+  dbc_console_init
+  dbc_say "Firmware $DBC_VER laeuft"
+  [ -n "$DBC_VER" ] || artifact_fail "error: could not read the DBC version after the artifact install"
+  if [ -n "$DBC_TARGET" ]; then
+    # Lower-cased and with the tag's optional v prefix dropped, the same
+    # normalisation the installer applies to the MDB.
+    DBC_VER_N=$(echo "$DBC_VER" | tr 'A-Z' 'a-z' | sed 's/^v//')
+    DBC_TARGET_N=$(echo "$DBC_TARGET" | tr 'A-Z' 'a-z' | sed 's/^v//')
+    if [ "$DBC_VER_N" != "$DBC_TARGET_N" ]; then
+      artifact_fail "error: the DBC came back on $DBC_VER instead of $DBC_TARGET, so the artifact install was rolled back"
+    fi
+  elif [ "$DBC_VER" = "$DBC_VER_BEFORE" ] && [ "$DBC_ART_AFTER" = "$DBC_ART_BEFORE" ]; then
+    # No target to compare against, so fall back to "did anything change at
+    # all": a rollback leaves both readings exactly as they were.
+    artifact_fail "error: the DBC came back unchanged on $DBC_VER, so the artifact install was rolled back"
+  fi
+  # os-release cannot tell a stage-0 image from a full one, same distro and
+  # same VERSION_ID, so a clean install that rolled back would pass the
+  # version check above. The artifact name is the discriminator.
+  case "$DBC_ART_AFTER" in
+    *minimal*)
+      artifact_fail "error: the DBC is still running the bootstrap image ($DBC_ART_AFTER) after the artifact install"
+      ;;
+  esac
+  echo "$DBC_VER" > "$INSTALLER_DIR/dbc-version"
+
+  # The reboot above took any Python fallback server with it, and the tile
+  # block below uploads over the same link, so re-probe now.
+  ensure_dbc_upload_server
+fi
+ONBOOT
+
+# Append tile installation commands with actual paths
+if [ "$INSTALL_TILES" = "true" ]; then
+  cat >> /data/onboot.sh << TILES
+# DBC connection is up — now advance to phase 3 (BL breathing = "maps"). From
+# here a slow BL blinker means the tile copy itself is slow, not a connection
+# problem.
+relight_progress 3
+dbc_ssh "mkdir -p /data/maps /data/valhalla" || log "WARNING: mkdir failed"
+
+TILE_ERRORS=0
+
+# A path here means the user asked for these tiles, so a file that is not
+# there is a staging failure and not "none were wanted". Reporting success
+# without saying so hands back a scooter with no maps and no explanation.
+if [ -n "$OSM_TILES_FILE" ] && [ ! -f "$OSM_TILES_FILE" ]; then
+  log "ERROR: display tiles staged at $OSM_TILES_FILE are missing"
+  TILE_ERRORS=\$((TILE_ERRORS + 1))
+fi
+if [ -n "$VALHALLA_TILES_FILE" ] && [ ! -f "$VALHALLA_TILES_FILE" ]; then
+  log "ERROR: routing tiles staged at $VALHALLA_TILES_FILE are missing"
+  TILE_ERRORS=\$((TILE_ERRORS + 1))
+fi
+
 if [ -f "$OSM_TILES_FILE" ]; then
-  upload_tile "$OSM_TILES_FILE" "/maps/map.mbtiles" "display tiles" || TILE_ERRORS=\$((TILE_ERRORS + 1))
+  dbc_say "Karten werden uebertragen"
+  upload_to_dbc "$OSM_TILES_FILE" "/maps/map.mbtiles" "display tiles" || TILE_ERRORS=\$((TILE_ERRORS + 1))
 fi
 if [ -f "$VALHALLA_TILES_FILE" ]; then
   case "$VALHALLA_TILES_FILE" in
@@ -1573,7 +2427,8 @@ if [ -f "$VALHALLA_TILES_FILE" ]; then
       # Valhalla mmaps the tar, so it has to land uncompressed. Decompressing on
       # the DBC keeps the transfer about a third the size; zstd ships in the
       # DBC image and ums-service already installs routing tiles this way.
-      if upload_tile "$VALHALLA_TILES_FILE" "/valhalla/tiles.tar.zst" "routing tiles"; then
+      dbc_say "Routing-Karten werden uebertragen"
+      if upload_to_dbc "$VALHALLA_TILES_FILE" "/valhalla/tiles.tar.zst" "routing tiles"; then
         if dbc_ssh "zstd -d -f -o /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar.zst && mv -f /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar && rm -f /data/valhalla/tiles.tar.zst"; then
           dbc_ssh "systemctl restart valhalla" 2>/dev/null || true
         else
@@ -1586,7 +2441,7 @@ if [ -f "$VALHALLA_TILES_FILE" ]; then
       fi
       ;;
     *)
-      if upload_tile "$VALHALLA_TILES_FILE" "/valhalla/tiles.tar" "routing tiles"; then
+      if upload_to_dbc "$VALHALLA_TILES_FILE" "/valhalla/tiles.tar" "routing tiles"; then
         dbc_ssh "systemctl restart valhalla" 2>/dev/null || true
       else
         TILE_ERRORS=\$((TILE_ERRORS + 1))
@@ -1604,13 +2459,14 @@ fi
 
 cat >> /data/onboot.sh << 'ONBOOT_END'
 # Turn off DBC
-lsc --redis-addr localhost:6379 dbc off 2>/dev/null || true
+dbc_power_off || true
 
 if [ "${TILE_ERRORS:-0}" -gt 0 ]; then
   log "=========================================="
   log "Installation FAILED — $TILE_ERRORS tile upload(s) failed"
   log "=========================================="
   echo "error: $TILE_ERRORS tile upload(s) failed" > "$STATUS_FILE"
+  dbc_fail_say "$TILE_ERRORS Karten-Uebertragung(en) fehlgeschlagen." 
   cat "$LOG" >> "$STATUS_FILE"
   # Switch the boot LED from solid amber (set at the top of onboot.sh) to
   # blinking red, and add hazards (capped at 30s so an abandoned error
@@ -1624,50 +2480,68 @@ else
   log "=========================================="
   log "Installation complete - SUCCESS"
   log "=========================================="
-  echo "success" > "$STATUS_FILE"
-  cat "$LOG" >> "$STATUS_FILE"
-  # All MDB<->DBC work is done (image flashed, tiles uploaded, DBC powered
-  # off). Now and only now signal the user it's safe to swap the MDB's
-  # single USB port back to the laptop.
-  # Phase 4: all four segments filled, no active breathing.
-  relight_progress 4
-  # Stop the LED guard before starting the green blink, otherwise the
-  # guard re-asserts amber every 2s and we get an ugly amber/green flicker.
-  bootled_guard_stop
-  bootled_blink_green
-  # Let the completed bar register, then fade it out so it doesn't sit lit.
-  sleep 1
-  fade_progress_off
-  # Unmask keycard-service. The installer's keycardSetup phase will start
-  # it explicitly. We deliberately do NOT start it now: a freshly flashed
-  # device with no master would auto-enter master-learning and silently
-  # teach in whatever card the user taps before they reach explicit setup.
-  systemctl unmask librescoot-keycard keycard-service 2>/dev/null || true
-  # Unmask + start bluetooth — the installer's bluetoothPairing phase
-  # needs it running. No equivalent "wait for explicit start" concern.
-  systemctl unmask librescoot-bluetooth 2>/dev/null || true
-  systemctl start librescoot-bluetooth 2>/dev/null || true
-  # Re-enable UMS now that all USB-host work on the OTG UDC is done.
-  systemctl unmask librescoot-ums 2>/dev/null || true
-  systemctl start librescoot-ums 2>/dev/null || true
+
+  device_finish
 fi
 ONBOOT_END
 chmod +x /data/onboot.sh
 log "  onboot.sh written"
 
-# Mark as rebooting (installer checks for "success" or "rebooting")
-echo "rebooting" > "$STATUS_FILE"
+# Mark the job as still running. The dashboard has not been touched yet:
+# onboot.sh below does all of it. A laptop that reads the file at this point
+# must keep waiting, which is why this is not a shade of success.
+echo "running" > "$STATUS_FILE"
 cat "$LOG_FILE" >> "$STATUS_FILE"
 
 step_end  # close step 8
 log "Total trampoline wall-clock: $(($(date +%s) - SCRIPT_T0))s"
 
-# Phase 2 (FL/FR filled, RR breathing) is now the user-visible "flash
-# done, MDB rebooting" cue — onboot.sh reads PHASE_FILE and re-lights
-# the same state after the reboot, so the progress bar looks continuous
-# across MDB reboot. bootled_guard is left running so amber stays solid
-# right up until systemd-shutdown tears down our cgroup.
+# Phase 2 (FL/FR filled, RR breathing) is the user-visible "flash done"
+# cue. onboot.sh reads PHASE_FILE and re-lights the same state, so the
+# progress bar is continuous whichever way we reach it. bootled_guard is
+# its own systemd unit and keeps amber solid across the handover.
 breathe_stop
 [ -n "$JOURNAL_PID" ] && kill $JOURNAL_PID 2>/dev/null
+
+# The dashboard work lives in onboot.sh and is reached one of two ways.
+#
+# The only thing a reboot contributes is gadget mode: the flash leaves the
+# controller in host, and the dashboard has to enumerate the MDB as a gadget
+# to be reachable over ethernet again. The controller flips at runtime in
+# well under a second (scripts/verify-usb-role.sh measures it), against
+# forty seconds of reboot during which every light on the scooter is dark
+# and the user has nothing to read.
+#
+# So restore the role and run onboot.sh directly, and keep the reboot for
+# when that does not work. onboot.sh is written out either way, because the
+# rescue and watchdog paths still reboot into it, and it retires itself once
+# it is done, so it cannot run twice.
+#
+# It goes into its own unit rather than inheriting this scope: this script
+# is about to exit, and onboot.sh outlives it by many minutes.
+if restore_gadget; then
+  log "  gadget restored without a reboot, handing over to onboot.sh"
+  # The active segment of the progress bar breathes from a background
+  # subshell. onboot.sh runs as its own unit and tracks only the PID it
+  # started, so anything of ours still running would pulse a blinker
+  # underneath its signalling, including the green one that means done.
+  # A reboot used to take this with it. Stop the animation and leave the
+  # filled segments lit, which is what keeps the bar continuous.
+  if [ -n "$PROGRESS_BREATHE_PID" ]; then
+    kill $PROGRESS_BREATHE_PID 2>/dev/null
+    PROGRESS_BREATHE_PID=""
+    log "  stopped the progress animation before the handover"
+  fi
+  systemctl stop librescoot-onboot-inline.service 2>/dev/null
+  if systemd-run --unit=librescoot-onboot-inline --collect --quiet \
+      --slice=system.slice /bin/sh /data/onboot.sh; then
+    exit 0
+  fi
+  # Nothing is scheduled to run onboot.sh now, and the status file still says
+  # running. The reboot below is what the boot path needs to pick it up.
+  log "  could not start onboot.sh as a unit, rebooting into it instead"
+fi
+
+log "  gadget restore failed, falling back to a reboot"
 log "  rebooting MDB..."
 reboot
