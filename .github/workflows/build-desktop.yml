@@ -345,8 +345,13 @@ jobs:
         with:
           files: dist/*
           body_path: release-notes.md
+          # Hyphenated tags (v1.2.3-beta.1) are prereleases: hidden from
+          # /releases/latest, so the downloads site and installers never
+          # pick them up as the current version.
+          prerelease: ${{ contains(github.ref_name, '-') }}
 
       - name: Generate app token for site rebuilds
+        if: ${{ !contains(github.ref_name, '-') }}
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
@@ -356,6 +361,7 @@ jobs:
           repositories: downloads.librescoot.org,librescoot.github.io
 
       - name: Trigger downloads site rebuild
+        if: ${{ !contains(github.ref_name, '-') }}
         uses: peter-evans/repository-dispatch@v4
         with:
           token: ${{ steps.app-token.outputs.token }}
@@ -363,6 +369,7 @@ jobs:
           event-type: releases-changed
 
       - name: Trigger main site rebuild
+        if: ${{ !contains(github.ref_name, '-') }}
         uses: peter-evans/repository-dispatch@v4
         with:
           token: ${{ steps.app-token.outputs.token }}
