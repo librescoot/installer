@@ -1163,7 +1163,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get phaseInstallPlanDescription =>
-      'Festlegen, was mit jeder Platine passiert';
+      'Festlegen, was mit jedem Board passiert';
 
   @override
   String get phaseMdbArtifactTitle => 'MDB-Update';
@@ -1182,11 +1182,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String installPlanIntro(String version) {
-    return 'Aktion pro Platine auswählen. Zielversion: $version';
+    return 'Aktion pro Board auswählen. Zielversion: $version';
   }
 
   @override
-  String get boardMdb => 'MDB (Hauptplatine)';
+  String get boardMdb => 'MDB (Hauptboard)';
 
   @override
   String get boardDbc => 'DBC (Display)';
@@ -1233,7 +1233,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get actionLeave => 'Unverändert lassen';
 
   @override
-  String get actionLeaveDetail => 'Diese Platine wird nicht angefasst';
+  String get actionLeaveDetail => 'Dieses Board wird nicht angefasst';
 
   @override
   String get upgradeBlockedNotLibrescoot =>
@@ -1241,15 +1241,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get upgradeBlockedStateUnknown =>
-      'Aktualisieren setzt eine bekannte Version auf dieser Platine voraus';
+      'Aktualisieren setzt eine bekannte Version auf diesem Board voraus';
 
   @override
   String get upgradeBlockedMinimalImage =>
-      'Diese Platine läuft mit einem Bootstrap-Image und muss installiert werden';
+      'Dieses Board läuft mit einem Bootstrap-Image und muss installiert werden';
 
   @override
   String get upgradeBlockedNoMender =>
-      'Diese Platine hat keinen Update-Client und kann nur neu installiert werden';
+      'Dieses Board hat keinen Update-Client und kann nur neu installiert werden';
 
   @override
   String get planTilesNeedDbcHandoff =>
@@ -1257,7 +1257,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get actionLeaveBlockedStockMdb =>
-      'Eine Serien-Hauptplatine muss installiert werden, bevor sonst etwas geht';
+      'Ein Serien-Hauptboard muss installiert werden, bevor sonst etwas geht';
 
   @override
   String get planDbcNeedsLibrescootMdb =>
@@ -1322,7 +1322,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get artifactNoneDownloaded =>
-      'Für diese Platine wurde kein Firmware-Artefakt heruntergeladen.';
+      'Für dieses Board wurde kein Firmware-Artefakt heruntergeladen.';
 
   @override
   String get dbcImageMissing =>
@@ -1334,7 +1334,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get artifactPreflightNoMender =>
-      'Diese Platine hat keinen Update-Client und kann daher kein Firmware-Artefakt aufnehmen.';
+      'Dieses Board hat keinen Update-Client und kann daher kein Firmware-Artefakt aufnehmen.';
 
   @override
   String artifactPreflightOtaBusy(String status) {
@@ -1371,7 +1371,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcCleanInstallBody =>
-      'Die zuletzt bekannte Version des DBC ist nur das, was das MDB gesehen hat, als beide zusammen mit Strom versorgt waren. Eine Platine, die der Plan für aktualisierbar hielt, hat also womöglich gar keinen Update-Client. Bei einer Neuinstallation wird zuerst das Bootstrap-Image geschrieben, dabei wird die Datenpartition des DBC neu formatiert und die Offline-Karten gehen verloren. Alles auf dem MDB bleibt unberührt, auch Einstellungen, angelernte Keycards und Fahrtenhistorie.\n\nDafür muss das Kabel noch einmal umgesteckt werden: Der Installer legt die Dateien ab, du schraubst das DBC-Kabel zurück an das MDB, der Rest läuft unbeaufsichtigt.';
+      'Die zuletzt bekannte Version des DBC ist nur das, was das MDB gesehen hat, als beide zusammen mit Strom versorgt waren. Ein Board, das der Plan für aktualisierbar hielt, hat also womöglich gar keinen Update-Client. Bei einer Neuinstallation wird zuerst das Bootstrap-Image geschrieben, dabei wird die Datenpartition des DBC neu formatiert und die Offline-Karten gehen verloren. Alles auf dem MDB bleibt unberührt, auch Einstellungen, angelernte Keycards und Fahrtenhistorie.\n\nDafür muss das Kabel noch einmal umgesteckt werden: Der Installer legt die Dateien ab, du schraubst das DBC-Kabel zurück an das MDB, der Rest läuft unbeaufsichtigt.';
 
   @override
   String get dbcCleanInstallConfirm => 'DBC löschen und installieren';

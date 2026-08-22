@@ -383,13 +383,13 @@
   "finished": "Fertig",
   "keepCachedDownloads": "Heruntergeladene Dateien behalten",
   "phaseInstallPlanTitle": "Installationsplan",
-  "phaseInstallPlanDescription": "Festlegen, was mit jeder Platine passiert",
+  "phaseInstallPlanDescription": "Festlegen, was mit jedem Board passiert",
   "phaseMdbArtifactTitle": "MDB-Update",
   "phaseMdbArtifactDescription": "Firmware-Artefakt installieren",
   "majorStepMdbUpgrade": "MDB aktualisieren",
   "majorStepDbcUpgrade": "DBC aktualisieren",
   "installPlanHeading": "Was soll der Installer tun?",
-  "installPlanIntro": "Aktion pro Platine auswählen. Zielversion: {version}",
+  "installPlanIntro": "Aktion pro Board auswählen. Zielversion: {version}",
   "@installPlanIntro": {
     "placeholders": {
       "version": {
@@ -397,7 +397,7 @@
       }
     }
   },
-  "boardMdb": "MDB (Hauptplatine)",
+  "boardMdb": "MDB (Hauptboard)",
   "boardDbc": "DBC (Display)",
   "boardVersionCurrent": "Aktuell {version}",
   "@boardVersionCurrent": {
@@ -434,13 +434,13 @@
   "actionUpgradeDetailDbc": "Behält die Offline-Karten",
   "actionCleanInstallDetailDbc": "Löscht nur die Offline-Karten",
   "actionLeave": "Unverändert lassen",
-  "actionLeaveDetail": "Diese Platine wird nicht angefasst",
+  "actionLeaveDetail": "Dieses Board wird nicht angefasst",
   "upgradeBlockedNotLibrescoot": "Aktualisieren setzt eine vorhandene Librescoot-Installation voraus",
-  "upgradeBlockedStateUnknown": "Aktualisieren setzt eine bekannte Version auf dieser Platine voraus",
-  "upgradeBlockedMinimalImage": "Diese Platine läuft mit einem Bootstrap-Image und muss installiert werden",
-  "upgradeBlockedNoMender": "Diese Platine hat keinen Update-Client und kann nur neu installiert werden",
+  "upgradeBlockedStateUnknown": "Aktualisieren setzt eine bekannte Version auf diesem Board voraus",
+  "upgradeBlockedMinimalImage": "Dieses Board läuft mit einem Bootstrap-Image und muss installiert werden",
+  "upgradeBlockedNoMender": "Dieses Board hat keinen Update-Client und kann nur neu installiert werden",
   "planTilesNeedDbcHandoff": "Für neue Kartendaten muss das DBC-Kabel umgesteckt werden, auch wenn das DBC unverändert bleibt",
-  "actionLeaveBlockedStockMdb": "Eine Serien-Hauptplatine muss installiert werden, bevor sonst etwas geht",
+  "actionLeaveBlockedStockMdb": "Ein Serien-Hauptboard muss installiert werden, bevor sonst etwas geht",
   "planDbcNeedsLibrescootMdb": "Das DBC ist nur über das MDB erreichbar, und die Werkzeuge dafür gehören zu Librescoot. Installiere in diesem Durchgang das MDB mit, oder lass das DBC unverändert.",
   "planNothingToDo": "Nichts ausgewählt. Mindestens eine Aktion wählen, um fortzufahren.",
   "releaseMissingAssetsTitle": "Dieses Release kann nicht installiert werden",
@@ -484,10 +484,10 @@
   },
   "artifactInstallFailedHeading": "Firmware-Installation fehlgeschlagen",
   "artifactStagingInBackground": "Firmware-Installation wird abgeschlossen...",
-  "artifactNoneDownloaded": "Für diese Platine wurde kein Firmware-Artefakt heruntergeladen.",
+  "artifactNoneDownloaded": "Für dieses Board wurde kein Firmware-Artefakt heruntergeladen.",
   "dbcImageMissing": "Das für diesen Plan benötigte DBC-Systemabbild fehlt.",
   "artifactRebootTimeout": "Das MDB ist nach dem Neustart nicht zurückgekommen.",
-  "artifactPreflightNoMender": "Diese Platine hat keinen Update-Client und kann daher kein Firmware-Artefakt aufnehmen.",
+  "artifactPreflightNoMender": "Dieses Board hat keinen Update-Client und kann daher kein Firmware-Artefakt aufnehmen.",
   "artifactPreflightOtaBusy": "Der Roller führt gerade sein eigenes Update aus ({status}). Warte, bis es fertig ist und der Roller neu gestartet hat, und versuche es dann erneut.",
   "@artifactPreflightOtaBusy": {
     "placeholders": {
@@ -514,7 +514,7 @@
   "fallBackWipeConfirm": "Löschen und vollständiges Image schreiben",
   "dbcCleanInstallButton": "DBC löschen und neu installieren",
   "dbcCleanInstallTitle": "Dabei wird das DBC gelöscht",
-  "dbcCleanInstallBody": "Die zuletzt bekannte Version des DBC ist nur das, was das MDB gesehen hat, als beide zusammen mit Strom versorgt waren. Eine Platine, die der Plan für aktualisierbar hielt, hat also womöglich gar keinen Update-Client. Bei einer Neuinstallation wird zuerst das Bootstrap-Image geschrieben, dabei wird die Datenpartition des DBC neu formatiert und die Offline-Karten gehen verloren. Alles auf dem MDB bleibt unberührt, auch Einstellungen, angelernte Keycards und Fahrtenhistorie.\n\nDafür muss das Kabel noch einmal umgesteckt werden: Der Installer legt die Dateien ab, du schraubst das DBC-Kabel zurück an das MDB, der Rest läuft unbeaufsichtigt.",
+  "dbcCleanInstallBody": "Die zuletzt bekannte Version des DBC ist nur das, was das MDB gesehen hat, als beide zusammen mit Strom versorgt waren. Ein Board, das der Plan für aktualisierbar hielt, hat also womöglich gar keinen Update-Client. Bei einer Neuinstallation wird zuerst das Bootstrap-Image geschrieben, dabei wird die Datenpartition des DBC neu formatiert und die Offline-Karten gehen verloren. Alles auf dem MDB bleibt unberührt, auch Einstellungen, angelernte Keycards und Fahrtenhistorie.\n\nDafür muss das Kabel noch einmal umgesteckt werden: Der Installer legt die Dateien ab, du schraubst das DBC-Kabel zurück an das MDB, der Rest läuft unbeaufsichtigt.",
   "dbcCleanInstallConfirm": "DBC löschen und installieren",
   "firmwareVersionDisplay": "Firmware: {version}",
   "openSeatboxButton": "Sitzbank öffnen",
