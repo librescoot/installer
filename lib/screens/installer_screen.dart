@@ -6453,18 +6453,20 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Widget _buildKeycardSetup(AppLocalizations l10n) {
-    return Center(
-      child: ConstrainedBox(
+    return PhaseLayout(
+      title: _keycardStageHeading(l10n),
+      maxWidth: 560,
+      actions: _keycardStage == _KeycardStage.cards
+          ? _keycardCardsActions(l10n)
+          : const [],
+      child: Center(
+        child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 480),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             const Icon(Icons.nfc, size: 48, color: kAccent),
-            const SizedBox(height: 16),
-            Text(_keycardStageHeading(l10n),
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center),
             const SizedBox(height: 24),
             switch (_keycardStage) {
               _KeycardStage.loading => const Padding(
@@ -6483,6 +6485,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
             },
           ],
         ),
+      ),
       ),
     );
   }
@@ -6538,7 +6541,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
           style: TextStyle(fontSize: 13, color: Colors.grey.shade300),
         ),
         const SizedBox(height: 16),
-        if (!_keycardLearning)
+        if (!_keycardLearning && _keycardAuthorizedCount == 0)
           Center(
             child: OutlinedButton.icon(
               onPressed: _canDriveKeycard ? _startKeycardLearning : null,
@@ -6599,23 +6602,65 @@ class _InstallerScreenState extends State<InstallerScreen> {
             ),
           ],
         ],
-        if (!_keycardLearning && (_keycardServiceCanMaster ?? false)) ...[
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: _keycardStartOver,
-            icon: const Icon(Icons.refresh, size: 18),
-            label: Text(l10n.keycardStartOverButton),
-          ),
-        ],
-        if (!_keycardLearning) ...[
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: _skipKeycardSetupEntirely,
-            child: Text(l10n.skipKeycardSetup),
-          ),
-        ],
       ],
     );
+  }
+
+  /// The cards stage has three states and they used to share button slots, so
+  /// Start sat where Done had been a moment earlier and read as "start over".
+  ///
+  ///   nothing enrolled : Skip .......... Start
+  ///   learning         : ................ Stop learning
+  ///   cards enrolled   : Start over ... Add more, Finish
+  ///
+  /// Skip is gone once a card is on file: the setup has happened, so the only
+  /// question left is whether to add more or move on.
+  List<PhaseAction> _keycardCardsActions(AppLocalizations l10n) {
+    if (_keycardLearning) {
+      return [
+        PhaseAction(
+          label: l10n.keycardStopLearning,
+          icon: Icons.check,
+          primary: true,
+          onPressed: _stopKeycardLearning,
+        ),
+      ];
+    }
+    if (_keycardAuthorizedCount == 0) {
+      return [
+        PhaseAction(
+          label: l10n.skipKeycardSetup,
+          side: ActionSide.forward,
+          onPressed: _skipKeycardSetupEntirely,
+        ),
+        PhaseAction(
+          label: l10n.keycardStartLearning,
+          icon: Icons.nfc,
+          primary: true,
+          onPressed: _canDriveKeycard ? _startKeycardLearning : null,
+        ),
+      ];
+    }
+    return [
+      if (_keycardServiceCanMaster ?? false)
+        PhaseAction(
+          label: l10n.keycardStartOverButton,
+          icon: Icons.refresh,
+          side: ActionSide.back,
+          onPressed: _keycardStartOver,
+        ),
+      PhaseAction(
+        label: l10n.keycardAddMore,
+        icon: Icons.nfc,
+        onPressed: _canDriveKeycard ? _startKeycardLearning : null,
+      ),
+      PhaseAction(
+        label: l10n.keycardFinishCards,
+        icon: Icons.check,
+        primary: true,
+        onPressed: _stopKeycardLearning,
+      ),
+    ];
   }
 
   Widget _buildKeycardCardsReview(AppLocalizations l10n) {

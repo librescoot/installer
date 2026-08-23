@@ -1628,4 +1628,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String notEnoughDiskSpace(String needed) {
     return 'Not enough disk space: $needed more is required. Free up space and try again.';
   }
+
+  @override
+  String get keycardFinishCards => 'Finish';
 }

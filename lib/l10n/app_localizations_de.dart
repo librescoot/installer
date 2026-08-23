@@ -1649,4 +1649,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String notEnoughDiskSpace(String needed) {
     return 'Zu wenig Speicherplatz: $needed fehlen. Schaffe Platz und versuche es erneut.';
   }
+
+  @override
+  String get keycardFinishCards => 'Fertig';
 }

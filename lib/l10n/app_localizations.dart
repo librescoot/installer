@@ -2893,6 +2893,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Not enough disk space: {needed} more is required. Free up space and try again.'**
   String notEnoughDiskSpace(String needed);
+
+  /// No description provided for @keycardFinishCards.
+  ///
+  /// In en, this message translates to:
+  /// **'Finish'**
+  String get keycardFinishCards;
 }
 
 class _AppLocalizationsDelegate
