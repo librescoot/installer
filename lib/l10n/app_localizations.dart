@@ -2887,6 +2887,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The scooter unlocked itself when the install finished. If it did not, use one of the keycards you set up, or unlock over Bluetooth.'**
   String get finalRideDesc;
+
+  /// No description provided for @notEnoughDiskSpace.
+  ///
+  /// In en, this message translates to:
+  /// **'Not enough disk space: {needed} more is required. Free up space and try again.'**
+  String notEnoughDiskSpace(String needed);
 }
 
 class _AppLocalizationsDelegate

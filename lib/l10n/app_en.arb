@@ -751,5 +751,13 @@
   "tightenDbcCable": "Screw the dashboard cable down",
   "tightenDbcCableDesc": "The internal dashboard USB cable is already plugged into the MDB. Tighten the screws now.",
   "finalRide": "Ride off",
-  "finalRideDesc": "The scooter unlocked itself when the install finished. If it did not, use one of the keycards you set up, or unlock over Bluetooth."
+  "finalRideDesc": "The scooter unlocked itself when the install finished. If it did not, use one of the keycards you set up, or unlock over Bluetooth.",
+  "notEnoughDiskSpace": "Not enough disk space: {needed} more is required. Free up space and try again.",
+  "@notEnoughDiskSpace": {
+    "placeholders": {
+      "needed": {
+        "type": "String"
+      }
+    }
+  }
 }

@@ -1644,4 +1644,9 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get finalRideDesc =>
       'Der Roller hat sich am Ende der Installation selbst entsperrt. Falls nicht, nimm eine angelernte Schlüsselkarte oder entsperre über Bluetooth.';
+
+  @override
+  String notEnoughDiskSpace(String needed) {
+    return 'Zu wenig Speicherplatz: $needed fehlen. Schaffe Platz und versuche es erneut.';
+  }
 }

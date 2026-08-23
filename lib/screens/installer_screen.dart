@@ -1759,6 +1759,21 @@ class _InstallerScreenState extends State<InstallerScreen> {
               '${_downloadState.missingRequiredTypes}');
           return;
         }
+        // Check the disk before starting rather than filling it and failing
+        // partway through several hundred MB, which leaves the cache full of
+        // half-written files and the user with no idea why.
+        final cacheDir = await DownloadService.getCacheDir();
+        final shortfall = await DownloadService.shortfallFor(
+            _downloadState.items, cacheDir);
+        if (shortfall != null) {
+          final mb = (shortfall / (1024 * 1024)).ceil();
+          debugPrint('Downloads: $mb MB short on ${cacheDir.path}');
+          if (mounted) {
+            setState(() => _downloadsFailed =
+                l10n.notEnoughDiskSpace('$mb MB'));
+          }
+          return;
+        }
         _downloadInBackground();
       }
     } catch (e) {

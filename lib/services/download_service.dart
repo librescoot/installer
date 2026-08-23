@@ -129,6 +129,61 @@ class DownloadService {
   @visibleForTesting
   static bool isStageZeroForTest(String name) => _isStageZero(name);
 
+  /// Bytes still to fetch for [items], ignoring what is already cached.
+  static int bytesOutstanding(List<DownloadItem> items) => items
+      .where((i) => i.bytesDownloaded < i.expectedSize)
+      .fold(0, (sum, i) => sum + (i.expectedSize - i.bytesDownloaded));
+
+  /// Free bytes on the filesystem holding [dir], or null when it cannot be
+  /// determined. Null is not treated as "full": refusing to download because
+  /// a df call failed would be worse than letting the download try.
+  static Future<int?> freeBytesFor(Directory dir) async {
+    if (Platform.isWindows) {
+      try {
+        final result = await Process.run('powershell', [
+          '-NoProfile',
+          '-Command',
+          '(Get-PSDrive -Name (Split-Path -Qualifier "${dir.path}").TrimEnd(":")).Free',
+        ]);
+        if (result.exitCode != 0) return null;
+        return int.tryParse(result.stdout.toString().trim());
+      } catch (_) {
+        return null;
+      }
+    }
+    try {
+      // POSIX df -k is portable across macOS and Linux; -P keeps one record
+      // per filesystem even when the mount point is long enough to wrap.
+      final result = await Process.run('df', ['-Pk', dir.path]);
+      if (result.exitCode != 0) return null;
+      final lines = const LineSplitter().convert(result.stdout.toString());
+      if (lines.length < 2) return null;
+      final fields = lines[1].trim().split(RegExp(r'\s+'));
+      if (fields.length < 4) return null;
+      final kb = int.tryParse(fields[3]);
+      return kb == null ? null : kb * 1024;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// How much room the queue needs beyond what is free, or null when there is
+  /// enough (or when free space could not be read).
+  ///
+  /// [headroomBytes] keeps the disk from being filled to the last byte: the
+  /// artifacts are unpacked and written on from here, and a cache that exactly
+  /// fits leaves nothing for that.
+  static Future<int?> shortfallFor(
+    List<DownloadItem> items,
+    Directory cacheDir, {
+    int headroomBytes = 512 * 1024 * 1024,
+  }) async {
+    final free = await freeBytesFor(cacheDir);
+    if (free == null) return null;
+    final needed = bytesOutstanding(items) + headroomBytes;
+    return needed > free ? needed - free : null;
+  }
+
   /// Whether an asset is a stage-0 image, which is what the pin replaces.
   /// Artifacts and everything else keep coming from the target release.
   static bool _isStageZero(String name) =>

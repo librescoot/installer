@@ -1624,4 +1624,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get finalRideDesc =>
       'The scooter unlocked itself when the install finished. If it did not, use one of the keycards you set up, or unlock over Bluetooth.';
+
+  @override
+  String notEnoughDiskSpace(String needed) {
+    return 'Not enough disk space: $needed more is required. Free up space and try again.';
+  }
 }

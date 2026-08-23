@@ -605,5 +605,13 @@
   "tightenDbcCable": "DBC-Kabel festschrauben",
   "tightenDbcCableDesc": "Das interne DBC-USB-Kabel steckt schon im MDB. Schraube es jetzt fest.",
   "finalRide": "Losfahren",
-  "finalRideDesc": "Der Roller hat sich am Ende der Installation selbst entsperrt. Falls nicht, nimm eine angelernte Schlüsselkarte oder entsperre über Bluetooth."
+  "finalRideDesc": "Der Roller hat sich am Ende der Installation selbst entsperrt. Falls nicht, nimm eine angelernte Schlüsselkarte oder entsperre über Bluetooth.",
+  "notEnoughDiskSpace": "Zu wenig Speicherplatz: {needed} fehlen. Schaffe Platz und versuche es erneut.",
+  "@notEnoughDiskSpace": {
+    "placeholders": {
+      "needed": {
+        "type": "String"
+      }
+    }
+  }
 }
