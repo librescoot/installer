@@ -3654,22 +3654,35 @@ class _InstallerScreenState extends State<InstallerScreen> {
       }
     }
 
+    // A board that has just been written boots stage 0 from scratch, which
+    // takes a couple of minutes. Until that is up, pings failing is what a
+    // healthy install looks like, so the hint about the host's network stack
+    // has to stay off the screen for longer than the boot takes. It used to
+    // count loop iterations rather than seconds, and each iteration is a ping
+    // plus a delay, so "15" arrived after about 27 seconds and accused
+    // NetworkManager while the scooter was still starting up.
+    const stallHintAfter = Duration(seconds: 90);
     var stableCount = 0;
-    var failedSeconds = 0;
+    DateTime? failingSince;
     var diagnosticsLogged = false;
     while (stableCount < 10) {
       final reachable = await _pingMdb();
       if (reachable) {
         stableCount++;
-        failedSeconds = 0;
+        failingSince = null;
         _setStatus(l10n.pingStable(stableCount));
       } else {
         stableCount = 0;
-        failedSeconds++;
-        if (failedSeconds >= 15 && !diagnosticsLogged && Platform.isLinux && iface != null) {
+        failingSince ??= DateTime.now();
+        final failedFor = DateTime.now().difference(failingSince);
+        if (failedFor >= stallHintAfter &&
+            !diagnosticsLogged &&
+            Platform.isLinux &&
+            iface != null) {
           diagnosticsLogged = true;
           final diag = await networkService.gatherLinuxDiagnostics(iface.name);
-          debugPrint('Network: stable-ping stalled ${failedSeconds}s on ${iface.name}.\n$diag');
+          debugPrint('Network: stable-ping stalled ${failedFor.inSeconds}s '
+              'on ${iface.name}.\n$diag');
           _setStatus(l10n.stableConnectionStallHint);
         } else if (!diagnosticsLogged) {
           _setStatus(l10n.waitingStableConnection);
