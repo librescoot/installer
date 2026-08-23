@@ -163,11 +163,42 @@ class InstallPlanPanel extends StatelessWidget {
                 ],
               ),
             ),
+            // Upgrade keeps /data. That is only safe while the services that
+            // will read it are at least as new as the ones that wrote it, so
+            // going backwards or sideways has to say so before it runs.
+            if (boardPlan.action == BoardAction.upgrade) ...[
+              if (_keepDataWarning(l10n, state) != null) ...[
+                const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.warning_amber_rounded,
+                        size: 16, color: Colors.orangeAccent),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _keepDataWarning(l10n, state)!,
+                        style: const TextStyle(fontSize: 12, color: Colors.orangeAccent),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
           ],
         ),
       ),
     );
   }
+
+  /// The warning to show under an Upgrade, or null when the target is at least
+  /// as new as what the board runs.
+  String? _keepDataWarning(AppLocalizations l10n, BoardState state) =>
+      switch (InstallPlan.versionDirection(state.version, targetVersion)) {
+        VersionDirection.older => l10n.upgradeDowngradeWarning,
+        VersionDirection.otherChannel => l10n.upgradeChannelSwitchWarning,
+        _ => null,
+      };
 
   String _versionLabel(AppLocalizations l10n, BoardState state) {
     final version = state.version;

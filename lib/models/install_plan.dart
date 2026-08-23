@@ -141,6 +141,70 @@ class InstallPlan {
   static String normalizeVersion(String v) =>
       v.trim().toLowerCase().replaceFirst(RegExp(r'^v'), '');
 
+  /// Which release channel a version string names. Stable releases are bare
+  /// semver; the other two carry their channel as a prefix.
+  static String? channelOf(String? version) {
+    if (version == null) return null;
+    final v = normalizeVersion(version);
+    if (v.isEmpty) return null;
+    if (v.startsWith('nightly-')) return 'nightly';
+    if (v.startsWith('testing-')) return 'testing';
+    if (RegExp(r'^\d+\.\d+').hasMatch(v)) return 'stable';
+    return null;
+  }
+
+  /// Whether installing [target] over [installed] moves the board backwards or
+  /// sideways, which is what makes keeping /data a risk: the services that
+  /// wrote it are not the services that will read it.
+  ///
+  /// Returns null when the two cannot be compared at all, which is not the
+  /// same as "safe" - it is answered as a warning by the caller only when a
+  /// real mismatch is found, so an unknown pair stays quiet.
+  static VersionDirection versionDirection(String? installed, String? target) {
+    final a = installed == null ? '' : normalizeVersion(installed);
+    final b = target == null ? '' : normalizeVersion(target);
+    if (a.isEmpty || b.isEmpty) return VersionDirection.unknown;
+    if (a == b) return VersionDirection.same;
+
+    final ca = channelOf(installed);
+    final cb = channelOf(target);
+    if (ca == null || cb == null) return VersionDirection.unknown;
+    if (ca != cb) return VersionDirection.otherChannel;
+
+    if (ca == 'stable') {
+      final pa = _semver(a);
+      final pb = _semver(b);
+      if (pa == null || pb == null) return VersionDirection.unknown;
+      for (var i = 0; i < 3; i++) {
+        if (pb[i] != pa[i]) {
+          return pb[i] > pa[i]
+              ? VersionDirection.newer
+              : VersionDirection.older;
+        }
+      }
+      return VersionDirection.same;
+    }
+
+    // nightly and testing carry a sortable timestamp, so string order is date
+    // order for a matching prefix.
+    final sa = a.substring(ca.length + 1);
+    final sb = b.substring(cb.length + 1);
+    if (sa.isEmpty || sb.isEmpty) return VersionDirection.unknown;
+    final c = sb.compareTo(sa);
+    if (c == 0) return VersionDirection.same;
+    return c > 0 ? VersionDirection.newer : VersionDirection.older;
+  }
+
+  static List<int>? _semver(String v) {
+    final m = RegExp(r'^(\d+)\.(\d+)(?:\.(\d+))?').firstMatch(v);
+    if (m == null) return null;
+    return [
+      int.parse(m.group(1)!),
+      int.parse(m.group(2)!),
+      int.parse(m.group(3) ?? '0'),
+    ];
+  }
+
   /// True when a board is running the version [target] names. Null or empty
   /// on either side is never a match: an unreadable version has to fail the
   /// check rather than pass it by default.
@@ -190,4 +254,15 @@ class DeviceFinish {
   /// The old behaviour, for callers that still hand back to the laptop.
   static const laptop =
       DeviceFinish(onDevice: false, mdbAction: BoardAction.leave);
+}
+
+/// How a target version relates to what a board is already running.
+enum VersionDirection {
+  newer,
+  same,
+  /// The target is behind what the board runs, within the same channel.
+  older,
+  /// A different release channel, so neither is straightforwardly ahead.
+  otherChannel,
+  unknown,
 }

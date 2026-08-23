@@ -6805,26 +6805,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
             const SizedBox(height: 24),
             Text(l10n.finalSteps, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 16),
-            InstructionStep(
-              number: 1,
-              title: l10n.disconnectUsbFromLaptopFinal,
-              description: l10n.disconnectUsbFromLaptopFinalDesc,
-            ),
-            InstructionStep(
-              number: 2,
-              title: l10n.reconnectDbcUsbCable,
-              description: l10n.reconnectDbcUsbCableDesc,
-            ),
-            InstructionStep(
-              number: 3,
-              title: l10n.closeSeatboxAndFootwell,
-              description: l10n.closeSeatboxAndFootwellDesc,
-            ),
-            InstructionStep(
-              number: 4,
-              title: l10n.unlockScooter,
-              description: l10n.unlockScooterDesc,
-            ),
+            // The dashboard path already swapped the cable back before the
+            // trampoline ran, so telling the user to do it again is wrong;
+            // what is left there is tightening the screws they were told to
+            // leave loose. An MDB-only run still has the laptop plugged in.
+            ..._finalSteps(l10n),
             const SizedBox(height: 24),
             _buildGettingStarted(l10n),
             const SizedBox(height: 24),
@@ -6852,6 +6837,39 @@ class _InstallerScreenState extends State<InstallerScreen> {
         ),
       ),
     );
+  }
+
+  /// The last physical steps, which differ by how the install ended. Both
+  /// paths now unlock the scooter themselves, so neither asks the user to.
+  List<Widget> _finalSteps(AppLocalizations l10n) {
+    final swapped = _deviceFinishArmed;
+    final steps = <({String title, String description})>[
+      if (!swapped)
+        (
+          title: l10n.disconnectUsbFromLaptopFinal,
+          description: l10n.disconnectUsbFromLaptopFinalDesc
+        ),
+      if (!swapped)
+        (
+          title: l10n.reconnectDbcUsbCable,
+          description: l10n.reconnectDbcUsbCableDesc
+        ),
+      if (swapped)
+        (title: l10n.tightenDbcCable, description: l10n.tightenDbcCableDesc),
+      (
+        title: l10n.closeSeatboxAndFootwell,
+        description: l10n.closeSeatboxAndFootwellDesc
+      ),
+      (title: l10n.finalRide, description: l10n.finalRideDesc),
+    ];
+    return [
+      for (var i = 0; i < steps.length; i++)
+        InstructionStep(
+          number: i + 1,
+          title: steps[i].title,
+          description: steps[i].description,
+        ),
+    ];
   }
 
   Widget _buildGettingStarted(AppLocalizations l10n) {

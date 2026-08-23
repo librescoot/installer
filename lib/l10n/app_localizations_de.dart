@@ -1622,4 +1622,26 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get usbInfoCollectFailed =>
       'USB-Geräteinfos konnten nicht gesammelt werden';
+
+  @override
+  String get upgradeDowngradeWarning =>
+      'Das ist älter als das, was auf dem Board läuft. Aktualisieren behält Einstellungen, Keycards, Karten und Fahrten, und ältere Dienste lesen Daten einer neueren Version womöglich nicht. Wenn danach etwas klemmt, neu installieren.';
+
+  @override
+  String get upgradeChannelSwitchWarning =>
+      'Das ist ein anderer Kanal als der, der auf dem Board läuft. Aktualisieren behält Einstellungen, Keycards, Karten und Fahrten, die die Dienste des anderen Kanals womöglich anders lesen. Wenn danach etwas klemmt, neu installieren.';
+
+  @override
+  String get tightenDbcCable => 'DBC-Kabel festschrauben';
+
+  @override
+  String get tightenDbcCableDesc =>
+      'Das interne DBC-USB-Kabel steckt schon im MDB. Schraube es jetzt fest.';
+
+  @override
+  String get finalRide => 'Losfahren';
+
+  @override
+  String get finalRideDesc =>
+      'Der Roller hat sich am Ende der Installation selbst entsperrt. Falls nicht, nimm eine angelernte Schlüsselkarte oder entsperre über Bluetooth.';
 }

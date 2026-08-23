@@ -745,5 +745,11 @@
   "usbDeviceNone": "none",
   "collectingUsbInfo": "Collecting USB device info…",
   "usbInfoUnsupportedPlatform": "USB info collection not supported on this platform.",
-  "usbInfoCollectFailed": "Failed to collect USB info"
+  "usbInfoCollectFailed": "Failed to collect USB info",
+  "upgradeDowngradeWarning": "This is older than what the board runs now. Upgrade keeps settings, keycards, maps and trips, and older services may not read data a newer version wrote. Install fresh if anything misbehaves afterwards.",
+  "upgradeChannelSwitchWarning": "This is a different release channel to what the board runs now. Upgrade keeps settings, keycards, maps and trips, which the other channel's services may not read the same way. Install fresh if anything misbehaves afterwards.",
+  "tightenDbcCable": "Screw the dashboard cable down",
+  "tightenDbcCableDesc": "The internal dashboard USB cable is already plugged into the MDB. Tighten the screws now.",
+  "finalRide": "Ride off",
+  "finalRideDesc": "The scooter unlocked itself when the install finished. If it did not, use one of the keycards you set up, or unlock over Bluetooth."
 }

@@ -2851,6 +2851,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to collect USB info'**
   String get usbInfoCollectFailed;
+
+  /// No description provided for @upgradeDowngradeWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'This is older than what the board runs now. Upgrade keeps settings, keycards, maps and trips, and older services may not read data a newer version wrote. Install fresh if anything misbehaves afterwards.'**
+  String get upgradeDowngradeWarning;
+
+  /// No description provided for @upgradeChannelSwitchWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'This is a different release channel to what the board runs now. Upgrade keeps settings, keycards, maps and trips, which the other channel\'s services may not read the same way. Install fresh if anything misbehaves afterwards.'**
+  String get upgradeChannelSwitchWarning;
+
+  /// No description provided for @tightenDbcCable.
+  ///
+  /// In en, this message translates to:
+  /// **'Screw the dashboard cable down'**
+  String get tightenDbcCable;
+
+  /// No description provided for @tightenDbcCableDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'The internal dashboard USB cable is already plugged into the MDB. Tighten the screws now.'**
+  String get tightenDbcCableDesc;
+
+  /// No description provided for @finalRide.
+  ///
+  /// In en, this message translates to:
+  /// **'Ride off'**
+  String get finalRide;
+
+  /// No description provided for @finalRideDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'The scooter unlocked itself when the install finished. If it did not, use one of the keycards you set up, or unlock over Bluetooth.'**
+  String get finalRideDesc;
 }
 
 class _AppLocalizationsDelegate

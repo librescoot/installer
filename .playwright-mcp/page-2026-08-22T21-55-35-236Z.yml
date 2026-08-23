@@ -1,0 +1,282 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]:
+      - link "Librescoot Downloads" [ref=e5] [cursor=pointer]:
+        - /url: https://librescoot.org
+        - img "Librescoot" [ref=e6]
+        - generic [ref=e7]: Downloads
+      - list [ref=e8]:
+        - listitem [ref=e9]:
+          - link "Dokumentation" [ref=e10] [cursor=pointer]:
+            - /url: https://librescoot.org/docs/
+        - listitem [ref=e11]:
+          - link "Installation" [ref=e12] [cursor=pointer]:
+            - /url: https://librescoot.org/docs/install.html
+        - listitem [ref=e13]:
+          - link "Discord" [ref=e14] [cursor=pointer]:
+            - /url: https://discord.gg/VrumFruSzJ
+          - link "GitHub" [ref=e17] [cursor=pointer]:
+            - /url: https://github.com/librescoot
+          - link "EN" [ref=e20] [cursor=pointer]:
+            - /url: /en/
+          - button "Theme umschalten" [ref=e25] [cursor=pointer]
+  - main [ref=e28]:
+    - generic [ref=e29]:
+      - heading "Downloads" [level=1] [ref=e30]
+      - generic [ref=e31]:
+        - heading "Installer" [level=2] [ref=e32]
+        - generic [ref=e36]:
+          - paragraph [ref=e37]: Desktop-App, die dich durch die Installation von Librescoot auf deinem Roller führt. Lädt die Firmware, flasht beide Boards und richtet die Offline-Karten ein. Du brauchst nur ein USB-Kabel und einen Schraubendreher.
+          - paragraph [ref=e38]:
+            - text: Wir haben den Installer auf allen Plattformen mit echter Hardware getestet, trotzdem kann etwas schiefgehen. Im schlimmsten Fall ist dein Roller ohne tiefergehenden Eingriff nicht mehr nutzbar. Verwendung auf eigene Gefahr. Für Support versuch's auf
+            - link "Discord" [ref=e39] [cursor=pointer]:
+              - /url: https://discord.gg/VrumFruSzJ
+            - text: ", bedenk aber, dass wir alle ehrenamtlich dabei sind."
+          - generic [ref=e40]:
+            - link "Linux (x64)" [ref=e41] [cursor=pointer]:
+              - /url: https://github.com/librescoot/installer/releases/download/v0.6.4/librescoot-installer-linux-x64-v0.6.4.tar.gz
+            - link "macOS (Universal)" [ref=e44] [cursor=pointer]:
+              - /url: https://github.com/librescoot/installer/releases/download/v0.6.4/librescoot-installer-macos-universal-v0.6.4.dmg
+            - link "Windows (x64)" [ref=e47] [cursor=pointer]:
+              - /url: https://github.com/librescoot/installer/releases/download/v0.6.4/librescoot-installer-windows-x64-v0.6.4.zip
+          - paragraph [ref=e50]:
+            - text: "Weiter geht’s:"
+            - link "Schnellstart" [ref=e51] [cursor=pointer]:
+              - /url: https://librescoot.org/handbook/schnellstart.html
+            - text: ·
+            - link "Handbuch" [ref=e52] [cursor=pointer]:
+              - /url: https://librescoot.org/handbook/
+          - paragraph [ref=e53]:
+            - link "Alle Releases" [ref=e54] [cursor=pointer]:
+              - /url: https://github.com/librescoot/installer/releases
+            - text: ·
+            - link "Quellcode" [ref=e55] [cursor=pointer]:
+              - /url: https://github.com/librescoot/installer
+            - text: ·
+            - link "Installationsanleitung" [ref=e56] [cursor=pointer]:
+              - /url: https://librescoot.org/docs/install.html
+          - generic [ref=e57]:
+            - paragraph [ref=e58]:
+              - strong [ref=e59]:
+                - link "2.0.0 Beta 1" [ref=e60] [cursor=pointer]:
+                  - /url: https://github.com/librescoot/installer/releases/tag/v2.0.0-beta.1
+                - text: ": was anders ist"
+            - list [ref=e61]:
+              - listitem [ref=e62]: "Aktualisieren statt neu installieren: Einstellungen, Keycards, Karten und Fahrten bleiben erhalten."
+              - listitem [ref=e63]: "Pro Platine wählbar: aktualisieren, neu installieren oder unverändert lassen."
+              - listitem [ref=e64]: Nach dem Umstecken des USB-Kabels macht der Roller den Rest allein, der Laptop wird nicht mehr gebraucht.
+              - listitem [ref=e65]: Fortschritt und Fehler stehen auf dem Display. Am Ende entsperrt sich der Roller selbst, das ist das Signal.
+            - paragraph [ref=e66]:
+              - text: Wenn du etwas technisch bist und beim Testen helfen willst, probier sie gern aus und meld dich auf
+              - link "Discord" [ref=e67] [cursor=pointer]:
+                - /url: https://discord.gg/VrumFruSzJ
+              - text: .
+          - paragraph [ref=e68]:
+            - text: Der Windows-Build ist nicht signiert; bei der SmartScreen-Warnung auf
+            - emphasis [ref=e69]: Weitere Informationen
+            - text: klicken →
+            - emphasis [ref=e70]: Trotzdem ausführen
+            - text: .
+          - iframe [ref=e72]:
+            - generic [ref=f1e1]:
+              - generic "YouTube Video Player" [ref=f1e3]
+              - generic [ref=f1e5]:
+                - generic:
+                  - generic:
+                    - generic [ref=f1e6] [cursor=pointer]
+                    - button "Play video" [ref=f1e10] [cursor=pointer]
+                    - button "Hide player controls" [ref=f1e12] [cursor=pointer]
+                    - generic [ref=f1e14]:
+                      - generic [ref=f1e19]:
+                        - generic [ref=f1e20]:
+                          - link "Librescoot Installation auf dem unu Scooter Pro" [ref=f1e21] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=gQXannrg-FQ
+                          - link "Librescoot" [ref=f1e22] [cursor=pointer]:
+                            - /url: /channel/UCL5VR_pE4DYM132Xyj-Z3aQ
+                        - generic [ref=f1e24]:
+                          - button [ref=f1e25] [cursor=pointer]
+                          - generic [ref=f1e27]:
+                            - generic: Librescoot
+                            - generic: 39 subscribers
+                      - generic [ref=f1e28]:
+                        - button "Copy link" [ref=f1e31] [cursor=pointer]
+                        - link "Watch on YouTube" [ref=f1e42] [cursor=pointer]:
+                          - /url: https://www.youtube.com/watch?v=gQXannrg-FQ
+                          - generic [ref=f1e43]: Watch on
+      - generic [ref=e73]:
+        - heading "Firmware-Updates" [level=2] [ref=e74]
+        - paragraph [ref=e78]:
+          - text: Zum Installieren eines Updates den Update-Modus im Display-Menü aktivieren und die .mender-Datei per USB kopieren. Für eine Neuinstallation nimm die
+          - link "Installer-App" [ref=e79] [cursor=pointer]:
+            - /url: "#installer"
+          - text: oben.
+        - generic [ref=e80]:
+          - generic [ref=e81]:
+            - heading "Stable Empfohlen" [level=4] [ref=e82]:
+              - text: Stable
+              - generic [ref=e83]: Empfohlen
+            - generic [ref=e84]: Empfohlener Kanal. Gründlich getestete Releases.
+            - generic [ref=e85]: Noch keine Releases.
+          - generic [ref=e86]:
+            - heading "Testing" [level=4] [ref=e87]
+            - generic [ref=e88]: Vorschau auf kommende Releases. Neue Features, auf echter Hardware getestet.
+            - generic [ref=e89]: testing-20260407T231827 · 2026-04-08
+            - generic [ref=e90]:
+              - link "DBC (Dashboard) 191 MB" [ref=e91] [cursor=pointer]:
+                - /url: https://github.com/librescoot/librescoot/releases/download/testing-20260407T231827/librescoot-unu-dbc-testing-20260407T231827.mender
+                - text: DBC (Dashboard)
+                - generic [ref=e95]: 191 MB
+              - link "MDB (Controller) 137 MB" [ref=e96] [cursor=pointer]:
+                - /url: https://github.com/librescoot/librescoot/releases/download/testing-20260407T231827/librescoot-unu-mdb-testing-20260407T231827.mender
+                - text: MDB (Controller)
+                - generic [ref=e100]: 137 MB
+            - generic [ref=e101]:
+              - link "Release Notes" [ref=e102] [cursor=pointer]:
+                - /url: https://github.com/librescoot/librescoot/releases/tag/testing-20260407T231827
+              - link "Ältere Releases" [ref=e107] [cursor=pointer]:
+                - /url: https://github.com/librescoot/librescoot/releases
+          - generic [ref=e108]:
+            - heading "Nightly" [level=4] [ref=e109]
+            - generic [ref=e110]: Aktuelle Entwicklungs-Builds. Nur für Entwickler:innen empfohlen.
+            - generic [ref=e111]: nightly-20260413T013151 · 2026-04-13
+            - generic [ref=e112]:
+              - link "DBC (Dashboard) 191 MB" [ref=e113] [cursor=pointer]:
+                - /url: https://github.com/librescoot/librescoot/releases/download/nightly-20260413T013151/librescoot-unu-dbc-nightly-20260413T013151.mender
+                - text: DBC (Dashboard)
+                - generic [ref=e117]: 191 MB
+              - link "MDB (Controller) 140 MB" [ref=e118] [cursor=pointer]:
+                - /url: https://github.com/librescoot/librescoot/releases/download/nightly-20260413T013151/librescoot-unu-mdb-nightly-20260413T013151.mender
+                - text: MDB (Controller)
+                - generic [ref=e122]: 140 MB
+            - generic [ref=e123]:
+              - link "Release Notes" [ref=e124] [cursor=pointer]:
+                - /url: https://github.com/librescoot/librescoot/releases/tag/nightly-20260413T013151
+              - link "Ältere Releases" [ref=e129] [cursor=pointer]:
+                - /url: https://github.com/librescoot/librescoot/releases
+      - generic [ref=e130]:
+        - heading "Karten- & Routing-Daten" [level=2] [ref=e131]
+        - paragraph [ref=e134]: Aktualisiert am 2026-04-13
+        - paragraph [ref=e135]:
+          - text: Offline-Kartenkacheln und Turn-by-Turn-Routing-Daten, nach Region. Jedes Paket deckt zusätzlich etwa 20 km Umland mit ab. Lade die Karten- und Routing-Dateien für deine Region und kopiere sie per USB auf den Roller. Es kann jeweils nur eine Region installiert sein. Anleitung siehe
+          - link "Offline-Navigation" [ref=e136] [cursor=pointer]:
+            - /url: https://librescoot.org/docs/features/offline-navigation.html
+          - text: .
+        - paragraph [ref=e137]: Deutschland
+        - generic [ref=e138]:
+          - generic [ref=e139]:
+            - generic [ref=e140]: Baden-Württemberg
+            - link "Kartenkacheln (317 MB)" [ref=e141] [cursor=pointer]:
+              - /url: https://github.com/librescoot/osm-tiles/releases/download/latest/tiles_baden-wuerttemberg.mbtiles
+            - link "Routing-Daten (476 MB)" [ref=e144] [cursor=pointer]:
+              - /url: https://github.com/librescoot/valhalla-tiles/releases/download/latest/valhalla_tiles_baden-wuerttemberg.tar
+          - generic [ref=e147]:
+            - generic [ref=e148]: Bayern
+            - link "Kartenkacheln (385 MB)" [ref=e149] [cursor=pointer]:
+              - /url: https://github.com/librescoot/osm-tiles/releases/download/latest/tiles_bayern.mbtiles
+            - link "Routing-Daten (705 MB)" [ref=e152] [cursor=pointer]:
+              - /url: https://github.com/librescoot/valhalla-tiles/releases/download/latest/valhalla_tiles_bayern.tar
+          - generic [ref=e155]:
+            - generic [ref=e156]: Berlin & Brandenburg
+            - link "Kartenkacheln (141 MB)" [ref=e157] [cursor=pointer]:
+              - /url: https://github.com/librescoot/osm-tiles/releases/download/latest/tiles_berlin_brandenburg.mbtiles
+            - link "Routing-Daten (295 MB)" [ref=e160] [cursor=pointer]:
+              - /url: https://github.com/librescoot/valhalla-tiles/releases/download/latest/valhalla_tiles_berlin_brandenburg.tar
+          - generic [ref=e163]:
+            - generic [ref=e164]: Bremen
+            - link "Kartenkacheln (12 MB)" [ref=e165] [cursor=pointer]:
+              - /url: https://github.com/librescoot/osm-tiles/releases/download/latest/tiles_bremen.mbtiles
+            - link "Routing-Daten (13 MB)" [ref=e168] [cursor=pointer]:
+              - /url: https://github.com/librescoot/valhalla-tiles/releases/download/latest/valhalla_tiles_bremen.tar
+          - generic [ref=e171]:
+            - generic [ref=e172]: Hamburg
+            - link "Kartenkacheln (23 MB)" [ref=e173] [cursor=pointer]:
+              - /url: https://github.com/librescoot/osm-tiles/releases/download/latest/tiles_hamburg.mbtiles
+            - link "Routing-Daten (30 MB)" [ref=e176] [cursor=pointer]:
+              - /url: https://github.com/librescoot/valhalla-tiles/releases/download/latest/valhalla_tiles_hamburg.tar
+          - generic [ref=e179]:
+            - generic [ref=e180]: Hessen
+            - link "Kartenkacheln (171 MB)" [ref=e181] [cursor=pointer]:
+              - /url: https://github.com/librescoot/osm-tiles/releases/download/latest/tiles_hessen.mbtiles
+            - link "Routing-Daten (248 MB)" [ref=e184] [cursor=pointer]:
+              - /url: https://github.com/librescoot/valhalla-tiles/releases/download/latest/valhalla_tiles_hessen.tar
+          - generic [ref=e187]:
+            - generic [ref=e188]: Mecklenburg-Vorpommern
+            - link "Kartenkacheln (60 MB)" [ref=e189] [cursor=pointer]:
+              - /url: https://github.com/librescoot/osm-tiles/releases/download/latest/tiles_mecklenburg-vorpommern.mbtiles
+            - link "Routing-Daten (77 MB)" [ref=e192] [cursor=pointer]:
+              - /url: https://github.com/librescoot/valhalla-tiles/releases/download/latest/valhalla_tiles_mecklenburg-vorpommern.tar
+          - generic [ref=e195]:
+            - generic [ref=e196]: Niedersachsen (incl. Bremen)
+            - link "Kartenkacheln (266 MB)" [ref=e197] [cursor=pointer]:
+              - /url: https://github.com/librescoot/osm-tiles/releases/download/latest/tiles_niedersachsen.mbtiles
+            - link "Routing-Daten (341 MB)" [ref=e200] [cursor=pointer]:
+              - /url: https://github.com/librescoot/valhalla-tiles/releases/download/latest/valhalla_tiles_niedersachsen.tar
+          - generic [ref=e203]:
+            - generic [ref=e204]: Nordrhein-Westfalen
+            - link "Kartenkacheln (499 MB)" [ref=e205] [cursor=pointer]:
+              - /url: https://github.com/librescoot/osm-tiles/releases/download/latest/tiles_nordrhein-westfalen.mbtiles
+            - link "Routing-Daten (503 MB)" [ref=e208] [cursor=pointer]:
+              - /url: https://github.com/librescoot/valhalla-tiles/releases/download/latest/valhalla_tiles_nordrhein-westfalen.tar
+          - generic [ref=e211]:
+            - generic [ref=e212]: Rheinland-Pfalz
+            - link "Kartenkacheln (133 MB)" [ref=e213] [cursor=pointer]:
+              - /url: https://github.com/librescoot/osm-tiles/releases/download/latest/tiles_rheinland-pfalz.mbtiles
+            - link "Routing-Daten (205 MB)" [ref=e216] [cursor=pointer]:
+              - /url: https://github.com/librescoot/valhalla-tiles/releases/download/latest/valhalla_tiles_rheinland-pfalz.tar
+          - generic [ref=e219]:
+            - generic [ref=e220]: Saarland
+            - link "Kartenkacheln (31 MB)" [ref=e221] [cursor=pointer]:
+              - /url: https://github.com/librescoot/osm-tiles/releases/download/latest/tiles_saarland.mbtiles
+            - link "Routing-Daten (30 MB)" [ref=e224] [cursor=pointer]:
+              - /url: https://github.com/librescoot/valhalla-tiles/releases/download/latest/valhalla_tiles_saarland.tar
+          - generic [ref=e227]:
+            - generic [ref=e228]: Sachsen
+            - link "Kartenkacheln (119 MB)" [ref=e229] [cursor=pointer]:
+              - /url: https://github.com/librescoot/osm-tiles/releases/download/latest/tiles_sachsen.mbtiles
+            - link "Routing-Daten (186 MB)" [ref=e232] [cursor=pointer]:
+              - /url: https://github.com/librescoot/valhalla-tiles/releases/download/latest/valhalla_tiles_sachsen.tar
+          - generic [ref=e235]:
+            - generic [ref=e236]: Sachsen-Anhalt
+            - link "Kartenkacheln (89 MB)" [ref=e237] [cursor=pointer]:
+              - /url: https://github.com/librescoot/osm-tiles/releases/download/latest/tiles_sachsen-anhalt.mbtiles
+            - link "Routing-Daten (104 MB)" [ref=e240] [cursor=pointer]:
+              - /url: https://github.com/librescoot/valhalla-tiles/releases/download/latest/valhalla_tiles_sachsen-anhalt.tar
+          - generic [ref=e243]:
+            - generic [ref=e244]: Schleswig-Holstein
+            - link "Kartenkacheln (86 MB)" [ref=e245] [cursor=pointer]:
+              - /url: https://github.com/librescoot/osm-tiles/releases/download/latest/tiles_schleswig-holstein.mbtiles
+            - link "Routing-Daten (103 MB)" [ref=e248] [cursor=pointer]:
+              - /url: https://github.com/librescoot/valhalla-tiles/releases/download/latest/valhalla_tiles_schleswig-holstein.tar
+          - generic [ref=e251]:
+            - generic [ref=e252]: Thüringen
+            - link "Kartenkacheln (79 MB)" [ref=e253] [cursor=pointer]:
+              - /url: https://github.com/librescoot/osm-tiles/releases/download/latest/tiles_thueringen.mbtiles
+            - link "Routing-Daten (115 MB)" [ref=e256] [cursor=pointer]:
+              - /url: https://github.com/librescoot/valhalla-tiles/releases/download/latest/valhalla_tiles_thueringen.tar
+        - paragraph [ref=e259]: Nederland
+        - generic [ref=e260]: Nederland
+        - paragraph [ref=e263]: België
+        - generic [ref=e264]: België
+        - paragraph [ref=e267]: Luxembourg
+        - generic [ref=e268]: Luxembourg
+        - paragraph [ref=e271]: France
+        - generic [ref=e272]: Île-de-France
+        - paragraph [ref=e275]:
+          - text: "Quellen:"
+          - link "osm-tiles" [ref=e276] [cursor=pointer]:
+            - /url: https://github.com/librescoot/osm-tiles
+          - text: ","
+          - link "valhalla-tiles" [ref=e277] [cursor=pointer]:
+            - /url: https://github.com/librescoot/valhalla-tiles
+  - contentinfo [ref=e278]:
+    - generic [ref=e279]:
+      - generic [ref=e280]:
+        - strong [ref=e281]: Librescoot
+        - text: — Open-Source-Firmware für den unu Scooter Pro. Unabhängiges Community-Projekt. Die Marke „unu“ wird rein beschreibend zur Bezeichnung der Hardware verwendet; Librescoot steht in keiner Verbindung zu unu GmbH oder deren Rechtsnachfolgern.
+      - generic [ref=e282]:
+        - link "GitHub" [ref=e283] [cursor=pointer]:
+          - /url: https://github.com/librescoot
+        - link "Discord" [ref=e284] [cursor=pointer]:
+          - /url: https://discord.gg/VrumFruSzJ
+        - link "Startseite" [ref=e285] [cursor=pointer]:
+          - /url: https://librescoot.org

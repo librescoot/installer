@@ -1602,4 +1602,26 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get usbInfoCollectFailed => 'Failed to collect USB info';
+
+  @override
+  String get upgradeDowngradeWarning =>
+      'This is older than what the board runs now. Upgrade keeps settings, keycards, maps and trips, and older services may not read data a newer version wrote. Install fresh if anything misbehaves afterwards.';
+
+  @override
+  String get upgradeChannelSwitchWarning =>
+      'This is a different release channel to what the board runs now. Upgrade keeps settings, keycards, maps and trips, which the other channel\'s services may not read the same way. Install fresh if anything misbehaves afterwards.';
+
+  @override
+  String get tightenDbcCable => 'Screw the dashboard cable down';
+
+  @override
+  String get tightenDbcCableDesc =>
+      'The internal dashboard USB cable is already plugged into the MDB. Tighten the screws now.';
+
+  @override
+  String get finalRide => 'Ride off';
+
+  @override
+  String get finalRideDesc =>
+      'The scooter unlocked itself when the install finished. If it did not, use one of the keycards you set up, or unlock over Bluetooth.';
 }
