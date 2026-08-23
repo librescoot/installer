@@ -1096,16 +1096,27 @@ class _InstallerScreenState extends State<InstallerScreen> {
       l10n.prerequisiteTime,
     ];
 
-    return Column(
+    return PhaseLayout(
+      title: l10n.welcomeHeading,
+      subtitle: l10n.welcomeSubheading,
+      centerContent: false,
+      actions: [
+        PhaseAction(
+          label: l10n.startInstallation,
+          icon: Icons.arrow_forward,
+          primary: true,
+          onPressed: _isProcessing ||
+                  _channelsLoading ||
+                  (_availableChannels?.isEmpty ?? true) ||
+                  (_downloadState.wantsOfflineMaps &&
+                      _downloadState.selectedRegion == null)
+              ? null
+              : _startClickedAdvanceToNotices,
+        ),
+      ],
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(l10n.welcomeHeading,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Text(l10n.welcomeSubheading,
-            style: TextStyle(color: Colors.grey.shade400)),
-        const SizedBox(height: 24),
-
         // Prerequisites: items size to their content; a long item gets a row
         // to itself, short items pack onto a single line.
         Text(l10n.whatYouNeed, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
@@ -1223,20 +1234,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
         // big "I'm starting" click rather than buried inside Notices'
         // Continue. If the user declines elevation, they stay on this
         // page with the explanatory dialog and can try again.
-        Align(
-          alignment: Alignment.centerRight,
-          child: FilledButton.icon(
-            onPressed: _isProcessing ||
-                    _channelsLoading ||
-                    (_availableChannels?.isEmpty ?? true) ||
-                    (_downloadState.wantsOfflineMaps && _downloadState.selectedRegion == null)
-                ? null
-                : _startClickedAdvanceToNotices,
-            icon: const Icon(Icons.arrow_forward),
-            label: Text(l10n.startInstallation),
-          ),
-        ),
       ],
+      ),
     );
   }
 
@@ -1260,16 +1259,49 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // after a successful resolve, so on the exception path it is empty and
     // missingAssets passes.
     final nothingResolved = !hasItems && !launchArgs.hasLocalImages;
-    return Column(
+    return PhaseLayout(
+      title: l10n.noticesHeading,
+      subtitle: l10n.noticesSubheading,
+      centerContent: false,
+      onBack: _isProcessing ? null : () => _setPhase(InstallerPhase.welcome),
+      backLabel: l10n.backButton,
+      actions: [
+        // Offered only while the queue is still running: the user says they
+        // will be online later and takes the install without the files.
+        if (waitingOnDownloads)
+          PhaseAction(
+            label: l10n.noticesContinueOfflineAnyway,
+            onPressed: _isProcessing
+                ? null
+                : () => _setPhase(InstallerPhase.physicalPrep),
+          ),
+        // Custom: the label and the icon both change while downloads run, and
+        // the icon becomes a spinner.
+        PhaseAction.custom(
+          primary: true,
+          child: FilledButton.icon(
+            onPressed: _isProcessing ||
+                    waitingOnDownloads ||
+                    nothingResolved ||
+                    missingAssets.isNotEmpty
+                ? null
+                : _startDownloadsAndContinue,
+            icon: waitingOnDownloads || nothingResolved
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.arrow_forward),
+            label: Text(waitingOnDownloads || nothingResolved
+                ? l10n.noticesWaitingForDownloads
+                : l10n.noticesAcknowledgeButton),
+          ),
+        ),
+      ],
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(l10n.noticesHeading,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Text(l10n.noticesSubheading,
-            style: TextStyle(color: Colors.grey.shade400)),
-        const SizedBox(height: 24),
-
         if (_downloadsFailed != null) ...[
           Container(
             padding: const EdgeInsets.all(14),
@@ -1435,58 +1467,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
         ],
         const SizedBox(height: 16),
 
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            TextButton.icon(
-              onPressed: _isProcessing
-                  ? null
-                  : () => _setPhase(InstallerPhase.welcome),
-              icon: const Icon(Icons.arrow_back, size: 18),
-              label: Text(l10n.backButton),
-            ),
-            // While downloads are in flight, the primary Continue is
-            // disabled and we show a small "I'll have internet later"
-            // override link next to it. Once downloads are ready,
-            // Continue becomes a normal active button.
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                if (waitingOnDownloads) ...[
-                  TextButton(
-                    onPressed: _isProcessing
-                        ? null
-                        : () => _setPhase(InstallerPhase.physicalPrep),
-                    child: Text(l10n.noticesContinueOfflineAnyway,
-                        style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                FilledButton.icon(
-                  onPressed: _isProcessing ||
-                          waitingOnDownloads ||
-                          nothingResolved ||
-                          missingAssets.isNotEmpty
-                      ? null
-                      : _startDownloadsAndContinue,
-                  icon: waitingOnDownloads || nothingResolved
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.arrow_forward),
-                  label: Text(waitingOnDownloads || nothingResolved
-                      ? l10n.noticesWaitingForDownloads
-                      : l10n.noticesAcknowledgeButton),
-                ),
-              ],
-            ),
-          ],
-        ),
       ],
+      ),
     );
   }
 
@@ -6833,20 +6815,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   Widget _buildFinish(AppLocalizations l10n) {
     if (_awaitingFinishHandover) {
-      return Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: Column(
+      return PhaseLayout(
+        title: l10n.finishHandoverTitle,
+        maxWidth: 520,
+        child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.lock_open, size: 56, color: kAccent),
               const SizedBox(height: 20),
-              Text(
-                l10n.finishHandoverTitle,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
               Text(
                 l10n.finishHandoverBody,
                 style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
@@ -6855,21 +6831,30 @@ class _InstallerScreenState extends State<InstallerScreen> {
               const SizedBox(height: 24),
               const CircularProgressIndicator(),
             ],
-          ),
         ),
       );
     }
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 720),
-        child: Column(
+    return PhaseLayout(
+      title: l10n.welcomeToLibrescoot,
+      centerContent: false,
+      actions: [
+        PhaseAction(
+          label: l10n.finished,
+          icon: Icons.check_circle,
+          primary: true,
+          onPressed: () async {
+            if (!_keepCache) {
+              await _offerCleanup();
+            }
+            if (mounted) exit(0);
+          },
+        ),
+      ],
+      child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.celebration, size: 64, color: kAccent),
             const SizedBox(height: 16),
-            Text(l10n.welcomeToLibrescoot,
-                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: kAccent)),
-            const SizedBox(height: 24),
             Text(l10n.finalSteps, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 16),
             // The dashboard path already swapped the cable back before the
@@ -6889,19 +6874,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
               value: _keepCache,
               onChanged: (v) => setState(() => _keepCache = v ?? false),
             ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () async {
-                if (!_keepCache) {
-                  await _offerCleanup();
-                }
-                if (mounted) exit(0);
-              },
-              icon: const Icon(Icons.check_circle),
-              label: Text(l10n.finished),
-            ),
           ],
-        ),
       ),
     );
   }
