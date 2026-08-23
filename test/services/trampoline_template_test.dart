@@ -142,11 +142,21 @@ void main() {
     });
 
     test('the transfer helper is available with tiles switched off', () {
+      // It has to be defined outside the tiles conditional, because the
+      // artifact upload uses it whether or not tiles were selected. Position
+      // relative to the tiles block says nothing on its own: the block is
+      // emitted early now so install_tiles exists before the artifact section
+      // starts it as a job.
       final helper = template.indexOf('upload_to_dbc()');
-      final tilesBlock = template.indexOf(r'if [ "$INSTALL_TILES" = "true" ]');
       expect(helper, greaterThan(0));
-      expect(helper, lessThan(tilesBlock),
-          reason: 'the artifact upload needs it whether or not tiles were selected');
+
+      final tilesStart = template.indexOf(r'if [ "$INSTALL_TILES" = "true" ]');
+      final tilesEnd = template.indexOf('NOTILES\nfi', tilesStart);
+      expect(tilesStart, greaterThan(0));
+      expect(tilesEnd, greaterThan(tilesStart));
+      expect(helper > tilesStart && helper < tilesEnd, isFalse,
+          reason: 'defining it inside the tiles branch would leave the '
+              'artifact upload without it when tiles are switched off');
     });
 
     test('an unreachable DBC with an artifact staged is an error, not success',

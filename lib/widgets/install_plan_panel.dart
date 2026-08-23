@@ -14,7 +14,6 @@ class InstallPlanPanel extends StatelessWidget {
     required this.dbcState,
     required this.targetVersion,
     required this.onChanged,
-    required this.onContinue,
   });
 
   final InstallPlan plan;
@@ -22,83 +21,44 @@ class InstallPlanPanel extends StatelessWidget {
   final BoardState dbcState;
   final String targetVersion;
   final ValueChanged<InstallPlan> onChanged;
-  final VoidCallback onContinue;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 640),
-        // Heading and the Continue button stay pinned outside the scroll
-        // region; only the board cards and warnings scroll. Continue is the
-        // one control that confirms an irreversible action, so it must never
-        // be scrolled off the bottom where a short or unmaximised window
-        // could hide it with no cue. `mainAxisSize.min` on the outer Column
-        // plus `Flexible` (loose fit) on the inner scroll view means the
-        // panel still hugs its content and stays visually centered when
-        // everything fits (SingleChildScrollView reports its child's own
-        // size when that fits the available space), and only grows to fill
-        // the available height, with the middle section scrolling, when it
-        // does not: the button never ends up floating far below short
-        // content.
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(l10n.installPlanHeading,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 24, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(l10n.installPlanIntro(targetVersion),
-                textAlign: TextAlign.center),
-            const SizedBox(height: 24),
-            Flexible(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _boardCard(context, l10n, l10n.boardMdb, mdbState,
-                        plan.mdb, (p) => onChanged(plan.withMdb(p))),
-                    const SizedBox(height: 12),
-                    _boardCard(context, l10n, l10n.boardDbc, dbcState,
-                        plan.dbc, (p) => onChanged(plan.withDbc(p))),
-                    if (plan.installTiles && !plan.needsDbcWork)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16),
-                        child: Text(l10n.planTilesNeedDbcHandoff,
-                            style: Theme.of(context).textTheme.bodySmall),
-                      ),
-                    if (plan.dbcWorkStrandedOn(mdbState))
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16),
-                        child: Text(l10n.planDbcNeedsLibrescootMdb,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: Colors.orange.shade300)),
-                      ),
-                    if (plan.isNoOp)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16),
-                        child: Text(l10n.planNothingToDo,
-                            style: Theme.of(context).textTheme.bodySmall),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: plan.isNoOp || plan.dbcWorkStrandedOn(mdbState)
-                  ? null
-                  : onContinue,
-              child: Text(l10n.continueButton),
-            ),
-          ],
-        ),
-      ),
+    // Only the board cards and warnings live here now. The heading and the
+    // Continue button are the enclosing PhaseLayout's job, which is where
+    // every other phase keeps them too; this panel used to pin them itself
+    // because it was the only screen that needed to.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _boardCard(context, l10n, l10n.boardMdb, mdbState, plan.mdb,
+            (p) => onChanged(plan.withMdb(p))),
+        const SizedBox(height: 12),
+        _boardCard(context, l10n, l10n.boardDbc, dbcState, plan.dbc,
+            (p) => onChanged(plan.withDbc(p))),
+        if (plan.installTiles && !plan.needsDbcWork)
+          Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: Text(l10n.planTilesNeedDbcHandoff,
+                style: Theme.of(context).textTheme.bodySmall),
+          ),
+        if (plan.dbcWorkStrandedOn(mdbState))
+          Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: Text(l10n.planDbcNeedsLibrescootMdb,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Colors.orange.shade300)),
+          ),
+        if (plan.isNoOp)
+          Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: Text(l10n.planNothingToDo,
+                style: Theme.of(context).textTheme.bodySmall),
+          ),
+      ],
     );
   }
 

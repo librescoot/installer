@@ -244,19 +244,117 @@ class PhaseLayout extends StatelessWidget {
       );
     }
     return LayoutBuilder(
-      builder: (context, constraints) => Scrollbar(
-        thumbVisibility: true,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(32, 20, 32, 20),
-          child: ConstrainedBox(
-            constraints: centerContent
-                ? BoxConstraints(minHeight: constraints.maxHeight - 40)
-                : const BoxConstraints(),
-            child: centerContent
-                ? Center(child: constrained)
-                : constrained,
+      builder: (context, constraints) => _ScrollableBody(
+        centerContent: centerContent,
+        minHeight: constraints.maxHeight - 40,
+        child: constrained,
+      ),
+    );
+  }
+}
+
+/// The scrolling middle of a phase, with a cue when there is more below.
+///
+/// A scrollbar thumb alone is easy to miss on a screen the user has been told
+/// to read, and a phase whose last paragraph is off the fold reads as if it
+/// had no last paragraph. The fade and chevron appear only while something is
+/// actually below the viewport, and go once the end is reached.
+class _ScrollableBody extends StatefulWidget {
+  const _ScrollableBody({
+    required this.child,
+    required this.centerContent,
+    required this.minHeight,
+  });
+
+  final Widget child;
+  final bool centerContent;
+  final double minHeight;
+
+  @override
+  State<_ScrollableBody> createState() => _ScrollableBodyState();
+}
+
+class _ScrollableBodyState extends State<_ScrollableBody> {
+  final _controller = ScrollController();
+  bool _more = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // The first frame is the one that decides whether anything overflows, and
+    // no scroll has happened by then to report it.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _recheck());
+  }
+
+  @override
+  void didUpdateWidget(covariant _ScrollableBody old) {
+    super.didUpdateWidget(old);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _recheck());
+  }
+
+  void _recheck() {
+    if (!mounted || !_controller.hasClients) return;
+    final more = _controller.position.extentAfter > 4;
+    if (more != _more) setState(() => _more = more);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return NotificationListener<ScrollNotification>(
+      onNotification: (_) {
+        _recheck();
+        return false;
+      },
+      child: Stack(
+        children: [
+          Scrollbar(
+            controller: _controller,
+            thumbVisibility: true,
+            child: SingleChildScrollView(
+              controller: _controller,
+              padding: const EdgeInsets.fromLTRB(32, 20, 32, 20),
+              child: ConstrainedBox(
+                constraints: widget.centerContent
+                    ? BoxConstraints(minHeight: widget.minHeight)
+                    : const BoxConstraints(),
+                child: widget.centerContent
+                    ? Center(child: widget.child)
+                    : widget.child,
+              ),
+            ),
           ),
-        ),
+          if (_more)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: IgnorePointer(
+                child: Container(
+                  height: 44,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        kBgPrimary.withValues(alpha: 0),
+                        kBgPrimary.withValues(alpha: 0.95),
+                      ],
+                    ),
+                  ),
+                  alignment: Alignment.bottomCenter,
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Icon(Icons.keyboard_arrow_down,
+                      size: 20, color: kAccent.withValues(alpha: 0.8)),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

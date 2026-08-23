@@ -150,6 +150,29 @@ void main() {
       if (m != null) defLine.putIfAbsent(m.group(1)!, () => i);
     }
 
+    // Lines inside a function body are deferred: shell resolves a call when
+    // the function runs, not where it is written. install_tiles is defined
+    // near the top so the artifact section can start it as a job, and its
+    // body calls helpers defined much further down, which is legal and works.
+    // Only top-level calls have to follow their definition.
+    final inFunction = List<bool>.filled(lines.length, false);
+    for (var i = 0; i < lines.length; i++) {
+      if (!RegExp(r'^[a-z_][a-z0-9_]*\(\)[ \t]*\{').hasMatch(lines[i])) {
+        continue;
+      }
+      // A one-line definition such as `install_tiles() { :; }` closes on its
+      // own line. Scanning for a bare `}` after it would run to the next
+      // unrelated function's brace and mark everything in between as deferred,
+      // which silently turns the rest of this check off.
+      final opens = '{'.allMatches(lines[i]).length;
+      final closes = '}'.allMatches(lines[i]).length;
+      if (opens <= closes) continue;
+      for (var j = i + 1; j < lines.length; j++) {
+        inFunction[j] = true;
+        if (lines[j] == '}') break;
+      }
+    }
+
     final late = <String>[];
     for (final entry in defLine.entries) {
       final callRe = RegExp(
@@ -157,7 +180,7 @@ void main() {
               RegExp.escape(entry.key) +
               r'(?=[ \t;&|)\n]|$)');
       for (var i = 0; i < lines.length; i++) {
-        if (i == entry.value) continue;
+        if (i == entry.value || inFunction[i]) continue;
         final code = lines[i].split('#').first;
         if (code.trimLeft().startsWith(entry.key) &&
             code.contains('${entry.key}()')) {
@@ -175,6 +198,30 @@ void main() {
 
     expect(late, isEmpty,
         reason: 'called before they are defined: ${late.join(", ")}');
+  });
+
+  test('the tile upload is joined before the dashboard reboots', () {
+    // The upload runs alongside the artifact install to overlap the two, but
+    // a dashboard that restarts mid-upload takes a truncated tile set with it,
+    // so the reboot has to wait for the job.
+    final job = onboot.indexOf(r'TILES_JOB=$!');
+    final join = onboot.indexOf(r'wait "$TILES_JOB"');
+    final reboot = onboot.indexOf('rebooting DBC into the new rootfs');
+    expect(job, isNot(-1), reason: 'the upload should start as a job');
+    expect(join, isNot(-1), reason: 'the job should be waited on');
+    expect(join, lessThan(reboot),
+        reason: 'the wait must come before the reboot, not after');
+    expect(job, lessThan(join));
+  });
+
+  test('the tile error count survives the background job', () {
+    // TILE_ERRORS is set inside a subshell, so the parent cannot read it back
+    // as a variable. Losing it reports a failed tile install as a success.
+    // Escaped, because it is written through an unquoted heredoc: the raw
+    // template carries the backslashes and only the generated script does not.
+    expect(onboot,
+        contains(r'echo "\$TILE_ERRORS" > "\$INSTALLER_DIR/tile-errors"'));
+    expect(onboot, contains(r'TILE_ERRORS=$(cat "$INSTALLER_DIR/tile-errors"'));
   });
 
   test('every substituted value onboot.sh reads is baked into it', () {

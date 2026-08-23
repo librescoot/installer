@@ -1451,6 +1451,80 @@ START_KEYCARD="$START_KEYCARD"
 MDB_ACTION="$MDB_ACTION"
 MDB_TARGET="$MDB_TARGET"
 ONBOOT_VARS
+# Tiles are installed while the dashboard still runs the stage-0 image, so
+# this is only the definition; the call sits in the artifact section below.
+# Emitted before the main chunk so the function exists by the time that runs.
+if [ "$INSTALL_TILES" = "true" ]; then
+  cat >> /data/onboot.sh << TILES
+install_tiles() {
+# DBC connection is up — now advance to phase 3 (BL breathing = "maps"). From
+# here a slow BL blinker means the tile copy itself is slow, not a connection
+# problem.
+relight_progress 3
+dbc_ssh "mkdir -p /data/maps /data/valhalla" || log "WARNING: mkdir failed"
+
+TILE_ERRORS=0
+
+# A path here means the user asked for these tiles, so a file that is not
+# there is a staging failure and not "none were wanted". Reporting success
+# without saying so hands back a scooter with no maps and no explanation.
+if [ -n "$OSM_TILES_FILE" ] && [ ! -f "$OSM_TILES_FILE" ]; then
+  log "ERROR: display tiles staged at $OSM_TILES_FILE are missing"
+  TILE_ERRORS=\$((TILE_ERRORS + 1))
+fi
+if [ -n "$VALHALLA_TILES_FILE" ] && [ ! -f "$VALHALLA_TILES_FILE" ]; then
+  log "ERROR: routing tiles staged at $VALHALLA_TILES_FILE are missing"
+  TILE_ERRORS=\$((TILE_ERRORS + 1))
+fi
+
+if [ -f "$OSM_TILES_FILE" ]; then
+  dbc_say "Karten werden übertragen"
+  upload_to_dbc "$OSM_TILES_FILE" "/maps/map.mbtiles" "display tiles" || TILE_ERRORS=\$((TILE_ERRORS + 1))
+fi
+if [ -f "$VALHALLA_TILES_FILE" ]; then
+  case "$VALHALLA_TILES_FILE" in
+    *.zst)
+      # Valhalla mmaps the tar, so it has to land uncompressed. Decompressing on
+      # the DBC keeps the transfer about a third the size; zstd ships in the
+      # DBC image and ums-service already installs routing tiles this way.
+      dbc_say "Routing-Karten werden übertragen"
+      if upload_to_dbc "$VALHALLA_TILES_FILE" "/valhalla/tiles.tar.zst" "routing tiles"; then
+        if dbc_ssh "zstd -d -f -o /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar.zst && mv -f /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar && rm -f /data/valhalla/tiles.tar.zst"; then
+          dbc_ssh "systemctl restart valhalla" 2>/dev/null || true
+        else
+          log "ERROR: routing tile decompression failed"
+          dbc_ssh "rm -f /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar.zst" 2>/dev/null || true
+          TILE_ERRORS=\$((TILE_ERRORS + 1))
+        fi
+      else
+        TILE_ERRORS=\$((TILE_ERRORS + 1))
+      fi
+      ;;
+    *)
+      if upload_to_dbc "$VALHALLA_TILES_FILE" "/valhalla/tiles.tar" "routing tiles"; then
+        dbc_ssh "systemctl restart valhalla" 2>/dev/null || true
+      else
+        TILE_ERRORS=\$((TILE_ERRORS + 1))
+      fi
+      ;;
+  esac
+fi
+
+# Stop DBC Python upload server if we started one
+if [ "\$DBC_PYTHON_STARTED" = "yes" ]; then
+  dbc_ssh 'kill \$(cat /tmp/upload_srv.pid 2>/dev/null) 2>/dev/null; rm -f /tmp/upload_srv.pid /tmp/upload_srv.py' || true
+fi
+# This runs in a background subshell, so the count cannot be handed back in a
+# variable. The parent reads it after waiting.
+echo "\$TILE_ERRORS" > "\$INSTALLER_DIR/tile-errors"
+}
+TILES
+else
+  cat >> /data/onboot.sh << 'NOTILES'
+install_tiles() { :; }
+NOTILES
+fi
+
 cat >> /data/onboot.sh << 'ONBOOT'
 
 log() { echo "$(date '+%H:%M:%S') $1" >> "$LOG"; }
@@ -2222,6 +2296,20 @@ if [ -n "$DBC_MENDER" ]; then
   # here is an error, never "no artifact was requested".
   [ -f "$DBC_MENDER" ] || artifact_fail "error: DBC artifact missing on the MDB: $DBC_MENDER"
 
+  # Tiles go up while the dashboard still runs the stage-0 image. That image is
+  # pinned, so it is the one place whose contents the installer controls; the
+  # firmware being installed on top may be older than any given tool, and
+  # stable 1.2.1 has no zstd to unpack routing tiles with.
+  #
+  # It runs alongside the artifact install rather than before it: the two touch
+  # different partitions, the artifact write is the long pole at roughly a
+  # minute and a half, and the upload is about twenty seconds of that. Only the
+  # reboot afterwards has to wait, because a dashboard that restarts mid-upload
+  # takes a truncated tile set with it.
+  rm -f "$INSTALLER_DIR/tile-errors"
+  install_tiles &
+  TILES_JOB=$!
+
   relight_progress 3
   DBC_ART_NAME=$(basename "$DBC_MENDER")
   DBC_ART_PATH="/data/ota/dbc/$DBC_ART_NAME"
@@ -2346,6 +2434,16 @@ if [ -n "$DBC_MENDER" ]; then
   fi
 
   dbc_say "Firmware installiert, Display startet neu"
+  # The upload has to be finished before the dashboard goes down under it.
+  if [ -n "${TILES_JOB:-}" ]; then
+    log "  waiting for the tile upload to finish before rebooting"
+    wait "$TILES_JOB" 2>/dev/null || true
+    TILES_JOB=""
+    TILE_ERRORS=$(cat "$INSTALLER_DIR/tile-errors" 2>/dev/null || echo 0)
+    case "$TILE_ERRORS" in ''|*[!0-9]*) TILE_ERRORS=0 ;; esac
+    log "  tile upload finished with $TILE_ERRORS error(s)"
+  fi
+
   log "  rebooting DBC into the new rootfs"
   dbc_ssh 'sync; reboot &' >> "$LOG" 2>&1 || log "  DBC reboot command failed"
   sleep 20
@@ -2399,70 +2497,27 @@ if [ -n "$DBC_MENDER" ]; then
   # block below uploads over the same link, so re-probe now.
   ensure_dbc_upload_server
 fi
+
+# Tiles without an artifact: the dashboard is being left on its current
+# firmware and only the maps are being replaced. Nothing has been started
+# above in that case, so it runs here, in the foreground, with nothing to
+# overlap it.
+if [ -z "${TILES_JOB:-}" ] && [ -z "$DBC_MENDER" ]; then
+  install_tiles
+  TILE_ERRORS=$(cat "$INSTALLER_DIR/tile-errors" 2>/dev/null || echo 0)
+  case "$TILE_ERRORS" in ''|*[!0-9]*) TILE_ERRORS=0 ;; esac
+fi
+
+# A run that started the upload but never reached the reboot that joins it,
+# because the artifact install bailed out down a path that does not exit.
+if [ -n "${TILES_JOB:-}" ]; then
+  wait "$TILES_JOB" 2>/dev/null || true
+  TILE_ERRORS=$(cat "$INSTALLER_DIR/tile-errors" 2>/dev/null || echo 0)
+  case "$TILE_ERRORS" in ''|*[!0-9]*) TILE_ERRORS=0 ;; esac
+fi
 ONBOOT
 
 # Append tile installation commands with actual paths
-if [ "$INSTALL_TILES" = "true" ]; then
-  cat >> /data/onboot.sh << TILES
-# DBC connection is up — now advance to phase 3 (BL breathing = "maps"). From
-# here a slow BL blinker means the tile copy itself is slow, not a connection
-# problem.
-relight_progress 3
-dbc_ssh "mkdir -p /data/maps /data/valhalla" || log "WARNING: mkdir failed"
-
-TILE_ERRORS=0
-
-# A path here means the user asked for these tiles, so a file that is not
-# there is a staging failure and not "none were wanted". Reporting success
-# without saying so hands back a scooter with no maps and no explanation.
-if [ -n "$OSM_TILES_FILE" ] && [ ! -f "$OSM_TILES_FILE" ]; then
-  log "ERROR: display tiles staged at $OSM_TILES_FILE are missing"
-  TILE_ERRORS=\$((TILE_ERRORS + 1))
-fi
-if [ -n "$VALHALLA_TILES_FILE" ] && [ ! -f "$VALHALLA_TILES_FILE" ]; then
-  log "ERROR: routing tiles staged at $VALHALLA_TILES_FILE are missing"
-  TILE_ERRORS=\$((TILE_ERRORS + 1))
-fi
-
-if [ -f "$OSM_TILES_FILE" ]; then
-  dbc_say "Karten werden übertragen"
-  upload_to_dbc "$OSM_TILES_FILE" "/maps/map.mbtiles" "display tiles" || TILE_ERRORS=\$((TILE_ERRORS + 1))
-fi
-if [ -f "$VALHALLA_TILES_FILE" ]; then
-  case "$VALHALLA_TILES_FILE" in
-    *.zst)
-      # Valhalla mmaps the tar, so it has to land uncompressed. Decompressing on
-      # the DBC keeps the transfer about a third the size; zstd ships in the
-      # DBC image and ums-service already installs routing tiles this way.
-      dbc_say "Routing-Karten werden übertragen"
-      if upload_to_dbc "$VALHALLA_TILES_FILE" "/valhalla/tiles.tar.zst" "routing tiles"; then
-        if dbc_ssh "zstd -d -f -o /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar.zst && mv -f /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar && rm -f /data/valhalla/tiles.tar.zst"; then
-          dbc_ssh "systemctl restart valhalla" 2>/dev/null || true
-        else
-          log "ERROR: routing tile decompression failed"
-          dbc_ssh "rm -f /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar.zst" 2>/dev/null || true
-          TILE_ERRORS=\$((TILE_ERRORS + 1))
-        fi
-      else
-        TILE_ERRORS=\$((TILE_ERRORS + 1))
-      fi
-      ;;
-    *)
-      if upload_to_dbc "$VALHALLA_TILES_FILE" "/valhalla/tiles.tar" "routing tiles"; then
-        dbc_ssh "systemctl restart valhalla" 2>/dev/null || true
-      else
-        TILE_ERRORS=\$((TILE_ERRORS + 1))
-      fi
-      ;;
-  esac
-fi
-
-# Stop DBC Python upload server if we started one
-if [ "\$DBC_PYTHON_STARTED" = "yes" ]; then
-  dbc_ssh 'kill \$(cat /tmp/upload_srv.pid 2>/dev/null) 2>/dev/null; rm -f /tmp/upload_srv.pid /tmp/upload_srv.py' || true
-fi
-TILES
-fi
 
 cat >> /data/onboot.sh << 'ONBOOT_END'
 # Turn off DBC

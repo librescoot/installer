@@ -5,11 +5,14 @@ import 'package:librescoot_installer/models/board_state.dart';
 import 'package:librescoot_installer/models/install_plan.dart';
 import 'package:librescoot_installer/widgets/install_plan_panel.dart';
 
+// The panel is the scrolling body of a PhaseLayout in the app, so it is given
+// one here too. Hosting a bare Column in a fixed-size window overflows on the
+// taller plans and reports a layout error rather than the assertion under test.
 Widget _host(Widget child) => MaterialApp(
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       locale: const Locale('en'),
-      home: Scaffold(body: child),
+      home: Scaffold(body: SingleChildScrollView(child: child)),
     );
 
 const _mdbState = BoardState(
@@ -35,7 +38,6 @@ void main() {
       dbcState: _stockDbc,
       targetVersion: 'v1.2.1',
       onChanged: (_) {},
-      onContinue: () {},
     )));
 
     expect(find.text('MDB (main board)'), findsOneWidget);
@@ -55,7 +57,6 @@ void main() {
       dbcState: _stockDbc,
       targetVersion: 'v1.2.1',
       onChanged: (p) => seen = p,
-      onContinue: () {},
     )));
 
     expect(find.text('Upgrade needs a known version on this board'),
@@ -92,7 +93,6 @@ void main() {
       dbcState: _stockDbc,
       targetVersion: 'v1.2.1',
       onChanged: (_) {},
-      onContinue: () {},
     )));
 
     // The reason used to be the last line of the card, which a short window
@@ -121,7 +121,6 @@ void main() {
       dbcState: _stockDbc,
       targetVersion: 'v1.2.1',
       onChanged: (p) => seen = p,
-      onContinue: () {},
     )));
 
     // It leads nowhere: the dashboard is only reachable through the MDB and
@@ -144,7 +143,6 @@ void main() {
       dbcState: _stockDbc,
       targetVersion: 'v1.2.1',
       onChanged: (p) => seen = p,
-      onContinue: () {},
     )));
 
     await tester.tap(find.text('Leave alone').first);
@@ -166,14 +164,15 @@ void main() {
       dbcState: _stockDbc,
       targetVersion: 'v1.2.1',
       onChanged: (_) {},
-      onContinue: () {},
     )));
 
     expect(
         find.textContaining('needs the DBC cable swap'), findsOneWidget);
   });
 
-  testWidgets('blocks Continue when nothing is selected', (tester) async {
+  testWidgets('says so when the plan selects nothing', (tester) async {
+    // The Continue button itself now lives in the enclosing PhaseLayout, so
+    // what this panel still owes the user is the reason it is disabled.
     const plan = InstallPlan(
       mdb: BoardPlan(board: Board.mdb, action: BoardAction.leave),
       dbc: BoardPlan(board: Board.dbc, action: BoardAction.leave),
@@ -184,44 +183,11 @@ void main() {
       dbcState: _stockDbc,
       targetVersion: 'v1.2.1',
       onChanged: (_) {},
-      onContinue: () {},
     )));
 
-    final button = tester.widget<FilledButton>(find.byType(FilledButton));
-    expect(button.onPressed, isNull);
+    expect(plan.isNoOp, isTrue);
     expect(find.text('Nothing selected. Pick at least one action to continue.'),
         findsOneWidget);
-  });
-  testWidgets('keeps Continue on screen and tappable in a short window',
-      (tester) async {
-    // Regression guard for the pinned Continue button. The panel scrolls its
-    // own board list so the button stays reachable when the window is too
-    // short for everything to fit, and that only holds while the panel is
-    // given a bounded height: installer_screen renders this phase outside its
-    // outer scroll view for exactly this reason. Nest it back inside one and
-    // this test still passes the findsOneWidget, but the tap misses.
-    tester.view.physicalSize = const Size(1000, 300);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    var continued = false;
-    final plan = InstallPlan.defaults(
-        mdb: _mdbState, dbc: _stockDbc, targetVersion: 'v1.2.1');
-    await tester.pumpWidget(_host(InstallPlanPanel(
-      plan: plan,
-      mdbState: _mdbState,
-      dbcState: _stockDbc,
-      targetVersion: 'v1.2.1',
-      onChanged: (_) {},
-      onContinue: () => continued = true,
-    )));
-
-    final continueButton = find.widgetWithText(FilledButton, 'Continue');
-    expect(continueButton, findsOneWidget);
-    await tester.tap(continueButton);
-    expect(continued, isTrue,
-        reason: 'Continue must stay hit-testable, not scroll off the bottom');
   });
 
   testWidgets('a dashboard wipe does not claim to erase settings or keycards',
@@ -238,7 +204,6 @@ void main() {
       ),
       targetVersion: 'v1.2.1',
       onChanged: (_) {},
-      onContinue: () {},
     )));
 
     expect(find.text('Erases the offline maps only'), findsOneWidget);

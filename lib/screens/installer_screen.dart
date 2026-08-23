@@ -2797,13 +2797,28 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
 
   Widget _buildInstallPlan(AppLocalizations l10n) {
-    return InstallPlanPanel(
-      plan: _plan!,
-      mdbState: _mdbState,
-      dbcState: _dbcState,
-      targetVersion: _downloadState.releaseTag ?? '',
-      onChanged: (p) => setState(() => _plan = p),
-      onContinue: _startPlan,
+    final blocked = _plan!.isNoOp || _plan!.dbcWorkStrandedOn(_mdbState);
+    return PhaseLayout(
+      title: l10n.installPlanHeading,
+      subtitle: l10n.installPlanIntro(_downloadState.releaseTag ?? ''),
+      maxWidth: 640,
+      centerContent: false,
+      onBack: () => _setPhase(InstallerPhase.healthCheck),
+      backLabel: l10n.backButton,
+      actions: [
+        PhaseAction(
+          label: l10n.continueButton,
+          primary: true,
+          onPressed: blocked ? null : _startPlan,
+        ),
+      ],
+      child: InstallPlanPanel(
+        plan: _plan!,
+        mdbState: _mdbState,
+        dbcState: _dbcState,
+        targetVersion: _downloadState.releaseTag ?? '',
+        onChanged: (p) => setState(() => _plan = p),
+      ),
     );
   }
 
