@@ -1482,20 +1482,27 @@ dbc_ssh_bounded() {
 # clear the screen and hide the cursor, then write our own lines. getty comes
 # back on its own after a reboot, so this is re-run each time the board boots.
 DBC_CONSOLE=/dev/tty1
+# The dashboard is read at arm's length and often at an angle, so the text is
+# kept clear of the panel edges: a blank line at the top and four columns on
+# the left. Against the bezel, a line starting in column 0 is the first thing
+# to become unreadable.
+DBC_INDENT="    "
+
 dbc_console_init() {
   # Escape sequences rather than setterm: setterm is util-linux and the
   # bootstrap image does not carry it, so it was never the path that ran.
-  # \033[?25l hides the cursor, \033[2J clears, \033[H homes it.
+  # \033%G selects UTF-8 so the umlauts below render, \033[?25l hides the
+  # cursor, \033[2J clears, \033[H homes it.
   dbc_ssh "systemctl stop getty@tty1 2>/dev/null;
-           printf '\033[?25l\033[2J\033[H' > $DBC_CONSOLE 2>/dev/null;
-           printf 'Librescoot wird installiert\n\n' > $DBC_CONSOLE" \
+           printf '\033%%G\033[?25l\033[2J\033[H' > $DBC_CONSOLE 2>/dev/null;
+           printf '\n${DBC_INDENT}Librescoot wird installiert\n\n' > $DBC_CONSOLE" \
     2>/dev/null || log "  (could not claim the dashboard console)"
 }
 
 # $1: the line to show. Best-effort throughout: the console is a courtesy and
 # never a reason to fail an install.
 dbc_say() {
-  dbc_ssh "printf '  %s\n' \"$1\" > $DBC_CONSOLE" 2>/dev/null || true
+  dbc_ssh "printf '${DBC_INDENT}%s\n' \"$1\" > $DBC_CONSOLE" 2>/dev/null || true
 }
 
 # What a failure puts on the dashboard. The laptop is unplugged by now, so
@@ -1506,7 +1513,7 @@ dbc_fail_say() {
   dbc_say "Installation fehlgeschlagen"
   dbc_say "$1"
   dbc_say ""
-  dbc_say "USB-Kabel zurueck auf das MDB stecken und im"
+  dbc_say "USB-Kabel zurück auf das MDB stecken und im"
   dbc_say "Installer auf dem Laptop weitermachen."
 }
 
@@ -2363,7 +2370,7 @@ if [ -n "$DBC_MENDER" ]; then
   DBC_ART_AFTER=$(ssh -y -y root@$DBC_IP 'mender-update show-artifact' 2>/dev/null | head -n 1 | tr -d '\r')
   log "  DBC now runs ${DBC_VER:-unknown} (artifact ${DBC_ART_AFTER:-unknown})"
   dbc_console_init
-  dbc_say "Firmware $DBC_VER laeuft"
+  dbc_say "Firmware $DBC_VER läuft"
   [ -n "$DBC_VER" ] || artifact_fail "error: could not read the DBC version after the artifact install"
   if [ -n "$DBC_TARGET" ]; then
     # Lower-cased and with the tag's optional v prefix dropped, the same
@@ -2418,7 +2425,7 @@ if [ -n "$VALHALLA_TILES_FILE" ] && [ ! -f "$VALHALLA_TILES_FILE" ]; then
 fi
 
 if [ -f "$OSM_TILES_FILE" ]; then
-  dbc_say "Karten werden uebertragen"
+  dbc_say "Karten werden übertragen"
   upload_to_dbc "$OSM_TILES_FILE" "/maps/map.mbtiles" "display tiles" || TILE_ERRORS=\$((TILE_ERRORS + 1))
 fi
 if [ -f "$VALHALLA_TILES_FILE" ]; then
@@ -2427,7 +2434,7 @@ if [ -f "$VALHALLA_TILES_FILE" ]; then
       # Valhalla mmaps the tar, so it has to land uncompressed. Decompressing on
       # the DBC keeps the transfer about a third the size; zstd ships in the
       # DBC image and ums-service already installs routing tiles this way.
-      dbc_say "Routing-Karten werden uebertragen"
+      dbc_say "Routing-Karten werden übertragen"
       if upload_to_dbc "$VALHALLA_TILES_FILE" "/valhalla/tiles.tar.zst" "routing tiles"; then
         if dbc_ssh "zstd -d -f -o /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar.zst && mv -f /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar && rm -f /data/valhalla/tiles.tar.zst"; then
           dbc_ssh "systemctl restart valhalla" 2>/dev/null || true

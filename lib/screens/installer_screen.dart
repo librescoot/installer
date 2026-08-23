@@ -25,6 +25,7 @@ import '../widgets/health_check_panel.dart';
 import '../widgets/brake_gesture.dart';
 import '../widgets/install_plan_panel.dart';
 import '../widgets/instruction_step.dart';
+import '../widgets/phase_layout.dart';
 import '../widgets/phase_sidebar.dart';
 import '../widgets/substep_list.dart';
 import '../theme.dart';
@@ -964,18 +965,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
                           Expanded(
                             child: LayoutBuilder(
                               builder: (context, constraints) {
-                                // The plan screen scrolls its own board list
-                                // and pins Continue below it, which only
-                                // works against a bounded height. Inside the
-                                // outer scroll view it would grow to fit its
-                                // content instead and the button would
-                                // scroll off the bottom again.
-                                if (_currentPhase == InstallerPhase.installPlan) {
-                                  return Padding(
-                                    padding: const EdgeInsets.all(32),
-                                    child: _buildPhaseContent(l10n),
-                                  );
-                                }
+                                // A PhaseLayout owns its own title, scrolling
+                                // and action bar, so it needs the height
+                                // rather than a scroll view around it. Phases
+                                // not yet moved over keep the old behaviour:
+                                // one scroll for the whole screen.
+                                final content = _buildPhaseContent(l10n);
+                                if (content is PhaseLayout) return content;
                                 return Scrollbar(
                                   controller: _phaseScrollController,
                                   thumbVisibility: true,
@@ -984,7 +980,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
                                     padding: const EdgeInsets.all(32),
                                     child: ConstrainedBox(
                                       constraints: BoxConstraints(minHeight: constraints.maxHeight - 64),
-                                      child: Center(child: _buildPhaseContent(l10n)),
+                                      child: Center(child: content),
                                     ),
                                   ),
                                 );
@@ -1821,15 +1817,23 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
   }
   Widget _buildPhysicalPrep(AppLocalizations l10n) {
-    return Column(
+    return PhaseLayout(
+      title: l10n.physicalPrepHeading,
+      subtitle: l10n.physicalPrepSubheading,
+      centerContent: false,
+      onBack: () => _setPhase(InstallerPhase.notices),
+      backLabel: l10n.backButton,
+      actions: [
+        PhaseAction(
+          label: l10n.doneDetectDevice,
+          icon: Icons.arrow_forward,
+          primary: true,
+          onPressed: () => _setPhase(InstallerPhase.mdbConnect),
+        ),
+      ],
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(l10n.physicalPrepHeading,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Text(l10n.physicalPrepSubheading,
-            style: TextStyle(color: Colors.grey.shade400)),
-        const SizedBox(height: 24),
         InstructionStep(
           number: 1,
           title: l10n.removeFootwellCover,
@@ -1849,16 +1853,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
           title: l10n.connectLaptopUsb,
           description: l10n.connectLaptopUsbDesc,
         ),
-        const SizedBox(height: 24),
-        Align(
-          alignment: Alignment.centerRight,
-          child: FilledButton.icon(
-            onPressed: () => _setPhase(InstallerPhase.mdbConnect),
-            icon: const Icon(Icons.arrow_forward),
-            label: Text(l10n.doneDetectDevice),
-          ),
-        ),
       ],
+      ),
     );
   }
 
@@ -3418,15 +3414,21 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Widget _buildScooterPrep(AppLocalizations l10n) {
-    return Column(
+    return PhaseLayout(
+      title: l10n.scooterPrepHeading,
+      subtitle: l10n.scooterPrepSubheading,
+      centerContent: false,
+      actions: [
+        PhaseAction(
+          label: l10n.doneCbbAuxDisconnected,
+          icon: Icons.arrow_forward,
+          primary: true,
+          onPressed: () => _setPhase(InstallerPhase.mdbBoot),
+        ),
+      ],
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(l10n.scooterPrepHeading,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Text(l10n.scooterPrepSubheading,
-            style: TextStyle(color: Colors.grey.shade400)),
-        const SizedBox(height: 24),
 
         // The brake gesture is the primary route because it reaches the same
         // outcome without the seatbox: no main battery to lift out, no CBB to
@@ -3519,16 +3521,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 24),
-        Align(
-          alignment: Alignment.centerRight,
-          child: FilledButton.icon(
-            onPressed: () => _setPhase(InstallerPhase.mdbBoot),
-            icon: const Icon(Icons.arrow_forward),
-            label: Text(l10n.doneCbbAuxDisconnected),
-          ),
-        ),
       ],
+      ),
     );
   }
 
