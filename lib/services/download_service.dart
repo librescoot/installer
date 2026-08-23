@@ -126,6 +126,42 @@ class DownloadService {
     return result;
   }
 
+  @visibleForTesting
+  static bool isStageZeroForTest(String name) => _isStageZero(name);
+
+  /// Whether an asset is a stage-0 image, which is what the pin replaces.
+  /// Artifacts and everything else keep coming from the target release.
+  static bool _isStageZero(String name) =>
+      name.contains('-minimal-') &&
+      (name.endsWith('.sdimg.gz') || name.endsWith('.sdimg.bmap'));
+
+  /// The pinned stage-0 release, or null when the manifest does not name one.
+  ///
+  /// The stage-0 image has to carry what the installer needs while it runs:
+  /// redis, bluetooth-service, mender-update. The firmware line a user picks
+  /// may predate any of that, and taking the stage-0 from the target release
+  /// made the installer's own features come and go with the target version.
+  /// Artifacts depend on device_type alone, so any stage-0 for this board can
+  /// carry any target version.
+  ///
+  /// Null means an older manifest without the entry, which falls back to the
+  /// target release's own stage-0.
+  Future<({String tag, List<Map<String, dynamic>> assets})?>
+      resolveBootstrapRelease() async {
+    try {
+      final latest = await _fetchLatest();
+      final entry = latest['bootstrap'];
+      if (entry is! Map<String, dynamic>) return null;
+      final tag = entry['tag_name'] as String?;
+      final assets = entry['assets'];
+      if (tag == null || tag.isEmpty || assets is! List) return null;
+      return (tag: tag, assets: assets.cast<Map<String, dynamic>>());
+    } catch (e) {
+      debugPrint('Download: no pinned stage-0 available ($e)');
+      return null;
+    }
+  }
+
   /// Resolve the latest release for a channel. Returns (tag, assets) or throws.
   Future<({String tag, List<Map<String, dynamic>> assets})> resolveRelease(
     DownloadChannel channel,
@@ -306,9 +342,24 @@ class DownloadService {
     final items = <DownloadItem>[];
     final cacheDir = await getCacheDir();
 
-    // Firmware images and bmap files
+    // Firmware images and bmap files.
+    //
+    // Artifacts come from the channel the user picked. The stage-0 images come
+    // from the pinned release instead, because they have to carry what the
+    // installer needs while it runs rather than what the target firmware
+    // happened to ship. Without a pin in the manifest both come from the
+    // target release, which is the old behaviour.
     final release = await resolveRelease(channel);
-    for (final asset in release.assets) {
+    final bootstrap = await resolveBootstrapRelease();
+    final assets = <Map<String, dynamic>>[
+      ...release.assets.where((a) =>
+          bootstrap == null || !_isStageZero(a['name'] as String)),
+      ...?bootstrap?.assets.where((a) => _isStageZero(a['name'] as String)),
+    ];
+    if (bootstrap != null) {
+      debugPrint('Download: stage-0 pinned to ${bootstrap.tag}');
+    }
+    for (final asset in assets) {
       final name = asset['name'] as String;
       if (!name.contains('unu-')) continue;
       // Deltas need a matching base artifact on the device and boot tarballs
