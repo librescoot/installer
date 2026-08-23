@@ -58,7 +58,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get phaseMdbFlashDescription => 'Firmware auf MDB schreiben';
 
   @override
-  String get phaseScooterPrepTitle => 'Roller vorbereiten';
+  String get phaseScooterPrepTitle => 'Strom trennen';
 
   @override
   String get phaseScooterPrepDescription => 'CBB und AUX trennen';
@@ -90,7 +90,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get phaseDbcFlashDescription => 'Autonome DBC-Installation';
 
   @override
-  String get phaseReconnectTitle => 'Verbinden';
+  String get phaseReconnectTitle => 'Prüfen';
 
   @override
   String get phaseReconnectDescription => 'DBC-Installation prüfen';
@@ -144,7 +144,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get prerequisiteScrewdriverPH2 =>
-      'PH2-Kreuz- oder H4-Innensechskantschraubendreher für die vier Fußbrettschrauben';
+      'PH2-Kreuz- oder H4-Innensechskantschraubendreher für die vier Schrauben der Fußraumabdeckung';
 
   @override
   String get prerequisiteScrewdriverFlat =>
@@ -169,7 +169,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get noPowerCycleWarningBody =>
-      'Wenn irgendwas hängt, keine Rückmeldung gibt oder komisch aussieht: erstmal PAUSE und im Discord nachfragen. Nicht den AUX-Akku ziehen, nicht die CBB abklemmen, nicht USB rausreißen, weder Roller noch Laptop neu starten. Der Installer kann aus fast jedem Zustand wieder rauskommen. Aber nur, wenn du nicht reingrätschst. Mittendrin den Strom trennen ist das, was Roller bricked.';
+      'Wenn etwas hängt, keine Rückmeldung gibt oder sich merkwürdig verhält: halt an und frag im Discord nach, bevor du etwas anderes tust. Zieh nicht den AUX-Akku ab, klemm die CBB nicht ab, zieh kein USB-Kabel und starte weder Roller noch Laptop neu. Der Installer kommt aus fast jedem Zustand wieder heraus, solange ihn nichts unterbricht. Strom mitten im Flash zu trennen ist das, was Roller unbrauchbar macht.';
 
   @override
   String get downloadsFailedHeading => 'Download-Server nicht erreichbar';
@@ -232,7 +232,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get channelStableDesc => 'Getestet und zuverlässig';
 
   @override
-  String get channelTestingDesc => 'Neueste Features, evtl. noch ungeschliffen';
+  String get channelTestingDesc => 'Neueste Features, evtl. Noch ungeschliffen';
 
   @override
   String get channelNightlyDesc => 'Täglich aus main gebaut, für Entwickler';
@@ -354,7 +354,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get lockingScooter => 'Roller wird für das Flashen gesperrt...';
 
   @override
-  String get connected => 'Verbunden!';
+  String get connected => 'Verbunden';
 
   @override
   String sshConnectionFailed(String error) {
@@ -389,7 +389,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String untestedFirmwareBody(String version) {
-    return 'Die Installation auf Firmware-Versionen älter als 1.12.0 ist nicht getestet (deine: $version). Der Installer sollte trotzdem funktionieren. Über Feedback im Librescoot-Discord freuen wir uns.';
+    return 'Die Installation auf Firmware-Versionen älter als 1.12.0 ist nicht getestet (deine: $version). Der Installer sollte trotzdem funktionieren. Probleme bitte im Librescoot-Discord melden.';
   }
 
   @override
@@ -403,7 +403,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get incompleteImageStatus =>
-      'Unvollständiges Firmware-Image erkannt. Neuflashen zur Wiederherstellung...';
+      'Unvollständiges Firmware-Image erkannt. Neu flashen zur Wiederherstellung...';
 
   @override
   String get incompleteImageHeading => 'Unvollständiges Firmware-Image';
@@ -444,7 +444,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get riskAuxLow =>
-      'Niedrige 12V-Batterie könnte MDB oder DBC während des Flashens abschalten. LED-Anzeigen könnten ebenfalls ausfallen. Sitzbank mit eingesetztem Fahrakku schließen und warten, bis sie geladen ist.';
+      'Niedrige AUX-Batterie könnte MDB oder DBC während des Flashens abschalten. LED-Anzeigen könnten ebenfalls ausfallen. Sitzbank mit eingesetztem Fahrakku schließen und warten, bis sie geladen ist.';
 
   @override
   String get riskCbbSoh =>
@@ -452,11 +452,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get riskCbbCharge =>
-      'Niedriger CBB-Ladezustand erhöht das Risiko eines Stromausfalls beim DBC-Flash. Sitzbank mit eingesetztem Fahrakku schließen und warten, bis die CBB geladen ist.';
+      'Niedrige CBB-Ladung erhöht das Risiko eines Stromausfalls beim DBC-Flash. Sitzbank mit eingesetztem Fahrakku schließen und warten, bis die CBB geladen ist.';
 
   @override
   String get riskNoBattery =>
-      'Ohne den Fahrakku entlädt sich die 12V-Hilfsbatterie schneller. Der Roller könnte bei längeren Vorgängen herunterfahren.';
+      'Ohne den Fahrakku entlädt sich die AUX-Batterie schneller. Der Roller könnte bei längeren Vorgängen herunterfahren.';
 
   @override
   String get openSeatbox => 'Sitzbank öffnen';
@@ -499,7 +499,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get waitingForMdbFirmware => 'Warte auf MDB-Firmware-Download...';
 
   @override
-  String get mdbFlashComplete => 'MDB-Flash abgeschlossen!';
+  String get mdbFlashComplete => 'MDB-Flash abgeschlossen';
 
   @override
   String flashProgressMb(String mb) {
@@ -540,7 +540,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get disconnectAuxPoleDesc =>
-      'Entferne NUR den Pluspol (außen, rotes Kabel und Pol), um eine Verpolung zu vermeiden. Dadurch wird das MDB stromlos; die USB-Verbindung geht verloren.';
+      'Entferne nur den Pluspol (außen, rotes Kabel und Pol), um eine Verpolung zu vermeiden. Dadurch wird das MDB stromlos und die USB-Verbindung geht verloren.';
 
   @override
   String get auxDisconnectWarning =>
@@ -592,7 +592,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Der linke Hebel bleibt die ganze Zeit gezogen.';
 
   @override
-  String get brakeLeadInLabel => 'Zieh beide Bremsen in';
+  String get brakeLeadInLabel => 'Beide Bremsen ziehen';
 
   @override
   String get brakeLeadInHint =>
@@ -772,7 +772,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get dbcFlashSuccessful => 'DBC-Flash erfolgreich!';
+  String get dbcFlashSuccessful => 'DBC-Flash abgeschlossen';
 
   @override
   String dbcInstallSuccessfulVersion(String version) {
@@ -795,7 +795,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Trampoline-Status unbekannt. Prüfe /data/trampoline.log auf dem MDB.';
 
   @override
-  String get welcomeToLibrescoot => 'Willkommen bei Librescoot!';
+  String get welcomeToLibrescoot => 'Willkommen bei Librescoot';
 
   @override
   String get finalSteps => 'Letzte Schritte:';
@@ -1071,11 +1071,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get keycardMasterStageWarningHeading =>
-      'ACHTUNG: Die Masterkarte entriegelt den Roller NICHT';
+      'Die Masterkarte entriegelt den Roller nicht';
 
   @override
   String get keycardMasterStageWarningBody =>
-      'Die Masterkarte dient nur zur Verwaltung anderer Schlüsselkarten. Mit ihr kannst du den Roller NICHT entriegeln. Verwende KEINE der gerade angelernten Schlüsselkarten. Nimm eine separate, frische Karte.';
+      'Die Masterkarte verwaltet deine übrigen Schlüsselkarten. Sie entriegelt den Roller nicht, und keine der eben angelernten Karten kann als Masterkarte dienen. Nimm eine separate, unbenutzte Karte.';
 
   @override
   String get keycardMasterStageHint => 'Halte die Masterkarte an den Leser.';
@@ -1085,14 +1085,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get keycardMasterStageRejectedToast =>
-      'Diese Karte ist bereits als Schlüsselkarte registriert.';
+      'Diese Karte ist bereits als Schlüsselkarte angelernt.';
 
   @override
   String get keycardMasterStageSaveFailedToast =>
       'Masterkarte konnte nicht gespeichert werden: Schreibvorgang fehlgeschlagen.';
 
   @override
-  String get keycardMasterStageLearnedToast => 'Masterkarte wurde registriert.';
+  String get keycardMasterStageLearnedToast => 'Masterkarte wurde angelernt.';
 
   @override
   String get keycardMasterStageSkipButton => 'Überspringen';
@@ -1214,14 +1214,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get actionUpgradeDetail =>
-      'Behält Einstellungen, Keycards, Karten und Fahrten';
+      'Behält Einstellungen, Schlüsselkarten, Karten und Fahrten';
 
   @override
   String get actionCleanInstall => 'Neu installieren';
 
   @override
   String get actionCleanInstallDetail =>
-      'Löscht Einstellungen, Keycards, Karten und Fahrten';
+      'Löscht Einstellungen, Schlüsselkarten, Karten und Fahrten';
 
   @override
   String get actionUpgradeDetailDbc => 'Behält die Offline-Karten';
@@ -1358,7 +1358,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get fallBackWipeBody =>
-      'Beim Schreiben des vollständigen Images wird die Datenpartition neu formatiert. Einstellungen, angelernte Keycards, Offline-Karten und Fahrtenhistorie gehen dabei verloren, der Roller kommt wie fabrikneu zurück. Die begonnene Aktualisierung hätte all das behalten.\n\nEin erneuter Versuch mit dem Firmware-Artefakt behält die Daten. Schreibe das vollständige Image nur, wenn das Artefakt weiterhin fehlschlägt.';
+      'Beim Schreiben des vollständigen Images wird die Datenpartition neu formatiert. Einstellungen, angelernte Schlüsselkarten, Offline-Karten und Fahrtenhistorie gehen dabei verloren, der Roller kommt wie fabrikneu zurück. Die begonnene Aktualisierung hätte all das behalten.\n\nEin erneuter Versuch mit dem Firmware-Artefakt behält die Daten. Schreibe das vollständige Image nur, wenn das Artefakt weiterhin fehlschlägt.';
 
   @override
   String get fallBackWipeConfirm => 'Löschen und vollständiges Image schreiben';
@@ -1371,7 +1371,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcCleanInstallBody =>
-      'Die zuletzt bekannte Version des DBC ist nur das, was das MDB gesehen hat, als beide zusammen mit Strom versorgt waren. Ein Board, das der Plan für aktualisierbar hielt, hat also womöglich gar keinen Update-Client. Bei einer Neuinstallation wird zuerst das Bootstrap-Image geschrieben, dabei wird die Datenpartition des DBC neu formatiert und die Offline-Karten gehen verloren. Alles auf dem MDB bleibt unberührt, auch Einstellungen, angelernte Keycards und Fahrtenhistorie.\n\nDafür muss das Kabel noch einmal umgesteckt werden: Der Installer legt die Dateien ab, du schraubst das DBC-Kabel zurück an das MDB, der Rest läuft unbeaufsichtigt.';
+      'Die zuletzt bekannte Version des DBC ist nur das, was das MDB gesehen hat, als beide zusammen mit Strom versorgt waren. Ein Board, das der Plan für aktualisierbar hielt, hat also womöglich gar keinen Update-Client. Bei einer Neuinstallation wird zuerst das Bootstrap-Image geschrieben, dabei wird die Datenpartition des DBC neu formatiert und die Offline-Karten gehen verloren. Alles auf dem MDB bleibt unberührt, auch Einstellungen, angelernte Schlüsselkarten und Fahrtenhistorie.\n\nDafür muss das Kabel noch einmal umgesteckt werden: Der Installer legt die Dateien ab, du schraubst das DBC-Kabel zurück an das MDB, der Rest läuft unbeaufsichtigt.';
 
   @override
   String get dbcCleanInstallConfirm => 'DBC löschen und installieren';
@@ -1396,7 +1396,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get mainBatteryMissingHint =>
-      'Der Display-Flash zieht Strom aus dem Fahrakku. Setz ihn zurück in die Sitzbank, bevor es weitergeht.';
+      'Der DBC-Flash zieht Strom aus dem Fahrakku. Setz ihn zurück in die Sitzbank, bevor es weitergeht.';
 
   @override
   String get cbbDetected => 'CBB erkannt';
@@ -1427,7 +1427,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get networkConfigNeedsPermission =>
-      'macOS fragt nach Erlaubnis, die Netzwerk-Einstellungen zu ändern. Im Systemdialog auf \'Erlauben\' klicken, dann \'Erneut versuchen\' drücken.';
+      'macOS fragt nach Erlaubnis, die Netzwerk-Einstellungen zu ändern. Im Systemdialog auf Erlauben klicken, dann Erneut versuchen drücken.';
 
   @override
   String get waitingForMdb => 'Warte auf das MDB...';
@@ -1449,7 +1449,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcFlashFailSignal =>
-      'Fehler: der Warnblinker geht an und die Tacho-LED blinkt rot. Dann USB zurück auf das MDB stecken und hier das Log holen.';
+      'Fehler: der Warnblinker geht an und die DBC-LED blinkt rot. Dann USB zurück auf das MDB stecken und hier das Log holen.';
 
   @override
   String get dbcFlashSomethingWrong =>
@@ -1490,7 +1490,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get mdbReconnectedVerifying =>
-      'MDB wieder verbunden! Überprüfung läuft...';
+      'MDB wieder verbunden. Überprüfung läuft...';
 
   @override
   String get logDebugShell => 'Log & Debug-Shell';
@@ -1582,7 +1582,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get substepWaitRndis => 'Warte auf MDB (RNDIS) am USB';
 
   @override
-  String get substepConfigureNetwork => 'Netzwerkkonfiguration';
+  String get substepConfigureNetwork => 'Netzwerk konfigurieren';
 
   @override
   String get substepConnectSsh => 'SSH-Verbindung herstellen';
@@ -1625,11 +1625,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get upgradeDowngradeWarning =>
-      'Das ist älter als das, was auf dem Board läuft. Aktualisieren behält Einstellungen, Keycards, Karten und Fahrten, und ältere Dienste lesen Daten einer neueren Version womöglich nicht. Wenn danach etwas klemmt, neu installieren.';
+      'Das ist älter als das, was auf dem Board läuft. Aktualisieren behält Einstellungen, Schlüsselkarten, Karten und Fahrten, und ältere Dienste lesen Daten einer neueren Version womöglich nicht. Wenn danach etwas klemmt, neu installieren.';
 
   @override
   String get upgradeChannelSwitchWarning =>
-      'Das ist ein anderer Kanal als der, der auf dem Board läuft. Aktualisieren behält Einstellungen, Keycards, Karten und Fahrten, die die Dienste des anderen Kanals womöglich anders lesen. Wenn danach etwas klemmt, neu installieren.';
+      'Das ist ein anderer Kanal als der, der auf dem Board läuft. Aktualisieren behält Einstellungen, Schlüsselkarten, Karten und Fahrten, die die Dienste des anderen Kanals womöglich anders lesen. Wenn danach etwas klemmt, neu installieren.';
 
   @override
   String get tightenDbcCable => 'DBC-Kabel festschrauben';
