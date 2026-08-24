@@ -363,26 +363,29 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
     final deadline = DateTime.now().add(timeout);
     NetworkInterface? iface;
     while (true) {
-      iface = await _findLinuxInterfaceOnce();
+      iface = await findLinuxInterfaceOnce();
       if (iface != null) return iface;
       if (!DateTime.now().isBefore(deadline)) return null;
       await Future.delayed(const Duration(seconds: 1));
     }
   }
 
-  Future<NetworkInterface?> _findLinuxInterfaceOnce() async {
+  @visibleForTesting
+  Future<NetworkInterface?> findLinuxInterfaceOnce({
+    String sysRoot = '/sys',
+  }) async {
     try {
-      final dir = Directory('/sys/class/net');
+      final dir = Directory('$sysRoot/class/net');
       if (!await dir.exists()) return null;
       // Walk every interface; don't rely on name patterns. systemd predictable
       // naming gives us enx<MAC>, but legacy/biosdevname/init=no setups use
-      // usb0, eth1, etc. Match on USB VID:PID via uevent first, fall back to
-      // driver name.
+      // usb0, eth1, etc. Sorted so that a host with several candidates always
+      // gets the same answer instead of one that depends on readdir order.
       final entries = await dir.list(followLinks: false).toList();
-      for (final entry in entries) {
-        final name = entry.path.split('/').last;
+      final names = entries.map((e) => e.path.split('/').last).toList()..sort();
+      for (final name in names) {
         if (name == 'lo') continue;
-        if (await _isLibrescootInterface(name)) {
+        if (await isLibrescootInterface(name, sysRoot: sysRoot)) {
           return NetworkInterface(
             name: name,
             displayName: 'USB Ethernet ($name)',
@@ -390,48 +393,84 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
         }
       }
     } catch (e) {
-      debugPrint('Network: _findLinuxInterfaceOnce error: $e');
+      debugPrint('Network: findLinuxInterfaceOnce error: $e');
     }
     return null;
   }
 
   /// Decide whether the given iface is the Librescoot USB gadget.
-  /// Primary check: USB MODALIAS in uevent contains v0525pA4A2.
-  /// Fallback: driver symlink basename is cdc_ether or rndis_host.
-  Future<bool> _isLibrescootInterface(String name) async {
+  ///
+  /// Only the device's own identity counts, read from either of the two places
+  /// the kernel publishes it: the USB interface uevent
+  /// (`MODALIAS=usb:v0525pA4A2...`, or `PRODUCT=525/a4a2/...`, which drops
+  /// leading zeros), and idVendor/idProduct on the USB device one level up.
+  ///
+  /// The driver name is deliberately not evidence. cdc_ether, rndis_host,
+  /// cdc_ncm and cdc_subset are the generic CDC drivers every USB dock, phone
+  /// tether and no-name adapter binds to, so trusting them means an unrelated
+  /// interface can be picked, set unmanaged and given our static address. That
+  /// takes down the host's own network and still never reaches the MDB. When
+  /// the identity cannot be read, the honest answer is no.
+  @visibleForTesting
+  Future<bool> isLibrescootInterface(
+    String name, {
+    String sysRoot = '/sys',
+  }) async {
+    final device = '$sysRoot/class/net/$name/device';
+
     try {
-      final uevent = File('/sys/class/net/$name/device/uevent');
+      final uevent = File('$device/uevent');
       if (await uevent.exists()) {
-        final content = await uevent.readAsString();
-        // MODALIAS line for our gadget: usb:v0525pA4A2d... (case-insensitive hex)
-        if (RegExp(r'MODALIAS=usb:v0525p[Aa]4[Aa]2', caseSensitive: false)
-            .hasMatch(content)) {
-          return true;
-        }
+        if (ueventIdentifiesGadget(await uevent.readAsString())) return true;
       }
     } catch (_) {}
 
-    // Fallback: read the driver symlink target. /sys/class/net/<iface>/device/driver
-    // is a symlink to /sys/bus/usb/drivers/<driver>; the previous code used
-    // `ls` here, which lists the *contents* of the driver dir, not its name —
-    // so the cdc_ether check always failed.
     try {
-      final result = await Process.run(
-        'readlink',
-        ['/sys/class/net/$name/device/driver'],
-      );
-      if (result.exitCode == 0) {
-        final driver = result.stdout.toString().trim().split('/').last;
-        if (driver == 'cdc_ether' ||
-            driver == 'rndis_host' ||
-            driver == 'cdc_ncm' ||
-            driver == 'cdc_subset') {
+      final vendor = File('$device/../idVendor');
+      final product = File('$device/../idProduct');
+      if (await vendor.exists() && await product.exists()) {
+        if (usbIdsIdentifyGadget(
+          await vendor.readAsString(),
+          await product.readAsString(),
+        )) {
           return true;
         }
       }
     } catch (_) {}
 
     return false;
+  }
+
+  /// USB ids of the MDB's ethernet gadget, the same pair the USB detector and
+  /// the Windows driver installer match on.
+  static const int gadgetVendorId = 0x0525;
+  static const int gadgetProductId = 0xA4A2;
+
+  /// True when a USB interface uevent names our gadget. Both lines it can come
+  /// from are checked: MODALIAS pads the ids to four hex digits, PRODUCT does
+  /// not (`PRODUCT=525/a4a2/612` on a live gadget).
+  @visibleForTesting
+  static bool ueventIdentifiesGadget(String uevent) {
+    if (RegExp(
+      r'MODALIAS=usb:v0525p[Aa]4[Aa]2',
+      caseSensitive: false,
+    ).hasMatch(uevent)) {
+      return true;
+    }
+    return RegExp(
+      r'^PRODUCT=0*525/0*a4a2(/|$)',
+      multiLine: true,
+      caseSensitive: false,
+    ).hasMatch(uevent);
+  }
+
+  /// True when sysfs idVendor/idProduct are our gadget's. Both are hex without
+  /// a 0x prefix, so they are parsed as hex rather than compared as strings.
+  @visibleForTesting
+  static bool usbIdsIdentifyGadget(String idVendor, String idProduct) {
+    final vendor = int.tryParse(idVendor.trim(), radix: 16);
+    final product = int.tryParse(idProduct.trim(), radix: 16);
+    return vendor == gadgetVendorId && product == gadgetProductId;
   }
 
   Future<bool> _configureLinux(NetworkInterface iface) async {
