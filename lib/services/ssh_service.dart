@@ -647,18 +647,30 @@ done
     throw Exception('No device config found for version $version');
   }
 
+  /// Rebuild a dropped client, or throw naming [operation].
+  ///
+  /// _lastPassword survives everything except an explicit disconnect(), so a
+  /// client lost to an idle timeout or to invalidateConnection can be rebuilt
+  /// without asking the user again.
+  Future<void> _ensureConnected(String operation) async {
+    if (_client != null) return;
+    if (_lastPassword == null) {
+      throw Exception(
+        'SSH session lost before $operation, with no stored credential to '
+        'resume it.',
+      );
+    }
+    debugPrint('SSH: client gone, reconnecting for $operation');
+    await _reconnect();
+  }
+
   /// Run a command on the connected device.
   Future<String> runCommand(
     String command, {
     Duration timeout = const Duration(seconds: 60),
     bool replayOnDisconnect = false,
   }) async {
-    if (_client == null) {
-      if (_lastPassword == null) {
-        throw Exception('Not connected');
-      }
-      await _reconnect();
-    }
+    await _ensureConnected('command');
 
     return executeWithReplayPolicy(
       execute: () => _runCommandOnce(command, timeout),
@@ -918,9 +930,7 @@ done
     String remotePath, {
     void Function(int bytesSent, int totalBytes)? onProgress,
   }) async {
-    if (_client == null) {
-      throw Exception('Not connected');
-    }
+    await _ensureConnected('file upload');
 
     // Scale timeout with file size: at least 60s, plus 1s per 100KB
     final timeoutSecs = 60 + (content.length / (100 * 1024)).ceil();
@@ -997,9 +1007,8 @@ done
 
   /// Upload fw_setenv and configure bootloader for mass storage mode
   Future<void> configureMassStorageMode() async {
-    if (_client == null) {
-      throw Exception('Not connected');
-    }
+    // No guard: every step here goes through runCommand or uploadFile, both
+    // of which reconnect a dropped client themselves.
 
     // Check if the device already has fw_setenv and fw_env.config (Librescoot).
     // If so, use the device's own tools and config (correct env offsets).
@@ -1072,10 +1081,8 @@ done
 
   /// Reboot the device
   Future<void> reboot() async {
-    if (_client == null) {
-      throw Exception('Not connected');
-    }
-
+    // No guard: every command here goes through runCommand, which reconnects
+    // a dropped client itself.
     final rebootCommands = <String>[
       'reboot',
       '/sbin/reboot',
@@ -1255,7 +1262,7 @@ done
   /// events arrive promptly.
   Future<({Stream<String> events, Future<void> Function() stop})>
   subscribeRedisChannel(String channel) async {
-    if (_client == null) throw Exception('Not connected');
+    await _ensureConnected('redis subscription');
     final escapedChannel = _shellEscape(channel);
     final cmd =
         'redis-cli SUBSCRIBE $escapedChannel 2>&1 | '
@@ -1614,7 +1621,7 @@ done
 
   /// Download a remote file's contents via cat. Returns null if the file doesn't exist.
   Future<Uint8List?> downloadFile(String remotePath) async {
-    if (_client == null) throw Exception('Not connected');
+    await _ensureConnected('file download');
     SSHSession? session;
     try {
       session = await _client!.execute('cat ${_shellEscape(remotePath)}');

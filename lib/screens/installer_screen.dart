@@ -3729,6 +3729,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// so a board that will not answer is not a reason to stop the install.
   Future<void> _deactivateMainBattery() async {
     if (_isDryRun) return;
+    // A minimal image has no redis, so every call here fails. Catching that
+    // is not enough: a failure inside executeWithReplayPolicy can invalidate
+    // the connection, and the mandatory step after this one needs it.
+    if (_mdbStackMissing) {
+      debugPrint('Battery: minimal image, skipping main-pack deactivation');
+      return;
+    }
     try {
       await _sshService.deactivateMainBattery();
       final deadline = DateTime.now().add(const Duration(seconds: 30));
