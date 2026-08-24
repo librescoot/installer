@@ -122,6 +122,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// reboot: on the happy path it is not even connected, and after a
   /// reconnect the device has already done all three.
   bool _deviceFinishArmed = false;
+  final String _installRunId = createInstallRunId();
+  Future<void> _installStateWriteQueue = Future.value();
+  int _installStateSequence = 0;
   DeviceInfo? _mdbInfo;
 
   /// What the user chose on the install-plan screen. Null until the health
@@ -491,6 +494,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _progress = 0.0;
       _isProcessing = false;
     });
+    _queueInstallPhaseRecord(phase);
     if (leaving == InstallerPhase.keycardSetup &&
         phase != InstallerPhase.keycardSetup) {
       _keycardTearDown();
@@ -513,6 +517,26 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (phase == InstallerPhase.bluetoothPairing) {
       _fetchBleMac();
     }
+  }
+
+  void _queueInstallPhaseRecord(InstallerPhase phase) {
+    if (_isDryRun || _deviceFinishArmed || !_sshService.isConnected) return;
+    final sequence = ++_installStateSequence;
+    final content = serializeInstallRunState(
+      runId: _installRunId,
+      actor: 'installer',
+      stage: phase.name,
+      sequence: sequence,
+    );
+    _installStateWriteQueue = _installStateWriteQueue.then((_) async {
+      if (_deviceFinishArmed || !_sshService.isConnected) return;
+      await _sshService.writeInstallRunState(
+        runId: _installRunId,
+        content: content,
+      );
+    }).catchError((Object error) {
+      debugPrint('UI: could not record installer phase ${phase.name}: $error');
+    });
   }
 
   /// Read the scooter's BLE MAC from the MDB so the user can match it against
@@ -808,9 +832,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   Future<bool> _deviceReportedFinished() async {
     try {
       final out = await _sshService
-          .runCommand('test -f /data/last-install && echo yes || echo no')
+          .runCommand('cat /data/last-install 2>/dev/null; true')
           .timeout(const Duration(seconds: 10));
-      return out.trim() == 'yes';
+      return TrampolineStatus.parseCompletionRecord(out)
+          .completedFor(_installRunId);
     } catch (e) {
       debugPrint('UI: could not read the completion record ($e), finishing here');
       return false;
@@ -4922,7 +4947,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
     try {
       _setStatus(l10n.startingTrampoline);
-      await TrampolineService(_sshService).start();
+      await _installStateWriteQueue;
+      await TrampolineService(_sshService).start(runId: _installRunId);
       _deviceFinishArmed = true;
       _setCritical(false);
       setState(() => _isProcessing = false);
@@ -5597,7 +5623,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     TrampolineStatus status;
     final pollStart = DateTime.now();
     while (true) {
-      status = await _sshService.readTrampolineStatus();
+      status = await _sshService.readTrampolineStatus(
+        expectedRunId: _installRunId,
+      );
       // `running` is as much a reason to keep polling as an absent file: the
       // trampoline writes it before the reboot that starts the dashboard
       // work, so it means "not finished", not "finished well".

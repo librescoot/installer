@@ -20,6 +20,36 @@ String? remoteDirOf(String remotePath) {
   return dir.isEmpty ? null : dir;
 }
 
+String createInstallRunId({DateTime? now, int? processId}) {
+  final timestamp = (now ?? DateTime.now().toUtc())
+      .microsecondsSinceEpoch
+      .toRadixString(36);
+  final process = (processId ?? pid).toRadixString(36);
+  return 'run-$timestamp-$process';
+}
+
+String serializeInstallRunState({
+  required String runId,
+  required String actor,
+  required String stage,
+  String result = 'running',
+  String finish = 'pending',
+  int? sequence,
+  DateTime? updatedAt,
+}) {
+  final updated = (updatedAt ?? DateTime.now().toUtc()).toIso8601String();
+  return <String>[
+    'run-id: $runId',
+    'actor: $actor',
+    'stage: $stage',
+    'result: $result',
+    'finish: $finish',
+    if (sequence != null) 'sequence: $sequence',
+    'updated: $updated',
+    '',
+  ].join('\n');
+}
+
 class TrampolineService {
   final SshService _ssh;
   bool _pythonServerStarted = false;
@@ -620,7 +650,10 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
   }
 
   /// Start the trampoline script on MDB in background.
-  Future<void> start() async {
+  Future<void> start({required String runId}) async {
+    if (!RegExp(r'^[a-zA-Z0-9._-]+$').hasMatch(runId)) {
+      throw ArgumentError.value(runId, 'runId', 'contains unsafe characters');
+    }
     // A leftover trampoline from an abandoned run would race this one over the
     // USB role and the dashboard's power. The pattern is bracketed so pgrep and
     // pkill cannot match their own command line, and the kill is its own
@@ -629,6 +662,21 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     await _ssh.runCommand(
       "pkill -f 'installer/[t]rampoline.sh' 2>/dev/null; true",
     );
+    await _ssh.runCommand(
+      'rm -f /data/last-install; '
+      'mkdir -p /data/installer; '
+      "printf '%s\\n' '$runId' > /data/installer/.run-id.tmp; "
+      'mv -f /data/installer/.run-id.tmp /data/installer/run-id',
+    );
+    await _ssh.writeInstallRunState(
+      runId: runId,
+      content: serializeInstallRunState(
+        runId: runId,
+        actor: 'installer',
+        stage: 'trampoline-armed',
+      ),
+    );
+
     // An old status file reads as this run's verdict if the arming below fails
     // silently, so it goes before anything can be believed.
     await _ssh.runCommand(
@@ -657,7 +705,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
   }
 
   /// Read trampoline status (call after reconnecting to MDB).
-  Future<TrampolineStatus> readStatus() async {
-    return _ssh.readTrampolineStatus();
+  Future<TrampolineStatus> readStatus({String? expectedRunId}) async {
+    return _ssh.readTrampolineStatus(expectedRunId: expectedRunId);
   }
 }

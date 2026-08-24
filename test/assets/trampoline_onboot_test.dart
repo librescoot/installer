@@ -294,6 +294,31 @@ void main() {
     }
   });
 
+  test('run progress survives staging cleanup in per-run state files', () {
+    expect(onboot, contains(r'RUN_HISTORY_DIR="/data/installer-runs"'));
+    expect(onboot, contains(r'RUN_STATE_FILE="/data/installer-run-state"'));
+    expect(onboot, contains('write_run_state()'));
+    expect(onboot, contains(r'echo "run-id: $RUN_ID"'));
+    expect(onboot, contains(r'mv -f "$history_tmp" "$RUN_HISTORY_DIR/$RUN_ID"'));
+  });
+
+  test('completion is atomic and written after the handover actions', () {
+    final finishStart = onboot.indexOf('device_finish()');
+    final finishEnd =
+        onboot.indexOf('\n}\n\nif [ "\$ONBOOT_TRIES"', finishStart);
+    expect(finishStart, greaterThanOrEqualTo(0));
+    expect(finishEnd, greaterThan(finishStart));
+    final finish = onboot.substring(finishStart, finishEnd);
+    final completionCall = finish.indexOf('write_completion_record; then');
+    expect(completionCall, greaterThan(finish.indexOf('systemctl start librescoot-ums')));
+    expect(completionCall, greaterThan(finish.indexOf('lsc set scooter.usb0-policy auto')));
+    expect(completionCall, greaterThan(finish.indexOf('systemctl start librescoot-pm')));
+    expect(completionCall, greaterThan(finish.indexOf('systemctl restart librescoot-vehicle')));
+    expect(completionCall, greaterThan(finish.indexOf('lpush scooter:state unlock')));
+    expect(onboot, contains(r'mv -f "$last_tmp" /data/last-install'));
+    expect(onboot, isNot(contains('} > /data/last-install')));
+  });
+
   test('a board left alone gets its parked settings back', () {
     // The installer parks auto-standby and the alarm at connect time, before
     // any plan exists, so a leave plan has modified settings and a backup to

@@ -5,6 +5,55 @@
 /// installed while the board it was about to be written to was still booting.
 enum TrampolineResult { success, running, error, unknown }
 
+class InstallRunState {
+  InstallRunState({
+    required this.runId,
+    required this.actor,
+    required this.stage,
+    required this.result,
+    required this.finishState,
+  });
+
+  final String? runId;
+  final String? actor;
+  final String? stage;
+  final TrampolineResult result;
+  final String? finishState;
+
+  factory InstallRunState.parse(String content) {
+    final fields = <String, String>{};
+    for (final line in content.split('\n')) {
+      final separator = line.indexOf(':');
+      if (separator < 1) continue;
+      final value = line.substring(separator + 1).trim();
+      if (value.isNotEmpty) {
+        fields[line.substring(0, separator).trim()] = value;
+      }
+    }
+    final result = switch (fields['result']?.toLowerCase()) {
+      'success' => TrampolineResult.success,
+      'running' => TrampolineResult.running,
+      'error' => TrampolineResult.error,
+      _ => TrampolineResult.unknown,
+    };
+    return InstallRunState(
+      runId: fields['run-id'],
+      actor: fields['actor'],
+      stage: fields['stage'],
+      result: result,
+      finishState: fields['finish'],
+    );
+  }
+
+  TrampolineStatus toTrampolineStatus() => TrampolineStatus(
+        result: result,
+        runId: runId,
+        finishState: finishState,
+        stage: stage,
+        message: stage,
+      );
+}
+
 class TrampolineStatus {
   TrampolineStatus({
     required this.result,
@@ -13,6 +62,9 @@ class TrampolineStatus {
     this.mode,
     this.mdbVersion,
     this.dbcVersion,
+    this.runId,
+    this.finishState,
+    this.stage,
   });
 
   final TrampolineResult result;
@@ -25,6 +77,14 @@ class TrampolineStatus {
   final String? mode;
   final String? mdbVersion;
   final String? dbcVersion;
+  final String? runId;
+  final String? finishState;
+  final String? stage;
+
+  bool completedFor(String expectedRunId) =>
+      result == TrampolineResult.success &&
+      runId == expectedRunId &&
+      finishState == 'complete';
 
   factory TrampolineStatus.parse(String content) {
     final lines = content.trim().split('\n');
@@ -50,6 +110,9 @@ class TrampolineStatus {
         mode: field('mode'),
         mdbVersion: field('mdb'),
         dbcVersion: field('dbc'),
+        runId: field('run-id'),
+        finishState: field('finish'),
+        stage: field('stage'),
       );
     } else if (resultLine == 'running' || resultLine == 'rebooting') {
       // `rebooting` is what older trampolines wrote at the same point.
@@ -59,6 +122,9 @@ class TrampolineStatus {
         mode: field('mode'),
         mdbVersion: field('mdb'),
         dbcVersion: field('dbc'),
+        runId: field('run-id'),
+        finishState: field('finish'),
+        stage: field('stage'),
       );
     } else if (resultLine.startsWith('error')) {
       return TrampolineStatus(
@@ -68,8 +134,17 @@ class TrampolineStatus {
         mode: field('mode'),
         mdbVersion: field('mdb'),
         dbcVersion: field('dbc'),
+        runId: field('run-id'),
+        finishState: field('finish'),
+        stage: field('stage'),
       );
     }
     return TrampolineStatus(result: TrampolineResult.unknown, message: content);
+  }
+
+  static TrampolineStatus parseCompletionRecord(String content) {
+    return TrampolineStatus.parse(
+      content.replaceFirst(RegExp(r'^result:\s*'), ''),
+    );
   }
 }

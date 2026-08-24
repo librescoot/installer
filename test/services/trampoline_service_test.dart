@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/models/install_plan.dart';
 import 'package:librescoot_installer/models/region.dart';
@@ -5,6 +7,43 @@ import 'package:librescoot_installer/models/trampoline_status.dart';
 import 'package:librescoot_installer/services/trampoline_service.dart';
 
 void main() {
+  group('install run state', () {
+    test('run IDs are safe for remote filenames', () {
+      final runId = createInstallRunId(
+        now: DateTime.utc(2026, 8, 24, 7, 12, 34),
+        processId: 1234,
+      );
+      expect(runId, matches(RegExp(r'^run-[a-z0-9]+-[a-z0-9]+$')));
+    });
+
+    test('serializes installer phase progress with sequence ordering', () {
+      final state = serializeInstallRunState(
+        runId: 'run-abc-1',
+        actor: 'installer',
+        stage: 'healthCheck',
+        sequence: 7,
+        updatedAt: DateTime.utc(2026, 8, 24, 7, 12, 34),
+      );
+      expect(state, contains('run-id: run-abc-1\n'));
+      expect(state, contains('actor: installer\n'));
+      expect(state, contains('stage: healthCheck\n'));
+      expect(state, contains('result: running\n'));
+      expect(state, contains('finish: pending\n'));
+      expect(state, contains('sequence: 7\n'));
+    });
+
+    test('arming clears the old completion before launching the new run', () {
+      final source =
+          File('lib/services/trampoline_service.dart').readAsStringSync();
+      final start = source.indexOf('Future<void> start({required String runId})');
+      final clear = source.indexOf('rm -f /data/last-install', start);
+      final launch = source.indexOf('nohup /data/installer/trampoline.sh', start);
+      expect(start, greaterThanOrEqualTo(0));
+      expect(clear, greaterThan(start));
+      expect(launch, greaterThan(clear));
+    });
+  });
+
   group('remoteDirOf', () {
     test('returns the directory component of a path with a slash', () {
       expect(remoteDirOf('/data/ota/mdb/librescoot-unu-mdb-v1.2.1.mender'),
@@ -56,11 +95,39 @@ void main() {
 
     test('keeps the verdict on the first line and reads the extra fields', () {
       final status = TrampolineStatus.parse(
-          'success\nmode: upgrade\nmdb: v1.2.1\ndbc: v1.2.1\n');
+          'success\nrun-id: run-abc-1\nfinish: complete\n'
+          'stage: complete\nmode: upgrade\nmdb: v1.2.1\ndbc: v1.2.1\n');
       expect(status.result, TrampolineResult.success);
+      expect(status.runId, 'run-abc-1');
+      expect(status.finishState, 'complete');
+      expect(status.stage, 'complete');
       expect(status.mode, 'upgrade');
       expect(status.mdbVersion, 'v1.2.1');
       expect(status.dbcVersion, 'v1.2.1');
+    });
+
+    test('only a complete matching run can prove autonomous finish', () {
+      final complete = TrampolineStatus.parseCompletionRecord(
+        'result: success\nrun-id: run-abc-1\nfinish: complete\n',
+      );
+      final pending = TrampolineStatus.parseCompletionRecord(
+        'result: success\nrun-id: run-abc-1\nfinish: pending\n',
+      );
+      expect(complete.completedFor('run-abc-1'), isTrue);
+      expect(complete.completedFor('run-old-9'), isFalse);
+      expect(pending.completedFor('run-abc-1'), isFalse);
+    });
+
+    test('parses shared current-run progress', () {
+      final state = InstallRunState.parse(
+        'run-id: run-abc-1\nactor: trampoline\nstage: waiting-dbc-ssh\n'
+        'result: running\nfinish: pending\n',
+      );
+      expect(state.runId, 'run-abc-1');
+      expect(state.actor, 'trampoline');
+      expect(state.stage, 'waiting-dbc-ssh');
+      expect(state.result, TrampolineResult.running);
+      expect(state.toTrampolineStatus().stage, 'waiting-dbc-ssh');
     });
 
     test('a flash-mode status without the extra fields still parses', () {

@@ -1574,11 +1574,31 @@ class SshService {
   }
 
   /// Read the trampoline status file from MDB.
-  Future<TrampolineStatus> readTrampolineStatus() async {
+  Future<TrampolineStatus> readTrampolineStatus({String? expectedRunId}) async {
     try {
+      TrampolineStatus? matchingStatus;
       final content =
           await runCommand('cat /data/installer/trampoline-status 2>/dev/null');
-      if (content.trim().isNotEmpty) return TrampolineStatus.parse(content);
+      if (content.trim().isNotEmpty) {
+        final status = TrampolineStatus.parse(content);
+        if (expectedRunId == null || status.runId == expectedRunId) {
+          if (status.result != TrampolineResult.running &&
+              status.result != TrampolineResult.unknown) {
+            return status;
+          }
+          matchingStatus = status;
+        }
+      }
+
+      final currentState = await runCommand(
+          'cat /data/installer-run-state 2>/dev/null; true');
+      if (currentState.trim().isNotEmpty) {
+        final state = InstallRunState.parse(currentState);
+        if (expectedRunId == null || state.runId == expectedRunId) {
+          return state.toTrampolineStatus();
+        }
+      }
+      if (matchingStatus != null) return matchingStatus;
 
       // The status file lives in the staging directory, and a device that
       // finished the install on its own sweeps that directory as its last act.
@@ -1586,14 +1606,37 @@ class SshService {
       // to write one is a run that succeeded.
       final record =
           await runCommand('cat /data/last-install 2>/dev/null');
-      if (record.trim().isNotEmpty &&
-          record.contains(RegExp(r'^result:\s*success', multiLine: true))) {
-        return TrampolineStatus.parse(
-            record.replaceFirst(RegExp(r'^result:\s*'), ''));
+      if (record.trim().isNotEmpty) {
+        final status = TrampolineStatus.parseCompletionRecord(record);
+        if (expectedRunId == null) {
+          if (status.result == TrampolineResult.success) return status;
+        } else if (status.completedFor(expectedRunId)) {
+          return status;
+        }
       }
       return TrampolineStatus(result: TrampolineResult.unknown);
     } catch (_) {
       return TrampolineStatus(result: TrampolineResult.unknown);
     }
+  }
+
+  Future<void> writeInstallRunState({
+    required String runId,
+    required String content,
+  }) async {
+    if (!RegExp(r'^[a-zA-Z0-9._-]+$').hasMatch(runId)) {
+      throw ArgumentError.value(runId, 'runId', 'contains unsafe characters');
+    }
+    const historyDir = '/data/installer-runs';
+    final historyPath = '$historyDir/$runId';
+    final historyTemp = '$historyDir/.$runId.tmp';
+    final currentTemp = '/data/.installer-run-state.$runId.tmp';
+    await runCommand('mkdir -p $historyDir');
+    await uploadFile(Uint8List.fromList(utf8.encode(content)), historyTemp);
+    await runCommand(
+      'mv -f $historyTemp $historyPath; '
+      'cp $historyPath $currentTemp; '
+      'mv -f $currentTemp /data/installer-run-state',
+    );
   }
 }
