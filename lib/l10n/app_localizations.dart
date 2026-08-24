@@ -911,7 +911,7 @@ abstract class AppLocalizations {
   /// No description provided for @incompleteImageBody.
   ///
   /// In en, this message translates to:
-  /// **'This scooter is running a minimal recovery image. It boots and answers, but carries none of the vehicle services. This can happen when a previous install wrote the wrong image. Continue to re-flash the full firmware and finish setup.'**
+  /// **'This scooter is running a minimal recovery image. It boots and answers, but carries none of the vehicle services. This can happen if an earlier installation did not finish. Continue to re-flash the full firmware and finish setup.'**
   String get incompleteImageBody;
 
   /// No description provided for @reflashToRecover.
@@ -991,6 +991,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'not present'**
   String get notPresent;
+
+  /// No description provided for @healthValueUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'cannot be read'**
+  String get healthValueUnknown;
 
   /// No description provided for @riskAuxLow.
   ///

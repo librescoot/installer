@@ -464,7 +464,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get incompleteImageBody =>
-      'Dieser Roller läuft mit einem minimalen Wiederherstellungs-Image. Es bootet und antwortet, hat aber keine der Fahrzeugdienste. Das kann passieren, wenn eine frühere Installation das falsche Image geschrieben hat. Fahre fort, um die vollständige Firmware neu zu flashen und die Einrichtung abzuschließen.';
+      'Dieser Roller läuft mit einem minimalen Wiederherstellungs-Image. Es bootet und antwortet, hat aber keine der Fahrzeugdienste. Das kann passieren, wenn eine frühere Installation nicht abgeschlossen wurde. Fahre fort, um die vollständige Firmware neu zu flashen und die Einrichtung abzuschließen.';
 
   @override
   String get reflashToRecover => 'Neu flashen zur Wiederherstellung';
@@ -506,6 +506,9 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get notPresent => 'nicht vorhanden';
+
+  @override
+  String get healthValueUnknown => 'nicht auslesbar';
 
   @override
   String get riskAuxLow =>

@@ -459,7 +459,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get incompleteImageBody =>
-      'This scooter is running a minimal recovery image. It boots and answers, but carries none of the vehicle services. This can happen when a previous install wrote the wrong image. Continue to re-flash the full firmware and finish setup.';
+      'This scooter is running a minimal recovery image. It boots and answers, but carries none of the vehicle services. This can happen if an earlier installation did not finish. Continue to re-flash the full firmware and finish setup.';
 
   @override
   String get reflashToRecover => 'Re-flash to recover';
@@ -501,6 +501,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notPresent => 'not present';
+
+  @override
+  String get healthValueUnknown => 'cannot be read';
 
   @override
   String get riskAuxLow =>

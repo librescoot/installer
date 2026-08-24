@@ -20,29 +20,58 @@ class HealthCheckPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Charge is quantised to 25% steps by the firmware, so the volts
-          // carry the detail that decides whether a tired pack lasts an
-          // install. Shown beside it rather than as its own row: it is the
-          // same reading, not a second check.
+          // A value nobody could read says so. "?%" next to a threshold reads
+          // as a measurement that came in low, and the threshold itself is
+          // noise when there is no number to compare against it.
           _row(
             l10n.auxBatteryCharge,
-            health.auxVoltageMv == null
-                ? '${health.auxCharge ?? '?'}%'
-                : '${health.auxCharge ?? '?'}%  ${l10n.healthAuxVoltage(health.auxVoltageMv!)}',
-            '\u2265 50%',
+            health.auxCharge == null
+                ? l10n.healthValueUnknown
+                : health.auxVoltageMv == null
+                    ? '${health.auxCharge}%'
+                    // Charge is quantised to 25% steps by the firmware, so the
+                    // volts carry what decides whether a tired pack lasts an
+                    // install. Beside it, being the same reading.
+                    : '${health.auxCharge}%  ${l10n.healthAuxVoltage(health.auxVoltageMv!)}',
+            health.auxCharge == null ? '' : '\u2265 50%',
             health.auxChargeOk,
           ),
           if (health.auxChargeOk == false) _risk(l10n.riskAuxLow),
           if (health.cbbPresent == false)
             _row(l10n.cbbCharge, l10n.notPresent, '', null)
           else ...[
-            _row(l10n.cbbStateOfHealth, '${health.cbbStateOfHealth ?? '?'}%', '\u2265 80%', health.cbbSohOk),
+            _row(
+              l10n.cbbStateOfHealth,
+              health.cbbStateOfHealth == null
+                  ? l10n.healthValueUnknown
+                  : '${health.cbbStateOfHealth}%',
+              health.cbbStateOfHealth == null ? '' : '\u2265 80%',
+              health.cbbSohOk,
+            ),
             if (health.cbbSohOk == false) _risk(l10n.riskCbbSoh),
-            _row(l10n.cbbCharge, '${health.cbbCharge ?? '?'}%', '\u2265 80%', health.cbbChargeOk),
+            _row(
+              l10n.cbbCharge,
+              health.cbbCharge == null
+                  ? l10n.healthValueUnknown
+                  : '${health.cbbCharge}%',
+              health.cbbCharge == null ? '' : '\u2265 80%',
+              health.cbbChargeOk,
+            ),
             if (health.cbbChargeOk == false) _risk(l10n.riskCbbCharge),
           ],
-          _row(l10n.mainBattery, health.batteryPresent == true ? l10n.present : l10n.notPresent, '', health.batteryPresent),
-          if (health.batteryPresent != true) _risk(l10n.riskNoBattery),
+          _row(
+            l10n.mainBattery,
+            switch (health.batteryPresent) {
+              true => l10n.present,
+              false => l10n.notPresent,
+              null => l10n.healthValueUnknown,
+            },
+            '',
+            health.batteryPresent,
+          ),
+          // Only a pack that reported itself absent is a risk. One nobody
+          // could ask about is an open question, and the row says so.
+          if (health.batteryPresent == false) _risk(l10n.riskNoBattery),
         ],
       ),
     );
