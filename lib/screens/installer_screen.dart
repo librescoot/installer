@@ -970,6 +970,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       if (at > _waitStep) {
         _waitStep = at;
         _waitStepStartedAt = now;
+        // The bar belongs to the step that reported it. Carrying it into the
+        // next one shows a figure that describes work already finished. Zero
+        // reads as indeterminate at every consumer.
+        if (progress == null) _progress = 0.0;
       }
     }
     setState(() {
@@ -4353,7 +4357,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       subtitle: l10n.scooterPrepSubheading,
       actions: [
         PhaseAction(
-          label: l10n.doneCbbAuxDisconnected,
+          // The two routes leave the scooter in different states. Only the
+          // brake gesture restarts it; the manual route ends with AUX off and
+          // the next screen asking for it back.
+          label: _manualPowerCut
+              ? l10n.doneAuxDisconnected
+              : l10n.doneCbbAuxDisconnected,
           icon: Icons.arrow_forward,
           primary: true,
           onPressed: () => _setPhase(InstallerPhase.mdbBoot),
@@ -5202,15 +5211,20 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final l10n = AppLocalizations.of(context)!;
     // Staging is a minute of upload, the install about two, and the reboot
     // and the version check together about two more.
-    final installing = l10n.artifactInstalling(0);
+    // The status line carries a live percentage. The step NAME must not, or
+    // the list shows the figure it was built with for the whole install.
+    final installing = l10n.artifactInstalling(0).split('(').first.trimRight();
     _beginWait([
       WaitStep(
           label: l10n.artifactStaging, typical: const Duration(seconds: 60)),
       WaitStep(
         label: installing,
-        matchPrefix: installing.split('(').first.trimRight(),
+        matchPrefix: installing,
         typical: const Duration(minutes: 2),
       ),
+      WaitStep(
+          label: l10n.waitingForMdbRestart,
+          typical: const Duration(minutes: 2)),
       WaitStep(
           label: l10n.artifactVerifying, typical: const Duration(minutes: 2)),
     ]);
@@ -5254,7 +5268,24 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       var alreadyInstalled = false;
       if (_mdbStageStarted) {
         criticalOperation ??= _acquireCriticalOperation();
+        // The background job reports through _mdbStageProgress and emits no
+        // status, so the wait plan has nothing to match and would sit on its
+        // first step for the whole install. Mirror the job into the same
+        // messages the foreground path uses, only when the text changes: this
+        // loop runs for minutes and _setStatus appends to the log each time.
+        String? shown;
         while (!_mdbStageDone && _mdbStageError == null) {
+          // The job spends the first half staging and the second installing.
+          final done = _mdbStageProgress;
+          final staging = done < 0.5;
+          final stepDone = staging ? done * 2 : (done - 0.5) * 2;
+          final message = staging
+              ? l10n.artifactStaging
+              : l10n.artifactInstalling((stepDone * 100).round());
+          if (message != shown) {
+            shown = message;
+            _setStatus(message, progress: stepDone);
+          }
           await Future.delayed(const Duration(milliseconds: 500));
           if (!mounted) return;
         }
@@ -5347,6 +5378,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // The reboot is ours: a rootfs that comes back and answers SSH has
       // proven itself, u-boot has already rolled back if it did not, and any
       // DBC work should run from the version the user asked for.
+      _setStatus(l10n.waitingForMdbRestart);
       await _sshService.reboot();
       _expectMinimalMdb = false;
       await _reconnectAfterReboot(l10n);
