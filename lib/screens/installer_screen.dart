@@ -21,6 +21,7 @@ import '../models/scooter_health.dart';
 import '../models/substep.dart';
 import '../models/trampoline_status.dart';
 import '../services/artifact_service.dart';
+import '../services/critical_operation_coordinator.dart';
 import '../services/services.dart';
 import '../services/window_close_coordinator.dart';
 import '../widgets/artifact_progress_panel.dart';
@@ -226,9 +227,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   bool _mdbStackMissing = false; // MDB answered SSH but has no redis (minimal/broken image) -> recover by re-flashing
   Completer<bool>? _unlockCompleter;
   bool _keepCache = false;
-  bool _isCriticalOperation = false; // prevent quit during flash/upload
+  late final CriticalOperationCoordinator _criticalOperations;
+  bool get _isCriticalOperation => _criticalOperations.isCritical;
   bool _awaitingFinishHandover = false;
   Process? _caffeinateProcess; // macOS sleep prevention
+  int _caffeinateGeneration = 0;
   final WindowCloseCoordinator _windowCloseCoordinator =
       WindowCloseCoordinator();
 
@@ -238,6 +241,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   void initState() {
     super.initState();
     windowManager.addListener(this);
+    _criticalOperations = CriticalOperationCoordinator(
+      onChanged: _criticalOperationChanged,
+    );
     _usbDetector = UsbDetector();
     _downloadService = DownloadService();
     _deviceSub = _usbDetector.deviceStream.listen((device) {
@@ -980,9 +986,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     );
   }
 
-  void _setCritical(bool critical) {
-    if (_isCriticalOperation == critical) return;
-    setState(() => _isCriticalOperation = critical);
+  void _criticalOperationChanged(bool critical) {
+    if (!mounted) return;
+    setState(() {});
     if (critical) {
       _usbDetector.stopMonitoring();
       debugPrint('USB detector: paused during critical operation');
@@ -994,10 +1000,19 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
   }
 
+  CriticalOperationLease _acquireCriticalOperation() =>
+      _criticalOperations.acquire();
+
   void _preventSleep() {
     if (Platform.isMacOS) {
+      final generation = ++_caffeinateGeneration;
       _caffeinateProcess?.kill();
+      _caffeinateProcess = null;
       Process.start('caffeinate', ['-s']).then((p) {
+        if (generation != _caffeinateGeneration || !_isCriticalOperation) {
+          p.kill();
+          return;
+        }
         _caffeinateProcess = p;
         debugPrint('UI: sleep prevention started (caffeinate pid ${p.pid})');
       }).catchError((_) {});
@@ -1005,6 +1020,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   void _allowSleep() {
+    _caffeinateGeneration++;
     if (_caffeinateProcess != null) {
       debugPrint('UI: sleep prevention stopped');
       _caffeinateProcess!.kill();
@@ -3457,16 +3473,20 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   Future<void> _flashMdb() async {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
-    _setCritical(true);
+    final criticalOperation = _acquireCriticalOperation();
 
     if (_isDryRun) {
-      for (var i = 0; i <= 10; i++) {
-        _setStatus('[DRY RUN] Simulating flash... ${i * 10}%', progress: i / 10);
-        await Future.delayed(const Duration(milliseconds: 200));
-        if (!mounted) return;
+      try {
+        for (var i = 0; i <= 10; i++) {
+          _setStatus('[DRY RUN] Simulating flash... ${i * 10}%', progress: i / 10);
+          await Future.delayed(const Duration(milliseconds: 200));
+          if (!mounted) return;
+        }
+        _setPhase(InstallerPhase.scooterPrep);
+        return;
+      } finally {
+        criticalOperation.release();
       }
-      _setPhase(InstallerPhase.scooterPrep);
-      return;
     }
 
     try {
@@ -3502,7 +3522,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         if (!mounted) return;
       }
       if (devicePath == null || devicePath.isEmpty) {
-        _setCritical(false);
+        criticalOperation.release();
         _setStatus(l10n.noDevicePathFound);
         _blockMdbFlash();
         return;
@@ -3528,7 +3548,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         if (!mounted) return;
         if (!confirmed) {
           debugPrint('Flash: user did not confirm $devicePath as the target');
-          _setCritical(false);
+          criticalOperation.release();
           _setStatus(l10n.flashTargetNotConfirmed);
           _blockMdbFlash();
           return;
@@ -3557,7 +3577,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       );
       if (!safetyCheck.passed) {
         debugPrint('Flash: safety check failed: ${safetyCheck.errors.join('; ')}');
-        _setCritical(false);
+        criticalOperation.release();
         _setStatus('${l10n.safetyCheckFailed}: ${l10n.cannotFlashSafety}\n${safetyCheck.errors.join('\n')}');
         _blockMdbFlash();
         return;
@@ -3573,7 +3593,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         },
       );
 
-      _setCritical(false);
+      criticalOperation.release();
       // Restore Windows AutoPlay after flashing
       await DriverService.restoreAutoPlay();
       _setStatus(l10n.mdbFlashComplete);
@@ -3584,7 +3604,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     } catch (e, stackTrace) {
       debugPrint('Flash ERROR: $e');
       debugPrint('Flash STACKTRACE: $stackTrace');
-      _setCritical(false);
+      criticalOperation.release();
       await DriverService.restoreAutoPlay();
 
       final errText = e.toString();
@@ -3624,7 +3644,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
       // Wait for the device to come back before re-running the flash —
       // otherwise we burn retries against a stale path that can't be
-      // opened. Detector was resumed by _setCritical(false) above.
+      // opened. Detector was resumed by releasing our lease above.
       _setStatus('$diagnosis\n\nWaiting for the device to be re-detected...');
       final back = await _waitForMassStorageDevice(timeout: const Duration(seconds: 60));
 
@@ -3649,6 +3669,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         return;
       }
       setState(() => _mdbFlashStarted = false);
+    } finally {
+      criticalOperation.release();
     }
   }
 
@@ -4424,13 +4446,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _isProcessing = true;
       _artifactError = null;
     });
+    CriticalOperationLease? criticalOperation;
     try {
       // Collect the work that has been running behind the pairing screens.
       // Nothing on the vehicle is written after this point except the reboot,
       // so this is the last moment where waiting costs the user anything.
       var alreadyInstalled = false;
       if (_mdbStageStarted) {
-        _setCritical(true);
+        criticalOperation ??= _acquireCriticalOperation();
         while (!_mdbStageDone && _mdbStageError == null) {
           await Future.delayed(const Duration(milliseconds: 500));
           if (!mounted) return;
@@ -4460,7 +4483,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // close or a laptop sleep in the middle leaves a vehicle with no
       // service stack. The download wait above is deliberately outside this:
       // nothing on the vehicle is being written yet.
-      _setCritical(true);
+      criticalOperation ??= _acquireCriticalOperation();
 
       // Everything from here to the reboot is what the background job has
       // already done. Repeating it is not merely wasteful: mender refuses an
@@ -4560,15 +4583,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       }
       await _disableInstallerHazards(label: 'post-artifact');
 
-      _setCritical(false);
       _setPhase(_phaseAfterMdbInstall);
     } catch (e) {
-      _setCritical(false);
       if (!mounted) return;
       setState(() {
         _artifactError = e.toString();
         _isProcessing = false;
       });
+    } finally {
+      criticalOperation?.release();
     }
   }
 
@@ -4982,7 +5005,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   Future<void> _uploadDbcFiles() async {
     final l10n = AppLocalizations.of(context)!;
     if (!_dbcStageInFlight) setState(() => _isProcessing = true);
-    _setCritical(true);
+    final criticalOperation = _acquireCriticalOperation();
 
     setState(() {
       _dbcUploadReady = false;
@@ -4992,7 +5015,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (_isDryRun) {
       _setStatus('[DRY RUN] Simulating DBC upload...');
       await Future.delayed(const Duration(seconds: 1));
-      _setCritical(false);
+      criticalOperation.release();
       setState(() {
         _isProcessing = false;
         _dbcStageInFlight = false;
@@ -5047,7 +5070,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               ? l10n.artifactNoneDownloaded
               : null;
       if (missing != null) {
-        _setCritical(false);
+        criticalOperation.release();
         _setStatus(missing);
         // Retry re-runs the same check against the same queue, so on its own
         // it is a loop. The main board is already done by this point, so
@@ -5091,7 +5114,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // explicitly confirms before that point of no return. The cable-swap
       // instructions only appear on the next screen, after the trampoline
       // has started, so nobody can swap the cable before start() runs.
-      _setCritical(false);
+      criticalOperation.release();
       setState(() {
         _isProcessing = false;
         _dbcStageInFlight = false;
@@ -5100,7 +5123,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     } on DownloadWaitCancelled {
       return;
     } catch (e) {
-      _setCritical(false);
+      criticalOperation.release();
       _setStatus(l10n.uploadError(e.toString()));
       debugPrint('DBC prep error: $e');
       setState(() {
@@ -5108,6 +5131,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         _dbcStageInFlight = false;
       });
       // Don't reset _dbcPrepStarted: retry button handles that
+    } finally {
+      criticalOperation.release();
     }
   }
 
@@ -5118,12 +5143,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   Future<void> _startTrampoline() async {
     final l10n = AppLocalizations.of(context)!;
     setState(() { _isProcessing = true; _dbcUploadReady = false; });
-    _setCritical(true);
+    final criticalOperation = _acquireCriticalOperation();
 
     if (_isDryRun) {
       _setStatus('[DRY RUN] Simulating trampoline start...');
       await Future.delayed(const Duration(seconds: 1));
-      _setCritical(false);
+      criticalOperation.release();
       setState(() => _isProcessing = false);
       _setPhase(InstallerPhase.dbcFlash);
       return;
@@ -5134,17 +5159,19 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       await _installStateWriteQueue;
       await TrampolineService(_sshService).start(runId: _installRunId);
       _deviceFinishArmed = true;
-      _setCritical(false);
+      criticalOperation.release();
       setState(() => _isProcessing = false);
       await Future.delayed(const Duration(seconds: 1));
       _setPhase(InstallerPhase.dbcFlash);
     } catch (e) {
-      _setCritical(false);
+      criticalOperation.release();
       _setStatus(l10n.uploadError(e.toString()));
       debugPrint('Trampoline start error: $e');
       // The upload is still intact; re-offer the begin button instead of
       // demoting the user to a full prep retry over a transient SSH error.
       setState(() { _isProcessing = false; _dbcUploadReady = true; });
+    } finally {
+      criticalOperation.release();
     }
   }
 
