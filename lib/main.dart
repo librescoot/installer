@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:window_manager/window_manager.dart';
 import 'l10n/app_localizations.dart';
 import 'screens/installer_screen.dart';
 import 'services/log_service.dart';
@@ -180,6 +181,10 @@ const String appVersion = String.fromEnvironment('APP_VERSION', defaultValue: 'd
 void main(List<String> args) async {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+    if (Platform.isLinux || Platform.isMacOS || Platform.isWindows) {
+      await windowManager.ensureInitialized();
+      await windowManager.setPreventClose(true);
+    }
 
     // Flutter framework errors (build/layout/paint exceptions). Without this,
     // a release build can end up in an unrecoverable state.

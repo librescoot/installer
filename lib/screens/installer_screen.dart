@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../main.dart'
     show appendLog, appendLogRaw, installerLog, launchArgs, showElevationRequiredDialog;
@@ -20,6 +21,7 @@ import '../models/substep.dart';
 import '../models/trampoline_status.dart';
 import '../services/artifact_service.dart';
 import '../services/services.dart';
+import '../services/window_close_coordinator.dart';
 import '../widgets/artifact_progress_panel.dart';
 import '../widgets/health_check_panel.dart';
 import '../widgets/brake_gesture.dart';
@@ -37,7 +39,7 @@ class InstallerScreen extends StatefulWidget {
   State<InstallerScreen> createState() => _InstallerScreenState();
 }
 
-class _InstallerScreenState extends State<InstallerScreen> {
+class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   InstallerPhase _currentPhase = InstallerPhase.welcome;
   final Set<InstallerPhase> _completedPhases = {};
   final Set<InstallerPhase> _skippedPhases = {};
@@ -193,6 +195,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Timer? _bleAdvRearmTimer;
   final ScrollController _phaseScrollController = ScrollController();
   bool _keycardLearning = false;
+  bool _keycardMasterLearning = false;
   int _keycardAuthorizedCountBefore = 0; // captured at Start, compared at Done
   int _keycardSessionTapCount = 0; // driven by card-learned events
   // Substage of the keycardSetup phase. The phase is rendered as a small
@@ -218,12 +221,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
   bool _isCriticalOperation = false; // prevent quit during flash/upload
   bool _awaitingFinishHandover = false;
   Process? _caffeinateProcess; // macOS sleep prevention
+  final WindowCloseCoordinator _windowCloseCoordinator =
+      WindowCloseCoordinator();
 
   StreamSubscription<UsbDevice?>? _deviceSub;
 
   @override
   void initState() {
     super.initState();
+    windowManager.addListener(this);
     _usbDetector = UsbDetector();
     _downloadService = DownloadService();
     _deviceSub = _usbDetector.deviceStream.listen((device) {
@@ -362,6 +368,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   @override
   void dispose() {
+    windowManager.removeListener(this);
     _deviceSub?.cancel();
     _usbDetector.stopMonitoring();
     _blePinPollTimer?.cancel();
@@ -381,6 +388,53 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
     _allowSleep();
     super.dispose();
+  }
+
+  @override
+  void onWindowClose() {
+    unawaited(_handleWindowClose());
+  }
+
+  Future<void> _handleWindowClose() async {
+    final closed = await _windowCloseCoordinator.requestClose(
+      isCritical: _isCriticalOperation,
+      cleanup: _cleanupBeforeClose,
+      closeWindow: windowManager.destroy,
+    );
+    if (!closed && mounted) {
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.cannotQuitWhileFlashing),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _cleanupBeforeClose() async {
+    if (_btPairingActive) {
+      await _stopBluetoothPairing(advance: false);
+    }
+    if (_keycardLearning && !_isDryRun) {
+      try {
+        await _sshService.redisLpush('scooter:keycard', 'learn:stop');
+        debugPrint('UI: stopped keycard learning before close');
+      } catch (e) {
+        debugPrint('UI: failed to stop keycard learning before close: $e');
+      }
+    }
+    if (_keycardMasterLearning && !_isDryRun) {
+      try {
+        await _sshService.redisLpush(
+            'scooter:keycard', 'learn:master:stop');
+        debugPrint('UI: stopped master keycard learning before close');
+      } catch (e) {
+        debugPrint('UI: failed to stop master keycard learning before close: $e');
+      }
+    }
+    await _keycardTearDown();
+    _allowSleep();
   }
 
   /// Returns true if the operation should be retried, false if max retries exceeded.
@@ -5967,7 +6021,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     });
   }
 
-  Future<void> _stopBluetoothPairing() async {
+  Future<void> _stopBluetoothPairing({bool advance = true}) async {
     _blePinPollTimer?.cancel();
     _blePinPollTimer = null;
     _bleAdvRearmTimer?.cancel();
@@ -5993,13 +6047,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
         debugPrint('UI: could not restore vehicle state (ok): $e');
       }
     }
+    if (!mounted) return;
     setState(() {
       _btPairingActive = false;
       _btAdvertisingSettling = false;
       _blePinCode = null;
       _bleConnected = false;
     });
-    _setPhase(InstallerPhase.keycardSetup);
+    if (advance) _setPhase(InstallerPhase.keycardSetup);
   }
 
   // Killed on entry to keycardSetup so that any auto-startup master-learning
@@ -6009,6 +6064,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _onEnterKeycardSetup() async {
     setState(() {
       _keycardLearning = false;
+      _keycardMasterLearning = false;
       _keycardStage = _KeycardStage.loading;
       _keycardServiceCanMaster = null;
       _keycardMasterCount = 0;
@@ -6312,6 +6368,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       }
       try {
         await _sshService.redisLpush('scooter:keycard', 'learn:master:start');
+        _keycardMasterLearning = true;
       } catch (e) {
         debugPrint('UI: failed to start master teach-in: $e');
       }
@@ -6347,6 +6404,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         _keycardShowToast(l10n.keycardCardDuplicateToast, Colors.orangeAccent);
       }
     } else if (payload.startsWith('master-learned:')) {
+      _keycardMasterLearning = false;
       _keycardShowToast(l10n.keycardMasterStageLearnedToast, Colors.green);
       _keycardRefreshCounts();
       // Auto-advance: master successfully registered.
@@ -6384,6 +6442,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         debugPrint('UI: failed to stop master teach-in: $e');
       }
     }
+    _keycardMasterLearning = false;
     await _keycardTearDown();
     if (!mounted) return;
     if (advance) {
@@ -6423,6 +6482,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     if (!_isDryRun) {
       try {
         await _sshService.redisLpush('scooter:keycard', 'reset');
+        _keycardMasterLearning = false;
       } catch (e) {
         debugPrint('UI: failed to send reset: $e');
       }
