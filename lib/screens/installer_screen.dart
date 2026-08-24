@@ -19,6 +19,7 @@ import '../models/board_state.dart';
 import '../models/download_state.dart';
 import '../models/install_plan.dart';
 import '../models/installer_phase.dart';
+import '../models/phase_attempt.dart';
 import '../models/resume_state.dart';
 import '../models/mdb_boot_action.dart';
 import '../models/region.dart';
@@ -79,7 +80,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   // Phase guard flags (prevent auto-start methods from re-firing on rebuild)
   bool _mdbConnectStarted = false;
   bool _healthCheckStarted = false;
-  bool _mdbToUmsStarted = false;
+  final PhaseAttempt _mdbToUmsAttempt = PhaseAttempt();
   bool _mdbFlashStarted = false;
 
   /// Set when the flash stopped for a reason retrying on its own cannot clear
@@ -528,6 +529,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   void _setPhase(InstallerPhase phase) {
     final leaving = _currentPhase;
     setState(() {
+      if (phase == InstallerPhase.mdbToUms && leaving != phase) {
+        _mdbToUmsAttempt.reset();
+      }
       _completedPhases.add(_currentPhase);
       _currentPhase = phase;
       _statusMessage = '';
@@ -565,6 +569,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
     if (phase == InstallerPhase.bluetoothPairing) {
       _fetchBleMac();
+    }
+    if (phase == InstallerPhase.mdbToUms && leaving != phase) {
+      Future.microtask(_startMdbToUms);
     }
   }
 
@@ -3541,11 +3548,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Widget _buildMdbToUms(AppLocalizations l10n) {
-    if (!_mdbToUmsStarted && !_isProcessing) {
-      _mdbToUmsStarted = true;
-      Future.microtask(_configureMdbUms);
-    }
-    final stalled = !_isProcessing && !_mdbToUmsStarted;
+    final stalled = _mdbToUmsAttempt.isFailed;
     return _waitingPhase(
       title: l10n.configuringMdbBootloader,
       status: _statusMessage.isEmpty ? l10n.preparing : _statusMessage,
@@ -3563,10 +3566,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             label: l10n.retryMdbToUms,
             icon: Icons.refresh,
             primary: true,
-            onPressed: () {
-              _mdbToUmsStarted = true;
-              _configureMdbUms();
-            },
+            onPressed: _startMdbToUms,
           ),
         ],
       ],
@@ -3594,16 +3594,32 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
   }
 
-  Future<void> _configureMdbUms() async {
-    final l10n = AppLocalizations.of(context)!;
+  void _startMdbToUms() {
+    if (!mounted || _currentPhase != InstallerPhase.mdbToUms) return;
+    final generation = _mdbToUmsAttempt.begin();
+    if (generation == null) return;
     setState(() => _isProcessing = true);
+    unawaited(_configureMdbUms(generation));
+  }
+
+  bool _ownsMdbToUmsAttempt(int generation) {
+    return mounted &&
+        _currentPhase == InstallerPhase.mdbToUms &&
+        _mdbToUmsAttempt.isCurrent(generation);
+  }
+
+  Future<void> _configureMdbUms(int generation) async {
+    final l10n = AppLocalizations.of(context)!;
     if (_isDryRun) {
       _setStatus('[DRY RUN] Simulating UMS mode...');
       await Future.delayed(const Duration(seconds: 1));
+      if (!_ownsMdbToUmsAttempt(generation)) return;
+      _mdbToUmsAttempt.complete(generation);
       _setPhase(InstallerPhase.mdbFlash);
       return;
     }
     var autoPlayHandedToFlash = false;
+    String? failureStatus;
     try {
       // Turn the main pack off before the board goes away. The UMS reboot
       // deactivates it either way, but only by the pack noticing the MDB has
@@ -3627,47 +3643,48 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         );
         debugPrint('SSH: verified bootcmd = $bootcmd');
         if (!bootcmd.contains('ums')) {
-          _setStatus('fw_setenv failed: bootcmd is still: ${bootcmd.trim()}');
-          setState(() {
-            _isProcessing = false;
-            _mdbToUmsStarted = false;
-          });
-          return;
+          failureStatus =
+              'fw_setenv failed: bootcmd is still: ${bootcmd.trim()}';
         }
       } catch (e) {
         debugPrint('SSH: bootcmd verification failed ($e), proceeding');
       }
 
-      // Suppress Windows "format this disk" popup before UMS mode
-      if (_windowClosing) return;
-      await DriverService.suppressAutoPlay();
-      if (_windowClosing) return;
+      if (failureStatus == null) {
+        // Suppress Windows "format this disk" popup before UMS mode
+        if (_windowClosing) return;
+        await DriverService.suppressAutoPlay();
+        if (_windowClosing) return;
 
-      _setStatus(l10n.rebootingMdbUms);
-      await _sshService.reboot();
-      _setStatus(l10n.waitingForUmsDevice);
-      final found = await _waitForDevice(
-        DeviceMode.massStorage,
-        timeout: const Duration(seconds: 60),
-      );
-      if (found) {
-        autoPlayHandedToFlash = true;
-        _setPhase(InstallerPhase.mdbFlash);
-        return;
+        _setStatus(l10n.rebootingMdbUms);
+        await _sshService.reboot();
+        _setStatus(l10n.waitingForUmsDevice);
+        final found = await _waitForDevice(
+          DeviceMode.massStorage,
+          timeout: const Duration(seconds: 60),
+        );
+        if (found) {
+          if (!_ownsMdbToUmsAttempt(generation)) return;
+          autoPlayHandedToFlash = true;
+          _mdbToUmsAttempt.complete(generation);
+          _setPhase(InstallerPhase.mdbFlash);
+          return;
+        }
+
+        failureStatus = l10n.umsNotDetectedTimeout;
       }
-
-      // UMS didn't appear: show retry/log buttons
-      _setStatus(l10n.umsNotDetectedTimeout);
     } catch (e) {
-      _setStatus('Error: $e');
+      failureStatus = 'Error: $e';
     } finally {
       if (!autoPlayHandedToFlash) {
         await DriverService.restoreAutoPlay();
       }
     }
+    if (!_ownsMdbToUmsAttempt(generation)) return;
+    _setStatus(failureStatus);
     setState(() {
       _isProcessing = false;
-      _mdbToUmsStarted = false;
+      _mdbToUmsAttempt.fail(generation, failureStatus);
     });
   }
 

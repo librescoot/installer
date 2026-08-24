@@ -10,7 +10,7 @@ void main() {
   });
 
   test('UMS timeout restores AutoPlay unless flash takes the lease', () {
-    final start = source.indexOf('Future<void> _configureMdbUms()');
+    final start = source.indexOf('Future<void> _configureMdbUms(');
     final end = source.indexOf('Widget _buildMdbFlash', start);
     final block = source.substring(start, end);
 
