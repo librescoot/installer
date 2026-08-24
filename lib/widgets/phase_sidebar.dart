@@ -31,7 +31,10 @@ class PhaseSidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Container(
-      width: 220,
+      // Wide enough for the longest step title in either language ("MDB
+      // aktualisieren", 238px at this weight) to stay on one line. At 220
+      // they wrapped and left the markers hanging beside ragged text.
+      width: 300,
       color: kBgSidebar,
       child: Column(
         children: [
@@ -194,15 +197,28 @@ class _MajorStepItem extends StatelessWidget {
           leading,
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              isSkipped
-                  ? '${step.localizedTitle(l10n, upgrade: isUpgrade)} (${l10n.majorStepSkippedSuffix})'
-                  : step.localizedTitle(l10n, upgrade: isUpgrade),
-              style: TextStyle(
-                color: textColor,
-                fontSize: 14,
-                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  step.localizedTitle(l10n, upgrade: isUpgrade),
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 14,
+                    fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+                // Its own line rather than a suffix in brackets, which pushed
+                // the title into a second, ragged line of its own.
+                if (isSkipped)
+                  Text(
+                    l10n.majorStepSkippedSuffix,
+                    style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic),
+                  ),
+              ],
             ),
           ),
         ],
@@ -301,16 +317,18 @@ class _DownloadStatus extends StatelessWidget {
 
   final List<DownloadItem> items;
 
-  static const _labels = {
-    DownloadItemType.mdbArtifact: 'MDB Artifact',
-    DownloadItemType.dbcArtifact: 'DBC Artifact',
-    DownloadItemType.mdbFirmware: 'MDB',
-    DownloadItemType.mdbBmap: 'Bmap',
-    DownloadItemType.dbcFirmware: 'DBC',
-    DownloadItemType.dbcBmap: 'Bmap',
-    DownloadItemType.osmTiles: 'Maps',
-    DownloadItemType.valhallaTiles: 'Routes',
-  };
+  /// The chips were English in a German window: Artifact, Maps, Routes.
+  static String? _label(DownloadItemType type, AppLocalizations l10n) =>
+      switch (type) {
+        DownloadItemType.mdbArtifact => l10n.assetChipMdbArtifact,
+        DownloadItemType.dbcArtifact => l10n.assetChipDbcArtifact,
+        DownloadItemType.mdbFirmware => l10n.assetChipMdbImage,
+        DownloadItemType.dbcFirmware => l10n.assetChipDbcImage,
+        DownloadItemType.osmTiles => l10n.assetChipMaps,
+        DownloadItemType.valhallaTiles => l10n.assetChipRoutes,
+        // Tiny, and tracked with the firmware they belong to.
+        DownloadItemType.mdbBmap || DownloadItemType.dbcBmap => null,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -352,20 +370,22 @@ class _DownloadStatus extends StatelessWidget {
             spacing: 8,
             children: [
               for (final item in items)
-                // Skip bmap files: they're tiny and tracked with their firmware
-                if (item.type != DownloadItemType.mdbBmap && item.type != DownloadItemType.dbcBmap)
+                if (_label(item.type, l10n) case final label?)
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        item.isComplete ? Icons.check_circle : Icons.circle_outlined,
+                        item.isComplete
+                            ? Icons.check_circle
+                            : Icons.circle_outlined,
                         size: 10,
                         color: item.isComplete ? kAccent : Colors.grey.shade600,
                       ),
                       const SizedBox(width: 3),
                       Text(
-                        _labels[item.type] ?? '',
-                        style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                        label,
+                        style: TextStyle(
+                            fontSize: 10, color: Colors.grey.shade500),
                       ),
                     ],
                   ),

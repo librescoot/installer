@@ -870,6 +870,24 @@ class AppLocalizationsDe extends AppLocalizations {
   String get downloadsFinishedHint => 'Du kannst jetzt offline weitermachen.';
 
   @override
+  String get assetChipMdbArtifact => 'MDB-Artefakt';
+
+  @override
+  String get assetChipDbcArtifact => 'DBC-Artefakt';
+
+  @override
+  String get assetChipMdbImage => 'MDB-Image';
+
+  @override
+  String get assetChipDbcImage => 'DBC-Image';
+
+  @override
+  String get assetChipMaps => 'Karten';
+
+  @override
+  String get assetChipRoutes => 'Routen';
+
+  @override
   String get downloadMdbFirmware => 'MDB-Firmware';
 
   @override

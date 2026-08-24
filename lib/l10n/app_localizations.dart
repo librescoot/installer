@@ -1616,6 +1616,42 @@ abstract class AppLocalizations {
   /// **'You can continue offline.'**
   String get downloadsFinishedHint;
 
+  /// No description provided for @assetChipMdbArtifact.
+  ///
+  /// In en, this message translates to:
+  /// **'MDB artifact'**
+  String get assetChipMdbArtifact;
+
+  /// No description provided for @assetChipDbcArtifact.
+  ///
+  /// In en, this message translates to:
+  /// **'DBC artifact'**
+  String get assetChipDbcArtifact;
+
+  /// No description provided for @assetChipMdbImage.
+  ///
+  /// In en, this message translates to:
+  /// **'MDB image'**
+  String get assetChipMdbImage;
+
+  /// No description provided for @assetChipDbcImage.
+  ///
+  /// In en, this message translates to:
+  /// **'DBC image'**
+  String get assetChipDbcImage;
+
+  /// No description provided for @assetChipMaps.
+  ///
+  /// In en, this message translates to:
+  /// **'Maps'**
+  String get assetChipMaps;
+
+  /// No description provided for @assetChipRoutes.
+  ///
+  /// In en, this message translates to:
+  /// **'Routes'**
+  String get assetChipRoutes;
+
   /// No description provided for @downloadMdbFirmware.
   ///
   /// In en, this message translates to:
