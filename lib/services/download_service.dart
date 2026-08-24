@@ -125,8 +125,20 @@ class DownloadService {
     throw Exception('No release manifest available');
   }
 
+  /// Cache root the test harness substitutes for the user's own cache.
+  /// `test/flutter_test_config.dart` points this at a temporary directory for
+  /// every suite, so a test run cannot leave its mock manifests where a real
+  /// launch will read them back as the current releases.
+  @visibleForTesting
+  static Directory? cacheDirOverride;
+
   /// Get platform-appropriate cache directory
   static Future<Directory> getCacheDir() async {
+    final override = cacheDirOverride;
+    if (override != null) {
+      if (!await override.exists()) await override.create(recursive: true);
+      return override;
+    }
     final String base;
     if (Platform.isWindows) {
       base = p.join(Platform.environment['LOCALAPPDATA'] ?? '', 'Librescoot', 'Installer', 'cache');

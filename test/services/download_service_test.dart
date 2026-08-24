@@ -59,6 +59,19 @@ void main() {
       if (await cache.exists()) await cache.delete();
     });
 
+    test('the manifest cache is redirected away from the user cache', () async {
+      // _fetchLatest writes every manifest it fetches to disk, so a test run
+      // that used the real cache directory would leave a fixture there for the
+      // installer to read back as the current release list.
+      final dir = await DownloadService.getCacheDir();
+      expect(DownloadService.cacheDirOverride, isNotNull);
+      expect(dir.path, DownloadService.cacheDirOverride!.path);
+      final home = Platform.environment['HOME'];
+      if (home != null && home.isNotEmpty) {
+        expect(dir.path, isNot(p.join(home, '.cache', 'librescoot-installer')));
+      }
+    });
+
     test('resolveRelease finds the requested channel', () async {
       final service = DownloadService(
         client: _manifestClient({
