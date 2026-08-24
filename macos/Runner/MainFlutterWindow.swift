@@ -6,9 +6,11 @@ class MainFlutterWindow: NSWindow {
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
-    let windowFrame = self.frame
     self.contentViewController = flutterViewController
-    self.setFrame(windowFrame, display: true)
+    // Same default as the Linux and Windows runners, rather than whatever
+    // size the nib happened to carry.
+    self.setContentSize(NSSize(width: 1280, height: 800))
+    self.center()
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 

@@ -54,7 +54,9 @@ static void my_application_activate(GApplication* application) {
     gtk_window_set_title(window, "Librescoot Installer");
   }
 
-  gtk_window_set_default_size(window, 1280, 720);
+  // Same on every platform. 800 high is what the decision screens need to
+  // fit without scrolling; the picture-heavy ones scroll at any size.
+  gtk_window_set_default_size(window, 1280, 800);
 
   g_autoptr(GError) icon_error = NULL;
   g_autofree gchar* exe_path = g_file_read_link("/proc/self/exe", NULL);
