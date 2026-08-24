@@ -170,6 +170,11 @@ done
   SSHClient? _client;
   Map<String, String>? _deviceConfig;
   bool _sftpAvailable = false;
+
+  /// How long the SFTP capability probe waits for a subsystem that may never
+  /// answer. Short: a working one responds immediately, and the fallback is
+  /// always available, so this is paid only to learn that it is needed.
+  static const Duration sftpProbeTimeout = Duration(seconds: 8);
   ManualPasswordPrompt? _manualPasswordPrompt;
 
   // Snapshot of the last successful auth so we can silently re-establish the
@@ -484,15 +489,21 @@ done
       debugPrint('SSH: stopped power manager');
     } catch (_) {}
 
-    // Check if SFTP subsystem is available (stock scooterOS doesn't have it)
+    // Ask the subsystem, not the filesystem. A present sftp-server binary is
+    // not a working subsystem: the board ships one and the handshake never
+    // completes, so every first upload spent its full timeout finding that
+    // out and then fell back to cat anyway. Opening a session answers the
+    // question that matters, and costs the bound below when the answer is no.
     try {
-      final sftpCheck = (await runCommand(
-        'test -e /usr/libexec/sftp-server -o -e /usr/lib/openssh/sftp-server && echo yes || echo no',
-      )).trim();
-      _sftpAvailable = sftpCheck == 'yes';
-      debugPrint('SSH: SFTP ${_sftpAvailable ? "available" : "not available"}');
-    } catch (_) {
+      final sftp = await _requireClient('SFTP probe')
+          .sftp()
+          .timeout(sftpProbeTimeout);
+      sftp.close();
+      _sftpAvailable = true;
+      debugPrint('SSH: SFTP available');
+    } catch (e) {
       _sftpAvailable = false;
+      debugPrint('SSH: SFTP not available ($e), uploads will use cat');
     }
 
     final detected = await _detectFirmwareVersion();
