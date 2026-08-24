@@ -639,11 +639,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get brakeResetIntro =>
-      'Beide Bremshebel ziehen und halten. Alle zehn Sekunden den rechten Hebel etwa eine Sekunde loslassen und wieder ziehen. Nach dem vierten Halten einfach loslassen. Der Roller trennt sich selbst vom Strom und bootet neu.';
+      'Beide Bremshebel ziehen und halten. Alle zehn Sekunden den rechten Hebel etwa eine Sekunde loslassen und wieder ziehen. Nach dem vierten Halten einfach loslassen. Der Roller startet neu.';
 
   @override
   String get brakeResetAfterNote =>
-      'Die USB-Verbindung verschwindet, sobald der Strom weg ist. Das ist normal, der Installer wartet auf das MDB.';
+      'Die USB-Verbindung verschwindet während des Neustarts. Das ist normal, der Installer wartet auf das MDB.';
 
   @override
   String get brakePacerStart => 'Timer starten';
@@ -656,7 +656,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get brakePacerDone =>
-      'Das ist das Muster. Jetzt einfach loslassen. Der Roller trennt sich gleich selbst vom Strom und startet von allein neu.';
+      'Das ist das Muster. Jetzt einfach loslassen. Der Roller startet ein paar Sekunden später von allein neu.';
 
   @override
   String get brakeDiagramBlipLegend => 'Rechter Hebel etwa eine Sekunde los';

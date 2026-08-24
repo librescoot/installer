@@ -1211,13 +1211,13 @@ abstract class AppLocalizations {
   /// No description provided for @brakeResetIntro.
   ///
   /// In en, this message translates to:
-  /// **'Squeeze and hold both brake levers. Every ten seconds, let go of the right one for about a second, then squeeze it again. After the fourth hold, just let go. The scooter cuts its own power and boots again.'**
+  /// **'Squeeze and hold both brake levers. Every ten seconds, let go of the right one for about a second, then squeeze it again. After the fourth hold, just let go. The scooter restarts.'**
   String get brakeResetIntro;
 
   /// No description provided for @brakeResetAfterNote.
   ///
   /// In en, this message translates to:
-  /// **'The USB connection disappears the moment the power drops. That is expected, and the installer waits for the board to come back.'**
+  /// **'The USB connection disappears while it restarts. That is expected, and the installer waits for the board to come back.'**
   String get brakeResetAfterNote;
 
   /// No description provided for @brakePacerStart.
@@ -1241,7 +1241,7 @@ abstract class AppLocalizations {
   /// No description provided for @brakePacerDone.
   ///
   /// In en, this message translates to:
-  /// **'That is the pattern. Let go now. The scooter cuts its own power in a few seconds and comes back on its own.'**
+  /// **'That is the pattern. Let go now. The scooter restarts a few seconds later on its own.'**
   String get brakePacerDone;
 
   /// No description provided for @brakeDiagramBlipLegend.

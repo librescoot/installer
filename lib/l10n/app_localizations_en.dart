@@ -632,11 +632,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get brakeResetIntro =>
-      'Squeeze and hold both brake levers. Every ten seconds, let go of the right one for about a second, then squeeze it again. After the fourth hold, just let go. The scooter cuts its own power and boots again.';
+      'Squeeze and hold both brake levers. Every ten seconds, let go of the right one for about a second, then squeeze it again. After the fourth hold, just let go. The scooter restarts.';
 
   @override
   String get brakeResetAfterNote =>
-      'The USB connection disappears the moment the power drops. That is expected, and the installer waits for the board to come back.';
+      'The USB connection disappears while it restarts. That is expected, and the installer waits for the board to come back.';
 
   @override
   String get brakePacerStart => 'Start the timer';
@@ -649,7 +649,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get brakePacerDone =>
-      'That is the pattern. Let go now. The scooter cuts its own power in a few seconds and comes back on its own.';
+      'That is the pattern. Let go now. The scooter restarts a few seconds later on its own.';
 
   @override
   String get brakeDiagramBlipLegend =>
