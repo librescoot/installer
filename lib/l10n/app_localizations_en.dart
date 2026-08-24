@@ -326,6 +326,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Clearing what the previous run left behind...';
 
   @override
+  String resumeCleanupFailed(String error) {
+    return 'The previous install could not be made safe: $error\n\nNothing else will run until cleanup succeeds.';
+  }
+
+  @override
   String get resumeFoundLastError => 'Last recorded error:';
 
   @override

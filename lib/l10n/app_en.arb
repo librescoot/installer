@@ -99,6 +99,14 @@
   "resumeFoundHeading": "Interrupted installation found",
   "resumeFoundBody": "A previous installation on this scooter did not finish. Continuing clears what it left behind: the onboot script it armed is disarmed, and the services it stopped are started again. The installation then runs from the beginning; nothing is resumed.",
   "resumeClearingLeftovers": "Clearing what the previous run left behind...",
+  "resumeCleanupFailed": "The previous install could not be made safe: {error}\n\nNothing else will run until cleanup succeeds.",
+  "@resumeCleanupFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "resumeFoundLastError": "Last recorded error:",
   "resumeRunningHeading": "An install is still running on the scooter",
   "resumeRunningBody": "The scooter is still working through the previous install. Nothing here touches it while it runs.",

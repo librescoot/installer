@@ -99,6 +99,14 @@
   "resumeFoundHeading": "Unterbrochene Installation gefunden",
   "resumeFoundBody": "Eine frühere Installation auf diesem Roller wurde nicht abgeschlossen. Beim Weitermachen werden ihre Reste aufgeräumt: das zurückgelassene Onboot-Skript wird entschärft und gestoppte Dienste werden wieder gestartet. Danach läuft die Installation komplett von vorn, es wird nichts fortgesetzt.",
   "resumeClearingLeftovers": "Reste der vorherigen Installation werden aufgeräumt...",
+  "resumeCleanupFailed": "Die vorige Installation konnte nicht sicher aufgeräumt werden: {error}\n\nEs wird nichts weiter ausgeführt, bis das Aufräumen erfolgreich war.",
+  "@resumeCleanupFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "resumeFoundLastError": "Letzter aufgezeichneter Fehler:",
   "resumeRunningHeading": "Auf dem Roller läuft noch eine Installation",
   "resumeRunningBody": "Der Roller arbeitet die vorige Installation noch ab. Hier wird nichts angefasst, solange sie läuft.",

@@ -331,6 +331,11 @@ class AppLocalizationsDe extends AppLocalizations {
       'Reste der vorherigen Installation werden aufgeräumt...';
 
   @override
+  String resumeCleanupFailed(String error) {
+    return 'Die vorige Installation konnte nicht sicher aufgeräumt werden: $error\n\nEs wird nichts weiter ausgeführt, bis das Aufräumen erfolgreich war.';
+  }
+
+  @override
   String get resumeFoundLastError => 'Letzter aufgezeichneter Fehler:';
 
   @override

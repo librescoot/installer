@@ -692,6 +692,12 @@ abstract class AppLocalizations {
   /// **'Clearing what the previous run left behind...'**
   String get resumeClearingLeftovers;
 
+  /// No description provided for @resumeCleanupFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The previous install could not be made safe: {error}\n\nNothing else will run until cleanup succeeds.'**
+  String resumeCleanupFailed(String error);
+
   /// No description provided for @resumeFoundLastError.
   ///
   /// In en, this message translates to:

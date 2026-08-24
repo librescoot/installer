@@ -237,6 +237,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   _awaitingUnlockState; // null when not awaiting; current vehicle state otherwise
   String?
   _resumePreviousError; // first error line from a leftover trampoline-status, if any
+  String? _resumeCleanupError;
   String? _resumeStage; // stage the previous run reached, from the run state
   String? _resumeActor; // who wrote that state last: installer or trampoline
   String _resumeLogTail = ''; // last lines of the previous run's own log
@@ -2658,7 +2659,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// flow) or after the user confirms the resume screen. Pins the USB
   /// gadget, disables alarm/auto-standby, locks the scooter, and moves on
   /// to the health check.
-  Future<void> _completeConnectionSetup(AppLocalizations l10n) async {
+  Future<void> _completeConnectionSetup(
+    AppLocalizations l10n, {
+    bool servicesRecovered = false,
+  }) async {
     // A run that died between masking these and its own cleanup leaves them
     // masked, and the consequence is not subtle: with bluetooth-service masked
     // the main processor never reports boot to the nRF, whose watchdog then
@@ -2667,11 +2671,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // unconfigured interface, and every symptom points at the network rather
     // than at a service that was never restarted. Clearing them costs nothing
     // when they were already fine.
-    try {
-      await _sshService.reviveInstallerServices();
-      debugPrint('UI: cleared any leftover service masks');
-    } catch (e) {
-      debugPrint('UI: could not clear service masks (ok): $e');
+    if (!servicesRecovered) {
+      try {
+        await _sshService.reviveInstallerServices();
+        debugPrint('UI: cleared any leftover service masks');
+      } catch (e) {
+        debugPrint('UI: could not clear service masks (ok): $e');
+      }
     }
 
     // Before the first `lsc set` below, so the copy is the user's own
@@ -2719,20 +2725,32 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// Continue button on the resume screen.
   Future<void> _continueFromResume() async {
     final l10n = AppLocalizations.of(context)!;
-    setState(() => _isProcessing = true);
+    setState(() {
+      _isProcessing = true;
+      _resumeCleanupError = null;
+    });
     try {
       // The screen promises the leftovers are dealt with, so deal with them:
       // an abandoned trampoline is still armed for the next MDB reboot, and
       // the services it masked are still masked.
       _setStatus(l10n.resumeClearingLeftovers);
-      try {
-        await _sshService.disarmTrampolineOnboot();
-        await _sshService.reviveInstallerServices();
-        debugPrint('UI: disarmed the previous trampoline and revived services');
-      } catch (e) {
-        debugPrint('UI: could not clear the previous run (ok): $e');
+      await _sshService.disarmTrampolineOnboot();
+      await _sshService.reviveInstallerServices();
+      debugPrint('UI: disarmed the previous trampoline and revived services');
+    } catch (e) {
+      final message = l10n.resumeCleanupFailed(e.toString());
+      debugPrint('UI: could not safely clear the previous run: $e');
+      _setStatus(message);
+      if (mounted) {
+        setState(() {
+          _resumeCleanupError = e.toString();
+          _isProcessing = false;
+        });
       }
-      await _completeConnectionSetup(l10n);
+      return;
+    }
+    try {
+      await _completeConnectionSetup(l10n, servicesRecovered: true);
     } catch (e) {
       _setStatus(l10n.sshConnectionFailed(e.toString()));
       if (mounted) setState(() => _isProcessing = false);
@@ -2799,7 +2817,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         // only honest control is none, until it stops.
         if (!running)
           PhaseAction(
-            label: l10n.continueButton,
+            label: _resumeCleanupError == null
+                ? l10n.continueButton
+                : l10n.retryButton,
             icon: Icons.arrow_forward,
             primary: true,
             onPressed: _isProcessing ? null : _continueFromResume,
@@ -2808,6 +2828,40 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (_isProcessing && !running) ...[
+            Row(
+              children: [
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Text(l10n.resumeClearingLeftovers)),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+          if (_resumeCleanupError != null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+              ),
+              child: SelectableText(
+                l10n.resumeCleanupFailed(_resumeCleanupError!),
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  color: Colors.redAccent,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           if (running) ...[
             Row(
               children: [
