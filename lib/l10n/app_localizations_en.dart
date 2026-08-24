@@ -329,6 +329,32 @@ class AppLocalizationsEn extends AppLocalizations {
   String get resumeFoundLastError => 'Last recorded error:';
 
   @override
+  String get resumeRunningHeading =>
+      'An install is still running on the scooter';
+
+  @override
+  String get resumeRunningBody =>
+      'The scooter is still working through the previous install. Nothing here touches it while it runs.';
+
+  @override
+  String get resumeRunningWait =>
+      'Wait for the scooter to finish. This carries on by itself afterwards.';
+
+  @override
+  String resumeStageLabel(String stage) {
+    return 'Last step: $stage';
+  }
+
+  @override
+  String get resumeActorScooter => 'on the scooter';
+
+  @override
+  String get resumeActorInstaller => 'in the installer';
+
+  @override
+  String get resumeLogHeading => 'Last lines from the scooter\'s log';
+
+  @override
   String get awaitingUnlockHeading => 'Unlock your scooter';
 
   @override

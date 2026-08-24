@@ -100,6 +100,20 @@
   "resumeFoundBody": "Eine frühere Installation auf diesem Roller wurde nicht abgeschlossen. Beim Weitermachen werden ihre Reste aufgeräumt: das zurückgelassene Onboot-Skript wird entschärft und gestoppte Dienste werden wieder gestartet. Danach läuft die Installation komplett von vorn, es wird nichts fortgesetzt.",
   "resumeClearingLeftovers": "Reste der vorherigen Installation werden aufgeräumt...",
   "resumeFoundLastError": "Letzter aufgezeichneter Fehler:",
+  "resumeRunningHeading": "Auf dem Roller läuft noch eine Installation",
+  "resumeRunningBody": "Der Roller arbeitet die vorige Installation noch ab. Hier wird nichts angefasst, solange sie läuft.",
+  "resumeRunningWait": "Warte, bis der Roller fertig ist. Danach geht es hier automatisch weiter.",
+  "resumeStageLabel": "Zuletzt: {stage}",
+  "@resumeStageLabel": {
+    "placeholders": {
+      "stage": {
+        "type": "String"
+      }
+    }
+  },
+  "resumeActorScooter": "auf dem Roller",
+  "resumeActorInstaller": "im Installer",
+  "resumeLogHeading": "Letzte Zeilen aus dem Log des Rollers",
   "awaitingUnlockHeading": "Roller entsperren",
   "awaitingUnlockDetail": "Bitte entsperre deinen Roller, um fortzufahren. Halte deine Schlüsselkarte an den Leser oder benutze ein gekoppeltes Handy.",
   "awaitingParkHeading": "Roller parken",

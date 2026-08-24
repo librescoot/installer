@@ -698,6 +698,48 @@ abstract class AppLocalizations {
   /// **'Last recorded error:'**
   String get resumeFoundLastError;
 
+  /// No description provided for @resumeRunningHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'An install is still running on the scooter'**
+  String get resumeRunningHeading;
+
+  /// No description provided for @resumeRunningBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The scooter is still working through the previous install. Nothing here touches it while it runs.'**
+  String get resumeRunningBody;
+
+  /// No description provided for @resumeRunningWait.
+  ///
+  /// In en, this message translates to:
+  /// **'Wait for the scooter to finish. This carries on by itself afterwards.'**
+  String get resumeRunningWait;
+
+  /// No description provided for @resumeStageLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Last step: {stage}'**
+  String resumeStageLabel(String stage);
+
+  /// No description provided for @resumeActorScooter.
+  ///
+  /// In en, this message translates to:
+  /// **'on the scooter'**
+  String get resumeActorScooter;
+
+  /// No description provided for @resumeActorInstaller.
+  ///
+  /// In en, this message translates to:
+  /// **'in the installer'**
+  String get resumeActorInstaller;
+
+  /// No description provided for @resumeLogHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Last lines from the scooter\'s log'**
+  String get resumeLogHeading;
+
   /// No description provided for @awaitingUnlockHeading.
   ///
   /// In en, this message translates to:

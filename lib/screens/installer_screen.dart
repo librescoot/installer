@@ -14,6 +14,7 @@ import '../models/board_state.dart';
 import '../models/download_state.dart';
 import '../models/install_plan.dart';
 import '../models/installer_phase.dart';
+import '../models/resume_state.dart';
 import '../models/mdb_boot_action.dart';
 import '../models/region.dart';
 import '../models/scooter_health.dart';
@@ -218,6 +219,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   Timer? _keycardToastTimer;
   String? _awaitingUnlockState; // null when not awaiting; current vehicle state otherwise
   String? _resumePreviousError; // first error line from a leftover trampoline-status, if any
+  String? _resumeStage; // stage the previous run reached, from the run state
+  String? _resumeActor; // who wrote that state last: installer or trampoline
+  String _resumeLogTail = ''; // last lines of the previous run's own log
+  bool _resumeStillRunning = false; // the board is mid-run, leave it alone
   bool _mdbStackMissing = false; // MDB answered SSH but has no redis (minimal/broken image) -> recover by re-flashing
   Completer<bool>? _unlockCompleter;
   bool _keepCache = false;
@@ -2192,21 +2197,41 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // failing one, is unfinished. A completion record is proof of the
       // opposite and is reported rather than treated as damage.
       var resumingUnfinished = false;
+      var stillRunning = false;
       String? previousRun;
       try {
         final leftover = await _sshService.runCommand(
           'ls /data/installer/trampoline-status /data/installer/trampoline.sh 2>/dev/null; true',
         );
-        if (leftover.trim().isNotEmpty) {
+        final leftoversPresent = leftover.trim().isNotEmpty;
+        var written = TrampolineResult.unknown;
+        if (leftoversPresent) {
           // The first line is the verdict; anything else is detail.
           final verdict = (await _sshService.runCommand(
             'head -n 1 /data/installer/trampoline-status 2>/dev/null; true',
           ))
               .trim()
               .toLowerCase();
-          resumingUnfinished = verdict != 'success';
-          debugPrint('SSH: leftovers found, verdict "$verdict", '
-              'resuming=$resumingUnfinished');
+          written = verdict == 'success'
+              ? TrampolineResult.success
+              : verdict.startsWith('error')
+                  ? TrampolineResult.error
+                  : TrampolineResult.running;
+        }
+        // Ask the board what it is doing before acting on what it wrote. A
+        // run that is still going owns the masked services and the error
+        // signals this screen would otherwise clear out from under it.
+        final verdict = resumeVerdict(
+          leftoversPresent: leftoversPresent,
+          result: written,
+          trampolineAlive:
+              leftoversPresent && await _sshService.trampolineAlive(),
+        );
+        resumingUnfinished = verdict == ResumeVerdict.unfinished;
+        stillRunning = verdict == ResumeVerdict.running;
+        if (leftoversPresent) {
+          debugPrint('SSH: leftovers found, wrote "$written", '
+              'verdict=${verdict.name}');
         }
         // Written by a finish that ran on the device, where nobody was here to
         // read the outcome. Surfacing it is the whole point of writing it.
@@ -2224,6 +2249,19 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       }
       if (mounted && previousRun != null) {
         setState(() => _previousRunRecord = previousRun);
+      }
+
+      if (stillRunning) {
+        debugPrint('SSH: a trampoline is running, leaving the board alone');
+        await _loadResumeEvidence();
+        if (!mounted) return;
+        setState(() {
+          _resumeStillRunning = true;
+          _isProcessing = false;
+        });
+        _setPhase(InstallerPhase.resumeDetected);
+        _watchRunningTrampoline();
+        return;
       }
 
       if (resumingUnfinished) {
@@ -2263,9 +2301,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             prevError = trimmed.substring('error:'.length).trim();
           }
         } catch (_) {}
+        await _loadResumeEvidence();
         if (!mounted) return;
         setState(() {
           _resumePreviousError = prevError;
+          _resumeStillRunning = false;
           _isProcessing = false;
         });
         _setPhase(InstallerPhase.resumeDetected);
@@ -2378,53 +2418,168 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
   }
 
+  /// What the previous run got as far as, for the screen that reports it.
+  /// Best-effort: a board that cannot answer still gets a usable screen.
+  Future<void> _loadResumeEvidence() async {
+    final state = await _sshService.readInstallRunState();
+    final tail = await _sshService.readTrampolineLogTail();
+    // The log goes into this session's own log file as well. That file is
+    // what the user sends when they ask what went wrong, and the screen it
+    // is shown on is gone by then.
+    if (tail.isNotEmpty) {
+      appendLogRaw('--- previous run, last lines of its log ---');
+      appendLogRaw(tail);
+      appendLogRaw('--- end previous run log ---');
+    }
+    if (!mounted) return;
+    setState(() {
+      _resumeStage = state?.stage;
+      _resumeActor = state?.actor;
+      _resumeLogTail = tail;
+    });
+  }
+
+  /// Follow a run that is still going, and re-read the board once it stops
+  /// rather than acting on what it said minutes ago.
+  Future<void> _watchRunningTrampoline() async {
+    while (mounted &&
+        _resumeStillRunning &&
+        _currentPhase == InstallerPhase.resumeDetected) {
+      await Future.delayed(const Duration(seconds: 5));
+      if (!mounted || _currentPhase != InstallerPhase.resumeDetected) return;
+      if (!_sshService.isConnected) return;
+      if (await _sshService.trampolineAlive()) {
+        await _loadResumeEvidence();
+        continue;
+      }
+      if (!mounted) return;
+      setState(() {
+        _resumeStillRunning = false;
+        _mdbConnectStarted = false;
+      });
+      _setPhase(InstallerPhase.mdbConnect);
+      return;
+    }
+  }
+
   Widget _buildResumeDetected(AppLocalizations l10n) {
-    return Center(
-      child: SizedBox(
-        width: 520,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const Icon(Icons.history, size: 72, color: Colors.amber),
+    final running = _resumeStillRunning;
+    final actor = switch (_resumeActor) {
+      'trampoline' => l10n.resumeActorScooter,
+      'installer' => l10n.resumeActorInstaller,
+      _ => null,
+    };
+    return PhaseLayout(
+      title: running ? l10n.resumeRunningHeading : l10n.resumeFoundHeading,
+      subtitle: running ? l10n.resumeRunningBody : l10n.resumeFoundBody,
+      centerContent: false,
+      actions: [
+        // A run that is still going has nothing for the user to decide: the
+        // only honest control is none, until it stops.
+        if (!running)
+          PhaseAction(
+            label: l10n.continueButton,
+            icon: Icons.arrow_forward,
+            primary: true,
+            onPressed: _isProcessing ? null : _continueFromResume,
+          ),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (running) ...[
+            Row(
+              children: [
+                const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(l10n.resumeRunningWait,
+                      style: TextStyle(color: Colors.grey.shade300)),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
-            Text(l10n.resumeFoundHeading,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.amber)),
-            const SizedBox(height: 12),
-            Text(l10n.resumeFoundBody,
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade300)),
-            if (_resumePreviousError != null) ...[
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+          ],
+          // Which step it reached is the first thing anyone asks, and it is
+          // the one fact both sides of the install write down.
+          if (_resumeStage != null)
+            Row(
+              children: [
+                Icon(Icons.flag_outlined, size: 18, color: Colors.grey.shade400),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(l10n.resumeStageLabel(_resumeStage!),
+                      style: const TextStyle(
+                          fontFamily: 'monospace', fontSize: 13)),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.resumeFoundLastError,
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent)),
-                    const SizedBox(height: 4),
-                    SelectableText(_resumePreviousError!,
-                        style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
-                  ],
-                ),
+                if (actor != null) ...[
+                  const SizedBox(width: 8),
+                  Text(actor,
+                      style:
+                          TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                ],
+              ],
+            ),
+          if (_resumePreviousError != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
               ),
-            ],
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _isProcessing ? null : _continueFromResume,
-              icon: const Icon(Icons.arrow_forward),
-              label: Text(l10n.continueButton),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.resumeFoundLastError,
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.redAccent)),
+                  const SizedBox(height: 4),
+                  SelectableText(_resumePreviousError!,
+                      style: const TextStyle(
+                          fontFamily: 'monospace', fontSize: 12)),
+                ],
+              ),
             ),
           ],
-        ),
+          // The trampoline runs with nobody watching, so its log is the only
+          // account of the part of the install this installer did not see.
+          if (_resumeLogTail.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(l10n.resumeLogHeading,
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade400)),
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              height: 220,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF111111),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              child: SingleChildScrollView(
+                reverse: true,
+                child: SelectableText(_resumeLogTail,
+                    style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 11.5,
+                        height: 1.35,
+                        color: Colors.grey.shade300)),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

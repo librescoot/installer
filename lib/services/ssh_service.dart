@@ -1620,6 +1620,48 @@ class SshService {
     }
   }
 
+  /// The run-state file both sides write: which stage the run reached, who
+  /// wrote it last, and whether it ended. Null when the board has none.
+  Future<InstallRunState?> readInstallRunState() async {
+    try {
+      final content =
+          await runCommand('cat /data/installer-run-state 2>/dev/null; true');
+      if (content.trim().isEmpty) return null;
+      return InstallRunState.parse(content);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Whether a trampoline is running on the board right now.
+  ///
+  /// The state file says what the last write claimed, which is not the same
+  /// thing: a run killed mid-stage leaves "running" behind forever. Only the
+  /// process answers the question the caller is actually asking.
+  Future<bool> trampolineAlive() async {
+    try {
+      final out = await runCommand(
+        'pgrep -f "/data/(installer/)?trampoline.sh" >/dev/null && echo yes || echo no',
+      ).timeout(const Duration(seconds: 10));
+      return out.trim().endsWith('yes');
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// The tail of the trampoline's own log, which is the only account of what
+  /// happened while the laptop was unplugged.
+  Future<String> readTrampolineLogTail({int lines = 40}) async {
+    try {
+      final out = await runCommand(
+        'tail -n $lines /data/installer/trampoline.log 2>/dev/null; true',
+      ).timeout(const Duration(seconds: 20));
+      return out.trimRight();
+    } catch (_) {
+      return '';
+    }
+  }
+
   Future<void> writeInstallRunState({
     required String runId,
     required String content,
