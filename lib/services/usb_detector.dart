@@ -357,15 +357,9 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.PNPDeviceID)" }
 $dev = Get-CimInstance Win32_DiskDrive | Where-Object {
   $_.PNPDeviceID -like "*VID_0525*" -or
   $_.PNPDeviceID -like "*VEN_LINUX*PROD_UMS*"
-} | Select-Object -First 1 Model,PNPDeviceID,DeviceID,Size,MediaType,Index
+} | Select-Object -First 1 Model,PNPDeviceID,DeviceID,MediaType,Index
 if ($dev) {
-  # Win32_DiskDrive.Size is a geometry product rounded down to whole
-  # cylinders, so it under-reports the device by up to one cylinder. Get-Disk
-  # reports the real size. Emit empty rather than the truncated figure when
-  # Get-Disk cannot answer: a missing size warns, a wrong one is compared.
-  $size = ''
-  try { $size = (Get-Disk -Number $dev.Index -ErrorAction Stop).Size } catch { $size = '' }
-  "$($dev.Model)`t$($dev.PNPDeviceID)`t$($dev.DeviceID)`t$size`t$($dev.MediaType)"
+  "$($dev.Model)`t$($dev.PNPDeviceID)`t$($dev.DeviceID)`t$($dev.Index)`t$($dev.MediaType)"
 }
 ''',
         ],
@@ -380,11 +374,11 @@ if ($dev) {
       final model = parts.isNotEmpty ? parts[0].trim() : 'Librescoot Device';
       final pnpId = parts.length > 1 ? parts[1].trim() : '';
       final deviceId = parts.length > 2 ? parts[2].trim() : '';
-      final sizeStr = parts.length > 3 ? parts[3].trim() : '';
+      final indexStr = parts.length > 3 ? parts[3].trim() : '';
       final mediaType = parts.length > 4 ? parts[4].trim() : '';
 
       if (pnpId.isNotEmpty) {
-          final sizeBytes = int.tryParse(sizeStr);
+          final sizeBytes = await _windowsDiskSize(int.tryParse(indexStr));
 
           // Check if this is removable media
           final isRemovable = mediaType.toLowerCase().contains('removable');
@@ -412,6 +406,43 @@ if ($dev) {
       }
     } catch (_) {}
     return null;
+  }
+
+  /// The disk's real length, from Get-Disk, in its own process.
+  ///
+  /// Win32_DiskDrive.Size is a geometry product rounded down to whole
+  /// cylinders and under-reports the device. Get-Disk reports the true
+  /// length, but powershell.exe has been seen dying with an access violation
+  /// inside this query on some machines, and a process that dies takes its
+  /// whole script with it regardless of try/catch. Kept separate from the
+  /// enumeration so that a crash here costs the size rather than the device.
+  ///
+  /// Null when the size could not be established. [FlashService.validateDevice]
+  /// refuses a flash on a null size, which is the safe reading: a size that is
+  /// missing is not a size that matches.
+  Future<int?> _windowsDiskSize(int? diskNumber) async {
+    if (diskNumber == null) return null;
+    try {
+      final result = await Process.run(
+        'powershell',
+        [
+          '-NoProfile',
+          '-Command',
+          '(Get-Disk -Number $diskNumber -ErrorAction Stop).Size',
+        ],
+      );
+      if (result.exitCode != 0) {
+        debugPrint(
+          'USB detector: disk size query failed for disk $diskNumber '
+          '(exit ${result.exitCode})',
+        );
+        return null;
+      }
+      return int.tryParse(result.stdout.toString().trim());
+    } catch (e) {
+      debugPrint('USB detector: disk size query threw for disk $diskNumber: $e');
+      return null;
+    }
   }
 
   Future<UsbDevice?> _detectWindowsPnpEthernet() async {
