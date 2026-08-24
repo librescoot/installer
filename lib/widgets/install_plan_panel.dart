@@ -179,14 +179,17 @@ class InstallPlanPanel extends StatelessWidget {
   /// What each action costs, per board. Settings, keycards and trips all live
   /// on the main board; the dashboard's own storage holds the offline maps and
   /// nothing else, so wiping it loses only those, and only until the maps are
-  /// written back.
+  /// written back. Whether they are written back is this plan's own answer, so
+  /// the wording follows it rather than naming a loss the same run undoes.
   String _actionDetail(
           AppLocalizations l10n, BoardAction action, Board board) =>
       switch ((action, board)) {
         (BoardAction.upgrade, Board.dbc) => l10n.actionUpgradeDetailDbc,
         (BoardAction.cleanInstall, Board.dbc) ||
         (BoardAction.fullImage, Board.dbc) =>
-          l10n.actionCleanInstallDetailDbc,
+          plan.installTiles
+              ? l10n.actionCleanInstallDetailDbcTiles
+              : l10n.actionCleanInstallDetailDbc,
         (BoardAction.upgrade, _) => l10n.actionUpgradeDetail,
         (BoardAction.cleanInstall, _) || (BoardAction.fullImage, _) =>
           l10n.actionCleanInstallDetail,

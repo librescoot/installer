@@ -20,7 +20,18 @@ class HealthCheckPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _row(l10n.auxBatteryCharge, '${health.auxCharge ?? '?'}%', '\u2265 50%', health.auxChargeOk),
+          // Charge is quantised to 25% steps by the firmware, so the volts
+          // carry the detail that decides whether a tired pack lasts an
+          // install. Shown beside it rather than as its own row: it is the
+          // same reading, not a second check.
+          _row(
+            l10n.auxBatteryCharge,
+            health.auxVoltageMv == null
+                ? '${health.auxCharge ?? '?'}%'
+                : '${health.auxCharge ?? '?'}%  ${l10n.healthAuxVoltage(health.auxVoltageMv!)}',
+            '\u2265 50%',
+            health.auxChargeOk,
+          ),
           if (health.auxChargeOk == false) _risk(l10n.riskAuxLow),
           if (health.cbbPresent == false)
             _row(l10n.cbbCharge, l10n.notPresent, '', null)

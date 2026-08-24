@@ -129,6 +129,7 @@
   "resumeLogHeading": "Last lines from the scooter's log",
   "awaitingUnlockHeading": "Unlock your scooter",
   "awaitingUnlockDetail": "Unlock your scooter to continue. Use your keycard or paired phone.",
+  "awaitingUnlockWatching": "The installer continues by itself as soon as the scooter reports it.",
   "awaitingParkHeading": "Park your scooter",
   "awaitingParkDetail": "Park your scooter (flip the kickstand down) to continue.",
   "awaitingParkContinueAnyway": "Continue anyway",
@@ -601,6 +602,7 @@
   "actionCleanInstallDetail": "Erases settings and trip history. Keycards and maps are set up again later in this run",
   "actionUpgradeDetailDbc": "Keeps the offline maps",
   "actionCleanInstallDetailDbc": "Erases the offline maps only",
+  "actionCleanInstallDetailDbcTiles": "Erases the offline maps. They are installed again in this run",
   "actionLeave": "Leave alone",
   "actionLeaveDetail": "This board is not touched",
   "upgradeBlockedNotLibrescoot": "Upgrade needs Librescoot to already be installed",
@@ -685,6 +687,10 @@
   "dbcCleanInstallBody": "The dashboard's last known version is only what the main board saw the last time the two were powered together, so a board the plan treated as upgradable may have no update client at all. Installing from scratch writes the bootstrap image first, which reformats the DBC's data partition and loses its offline maps. Anything on the main board, including settings, paired keycards and trip history, is untouched.\n\nThis needs another cable swap: the installer stages the files, you screw the dashboard cable back onto the main board, and the rest runs unattended.",
   "dbcCleanInstallConfirm": "Erase and install the DBC",
   "firmwareVersionDisplay": "Firmware: {version}",
+  "healthVersionPlan": "Installed {current}, installing {target}",
+  "@healthVersionPlan": { "placeholders": { "current": { "type": "String" }, "target": { "type": "String" } } },
+  "healthAuxVoltage": "{mv} mV",
+  "@healthAuxVoltage": { "placeholders": { "mv": { "type": "int" } } },
   "@firmwareVersionDisplay": {
     "placeholders": {
       "version": {

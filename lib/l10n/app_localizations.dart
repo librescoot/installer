@@ -788,6 +788,12 @@ abstract class AppLocalizations {
   /// **'Unlock your scooter to continue. Use your keycard or paired phone.'**
   String get awaitingUnlockDetail;
 
+  /// No description provided for @awaitingUnlockWatching.
+  ///
+  /// In en, this message translates to:
+  /// **'The installer continues by itself as soon as the scooter reports it.'**
+  String get awaitingUnlockWatching;
+
   /// No description provided for @awaitingParkHeading.
   ///
   /// In en, this message translates to:
@@ -2414,6 +2420,12 @@ abstract class AppLocalizations {
   /// **'Erases the offline maps only'**
   String get actionCleanInstallDetailDbc;
 
+  /// No description provided for @actionCleanInstallDetailDbcTiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Erases the offline maps. They are installed again in this run'**
+  String get actionCleanInstallDetailDbcTiles;
+
   /// No description provided for @actionLeave.
   ///
   /// In en, this message translates to:
@@ -2653,6 +2665,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Firmware: {version}'**
   String firmwareVersionDisplay(String version);
+
+  /// No description provided for @healthVersionPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Installed {current}, installing {target}'**
+  String healthVersionPlan(String current, String target);
+
+  /// No description provided for @healthAuxVoltage.
+  ///
+  /// In en, this message translates to:
+  /// **'{mv} mV'**
+  String healthAuxVoltage(int mv);
 
   /// No description provided for @openSeatboxButton.
   ///

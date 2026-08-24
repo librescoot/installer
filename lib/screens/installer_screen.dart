@@ -2352,56 +2352,55 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     );
   }
 
+  /// Waiting on the rider, not on the board.
+  ///
+  /// So it keeps the frame rather than becoming a wait overlay: the overlay
+  /// exists to say which step is running and how long it usually takes, and
+  /// neither means anything for a step that finishes when a person acts. What
+  /// it needs instead is what every other screen asking for a physical action
+  /// has, a title, the instruction, and its controls in the actions row.
   Widget _buildAwaitingUnlock(AppLocalizations l10n) {
     final isRtd = _awaitingUnlockState == 'ready-to-drive';
-    return Center(
-      child: SizedBox(
-        width: 520,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Icon(
-              isRtd ? Icons.local_parking : Icons.lock_open,
-              size: 72,
-              color: Colors.amber,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              isRtd ? l10n.awaitingParkHeading : l10n.awaitingUnlockHeading,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.amber,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              isRtd ? l10n.awaitingParkDetail : l10n.awaitingUnlockDetail,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade300),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (isRtd) ...[
-                  FilledButton.icon(
-                    onPressed: _userOverrideRtd,
-                    icon: const Icon(Icons.arrow_forward),
-                    label: Text(l10n.awaitingParkContinueAnyway),
-                  ),
-                  const SizedBox(width: 12),
-                ],
-                TextButton(
-                  onPressed: _userCancelUnlockWait,
-                  child: Text(l10n.cancelButton),
-                ),
-              ],
-            ),
-          ],
+    return PhaseLayout(
+      title: isRtd ? l10n.awaitingParkHeading : l10n.awaitingUnlockHeading,
+      subtitle: isRtd ? l10n.awaitingParkDetail : l10n.awaitingUnlockDetail,
+      actions: [
+        PhaseAction(
+          label: l10n.cancelButton,
+          side: ActionSide.back,
+          onPressed: _userCancelUnlockWait,
         ),
+        // Only the ready-to-drive case has an override: a scooter that is
+        // simply locked has nothing to go on with.
+        if (isRtd)
+          PhaseAction(
+            label: l10n.awaitingParkContinueAnyway,
+            icon: Icons.arrow_forward,
+            primary: true,
+            onPressed: _userOverrideRtd,
+          ),
+      ],
+      child: Row(
+        children: [
+          Icon(
+            isRtd ? Icons.local_parking : Icons.lock_open,
+            size: 32,
+            color: Colors.amber,
+          ),
+          const SizedBox(width: 16),
+          const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              l10n.awaitingUnlockWatching,
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -3448,9 +3447,17 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
+          // The current version alone does not say whether this run is an
+          // upgrade, a reinstall or a downgrade, which is the question someone
+          // reads this screen to answer. The target is known by now.
           if (_mdbInfo != null)
             Text(
-              l10n.firmwareVersionDisplay(_mdbInfo!.firmwareVersion),
+              _downloadState.releaseTag == null
+                  ? l10n.firmwareVersionDisplay(_mdbInfo!.firmwareVersion)
+                  : l10n.healthVersionPlan(
+                      _mdbInfo!.firmwareVersion,
+                      _downloadState.releaseTag!,
+                    ),
               style: TextStyle(color: Colors.grey.shade400),
             ),
           // A run that finished on the device had nobody watching it. This is

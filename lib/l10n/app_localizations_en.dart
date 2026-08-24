@@ -386,6 +386,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Unlock your scooter to continue. Use your keycard or paired phone.';
 
   @override
+  String get awaitingUnlockWatching =>
+      'The installer continues by itself as soon as the scooter reports it.';
+
+  @override
   String get awaitingParkHeading => 'Park your scooter';
 
   @override
@@ -1345,6 +1349,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get actionCleanInstallDetailDbc => 'Erases the offline maps only';
 
   @override
+  String get actionCleanInstallDetailDbcTiles =>
+      'Erases the offline maps. They are installed again in this run';
+
+  @override
   String get actionLeave => 'Leave alone';
 
   @override
@@ -1490,6 +1498,16 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String firmwareVersionDisplay(String version) {
     return 'Firmware: $version';
+  }
+
+  @override
+  String healthVersionPlan(String current, String target) {
+    return 'Installed $current, installing $target';
+  }
+
+  @override
+  String healthAuxVoltage(int mv) {
+    return '$mv mV';
   }
 
   @override

@@ -5,6 +5,11 @@ class ScooterHealth {
   bool? batteryPresent;
   bool? cbbPresent;
 
+  /// Corrected terminal voltage in mV. Predicts whether the pack survives a
+  /// long install better than the charge does: the firmware quantises charge
+  /// to 25% steps, so 100% covers everything from 12543 mV upward.
+  int? auxVoltageMv;
+
   /// Null where the value was never read. A threshold applied to a missing
   /// reading answers about the reading rather than about the hardware, and
   /// renders as a failed check rather than an unasked question.
