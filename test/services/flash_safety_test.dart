@@ -102,19 +102,26 @@ void main() {
     expect(result.errors.join('; '), contains('has failed'));
   });
 
-  test('a cylinder-truncated size still passes', () {
-    // Windows reports a geometry product rounded down to whole cylinders, so
-    // it reads up to one cylinder below the raw count. 255x63x512 is 8225280
-    // bytes; the tolerance has to clear it.
-    final result = flash.validateDevice(
-      devicePath: _goodPath,
-      sizeBytes: FlashService.mdbEmmcBytes - 8225280,
-      isRemovable: true,
-      isSystemDisk: false,
-      vendorId: 0x0525,
-      productId: 0xA4A5,
-    );
-    expect(result.passed, isTrue, reason: result.errors.join('; '));
+  test('the eMMC size must match exactly', () {
+    // Win32_DiskDrive.Size reads up to one cylinder low (8225280 bytes at
+    // 255x63x512), which is why the Windows detector sources the size from
+    // Get-Disk instead. A truncated figure reaching here is a bug, not a
+    // tolerance case.
+    for (final size in [
+      FlashService.mdbEmmcBytes - 8225280,
+      FlashService.mdbEmmcBytes - 512,
+      FlashService.mdbEmmcBytes + 512,
+    ]) {
+      final result = flash.validateDevice(
+        devicePath: _goodPath,
+        sizeBytes: size,
+        isRemovable: true,
+        isSystemDisk: false,
+        vendorId: 0x0525,
+        productId: 0xA4A5,
+      );
+      expect(result.passed, isFalse, reason: 'size \$size was accepted');
+    }
   });
 
   test('an unknown size warns but does not block', () {

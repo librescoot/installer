@@ -357,8 +357,16 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.PNPDeviceID)" }
 $dev = Get-CimInstance Win32_DiskDrive | Where-Object {
   $_.PNPDeviceID -like "*VID_0525*" -or
   $_.PNPDeviceID -like "*VEN_LINUX*PROD_UMS*"
-} | Select-Object -First 1 Model,PNPDeviceID,DeviceID,Size,MediaType
-if ($dev) { "$($dev.Model)`t$($dev.PNPDeviceID)`t$($dev.DeviceID)`t$($dev.Size)`t$($dev.MediaType)" }
+} | Select-Object -First 1 Model,PNPDeviceID,DeviceID,Size,MediaType,Index
+if ($dev) {
+  # Win32_DiskDrive.Size is a geometry product rounded down to whole
+  # cylinders, so it under-reports the device by up to one cylinder. Get-Disk
+  # reports the real size. Emit empty rather than the truncated figure when
+  # Get-Disk cannot answer: a missing size warns, a wrong one is compared.
+  $size = ''
+  try { $size = (Get-Disk -Number $dev.Index -ErrorAction Stop).Size } catch { $size = '' }
+  "$($dev.Model)`t$($dev.PNPDeviceID)`t$($dev.DeviceID)`t$size`t$($dev.MediaType)"
+}
 ''',
         ],
       );

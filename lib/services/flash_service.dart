@@ -118,16 +118,11 @@ class FlashService {
   /// User area of the eMMC every MDB carries: 15269888 sectors of 512 bytes.
   static const int mdbEmmcBytes = 7818182656;
 
-  /// One cylinder of 255x63x512 geometry, the granularity Windows truncates
-  /// Win32_DiskDrive.Size to.
-  static const int _cylinderBytes = 255 * 63 * 512;
-
-  /// Load-bearing, not slack. [mdbEmmcBytes] is a raw sector count; Windows
-  /// reports a geometry product rounded down to whole cylinders, so it reads
-  /// up to one cylinder low. Two cylinders, so a gadget presenting larger
-  /// geometry than the 255x63x512 this is measured against still fits.
-  /// Below one cylinder, every Windows install fails as "not an MDB".
-  static const int mdbEmmcToleranceBytes = 2 * _cylinderBytes;
+  /// Exact. Every platform reports the raw device size: Linux from
+  /// /sys/block, macOS from diskutil, Windows from Get-Disk. A host that
+  /// cannot produce the raw size reports none, which warns rather than
+  /// comparing a wrong number.
+  static const int mdbEmmcToleranceBytes = 0;
 
   /// An eMMC that has lost its user area reports a few tens of MB.
   static const int failedEmmcCeilingBytes = 64 * 1024 * 1024;
