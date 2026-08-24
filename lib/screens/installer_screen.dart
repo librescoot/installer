@@ -4581,9 +4581,18 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           Theme(
             data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
             child: ExpansionTile(
+              // Grey caption text read as a label, and opening this is what
+              // tells the rest of the flow the user took the manual route, so
+              // it has to look like the control it is.
+              leading: const Icon(Icons.build_outlined, size: 20,
+                  color: kAccent),
               title: Text(
                 l10n.scooterPrepManualFallback,
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade400),
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: kAccent,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               // Opening it is the signal. A false positive costs a step the user
               // can ignore; a false negative hides the one instruction they
