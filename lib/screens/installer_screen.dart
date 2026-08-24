@@ -43,6 +43,7 @@ import '../widgets/phase_layout.dart';
 import '../widgets/phase_sidebar.dart';
 import '../widgets/substep_list.dart';
 import '../widgets/wait_overlay.dart';
+import '../widgets/action_overlay.dart';
 import '../widgets/wait_scaffold.dart';
 import '../theme.dart';
 
@@ -2354,52 +2355,36 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   /// Waiting on the rider, not on the board.
   ///
-  /// So it keeps the frame rather than becoming a wait overlay: the overlay
-  /// exists to say which step is running and how long it usually takes, and
-  /// neither means anything for a step that finishes when a person acts. What
-  /// it needs instead is what every other screen asking for a physical action
-  /// has, a title, the instruction, and its controls in the actions row.
+  /// An overlay, like the waits on the machine, but its own card: steps and
+  /// typical durations say nothing about something that ends when a person
+  /// acts. What this one carries is the ask, the ways to do it, and the way
+  /// out. The screen behind it stays visible, which is where the scooter the
+  /// user has to walk over to was last described.
   Widget _buildAwaitingUnlock(AppLocalizations l10n) {
     final isRtd = _awaitingUnlockState == 'ready-to-drive';
-    return PhaseLayout(
-      title: isRtd ? l10n.awaitingParkHeading : l10n.awaitingUnlockHeading,
-      subtitle: isRtd ? l10n.awaitingParkDetail : l10n.awaitingUnlockDetail,
-      actions: [
-        PhaseAction(
-          label: l10n.cancelButton,
-          side: ActionSide.back,
-          onPressed: _userCancelUnlockWait,
-        ),
-        // Only the ready-to-drive case has an override: a scooter that is
-        // simply locked has nothing to go on with.
-        if (isRtd)
-          PhaseAction(
-            label: l10n.awaitingParkContinueAnyway,
-            icon: Icons.arrow_forward,
-            primary: true,
-            onPressed: _userOverrideRtd,
+    return WaitScaffold(
+      backdrop: _frozenBackdrop,
+      overlay: ActionOverlay(
+        title: isRtd ? l10n.awaitingParkHeading : l10n.awaitingUnlockHeading,
+        instruction: isRtd ? l10n.awaitingParkDetail : l10n.awaitingUnlockDetail,
+        icon: isRtd ? Icons.local_parking : Icons.lock_open,
+        hints: isRtd
+            ? const []
+            : [l10n.awaitingUnlockHintKeycard, l10n.awaitingUnlockHintPhone],
+        watching: l10n.awaitingUnlockWatching,
+        actions: [
+          TextButton(
+            onPressed: _userCancelUnlockWait,
+            child: Text(l10n.cancelButton),
           ),
-      ],
-      child: Row(
-        children: [
-          Icon(
-            isRtd ? Icons.local_parking : Icons.lock_open,
-            size: 32,
-            color: Colors.amber,
-          ),
-          const SizedBox(width: 16),
-          const SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              l10n.awaitingUnlockWatching,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+          // Only the ready-to-drive case has an override: a scooter that is
+          // simply locked has nothing to go on with.
+          if (isRtd)
+            FilledButton.icon(
+              onPressed: _userOverrideRtd,
+              icon: const Icon(Icons.arrow_forward, size: 18),
+              label: Text(l10n.awaitingParkContinueAnyway),
             ),
-          ),
         ],
       ),
     );

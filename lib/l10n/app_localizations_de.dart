@@ -388,7 +388,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get awaitingUnlockDetail =>
-      'Bitte entsperre deinen Roller, um fortzufahren. Halte deine Schlüsselkarte an den Leser oder benutze ein gekoppeltes Handy.';
+      'Entsperre den Roller, damit der Installer weitermachen kann.';
+
+  @override
+  String get awaitingUnlockHintKeycard =>
+      'Schlüsselkarte an den Leser am Lenker halten';
+
+  @override
+  String get awaitingUnlockHintPhone => 'Oder ein gekoppeltes Handy benutzen';
 
   @override
   String get awaitingUnlockWatching =>
