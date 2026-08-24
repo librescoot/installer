@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -18,9 +19,17 @@ class DownloadService {
   static const _latestManifestUrl = '$_manifestBase/latest.json';
 
   final http.Client _client;
+  final Duration _requestTimeout;
+  final Duration _idleTimeout;
   Map<String, dynamic>? _cachedLatest;
 
-  DownloadService({http.Client? client}) : _client = client ?? http.Client();
+  DownloadService({
+    http.Client? client,
+    Duration requestTimeout = const Duration(seconds: 30),
+    Duration idleTimeout = const Duration(seconds: 60),
+  })  : _client = client ?? http.Client(),
+        _requestTimeout = requestTimeout,
+        _idleTimeout = idleTimeout;
 
   /// Fetch the combined latest-per-channel manifest from
   /// downloads.librescoot.org. One round trip yields the current pointer
@@ -540,7 +549,13 @@ class DownloadService {
     final partFile = File('${targetFile.path}.part');
 
     final request = http.Request('GET', Uri.parse(item.url));
-    final response = await _client.send(request);
+    final response = await _client.send(request).timeout(
+          _requestTimeout,
+          onTimeout: () => throw TimeoutException(
+            'Download request timed out for ${item.filename}',
+            _requestTimeout,
+          ),
+        );
 
     if (response.statusCode != 200) {
       throw Exception('Download failed: HTTP ${response.statusCode}');
@@ -548,19 +563,32 @@ class DownloadService {
 
     final sink = partFile.openWrite();
     var downloaded = 0;
+    item.bytesDownloaded = 0;
 
     // The close belongs in a finally: a stream that throws part-way through
     // otherwise leaks the handle, and on Windows keeps the .part file locked
     // against the retry that follows.
     try {
-      await for (final chunk in response.stream) {
-        sink.add(chunk);
-        downloaded += chunk.length;
-        item.bytesDownloaded = downloaded;
-        onProgress?.call(downloaded, item.expectedSize);
+      try {
+        await for (final chunk in response.stream.timeout(
+          _idleTimeout,
+          onTimeout: (sink) => sink.addError(TimeoutException(
+            'Download stalled for ${item.filename}',
+            _idleTimeout,
+          )),
+        )) {
+          sink.add(chunk);
+          downloaded += chunk.length;
+          item.bytesDownloaded = downloaded;
+          onProgress?.call(downloaded, item.expectedSize);
+        }
+      } finally {
+        await sink.close();
       }
-    } finally {
-      await sink.close();
+    } catch (_) {
+      item.bytesDownloaded = 0;
+      if (await partFile.exists()) await partFile.delete();
+      rethrow;
     }
 
     // Verify size

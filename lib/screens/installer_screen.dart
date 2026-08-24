@@ -1761,7 +1761,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (_downloadsKicked) return;
     _downloadsKicked = true;
     final l10n = AppLocalizations.of(context)!;
-    setState(() => _isProcessing = true);
+    setState(() {
+      _isProcessing = true;
+      _downloadState.error = null;
+    });
     try {
       if (launchArgs.hasLocalImages) {
         _setStatus(l10n.usingLocalFirmwareImages);
@@ -1873,10 +1876,24 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       if (mounted) setState(() {});
     } catch (e) {
       if (mounted) {
-        setState(() => _downloadState.error = e.toString());
+        final message = e.toString();
+        setState(() {
+          _downloadState.error = message;
+          _downloadsFailed = message;
+        });
       }
     }
   }
+
+  void _restartFailedDownloads() {
+    if (_downloadState.error == null) return;
+    setState(() {
+      _downloadState.error = null;
+      _downloadsFailed = null;
+    });
+    _downloadInBackground();
+  }
+
   Widget _buildPhysicalPrep(AppLocalizations l10n) {
     return PhaseLayout(
       title: l10n.physicalPrepHeading,
@@ -3141,6 +3158,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 FilledButton.icon(
                   onPressed: () {
                     _resetRetries('mdbFlash');
+                    _restartFailedDownloads();
                     setState(() {
                       _mdbFlashBlocked = false;
                       _mdbFlashStarted = true;
@@ -3296,24 +3314,27 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       return;
     }
 
-    var mdbItem = _downloadState.itemOfType(DownloadItemType.mdbFirmware);
-    // Bmap is optional (older releases may not ship one), but if it was
-    // queued we must wait for it: flashing the .gz sequentially when a
-    // bmap was meant to be used skips the sparse-write fast path.
-    var mdbBmapItem = _downloadState.itemOfType(DownloadItemType.mdbBmap);
-    if (mdbItem == null || !mdbItem.isComplete ||
-        (mdbBmapItem != null && !mdbBmapItem.isComplete)) {
-      _setStatus(l10n.waitingForMdbFirmware);
-      while (mdbItem == null || !mdbItem.isComplete ||
-          (mdbBmapItem != null && !mdbBmapItem.isComplete)) {
-        await Future.delayed(const Duration(seconds: 1));
-        if (!mounted) return;
-        mdbItem = _downloadState.itemOfType(DownloadItemType.mdbFirmware);
-        mdbBmapItem = _downloadState.itemOfType(DownloadItemType.mdbBmap);
-      }
-    }
-
     try {
+      bool mdbDownloadsReady() {
+        final image =
+            _downloadState.itemOfType(DownloadItemType.mdbFirmware);
+        final bmap = _downloadState.itemOfType(DownloadItemType.mdbBmap);
+        return image != null &&
+            image.isComplete &&
+            (bmap == null || bmap.isComplete);
+      }
+
+      if (!mdbDownloadsReady()) {
+        _setStatus(l10n.waitingForMdbFirmware);
+        await waitForDownloads(
+          isReady: mdbDownloadsReady,
+          currentError: () => _downloadState.error,
+          isCancelled: () => !mounted,
+        );
+      }
+      final mdbItem =
+          _downloadState.itemOfType(DownloadItemType.mdbFirmware)!;
+
       // Resolve the block device path (macOS needs diskutil lookup)
       _setStatus(l10n.waitingForDevicePath);
       String? devicePath;
@@ -3403,6 +3424,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _setStatus(l10n.mdbFlashComplete);
       await Future.delayed(const Duration(seconds: 1));
       _setPhase(InstallerPhase.scooterPrep);
+    } on DownloadWaitCancelled {
+      return;
     } catch (e, stackTrace) {
       debugPrint('Flash ERROR: $e');
       debugPrint('Flash STACKTRACE: $stackTrace');
@@ -3410,13 +3433,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       await DriverService.restoreAutoPlay();
 
       final errText = e.toString();
+      final downloadFailure = e is DownloadWaitFailure;
       final midWrite = RegExp(r'write at offset (\d+)').firstMatch(errText);
       final pathGone = errText.contains('No such file or directory') ||
           errText.contains('authopen') ||
           errText.contains('device not configured');
 
       String diagnosis = errText;
-      if (midWrite != null) {
+      if (downloadFailure) {
+        diagnosis = errText;
+      } else if (midWrite != null) {
         final offset = int.tryParse(midWrite.group(1)!);
         final mb = offset == null ? '?' : (offset / (1024 * 1024)).toStringAsFixed(1);
         diagnosis += '\n\nDevice stopped responding mid-write at $mb MB. '
@@ -4765,6 +4791,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                   children: [
                     FilledButton.icon(
                       onPressed: () {
+                        _restartFailedDownloads();
                         setState(() {
                           _dbcPrepStarted = false;
                           _dbcStageInFlight = false;
@@ -4819,16 +4846,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       return;
     }
 
-    if (!_downloadState.allReady) {
-      _setStatus(l10n.waitingForDownloads);
-      while (!_downloadState.allReady) {
-        await Future.delayed(const Duration(seconds: 1));
-        if (mounted) setState(() {});
-        if (!mounted) return;
-      }
-    }
-
     try {
+      if (!_downloadState.allReady) {
+        _setStatus(l10n.waitingForDownloads);
+        await waitForDownloads(
+          isReady: () => _downloadState.allReady,
+          currentError: () => _downloadState.error,
+          isCancelled: () => !mounted,
+        );
+      }
+
       final trampolineService = TrampolineService(_sshService);
       final dbcImage = _downloadState.imageFor(Board.dbc);
       final dbcArtifact = _downloadState.artifactFor(Board.dbc);
@@ -4915,6 +4942,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         _dbcStageInFlight = false;
         _dbcUploadReady = true;
       });
+    } on DownloadWaitCancelled {
+      return;
     } catch (e) {
       _setCritical(false);
       _setStatus(l10n.uploadError(e.toString()));

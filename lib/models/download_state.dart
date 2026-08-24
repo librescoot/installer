@@ -93,3 +93,37 @@ class DownloadState {
   DownloadItem? imageFor(Board board) => itemOfType(
       board == Board.mdb ? DownloadItemType.mdbFirmware : DownloadItemType.dbcFirmware);
 }
+
+class DownloadWaitFailure implements Exception {
+  const DownloadWaitFailure(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+class DownloadWaitCancelled implements Exception {
+  const DownloadWaitCancelled();
+}
+
+Future<void> waitForDownloads({
+  required bool Function() isReady,
+  required String? Function() currentError,
+  required bool Function() isCancelled,
+  Duration pollInterval = const Duration(seconds: 1),
+  Duration timeout = const Duration(hours: 2),
+}) async {
+  final elapsed = Stopwatch()..start();
+  while (!isReady()) {
+    if (isCancelled()) throw const DownloadWaitCancelled();
+    final error = currentError();
+    if (error != null) throw DownloadWaitFailure(error);
+    if (elapsed.elapsed >= timeout) {
+      throw DownloadWaitFailure(
+        'Downloads did not finish within ${timeout.inMinutes} minutes',
+      );
+    }
+    await Future<void>.delayed(pollInterval);
+  }
+}

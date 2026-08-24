@@ -70,4 +70,59 @@ void main() {
           isNot(contains(DownloadItemType.dbcBmap)));
     });
   });
+
+  group('waitForDownloads', () {
+    test('failure after continuing offline terminates the later wait',
+        () async {
+      final state = DownloadState()
+        ..items = [_item(DownloadItemType.mdbFirmware, complete: false)];
+
+      Future<void>.delayed(const Duration(milliseconds: 5), () {
+        state.error = 'connection reset';
+      });
+
+      await expectLater(
+        waitForDownloads(
+          isReady: () => state.allReady,
+          currentError: () => state.error,
+          isCancelled: () => false,
+          pollInterval: const Duration(milliseconds: 1),
+        ),
+        throwsA(isA<DownloadWaitFailure>().having(
+          (error) => error.message,
+          'message',
+          'connection reset',
+        )),
+      );
+    });
+
+    test('cancellation terminates an incomplete wait', () async {
+      await expectLater(
+        waitForDownloads(
+          isReady: () => false,
+          currentError: () => null,
+          isCancelled: () => true,
+          pollInterval: const Duration(milliseconds: 1),
+        ),
+        throwsA(isA<DownloadWaitCancelled>()),
+      );
+    });
+
+    test('an incomplete wait has an overall deadline', () async {
+      await expectLater(
+        waitForDownloads(
+          isReady: () => false,
+          currentError: () => null,
+          isCancelled: () => false,
+          pollInterval: const Duration(milliseconds: 1),
+          timeout: const Duration(milliseconds: 5),
+        ),
+        throwsA(isA<DownloadWaitFailure>().having(
+          (error) => error.message,
+          'message',
+          contains('did not finish'),
+        )),
+      );
+    });
+  });
 }

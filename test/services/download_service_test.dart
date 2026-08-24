@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -36,6 +37,16 @@ http_testing.MockClient _manifestClient(Map<String, dynamic> channels) =>
       }
       return http.Response('Not found', 404);
     });
+
+class _StreamClient extends http.BaseClient {
+  _StreamClient(this.stream);
+
+  final Stream<List<int>> stream;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async =>
+      http.StreamedResponse(stream, 200);
+}
 
 void main() {
   group('DownloadService', () {
@@ -227,6 +238,36 @@ void main() {
       final lastArtifact =
           items.lastIndexWhere((i) => i.filename.endsWith('.mender'));
       expect(lastArtifact, lessThan(firstImage));
+    });
+
+    test('a stalled response stream fails after the idle deadline', () async {
+      final controller = StreamController<List<int>>();
+      addTearDown(controller.close);
+      controller.add([1]);
+      final service = DownloadService(
+        client: _StreamClient(controller.stream),
+        idleTimeout: const Duration(milliseconds: 20),
+      );
+      addTearDown(service.dispose);
+      final item = DownloadItem(
+        type: DownloadItemType.mdbArtifact,
+        url: 'https://example.com/stalled.mender',
+        filename: 'stalled-${DateTime.now().microsecondsSinceEpoch}.mender',
+        expectedSize: 2,
+      );
+
+      await expectLater(
+        service.downloadItem(item),
+        throwsA(isA<TimeoutException>().having(
+          (error) => error.message,
+          'message',
+          contains('Download stalled'),
+        )),
+      );
+      expect(item.bytesDownloaded, 0);
+      final cacheDir = await DownloadService.getCacheDir();
+      expect(File(p.join(cacheDir.path, '${item.filename}.part')).existsSync(),
+          isFalse);
     });
 
     test('fullImageBoards swaps the minimal images for the full ones', () async {
