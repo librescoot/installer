@@ -112,7 +112,19 @@ done
   /// Retries for a connection that dies before authentication ever happens.
   /// Doubling from one second, so the ladder spans about a minute: longer than
   /// any reboot this installer performs takes to bring sshd back.
-  static const int maxPreAuthRetries = 6;
+  static const int maxPreAuthRetries = 15;
+
+  /// Delay between attempts after a pre-auth drop.
+  ///
+  /// Constant, not a backoff. A pre-auth drop is a board whose sshd is
+  /// listening before the system can authenticate, which is the ordinary state
+  /// of every board this talks to for the first minute after a reboot. Backing
+  /// off protects a server that is loaded, rate limiting or hostile, and this
+  /// is a known device on a private link with nothing else on it. Doubling to
+  /// 32 seconds meant the board could be ready for half a minute before anyone
+  /// asked. A genuine auth failure is a different branch and does not come
+  /// here.
+  static const Duration preAuthRetryDelay = Duration(seconds: 2);
 
   /// Whether a failure hit the transport rather than the credential.
   ///
@@ -405,12 +417,12 @@ done
         // the stage and the password where they are and come back.
         if (isPreAuthDrop(e) && preAuthRetries < maxPreAuthRetries) {
           preAuthRetries++;
-          final backoff = Duration(seconds: 1 << (preAuthRetries - 1));
           debugPrint(
             'SSH: dropped before authentication, retry '
-            '$preAuthRetries/$maxPreAuthRetries in ${backoff.inSeconds}s',
+            '$preAuthRetries/$maxPreAuthRetries in '
+            '${preAuthRetryDelay.inSeconds}s',
           );
-          await Future.delayed(backoff);
+          await Future.delayed(preAuthRetryDelay);
           continue;
         }
 
