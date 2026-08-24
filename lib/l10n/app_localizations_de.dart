@@ -324,7 +324,26 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get resumeFoundBody =>
-      'Eine frühere Installation auf diesem Roller wurde nicht abgeschlossen. Beim Weitermachen werden ihre Reste aufgeräumt: das zurückgelassene Onboot-Skript wird entschärft und gestoppte Dienste werden wieder gestartet. Danach läuft die Installation komplett von vorn, es wird nichts fortgesetzt.';
+      'Der Roller ist nicht beschädigt. Eine Installation wurde unterbrochen, und dieser Schritt räumt ihre Reste auf, bevor es von vorn losgeht.';
+
+  @override
+  String get resumeWhatHappensHeading => 'Was beim Weitermachen passiert';
+
+  @override
+  String get resumeWhatHappensCleanup =>
+      'Die Reste werden aufgeräumt: das zurückgelassene Onboot-Skript wird entschärft, gestoppte Dienste werden wieder gestartet.';
+
+  @override
+  String get resumeWhatHappensRestart =>
+      'Die Installation läuft komplett von vorn. Es wird nichts fortgesetzt, kein halbfertiger Schritt wird übernommen.';
+
+  @override
+  String get resumeWhatHappensKeep =>
+      'Es geht nichts zusätzlich verloren. Was der vorherige Durchlauf geändert hat, hat er bereits geändert; ein Neustart kostet das nicht noch einmal.';
+
+  @override
+  String get resumeTakesAsLong =>
+      'Es dauert so lange wie eine normale Installation, ungefähr 20 Minuten.';
 
   @override
   String get resumeClearingLeftovers =>
@@ -526,6 +545,23 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get readyToFlashHint =>
       'Das Gerät ist im Flash-Modus. Du kannst das Gerät mounten, um vor dem Fortfahren manuelle Backups zu erstellen.';
+
+  @override
+  String get readyToFlashTargetLabel => 'Ziel';
+
+  @override
+  String get readyToFlashImageLabel => 'Zu schreibendes Image';
+
+  @override
+  String get readyToFlashErases =>
+      'Das löscht das Hauptboard. Alles, was aktuell darauf ist, wird ersetzt.';
+
+  @override
+  String get readyToFlashDuration =>
+      'Das Schreiben dauert etwa eine Minute. Trenne währenddessen weder USB noch Strom.';
+
+  @override
+  String get readyToFlashNoTarget => 'Noch kein Zielgerät ermittelt.';
 
   @override
   String get beginFlashing => 'Flashen starten';

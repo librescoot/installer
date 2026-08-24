@@ -683,8 +683,38 @@ abstract class AppLocalizations {
   /// No description provided for @resumeFoundBody.
   ///
   /// In en, this message translates to:
-  /// **'A previous installation on this scooter did not finish. Continuing clears what it left behind: the onboot script it armed is disarmed, and the services it stopped are started again. The installation then runs from the beginning; nothing is resumed.'**
+  /// **'The scooter is not damaged. An installation was interrupted, and this screen clears what it left behind before starting again.'**
   String get resumeFoundBody;
+
+  /// No description provided for @resumeWhatHappensHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'What happens when you continue'**
+  String get resumeWhatHappensHeading;
+
+  /// No description provided for @resumeWhatHappensCleanup.
+  ///
+  /// In en, this message translates to:
+  /// **'The leftovers are cleared: the onboot script the previous run armed is disarmed, and the services it stopped are started again.'**
+  String get resumeWhatHappensCleanup;
+
+  /// No description provided for @resumeWhatHappensRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'The installation runs from the beginning. Nothing is resumed, so no half-finished step is carried over.'**
+  String get resumeWhatHappensRestart;
+
+  /// No description provided for @resumeWhatHappensKeep.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing extra is lost. The previous run had already made whatever changes it made; starting again does not repeat that cost.'**
+  String get resumeWhatHappensKeep;
+
+  /// No description provided for @resumeTakesAsLong.
+  ///
+  /// In en, this message translates to:
+  /// **'It takes as long as a normal installation, about 20 minutes.'**
+  String get resumeTakesAsLong;
 
   /// No description provided for @resumeClearingLeftovers.
   ///
@@ -1027,6 +1057,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The device is in flashing mode. You can mount the device to create manual backups before proceeding.'**
   String get readyToFlashHint;
+
+  /// No description provided for @readyToFlashTargetLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Target'**
+  String get readyToFlashTargetLabel;
+
+  /// No description provided for @readyToFlashImageLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Image to write'**
+  String get readyToFlashImageLabel;
+
+  /// No description provided for @readyToFlashErases.
+  ///
+  /// In en, this message translates to:
+  /// **'This erases the main board. Everything currently on it is replaced.'**
+  String get readyToFlashErases;
+
+  /// No description provided for @readyToFlashDuration.
+  ///
+  /// In en, this message translates to:
+  /// **'The write takes about a minute. Do not disconnect USB or power while it runs.'**
+  String get readyToFlashDuration;
+
+  /// No description provided for @readyToFlashNoTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'No target device resolved yet.'**
+  String get readyToFlashNoTarget;
 
   /// No description provided for @beginFlashing.
   ///

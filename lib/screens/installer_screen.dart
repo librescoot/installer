@@ -18,6 +18,7 @@ import '../l10n/app_localizations.dart';
 import '../models/board_state.dart';
 import '../models/download_state.dart';
 import '../models/install_plan.dart';
+import '../l10n/phase_l10n.dart';
 import '../models/installer_phase.dart';
 import '../models/phase_attempt.dart';
 import '../models/resume_state.dart';
@@ -2903,6 +2904,20 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
   }
 
+  /// The phase name the previous run wrote down, in the user's language.
+  ///
+  /// Both sides record the stage as the enum's own name, so the stored value
+  /// is an identifier like `dbcPrep`. The sidebar already has a title for
+  /// every phase; this is the same title. An unrecognised value is shown as
+  /// stored rather than dropped, because a stage nobody can name is still the
+  /// one fact about where the run stopped.
+  String _localizedStage(String stage, AppLocalizations l10n) {
+    for (final phase in InstallerPhase.values) {
+      if (phase.name == stage) return phase.localizedTitle(l10n);
+    }
+    return stage;
+  }
+
   Widget _buildResumeDetected(AppLocalizations l10n) {
     final running = _resumeStillRunning;
     final actor = switch (_resumeActor) {
@@ -2982,6 +2997,52 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             ),
             const SizedBox(height: 16),
           ],
+          // Without an error or a trampoline log this screen had a paragraph
+          // and one line on an otherwise empty frame, while being one of the
+          // more alarming ones to land on. The paragraph said what the
+          // installer would do internally; this says what it means for the
+          // scooter, which is what someone in this state is actually asking.
+          if (!running) ...[
+            Text(
+              l10n.resumeWhatHappensHeading,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (final line in [
+              l10n.resumeWhatHappensCleanup,
+              l10n.resumeWhatHappensRestart,
+              l10n.resumeWhatHappensKeep,
+              l10n.resumeTakesAsLong,
+            ])
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.check_circle_outline,
+                      size: 16,
+                      color: Colors.grey.shade500,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        line,
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.4,
+                          color: Colors.grey.shade300,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 8),
+          ],
           // Which step it reached is the first thing anyone asks, and it is
           // the one fact both sides of the install write down.
           if (_resumeStage != null)
@@ -2995,11 +3056,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 const SizedBox(width: 10),
                 Flexible(
                   child: Text(
-                    l10n.resumeStageLabel(_resumeStage!),
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 13,
+                    l10n.resumeStageLabel(
+                      _localizedStage(_resumeStage!, l10n),
                     ),
+                    style: const TextStyle(fontSize: 13),
                   ),
                 ),
                 if (actor != null) ...[
@@ -3908,8 +3968,64 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     });
   }
 
+  /// One labelled fact about the write, with an optional second line for the
+  /// thing worth being able to select and paste, such as the device path.
+  Widget _flashFact(String label, String value,
+      {String? detail, required IconData icon}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: Colors.grey.shade500),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+              ),
+              const SizedBox(height: 2),
+              Text(value, style: const TextStyle(fontSize: 14)),
+              if (detail != null) ...[
+                const SizedBox(height: 2),
+                SelectableText(
+                  detail,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _flashNote(IconData icon, String text, {bool danger = false}) {
+    final color = danger ? Colors.orange : Colors.grey.shade400;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(fontSize: 13, height: 1.4, color: color),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildMdbFlash(AppLocalizations l10n) {
     if (!_flashConfirmed) {
+      final target = _device;
+      final image = _downloadState.itemOfType(DownloadItemType.mdbFirmware);
+      // The last screen before a destructive write says what is about to be
+      // written and where. The confirmation dialog shows the same facts, but
+      // only when the system-disk probe came back unknown, so a healthy host
+      // was told less about the target than a host whose probe failed.
       return PhaseLayout(
         title: l10n.readyToFlash,
         subtitle: l10n.readyToFlashHint,
@@ -3924,7 +4040,33 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             },
           ),
         ],
-        child: const SizedBox.shrink(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _flashFact(
+              l10n.readyToFlashTargetLabel,
+              target == null
+                  ? l10n.readyToFlashNoTarget
+                  : '${target.name}  ${target.sizeFormatted}',
+              detail: (target?.path.isNotEmpty ?? false) ? target!.path : null,
+              icon: Icons.storage,
+            ),
+            if (image != null) ...[
+              const SizedBox(height: 12),
+              _flashFact(
+                l10n.readyToFlashImageLabel,
+                image.filename,
+                icon: Icons.system_update_alt,
+              ),
+            ],
+            const SizedBox(height: 16),
+            _flashNote(Icons.delete_forever, l10n.readyToFlashErases,
+                danger: true),
+            const SizedBox(height: 8),
+            _flashNote(Icons.schedule, l10n.readyToFlashDuration),
+          ],
+        ),
       );
     }
 

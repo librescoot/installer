@@ -319,7 +319,26 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get resumeFoundBody =>
-      'A previous installation on this scooter did not finish. Continuing clears what it left behind: the onboot script it armed is disarmed, and the services it stopped are started again. The installation then runs from the beginning; nothing is resumed.';
+      'The scooter is not damaged. An installation was interrupted, and this screen clears what it left behind before starting again.';
+
+  @override
+  String get resumeWhatHappensHeading => 'What happens when you continue';
+
+  @override
+  String get resumeWhatHappensCleanup =>
+      'The leftovers are cleared: the onboot script the previous run armed is disarmed, and the services it stopped are started again.';
+
+  @override
+  String get resumeWhatHappensRestart =>
+      'The installation runs from the beginning. Nothing is resumed, so no half-finished step is carried over.';
+
+  @override
+  String get resumeWhatHappensKeep =>
+      'Nothing extra is lost. The previous run had already made whatever changes it made; starting again does not repeat that cost.';
+
+  @override
+  String get resumeTakesAsLong =>
+      'It takes as long as a normal installation, about 20 minutes.';
 
   @override
   String get resumeClearingLeftovers =>
@@ -519,6 +538,23 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get readyToFlashHint =>
       'The device is in flashing mode. You can mount the device to create manual backups before proceeding.';
+
+  @override
+  String get readyToFlashTargetLabel => 'Target';
+
+  @override
+  String get readyToFlashImageLabel => 'Image to write';
+
+  @override
+  String get readyToFlashErases =>
+      'This erases the main board. Everything currently on it is replaced.';
+
+  @override
+  String get readyToFlashDuration =>
+      'The write takes about a minute. Do not disconnect USB or power while it runs.';
+
+  @override
+  String get readyToFlashNoTarget => 'No target device resolved yet.';
 
   @override
   String get beginFlashing => 'Begin flashing';
