@@ -5,6 +5,12 @@ import '../theme.dart';
 /// The title and the actions are chrome, not content: a tint a shade off the
 /// page and a hairline at the edge are enough to read them as bars without
 /// drawing a box around every screen.
+/// One measure for every phase. It is not a per-screen choice: screens that
+/// picked their own ended up centred in a narrower column of their own, with
+/// the title, the body and the buttons each starting somewhere different from
+/// the screen before.
+const double _measure = 960;
+
 const Color kBarTint = Color(0xFF141414);
 const Color kBarBorder = Color(0xFF262626);
 
@@ -119,7 +125,6 @@ class PhaseLayout extends StatelessWidget {
     this.actions = const [],
     this.onBack,
     this.backLabel,
-    this.maxWidth = 960,
     this.scrollable = true,
     this.centerContent = true,
   });
@@ -142,8 +147,6 @@ class PhaseLayout extends StatelessWidget {
   /// Label for the back button. The app has its own translation for this, so
   /// falling back to Flutter's would read as English inside a German flow.
   final String? backLabel;
-
-  final double maxWidth;
 
   /// False for a body that scrolls internally and needs the full height, such
   /// as a list with its own scroll view.
@@ -175,7 +178,7 @@ class PhaseLayout extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(32, 22, 32, 18),
           child: Center(
             child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: maxWidth),
+              constraints: const BoxConstraints(maxWidth: _measure),
               // Without the stretch the column shrinks to its widest line, so
               // the title and subtitle end up centred as a block while reading
               // left-aligned inside it, and neither lines up with the body.
@@ -209,7 +212,7 @@ class PhaseLayout extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(32, 12, 32, 12),
             child: Center(
               child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: maxWidth),
+                constraints: const BoxConstraints(maxWidth: _measure),
                 child: Row(
                   children: [
                     if (onBack != null) ...[
@@ -243,7 +246,7 @@ class PhaseLayout extends StatelessWidget {
   Widget _body(BuildContext context) {
     final constrained = Center(
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
+        constraints: const BoxConstraints(maxWidth: _measure),
         child: child,
       ),
     );

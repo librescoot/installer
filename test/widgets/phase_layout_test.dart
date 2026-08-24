@@ -153,6 +153,27 @@ void main() {
     expect(tester.getTopLeft(find.text('body')).dx, left);
   });
 
+  testWidgets('every phase gets the same measure', (tester) async {
+    tester.view.physicalSize = const Size(1400, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    Future<Rect> render(String title, Widget body) async {
+      await tester.pumpWidget(host(PhaseLayout(title: title, child: body)));
+      return tester.getRect(find.text(title));
+    }
+
+    // The layout owns the width. A screen that could pass its own ended up
+    // centred in a column of its own, so its title, body and buttons each
+    // started somewhere different from the screen before it.
+    final wide = await render('One',
+        const SizedBox(width: double.infinity, height: 40, child: Text('a')));
+    final narrow = await render('Two', const SizedBox(width: 80, height: 40));
+
+    expect(narrow.left, wide.left);
+  });
+
   testWidgets('the title stays put while the body scrolls', (tester) async {
     tester.view.physicalSize = const Size(1000, 400);
     tester.view.devicePixelRatio = 1.0;

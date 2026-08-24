@@ -3424,7 +3424,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     return PhaseLayout(
       title: l10n.installPlanHeading,
       subtitle: l10n.installPlanIntro(_downloadState.releaseTag ?? ''),
-      maxWidth: 640,
       centerContent: false,
       onBack: () => _setPhase(InstallerPhase.healthCheck),
       backLabel: l10n.backButton,
@@ -3699,7 +3698,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     return PhaseLayout(
       title: l10n.flashingMdb,
       subtitle: l10n.flashingMdbSubheading,
-      maxWidth: 560,
       actions: [
         if (_mdbFlashBlocked) ...[
           PhaseAction(
@@ -4686,7 +4684,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final error = _artifactError ?? _mdbStageError;
     return PhaseLayout(
       title: l10n.phaseMdbArtifactTitle,
-      maxWidth: 640,
       actions: [
         if (error != null) ...[
           // Writing the whole image instead is a different install, not a
@@ -5736,7 +5733,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // first place we tell the user to touch the cable.
       return PhaseLayout(
         title: l10n.dbcFlashSwapCablesTitle,
-        maxWidth: 620,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -5822,7 +5818,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     return PhaseLayout(
       title: l10n.dbcFlashInProgress,
       subtitle: l10n.dbcFlashDurationHeadline,
-      maxWidth: 680,
       actions: [
         // Both lead onwards: one to the last step, one to the diagnosis. The
         // failing branch is still the way out of this screen, so it sits with
@@ -6074,7 +6069,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
     return PhaseLayout(
       title: l10n.verifyingDbcInstallation,
-      maxWidth: 620,
       actions: [
         if (!_isProcessing) ...[
           // Redoing the dashboard install means going back through the prep
@@ -6596,7 +6590,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     return PhaseLayout(
       title: l10n.bluetoothPairingHeading,
       subtitle: l10n.bluetoothPairingHint,
-      maxWidth: 560,
       actions: [
         // Both choices carry on: one pairs a phone first, the other does not.
         // The window is open or it is not, so each state gets one way to end
@@ -7463,7 +7456,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   Widget _buildKeycardSetup(AppLocalizations l10n) {
     return PhaseLayout(
       title: _keycardStageHeading(l10n),
-      maxWidth: 560,
       actions: _keycardStage == _KeycardStage.cards
           ? _keycardCardsActions(l10n)
           : const [],
@@ -7869,7 +7861,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (_awaitingFinishHandover) {
       return PhaseLayout(
         title: l10n.finishHandoverTitle,
-        maxWidth: 520,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
