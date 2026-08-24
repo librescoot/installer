@@ -28,6 +28,8 @@ BOOT_AREA_BLOCKS=6
 INSTALL_TILES="{{INSTALL_TILES}}"
 OSM_TILES_FILE="{{OSM_TILES_FILE}}"
 VALHALLA_TILES_FILE="{{VALHALLA_TILES_FILE}}"
+TILES_REGION="{{TILES_REGION}}"
+TILES_REGION_NAME="{{TILES_REGION_NAME}}"
 
 mkdir -p "$INSTALLER_DIR"
 # A previous run's DBC version must not survive into this one's status file:
@@ -1008,6 +1010,7 @@ log "  DBC_MENDER=$DBC_MENDER"
 log "  INSTALL_TILES=$INSTALL_TILES"
 log "  OSM=$OSM_TILES_FILE"
 log "  VALHALLA=$VALHALLA_TILES_FILE"
+log "  TILES_REGION=$TILES_REGION"
 # The finish config decides whether the device closes the install out itself
 # or hands back to the laptop, and it is invisible in the log otherwise: a
 # run that quietly handed back looks exactly like one that finished.
@@ -1581,6 +1584,76 @@ ONBOOT_VARS
 # Emitted before the main chunk so the function exists by the time that runs.
 if [ "$INSTALL_TILES" = "true" ]; then
   cat >> /data/onboot.sh << TILES
+# Reads back one installed artifact and echoes "<sha256> <size> <mtime-epoch>",
+# or nothing when the file is not there. The hash is computed on the dashboard
+# rather than over the staged file because for a .tar.zst the installed
+# artifact is the decompressed tar, whose digest this side never sees.
+tile_facts() {
+  dbc_ssh "test -f \$1 && echo \"\\\$(sha256sum \$1 | cut -d' ' -f1) \\\$(stat -c '%s %Y' \$1)\"" 2>/dev/null
+}
+
+# Writes /data/maps/metadata.json on the dashboard and mirrors it into the
+# `maps` hash in Redis. Composes the record fresh rather than merging: this runs
+# during provisioning, and any previous update-check result described tiles that
+# are no longer installed.
+record_tiles() {
+  local d_sha="" d_size="" d_mtime="" r_sha="" r_size="" r_mtime="" facts
+
+  facts=\$(tile_facts /data/maps/map.mbtiles)
+  if [ -n "\$facts" ]; then
+    d_sha=\$(echo "\$facts" | cut -d' ' -f1)
+    d_size=\$(echo "\$facts" | cut -d' ' -f2)
+    d_mtime=\$(echo "\$facts" | cut -d' ' -f3)
+  fi
+  facts=\$(tile_facts /data/valhalla/tiles.tar)
+  if [ -n "\$facts" ]; then
+    r_sha=\$(echo "\$facts" | cut -d' ' -f1)
+    r_size=\$(echo "\$facts" | cut -d' ' -f2)
+    r_mtime=\$(echo "\$facts" | cut -d' ' -f3)
+  fi
+
+  if [ -z "\$d_sha" ] && [ -z "\$r_sha" ]; then
+    log "No installed tiles to record"
+    return 0
+  fi
+
+  # Shape matches scootui-qt's MapMetadata::toJson, keys it omits included, so
+  # the dashboard reads back a record it would have written itself.
+  local json="{\\"region\\":\\"$TILES_REGION\\""
+  [ -n "\$d_sha" ] && json="\$json,\\"displayTiles\\":{\\"digest\\":\\"\$d_sha\\",\\"size\\":\$d_size}"
+  [ -n "\$r_sha" ] && json="\$json,\\"valhallaTiles\\":{\\"digest\\":\\"\$r_sha\\",\\"size\\":\$r_size}"
+  json="\$json}"
+
+  # Written here and uploaded over the PUT server rather than echoed into a
+  # remote shell. The dashboard runs the bootstrap image during this phase and
+  # its busybox has no base64 applet, which is the same trap the missing
+  # timeout applet already sprang once.
+  printf '%s' "\$json" > "\$INSTALLER_DIR/tile-metadata.json"
+  if upload_to_dbc "\$INSTALLER_DIR/tile-metadata.json" "/maps/metadata.json" "tile metadata"; then
+    log "Recorded installed tile metadata (region '$TILES_REGION')"
+  else
+    log "WARNING: could not write tile metadata to the dashboard"
+  fi
+
+  # The MDB's Redis is volatile, so this is not the lasting record; the
+  # dashboard republishes on every boot. It is what lets anything read the
+  # installed region before the dashboard has ever run on this vehicle.
+  [ -n "$TILES_REGION" ] && hset_maps region "$TILES_REGION"
+  [ -n "$TILES_REGION_NAME" ] && hset_maps region-name "$TILES_REGION_NAME"
+  if [ -n "\$d_sha" ]; then
+    hset_maps map:sha256 "\$d_sha"
+    hset_maps map:size "\$d_size"
+    hset_maps map:mtime "\$(epoch_to_iso "\$d_mtime")"
+  fi
+  if [ -n "\$r_sha" ]; then
+    hset_maps routing:sha256 "\$r_sha"
+    hset_maps routing:size "\$r_size"
+    hset_maps routing:mtime "\$(epoch_to_iso "\$r_mtime")"
+  fi
+  hset_maps update-available false
+  hset_maps updated-at "\$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+
 install_tiles() {
 # DBC connection is up — now advance to phase 3 (BL breathing = "maps"). From
 # here a slow BL blinker means the tile copy itself is slow, not a connection
@@ -1635,6 +1708,11 @@ if [ -f "$VALHALLA_TILES_FILE" ]; then
   esac
 fi
 
+# Record what landed, so the dashboard does not have to re-derive it and an
+# MDB-side consumer can read it without powering the dashboard up. Failures are
+# logged and ignored: the tiles are installed and working either way.
+record_tiles
+
 # Stop DBC Python upload server if we started one
 if [ "\$DBC_PYTHON_STARTED" = "yes" ]; then
   dbc_ssh 'kill \$(cat /tmp/upload_srv.pid 2>/dev/null) 2>/dev/null; rm -f /tmp/upload_srv.pid /tmp/upload_srv.py' || true
@@ -1657,6 +1735,22 @@ log() { echo "$(date '+%H:%M:%S') $1" >> "$LOG"; }
 exec 2>>"$LOG"
 dbc_ssh() { local t=0; while [ $t -lt 3 ]; do ssh -y -y root@$DBC_IP "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
 dbc_scp() { local t=0; while [ $t -lt 3 ]; do scp "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
+
+# One field of the `maps` hash, HSET then PUBLISH, matching the convention the
+# rest of the platform uses so a live subscriber hears the change. Best effort:
+# Redis may not be up yet this early, and the dashboard restates all of it on
+# its next boot regardless.
+hset_maps() {
+  redis-cli -h localhost hset maps "$1" "$2" >/dev/null 2>&1 || return 0
+  redis-cli -h localhost publish maps "$1" >/dev/null 2>&1 || true
+}
+
+# busybox date has no -d @epoch, so fall back to the GNU form and then to
+# leaving the field unset rather than writing something unparseable.
+epoch_to_iso() {
+  [ -n "$1" ] || return 0
+  date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r "$1" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true
+}
 
 # dbc_ssh with a ceiling on how long the remote command may take.
 #
