@@ -246,6 +246,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   bool _keepCache = false;
   late final CriticalOperationCoordinator _criticalOperations;
   bool get _isCriticalOperation => _criticalOperations.isCritical;
+  bool _windowClosing = false;
   bool _awaitingFinishHandover = false;
   Process? _caffeinateProcess; // macOS sleep prevention
   int _caffeinateGeneration = 0;
@@ -440,12 +441,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Future<void> _handleWindowClose() async {
+    final isCritical = _isCriticalOperation;
+    if (!isCritical) _windowClosing = true;
     final closed = await _windowCloseCoordinator.requestClose(
-      isCritical: _isCriticalOperation,
+      isCritical: isCritical,
       cleanup: _cleanupBeforeClose,
       closeWindow: windowManager.destroy,
     );
     if (!closed && mounted) {
+      _windowClosing = false;
       final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -3636,7 +3640,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       }
 
       // Suppress Windows "format this disk" popup before UMS mode
+      if (_windowClosing) return;
       await DriverService.suppressAutoPlay();
+      if (_windowClosing) return;
 
       _setStatus(l10n.rebootingMdbUms);
       await _sshService.reboot();
@@ -3854,6 +3860,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Future<void> _flashMdb() async {
+    if (_windowClosing || !mounted) return;
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
     final criticalOperation = _acquireCriticalOperation();
