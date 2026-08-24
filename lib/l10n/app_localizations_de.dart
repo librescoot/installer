@@ -391,6 +391,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Bitte entsperre deinen Roller, um fortzufahren. Halte deine Schlüsselkarte an den Leser oder benutze ein gekoppeltes Handy.';
 
   @override
+  String get awaitingUnlockWatching =>
+      'Der Installer macht von allein weiter, sobald der Roller das meldet.';
+
+  @override
   String get awaitingParkHeading => 'Roller parken';
 
   @override
@@ -1355,6 +1359,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get actionCleanInstallDetailDbc => 'Löscht nur die Offline-Karten';
+
+  @override
+  String get actionCleanInstallDetailDbcTiles =>
+      'Löscht die Offline-Karten. Sie werden in diesem Durchlauf neu installiert';
 
   @override
   String get actionLeave => 'Unverändert lassen';

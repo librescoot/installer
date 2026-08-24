@@ -788,6 +788,12 @@ abstract class AppLocalizations {
   /// **'Unlock your scooter to continue. Use your keycard or paired phone.'**
   String get awaitingUnlockDetail;
 
+  /// No description provided for @awaitingUnlockWatching.
+  ///
+  /// In en, this message translates to:
+  /// **'The installer continues by itself as soon as the scooter reports it.'**
+  String get awaitingUnlockWatching;
+
   /// No description provided for @awaitingParkHeading.
   ///
   /// In en, this message translates to:
@@ -2413,6 +2419,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Erases the offline maps only'**
   String get actionCleanInstallDetailDbc;
+
+  /// No description provided for @actionCleanInstallDetailDbcTiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Erases the offline maps. They are installed again in this run'**
+  String get actionCleanInstallDetailDbcTiles;
 
   /// No description provided for @actionLeave.
   ///
