@@ -368,6 +368,10 @@
   "keycardLearningActive": "Anlernmodus aktiv",
   "keycardLearningActiveHint": "Halte jede Karte an den Leser. Klicke auf Fertig, wenn du fertig bist.",
   "keycardStopLearning": "Fertig",
+  "keycardStopScanning": "Stoppen",
+  "keycardSkipConfirmTitle": "Ohne Schlüsselkarte überspringen?",
+  "keycardSkipConfirmBody": "Es wird keine Karte angelernt. Der Roller lässt sich dann nicht mit einer Karte entsperren, nur per Handy.",
+  "keycardSkipConfirmAction": "Trotzdem überspringen",
   "keycardStartLearningFailed": "Kartenanlernung konnte nicht gestartet werden: {error}",
   "@keycardStartLearningFailed": {
     "placeholders": {

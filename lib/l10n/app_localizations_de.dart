@@ -1112,6 +1112,19 @@ class AppLocalizationsDe extends AppLocalizations {
   String get keycardStopLearning => 'Fertig';
 
   @override
+  String get keycardStopScanning => 'Stoppen';
+
+  @override
+  String get keycardSkipConfirmTitle => 'Ohne Schlüsselkarte überspringen?';
+
+  @override
+  String get keycardSkipConfirmBody =>
+      'Es wird keine Karte angelernt. Der Roller lässt sich dann nicht mit einer Karte entsperren, nur per Handy.';
+
+  @override
+  String get keycardSkipConfirmAction => 'Trotzdem überspringen';
+
+  @override
   String keycardStartLearningFailed(String error) {
     return 'Kartenanlernung konnte nicht gestartet werden: $error';
   }

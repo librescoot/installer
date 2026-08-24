@@ -2012,6 +2012,30 @@ abstract class AppLocalizations {
   /// **'Done'**
   String get keycardStopLearning;
 
+  /// No description provided for @keycardStopScanning.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop'**
+  String get keycardStopScanning;
+
+  /// No description provided for @keycardSkipConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip without a keycard?'**
+  String get keycardSkipConfirmTitle;
+
+  /// No description provided for @keycardSkipConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'No card is taught in, so the scooter cannot be unlocked with one. Only the phone will work.'**
+  String get keycardSkipConfirmBody;
+
+  /// No description provided for @keycardSkipConfirmAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip anyway'**
+  String get keycardSkipConfirmAction;
+
   /// No description provided for @keycardStartLearningFailed.
   ///
   /// In en, this message translates to:

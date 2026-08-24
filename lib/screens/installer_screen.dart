@@ -8137,34 +8137,19 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   ///
   /// Skip is gone once a card is on file: the setup has happened, so the only
   /// question left is whether to add more or move on.
+  /// Skip, Start/Stop and Finish, all three present at every point.
+  ///
+  /// The instructions on this screen tell the user to press Finish, so Finish
+  /// exists from the start; it is disabled until a card has actually been
+  /// taught in, which is the condition it depends on. Start becomes Stop while
+  /// the reader is scanning, so ending a scan and ending the step are separate
+  /// buttons rather than the same one under two names.
   List<PhaseAction> _keycardCardsActions(AppLocalizations l10n) {
-    if (_keycardLearning) {
-      return [
-        PhaseAction(
-          label: l10n.keycardStopLearning,
-          icon: Icons.check,
-          primary: true,
-          onPressed: _stopKeycardLearning,
-        ),
-      ];
-    }
-    if (_keycardAuthorizedCount == 0) {
-      return [
-        PhaseAction(
-          label: l10n.skipKeycardSetup,
-          side: ActionSide.forward,
-          onPressed: _skipKeycardSetupEntirely,
-        ),
-        PhaseAction(
-          label: l10n.keycardStartLearning,
-          icon: Icons.nfc,
-          primary: true,
-          onPressed: _canDriveKeycard ? _startKeycardLearning : null,
-        ),
-      ];
-    }
+    // A tap this session counts even before the hash catches up: learn:stop
+    // can take seconds to settle on a freshly flashed eMMC.
+    final taught = _keycardAuthorizedCount > 0 || _keycardSessionTapCount > 0;
     return [
-      if (_keycardServiceCanMaster ?? false)
+      if (!_keycardLearning && (_keycardServiceCanMaster ?? false))
         PhaseAction(
           label: l10n.keycardStartOverButton,
           icon: Icons.refresh,
@@ -8172,17 +8157,56 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           onPressed: _keycardStartOver,
         ),
       PhaseAction(
-        label: l10n.keycardAddMore,
-        icon: Icons.nfc,
-        onPressed: _canDriveKeycard ? _startKeycardLearning : null,
+        label: l10n.skipKeycardSetup,
+        side: ActionSide.forward,
+        onPressed: () => _skipKeycardSetup(confirmFirst: !taught),
+      ),
+      PhaseAction(
+        label: _keycardLearning
+            ? l10n.keycardStopScanning
+            : (taught ? l10n.keycardAddMore : l10n.keycardStartLearning),
+        icon: _keycardLearning ? Icons.stop : Icons.nfc,
+        onPressed: _canDriveKeycard
+            ? (_keycardLearning
+                ? () => _stopKeycardLearning(advance: false)
+                : _startKeycardLearning)
+            : null,
       ),
       PhaseAction(
         label: l10n.keycardFinishCards,
         icon: Icons.check,
         primary: true,
-        onPressed: _stopKeycardLearning,
+        onPressed: taught ? () => _stopKeycardLearning() : null,
       ),
     ];
+  }
+
+  /// Leaving the step. Skipping with nothing taught in is the one route that
+  /// asks first: it is a click away from a scooter with no card, and the
+  /// button sits next to Finish.
+  Future<void> _skipKeycardSetup({required bool confirmFirst}) async {
+    if (confirmFirst) {
+      final l10n = AppLocalizations.of(context)!;
+      final go = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(l10n.keycardSkipConfirmTitle),
+          content: Text(l10n.keycardSkipConfirmBody),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(l10n.cancelButton),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(l10n.keycardSkipConfirmAction),
+            ),
+          ],
+        ),
+      );
+      if (go != true) return;
+    }
+    await _skipKeycardSetupEntirely();
   }
 
   Widget _buildKeycardCardsReview(AppLocalizations l10n) {

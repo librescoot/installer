@@ -1104,6 +1104,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get keycardStopLearning => 'Done';
 
   @override
+  String get keycardStopScanning => 'Stop';
+
+  @override
+  String get keycardSkipConfirmTitle => 'Skip without a keycard?';
+
+  @override
+  String get keycardSkipConfirmBody =>
+      'No card is taught in, so the scooter cannot be unlocked with one. Only the phone will work.';
+
+  @override
+  String get keycardSkipConfirmAction => 'Skip anyway';
+
+  @override
   String keycardStartLearningFailed(String error) {
     return 'Could not start keycard learning: $error';
   }

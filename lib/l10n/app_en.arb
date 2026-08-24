@@ -486,6 +486,10 @@
   "keycardLearningActive": "Learning mode active",
   "keycardLearningActiveHint": "Hold each card to the reader. Click Done when finished.",
   "keycardStopLearning": "Done",
+  "keycardStopScanning": "Stop",
+  "keycardSkipConfirmTitle": "Skip without a keycard?",
+  "keycardSkipConfirmBody": "No card is taught in, so the scooter cannot be unlocked with one. Only the phone will work.",
+  "keycardSkipConfirmAction": "Skip anyway",
   "keycardStartLearningFailed": "Could not start keycard learning: {error}",
   "@keycardStartLearningFailed": {
     "placeholders": {
