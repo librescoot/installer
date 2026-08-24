@@ -3611,15 +3611,24 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       return;
     }
     if (_mdbStackMissing) {
-      // No stack of any kind on this image: battery telemetry can't be read
-      // and there's nothing to back up. Render the verdict as all-unknown; the
-      // health screen shows the recovery banner and a Continue button that
-      // leads into the re-flash. Stock is not this case: it keeps aux-battery
-      // and cb-battery under the same keys and is read normally below.
-      setState(() {
-        _scooterHealth = ScooterHealth();
-        _isProcessing = false;
-      });
+      // The bootstrap image has no vehicle stack, but it does run valkey and
+      // bluetooth-service, and bluetooth-service is what writes aux-battery
+      // and cb-battery from the nRF52. So AUX and the CBB read here; only the
+      // main pack does not, since battery-service is not on this image.
+      //
+      // Read once rather than polling: nothing is warming up that would make a
+      // second look different, and a board that answers nothing should not
+      // cost the user the full battery-data wait on the way to a re-flash.
+      try {
+        final health = await _sshService.queryHealth();
+        if (!mounted) return;
+        setState(() => _scooterHealth = health);
+      } catch (e) {
+        debugPrint('Health: bootstrap image answered nothing: $e');
+        if (!mounted) return;
+        setState(() => _scooterHealth = ScooterHealth());
+      }
+      if (mounted) setState(() => _isProcessing = false);
       return;
     }
     try {

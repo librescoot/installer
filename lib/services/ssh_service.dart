@@ -1615,8 +1615,12 @@ done
     if (cbbPresent == 'true' || cbbPresent == 'false') {
       health.cbbPresent = cbbPresent == 'true';
     }
+    // battery-service owns this key and is absent from the bootstrap image, so
+    // a missing answer means nobody could say rather than no pack fitted.
     final batteryPresent = await redisHget('battery:0', 'present');
-    health.batteryPresent = batteryPresent == 'true';
+    if (batteryPresent == 'true' || batteryPresent == 'false') {
+      health.batteryPresent = batteryPresent == 'true';
+    }
     return health;
   }
 

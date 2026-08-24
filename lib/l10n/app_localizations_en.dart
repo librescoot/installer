@@ -459,7 +459,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get incompleteImageBody =>
-      'This scooter is running a minimal recovery image with no battery telemetry. This can happen when a previous install wrote the wrong image. Continue to re-flash the full firmware and finish setup.';
+      'This scooter is running a minimal recovery image. It boots and answers, but carries none of the vehicle services. This can happen when a previous install wrote the wrong image. Continue to re-flash the full firmware and finish setup.';
 
   @override
   String get reflashToRecover => 'Re-flash to recover';
