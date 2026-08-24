@@ -3471,9 +3471,17 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
+          // The current version alone does not say whether this run is an
+          // upgrade, a reinstall or a downgrade, which is the question someone
+          // reads this screen to answer. The target is known by now.
           if (_mdbInfo != null)
             Text(
-              l10n.firmwareVersionDisplay(_mdbInfo!.firmwareVersion),
+              _downloadState.releaseTag == null
+                  ? l10n.firmwareVersionDisplay(_mdbInfo!.firmwareVersion)
+                  : l10n.healthVersionPlan(
+                      _mdbInfo!.firmwareVersion,
+                      _downloadState.releaseTag!,
+                    ),
               style: TextStyle(color: Colors.grey.shade400),
             ),
           // A run that finished on the device had nobody watching it. This is

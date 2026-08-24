@@ -2666,6 +2666,18 @@ abstract class AppLocalizations {
   /// **'Firmware: {version}'**
   String firmwareVersionDisplay(String version);
 
+  /// No description provided for @healthVersionPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Installed {current}, installing {target}'**
+  String healthVersionPlan(String current, String target);
+
+  /// No description provided for @healthAuxVoltage.
+  ///
+  /// In en, this message translates to:
+  /// **'{mv} mV'**
+  String healthAuxVoltage(int mv);
+
   /// No description provided for @openSeatboxButton.
   ///
   /// In en, this message translates to:

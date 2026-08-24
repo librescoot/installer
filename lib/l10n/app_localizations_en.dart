@@ -1501,6 +1501,16 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String healthVersionPlan(String current, String target) {
+    return 'Installed $current, installing $target';
+  }
+
+  @override
+  String healthAuxVoltage(int mv) {
+    return '$mv mV';
+  }
+
+  @override
   String get openSeatboxButton => 'Open seatbox';
 
   @override

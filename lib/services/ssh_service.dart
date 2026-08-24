@@ -1599,6 +1599,9 @@ done
     health.auxCharge = int.tryParse(
       await redisHget('aux-battery', 'charge') ?? '',
     );
+    health.auxVoltageMv = int.tryParse(
+      await redisHget('aux-battery', 'voltage') ?? '',
+    );
     health.cbbStateOfHealth = int.tryParse(
       await redisHget('cb-battery', 'state-of-health') ?? '',
     );

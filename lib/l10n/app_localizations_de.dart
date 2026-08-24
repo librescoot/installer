@@ -1517,6 +1517,16 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String healthVersionPlan(String current, String target) {
+    return 'Installiert $current, wird installiert $target';
+  }
+
+  @override
+  String healthAuxVoltage(int mv) {
+    return '$mv mV';
+  }
+
+  @override
   String get openSeatboxButton => 'Sitzbank öffnen';
 
   @override
