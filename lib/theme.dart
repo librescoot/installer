@@ -130,6 +130,26 @@ ThemeData librescootTheme() {
       inputDecorationTheme: inputTheme,
       menuStyle: menuStyle,
     ),
+    // A DropdownMenu marks its selected row by simulating focus on it, and
+    // falls back to onSurface at 12% for that. Naming the state colours puts
+    // the row on the same surface ramp as everything else and keeps it there
+    // whatever the SDK's default becomes.
+    menuButtonTheme: MenuButtonThemeData(
+      style: ButtonStyle(
+        backgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.focused) ||
+              states.contains(WidgetState.selected)) {
+            return kSurfaceHighest;
+          }
+          return Colors.transparent;
+        }),
+        foregroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) return kTextMuted;
+          return kTextPrimary;
+        }),
+        iconColor: const WidgetStatePropertyAll(kTextMuted),
+      ),
+    ),
     popupMenuTheme: PopupMenuThemeData(
       color: kSurface,
       surfaceTintColor: Colors.transparent,

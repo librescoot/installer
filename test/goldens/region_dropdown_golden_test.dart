@@ -72,7 +72,9 @@ void main() {
               DropdownMenu<Region>(
                 width: 420,
                 menuHeight: 400,
-                initialSelection: null,
+                // A selection, so the golden also covers the row the menu
+                // marks as selected.
+                initialSelection: Region.all[12],
                 leadingIcon: Icon(Icons.place_outlined,
                     size: 20, color: Colors.grey.shade400),
                 enableFilter: false,
