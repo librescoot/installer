@@ -88,6 +88,30 @@ ThemeData librescootTheme() {
         borderSide: BorderSide(color: colour, width: width),
       );
 
+  final inputTheme = InputDecorationTheme(
+    filled: true,
+    fillColor: kSurface,
+    enabledBorder: border(kOutline),
+    border: border(kOutline),
+    focusedBorder: border(kAccent, 2),
+    errorBorder: border(kDanger),
+    focusedErrorBorder: border(kDanger, 2),
+    hintStyle: const TextStyle(color: kTextMuted),
+  );
+
+  final menuStyle = MenuStyle(
+    backgroundColor: const WidgetStatePropertyAll(kSurface),
+    surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+    elevation: const WidgetStatePropertyAll(12),
+    padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 6)),
+    shape: WidgetStatePropertyAll(
+      RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: const BorderSide(color: kOutline),
+      ),
+    ),
+  );
+
   return ThemeData(
     useMaterial3: true,
     colorScheme: kColorScheme,
@@ -97,30 +121,14 @@ ThemeData librescootTheme() {
     // decision that was made.
     canvasColor: kBgPrimary,
     dividerColor: kOutlineQuiet,
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: kSurface,
-      enabledBorder: border(kOutline),
-      border: border(kOutline),
-      focusedBorder: border(kAccent, 2),
-      errorBorder: border(kDanger),
-      focusedErrorBorder: border(kDanger, 2),
-      hintStyle: const TextStyle(color: kTextMuted),
-    ),
-    menuTheme: MenuThemeData(
-      style: MenuStyle(
-        backgroundColor: const WidgetStatePropertyAll(kSurface),
-        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-        elevation: const WidgetStatePropertyAll(12),
-        padding:
-            const WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 6)),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-            side: const BorderSide(color: kOutline),
-          ),
-        ),
-      ),
+    inputDecorationTheme: inputTheme,
+    menuTheme: MenuThemeData(style: menuStyle),
+    // A DropdownMenu reads neither of the two above: it falls back to the M3
+    // defaults, not to the app's. Handing it the same objects is what keeps
+    // the region menu and every other menu on one surface.
+    dropdownMenuTheme: DropdownMenuThemeData(
+      inputDecorationTheme: inputTheme,
+      menuStyle: menuStyle,
     ),
     popupMenuTheme: PopupMenuThemeData(
       color: kSurface,

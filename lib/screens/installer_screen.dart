@@ -1469,7 +1469,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             // across 960px read as a hairline rectangle. The menu is an M3
             // one because the older dropdown paints its list on the theme's
             // canvas colour, which on this ground is the page colour: no
-            // edge, no surface, nothing to say where the list ends.
+            // edge, no surface, nothing to say where the list ends. Its
+            // surface and border come from the theme.
             Align(
               alignment: Alignment.centerLeft,
               child: DropdownMenu<Region>(
@@ -1481,34 +1482,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 requestFocusOnTap: false,
                 leadingIcon: Icon(Icons.place_outlined,
                     size: 20, color: Colors.grey.shade400),
-                inputDecorationTheme: InputDecorationTheme(
-                  filled: true,
-                  fillColor: kBgSidebar,
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide:
-                        BorderSide(color: Colors.white.withValues(alpha: 0.22)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: kAccent, width: 2),
-                  ),
-                ),
-                menuStyle: MenuStyle(
-                  backgroundColor: WidgetStatePropertyAll(kBgSidebar),
-                  surfaceTintColor: const WidgetStatePropertyAll(
-                      Colors.transparent),
-                  elevation: const WidgetStatePropertyAll(12),
-                  shape: WidgetStatePropertyAll(
-                    RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.22)),
-                    ),
-                  ),
-                  padding: const WidgetStatePropertyAll(
-                      EdgeInsets.symmetric(vertical: 6)),
-                ),
                 dropdownMenuEntries: _regionMenuEntries(_availableRegions),
                 onSelected: (r) {
                   if (r == null || r.slug.startsWith(_regionHeaderPrefix)) {
@@ -1920,16 +1893,19 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
+          // Same radius and same border colour as the Cards elsewhere, so a
+          // card the user picks and a card that only groups things read as
+          // two states of one idiom.
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: selected ? kAccent : Colors.grey.shade700,
+            color: selected ? kAccent : kOutline,
             width: selected ? 2 : 1,
           ),
           color: selected
               ? kAccent.withValues(alpha: 0.08)
               : available
               ? Colors.transparent
-              : Colors.grey.shade900.withValues(alpha: 0.4),
+              : kSurfaceLow,
         ),
         child: Opacity(
           opacity: available ? 1.0 : 0.4,
@@ -4571,71 +4547,66 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           // Kept, not replaced: a scooter whose levers are already apart for
           // other work, or one where the gesture does not take, still needs the
           // route that always works.
-          Theme(
-            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-            child: ExpansionTile(
-              title: Text(
-                l10n.scooterPrepManualFallback,
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade400),
+          ExpansionTile(
+            title: Text(
+              l10n.scooterPrepManualFallback,
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade400),
+            ),
+            // Opening it is the signal. A false positive costs a step the user
+            // can ignore; a false negative hides the one instruction they
+            // needed, so err toward remembering.
+            onExpansionChanged: (open) {
+              if (open && !_manualPowerCut) {
+                setState(() => _manualPowerCut = true);
+              }
+            },
+            expandedCrossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              InstructionStep(
+                number: 1,
+                title: l10n.disconnectCbb,
+                description: l10n.disconnectCbbDesc,
+                isWarning: true,
+                beforeImageAsset:
+                    'assets/images/lsi-unu_scooter_cbb_connected.jpg',
+                imageAsset:
+                    'assets/images/lsi-unu_scooter_cbb_disconnected.jpg',
               ),
-              // Opening it is the signal. A false positive costs a step the user
-              // can ignore; a false negative hides the one instruction they
-              // needed, so err toward remembering.
-              onExpansionChanged: (open) {
-                if (open && !_manualPowerCut) {
-                  setState(() => _manualPowerCut = true);
-                }
-              },
-              tilePadding: EdgeInsets.zero,
-              childrenPadding: EdgeInsets.zero,
-              expandedCrossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                InstructionStep(
-                  number: 1,
-                  title: l10n.disconnectCbb,
-                  description: l10n.disconnectCbbDesc,
-                  isWarning: true,
-                  beforeImageAsset:
-                      'assets/images/lsi-unu_scooter_cbb_connected.jpg',
-                  imageAsset:
-                      'assets/images/lsi-unu_scooter_cbb_disconnected.jpg',
+              InstructionStep(
+                number: 2,
+                title: l10n.disconnectAuxPole,
+                description: l10n.disconnectAuxPoleDesc,
+                isWarning: true,
+                beforeImageAsset:
+                    'assets/images/lsi-unu_scooter_aux_connected.jpg',
+                imageAsset:
+                    'assets/images/lsi-unu_scooter_aux_pos_disconnected.jpg',
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade900.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade700),
                 ),
-                InstructionStep(
-                  number: 2,
-                  title: l10n.disconnectAuxPole,
-                  description: l10n.disconnectAuxPoleDesc,
-                  isWarning: true,
-                  beforeImageAsset:
-                      'assets/images/lsi-unu_scooter_aux_connected.jpg',
-                  imageAsset:
-                      'assets/images/lsi-unu_scooter_aux_pos_disconnected.jpg',
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade900.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange.shade700),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.warning, color: Colors.orange),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          l10n.auxDisconnectWarning,
-                          style: const TextStyle(
-                            color: Colors.orange,
-                            fontSize: 13,
-                          ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning, color: Colors.orange),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        l10n.auxDisconnectWarning,
+                        style: const TextStyle(
+                          color: Colors.orange,
+                          fontSize: 13,
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
