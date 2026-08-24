@@ -3073,6 +3073,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The scooter holds one Bluetooth connection at a time. If a device is already connected, disconnect it there first.'**
   String get blePairingOneAtATime;
+
+  /// No description provided for @keycardWhy.
+  ///
+  /// In en, this message translates to:
+  /// **'A card you teach the scooter unlocks it without a phone. You can teach it several, and repeat this later at any time. A clean install clears cards taught before it.'**
+  String get keycardWhy;
+
+  /// No description provided for @keycardStep1.
+  ///
+  /// In en, this message translates to:
+  /// **'Start learning'**
+  String get keycardStep1;
+
+  /// No description provided for @keycardStep1Desc.
+  ///
+  /// In en, this message translates to:
+  /// **'The scooter then waits for a card.'**
+  String get keycardStep1Desc;
+
+  /// No description provided for @keycardStep2.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold the card against the reader'**
+  String get keycardStep2;
+
+  /// No description provided for @keycardStep2Desc.
+  ///
+  /// In en, this message translates to:
+  /// **'The reader sits at the front of the dashboard. Hold it there until the installer counts the card.'**
+  String get keycardStep2Desc;
+
+  /// No description provided for @keycardStep3.
+  ///
+  /// In en, this message translates to:
+  /// **'Press Finish'**
+  String get keycardStep3;
+
+  /// No description provided for @keycardStep3Desc.
+  ///
+  /// In en, this message translates to:
+  /// **'That ends the learning and the cards take effect.'**
+  String get keycardStep3Desc;
+
+  /// No description provided for @keycardPreparingReader.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing the card reader...'**
+  String get keycardPreparingReader;
 }
 
 class _AppLocalizationsDelegate

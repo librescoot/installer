@@ -1758,4 +1758,31 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get blePairingOneAtATime =>
       'Der Roller hält immer nur eine Bluetooth-Verbindung. Ist schon ein Gerät verbunden, trenne es zuerst dort.';
+
+  @override
+  String get keycardWhy =>
+      'Mit einer angelernten Karte entsperrst du den Roller ohne Handy. Du kannst mehrere Karten anlernen und das später jederzeit wiederholen. Eine Neuinstallation löscht vorher angelernte Karten.';
+
+  @override
+  String get keycardStep1 => 'Anlernen starten';
+
+  @override
+  String get keycardStep1Desc => 'Der Roller wartet danach auf eine Karte.';
+
+  @override
+  String get keycardStep2 => 'Karte an den Leser halten';
+
+  @override
+  String get keycardStep2Desc =>
+      'Der Leser sitzt vorne am Display. Kurz halten, bis der Installer die Karte zählt.';
+
+  @override
+  String get keycardStep3 => 'Fertig drücken';
+
+  @override
+  String get keycardStep3Desc =>
+      'Damit endet das Anlernen und die Karten gelten.';
+
+  @override
+  String get keycardPreparingReader => 'Kartenleser wird vorbereitet...';
 }

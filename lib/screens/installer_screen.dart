@@ -7702,33 +7702,52 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       actions: _keycardStage == _KeycardStage.cards
           ? _keycardCardsActions(l10n)
           : const [],
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const Icon(Icons.nfc, size: 48, color: kAccent),
-              const SizedBox(height: 24),
-              switch (_keycardStage) {
-                _KeycardStage.loading => const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: CircularProgressIndicator(),
-                ),
-                _KeycardStage.alreadyConfigured =>
-                  _buildKeycardAlreadyConfigured(l10n),
-                _KeycardStage.cards => _buildKeycardCardsStage(l10n),
-                _KeycardStage.cardsReview => _buildKeycardCardsReview(l10n),
-                _KeycardStage.master => _buildKeycardMasterStage(l10n),
-                _KeycardStage.done => const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: CircularProgressIndicator(),
-                ),
-              },
-            ],
-          ),
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // What the screen is for and how it goes, on every stage: it used
+          // to open as an NFC icon over a spinner and say nothing at all
+          // until the reader was ready.
+          if (_keycardStage != _KeycardStage.alreadyConfigured) ...[
+            Text(l10n.keycardWhy,
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade300)),
+            const SizedBox(height: 20),
+            InstructionStep(
+              number: 1,
+              title: l10n.keycardStep1,
+              description: l10n.keycardStep1Desc,
+            ),
+            InstructionStep(
+              number: 2,
+              title: l10n.keycardStep2,
+              description: l10n.keycardStep2Desc,
+            ),
+            InstructionStep(
+              number: 3,
+              title: l10n.keycardStep3,
+              description: l10n.keycardStep3Desc,
+            ),
+            const SizedBox(height: 12),
+          ],
+          switch (_keycardStage) {
+            _KeycardStage.loading || _KeycardStage.done => Row(
+                children: [
+                  const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2)),
+                  const SizedBox(width: 12),
+                  Text(l10n.keycardPreparingReader,
+                      style: TextStyle(color: Colors.grey.shade400)),
+                ],
+              ),
+            _KeycardStage.alreadyConfigured =>
+              _buildKeycardAlreadyConfigured(l10n),
+            _KeycardStage.cards => _buildKeycardCardsStage(l10n),
+            _KeycardStage.cardsReview => _buildKeycardCardsReview(l10n),
+            _KeycardStage.master => _buildKeycardMasterStage(l10n),
+          },
+        ],
       ),
     );
   }

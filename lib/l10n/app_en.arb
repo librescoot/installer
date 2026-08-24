@@ -827,5 +827,13 @@
   "blePairingStep2Desc": "It shows up under the address given here.",
   "blePairingStep3": "Confirm the PIN",
   "blePairingStep3Desc": "The PIN appears on this screen as soon as your phone asks for it.",
-  "blePairingOneAtATime": "The scooter holds one Bluetooth connection at a time. If a device is already connected, disconnect it there first."
+  "blePairingOneAtATime": "The scooter holds one Bluetooth connection at a time. If a device is already connected, disconnect it there first.",
+  "keycardWhy": "A card you teach the scooter unlocks it without a phone. You can teach it several, and repeat this later at any time. A clean install clears cards taught before it.",
+  "keycardStep1": "Start learning",
+  "keycardStep1Desc": "The scooter then waits for a card.",
+  "keycardStep2": "Hold the card against the reader",
+  "keycardStep2Desc": "The reader sits at the front of the dashboard. Hold it there until the installer counts the card.",
+  "keycardStep3": "Press Finish",
+  "keycardStep3Desc": "That ends the learning and the cards take effect.",
+  "keycardPreparingReader": "Preparing the card reader..."
 }

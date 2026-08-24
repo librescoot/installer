@@ -1736,4 +1736,31 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get blePairingOneAtATime =>
       'The scooter holds one Bluetooth connection at a time. If a device is already connected, disconnect it there first.';
+
+  @override
+  String get keycardWhy =>
+      'A card you teach the scooter unlocks it without a phone. You can teach it several, and repeat this later at any time. A clean install clears cards taught before it.';
+
+  @override
+  String get keycardStep1 => 'Start learning';
+
+  @override
+  String get keycardStep1Desc => 'The scooter then waits for a card.';
+
+  @override
+  String get keycardStep2 => 'Hold the card against the reader';
+
+  @override
+  String get keycardStep2Desc =>
+      'The reader sits at the front of the dashboard. Hold it there until the installer counts the card.';
+
+  @override
+  String get keycardStep3 => 'Press Finish';
+
+  @override
+  String get keycardStep3Desc =>
+      'That ends the learning and the cards take effect.';
+
+  @override
+  String get keycardPreparingReader => 'Preparing the card reader...';
 }

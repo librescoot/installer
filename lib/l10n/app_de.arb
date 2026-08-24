@@ -681,5 +681,13 @@
   "blePairingStep2Desc": "Er erscheint unter der Adresse, die hier steht.",
   "blePairingStep3": "PIN bestätigen",
   "blePairingStep3Desc": "Die PIN erscheint hier auf dem Bildschirm, sobald dein Handy fragt.",
-  "blePairingOneAtATime": "Der Roller hält immer nur eine Bluetooth-Verbindung. Ist schon ein Gerät verbunden, trenne es zuerst dort."
+  "blePairingOneAtATime": "Der Roller hält immer nur eine Bluetooth-Verbindung. Ist schon ein Gerät verbunden, trenne es zuerst dort.",
+  "keycardWhy": "Mit einer angelernten Karte entsperrst du den Roller ohne Handy. Du kannst mehrere Karten anlernen und das später jederzeit wiederholen. Eine Neuinstallation löscht vorher angelernte Karten.",
+  "keycardStep1": "Anlernen starten",
+  "keycardStep1Desc": "Der Roller wartet danach auf eine Karte.",
+  "keycardStep2": "Karte an den Leser halten",
+  "keycardStep2Desc": "Der Leser sitzt vorne am Display. Kurz halten, bis der Installer die Karte zählt.",
+  "keycardStep3": "Fertig drücken",
+  "keycardStep3Desc": "Damit endet das Anlernen und die Karten gelten.",
+  "keycardPreparingReader": "Kartenleser wird vorbereitet..."
 }
