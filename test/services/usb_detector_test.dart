@@ -28,8 +28,6 @@ void main() {
 
     test('a device nobody probed carries no verdict', () {
       // Omitting the argument must not manufacture a positive safety answer.
-      // notSystem claims the storage stack was asked and cleared the disk,
-      // and it skips the confirmation that unknown routes to.
       final device = UsbDevice(
         id: 'x',
         name: 'x',
@@ -39,7 +37,6 @@ void main() {
         mode: DeviceMode.massStorage,
       );
       expect(device.systemDiskVerdict, SystemDiskVerdict.unknown);
-      // Still not blocked outright: only a confirmed system disk is.
       expect(device.isSystemDisk, isFalse);
     });
   });

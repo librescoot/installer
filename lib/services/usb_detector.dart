@@ -16,8 +16,7 @@ enum SystemDiskVerdict {
 
 /// What asking Windows about one disk number came back with.
 class WindowsDiskProbe {
-  /// Whether the disk number still enumerates. False only when the probe
-  /// positively established the disk is gone.
+  /// False only when the probe established the disk is gone.
   final bool present;
 
   /// Whether the disk carries boot or system, as far as the probe could tell.
@@ -83,11 +82,8 @@ class UsbDevice {
     required this.mode,
     this.sizeBytes,
     this.isRemovable = false,
-    // A device nobody probed carries no verdict. Defaulting to notSystem
-    // states the opposite: that the storage stack was asked and cleared the
-    // disk. A construction site that simply omits the argument then produces
-    // a positive safety answer out of nothing, and the confirmation dialog
-    // that exists for exactly this case is skipped.
+    // No verdict without a probe. notSystem would assert one that never ran
+    // and skip the confirmation dialog.
     this.systemDiskVerdict = SystemDiskVerdict.unknown,
   });
 
@@ -388,12 +384,10 @@ if ($dev) { "$($dev.Model)`t$($dev.PNPDeviceID)`t$($dev.DeviceID)`t$($dev.Size)`
           // CRITICAL: Check if this might be a system disk
           final probe = await _windowsSystemDiskVerdict(deviceId);
 
-          // The enumeration above can hand back a disk the storage stack has
-          // already let go of. Reporting one is worse than reporting nothing:
-          // downstream it reads as a board sitting in mass storage, which is
-          // the state that says a flash has not taken yet, so a finished
-          // install turns into another write against a path that no longer
-          // opens.
+          // The enumeration can return a disk the storage stack has released.
+          // Downstream that reads as a board in mass storage, the state that
+          // means a flash has not taken, and triggers another write against a
+          // path that no longer opens.
           if (!probe.present) return null;
 
           return UsbDevice(
@@ -557,12 +551,8 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
         p == '/mnt';
   }
 
-  /// What the disk probe on Windows came back with.
-  ///
-  /// [present] is the narrow claim that the disk number still enumerates.
-  /// Only a probe that positively established the disk is gone sets it false;
-  /// every other outcome, including one that answered nothing at all, leaves
-  /// it true, so a probe that cannot speak never removes a device.
+  /// Maps the probe script's answer. Only 'absent' clears [present], so a
+  /// probe that could not answer never removes a device.
   static WindowsDiskProbe _parseWindowsDiskProbe(int exitCode, String stdout) {
     final answer = stdout.trim().toLowerCase();
     if (exitCode != 0) {
@@ -594,8 +584,9 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
 
     final diskNumber = int.parse(diskMatch.group(1)!);
 
-    // Disk 0 is the boot disk on essentially every Windows install, and the
-    // path guard in FlashService refuses it too. Never probe, never flash.
+    // Index 0 does not identify the system disk; that can be any number and
+    // IsBoot/IsSystem below is what finds it. Refused because the scooter is
+    // never index 0.
     if (diskNumber == 0) {
       return const WindowsDiskProbe(verdict: SystemDiskVerdict.systemDisk);
     }
@@ -622,6 +613,10 @@ try {
     Get-CimAssociatedInstance -ResultClassName Win32_DiskPartition |
     Get-CimAssociatedInstance -ResultClassName Win32_LogicalDisk |
     Select-Object -ExpandProperty DeviceID
+  # An empty letter set means the volumes could not be read, not that none
+  # is the system volume: ESP-only, BitLocker-locked and Storage Spaces disks
+  # all answer this way without throwing.
+  if (-not \$letters) { 'unknown'; exit }
   if (\$letters -contains \$env:SystemDrive) { 'system' } else { 'ok' }
 } catch { 'unknown' }
 ''',
@@ -768,12 +763,8 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
             mode: DeviceMode.massStorage,
             sizeBytes: diskInfo?['size'],
             isRemovable: diskInfo?['removable'] ?? false,
-            // The probe runs asynchronously and this returns immediately, so
-            // diskInfo is null on every poll before the first one lands. That
-            // is the absence of an answer, not an answer of "not the system
-            // disk": the path is filled in separately at flash time, by which
-            // point a fabricated notSystem here would have skipped the
-            // confirmation and left size and removability unmeasured too.
+            // The disk probe runs asynchronously, so diskInfo is null until
+            // it lands. Null is the absence of an answer, not a negative one.
             systemDiskVerdict: switch (diskInfo?['systemDisk']) {
               true => SystemDiskVerdict.systemDisk,
               false => SystemDiskVerdict.notSystem,

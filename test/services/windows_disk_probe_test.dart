@@ -16,17 +16,12 @@ void main() {
     });
 
     test('a disk number that no longer enumerates is absent', () {
-      // Both probes in the script agree the disk is gone: Get-Disk threw and
-      // the Win32_DiskDrive filter matched nothing. The enumeration that
-      // produced the device can still be serving it, and this is what says
-      // otherwise.
+      // Get-Disk threw and the Win32_DiskDrive filter matched nothing.
       final probe = UsbDetector.parseWindowsDiskProbe(0, 'absent');
       expect(probe.present, isFalse);
     });
 
     test('an absent disk carries no opinion about boot or system', () {
-      // Nothing was measured, so nothing may be claimed. The device is
-      // dropped on presence alone.
       expect(UsbDetector.parseWindowsDiskProbe(0, 'absent').verdict,
           SystemDiskVerdict.unknown);
     });
@@ -38,16 +33,12 @@ void main() {
     });
 
     test('a failed probe leaves the disk in place', () {
-      // PowerShell itself fell over. That says nothing about the disk, and
-      // treating silence as absence would drop a device mid-flash.
       final probe = UsbDetector.parseWindowsDiskProbe(1, '');
       expect(probe.verdict, SystemDiskVerdict.unknown);
       expect(probe.present, isTrue);
     });
 
     test('an absent answer from a failed probe is not believed', () {
-      // A non-zero exit means the script did not run to its own conclusion,
-      // whatever landed on stdout.
       expect(UsbDetector.parseWindowsDiskProbe(1, 'absent').present, isTrue);
     });
 
