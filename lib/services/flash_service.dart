@@ -14,12 +14,10 @@ import 'usb_detector.dart' show SystemDiskVerdict;
 /// Safety validation result
 class SafetyCheck {
   final bool passed;
-  final List<String> warnings;
   final List<String> errors;
 
   SafetyCheck({
     required this.passed,
-    this.warnings = const [],
     this.errors = const [],
   });
 }
@@ -30,8 +28,8 @@ class FlashService {
 
   /// User area of the eMMC every MDB carries: 15269888 sectors of 512 bytes.
   /// Matched exactly. Every platform supplies the raw device size, and a host
-  /// that cannot reports none, which warns rather than comparing a wrong
-  /// number.
+  /// that cannot reports none, which is handled separately rather than
+  /// compared as a wrong number.
   static const int mdbEmmcBytes = 7818182656;
 
   /// An eMMC that has lost its user area reports a few tens of MB.
@@ -44,7 +42,7 @@ class FlashService {
 
   /// Validate that a device is safe to flash
   ///
-  /// Returns a SafetyCheck with any warnings or errors.
+  /// Returns a SafetyCheck with any errors.
   /// Flashing should ONLY proceed if passed is true.
   SafetyCheck validateDevice({
     required String devicePath,
@@ -57,7 +55,6 @@ class FlashService {
     String? detectedPath,
   }) {
     final errors = <String>[];
-    final warnings = <String>[];
 
     // devicePath is the only argument describing the disk to be written; the
     // others come from the detected device object, which the caller reads
@@ -111,13 +108,16 @@ class FlashService {
         'answer for this disk.',
       );
     } else {
-      warnings.add('Could not determine device size');
+      // Off Windows the size is resolved separately and may not have landed
+      // yet. The identity checks above stand on their own, so this is logged
+      // and the flash continues.
+      debugPrint('Flash: could not determine device size for $devicePath');
     }
 
-    // Warn if not detected as removable (but don't block).
-    // macOS often reports USB gadget media as non-removable.
-    if (!isRemovable && !Platform.isMacOS) {
-      warnings.add('Device not detected as removable media');
+    // Removability is one signal among several and the identity checks decide
+    // the case, so it is logged rather than enforced.
+    if (!isRemovable) {
+      debugPrint('Flash: $devicePath is not detected as removable media');
     }
 
     // Path sanity checks
@@ -140,7 +140,9 @@ class FlashService {
         errors.add('DANGER: Cannot flash disk0 (system disk)');
       }
       if (RegExp(r'/r?disk1($|s\d+)').hasMatch(devicePath)) {
-        warnings.add('disk1 may be the system disk - verify carefully');
+        // disk1 is often the internal APFS container. The VID, PID, size and
+        // detected-path checks decide the case; the name alone does not.
+        debugPrint('Flash: $devicePath is disk1, which is commonly internal');
       }
     } else if (Platform.isLinux) {
       if (devicePath.trim().isEmpty || !devicePath.startsWith('/dev/')) {
@@ -166,7 +168,6 @@ class FlashService {
 
     return SafetyCheck(
       passed: errors.isEmpty,
-      warnings: warnings,
       errors: errors,
     );
   }

@@ -141,7 +141,6 @@ void main() {
       expect(result.errors.join(' '), contains('size'));
     } else {
       expect(result.passed, isTrue, reason: result.errors.join('; '));
-      expect(result.warnings.join(' '), contains('size'));
     }
   });
 
