@@ -1449,7 +1449,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcFlashFailSignal =>
-      'Fehler: der Warnblinker geht an und die DBC-LED blinkt rot. Dann USB zurück auf das MDB stecken und hier das Log holen.';
+      'Fehler: die LED am DBC blinkt rot und der Warnblinker geht an. Dann USB zurück auf das MDB stecken und hier das Log holen.';
+
+  @override
+  String get dbcFlashLedIsTheSignal =>
+      'Die LED am DBC ist das Fehlersignal: blinkt sie rot, ist etwas schiefgegangen.';
 
   @override
   String get dbcFlashSomethingWrong =>

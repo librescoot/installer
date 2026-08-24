@@ -1432,7 +1432,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dbcFlashFailSignal =>
-      'Failed: the hazards come on and the dashboard LED blinks red. Plug USB back into the MDB and fetch the log here.';
+      'Failed: the dashboard LED blinks red and the hazards come on. Plug USB back into the MDB and fetch the log here.';
+
+  @override
+  String get dbcFlashLedIsTheSignal =>
+      'The LED on the dashboard is the error signal: if it blinks red, something has gone wrong.';
 
   @override
   String get dbcFlashSomethingWrong =>

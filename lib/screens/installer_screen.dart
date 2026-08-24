@@ -5114,6 +5114,25 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               child: _blinkerPhases(l10n),
             ),
             const SizedBox(height: 18),
+            // Once the laptop is unplugged the dashboard LED is the only
+            // thing that can report a failure, so name it above the outcomes
+            // instead of leaving it buried in one of them.
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.lightbulb_outline,
+                    size: 20, color: Colors.grey.shade400),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(l10n.dbcFlashLedIsTheSignal,
+                      style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade300,
+                          height: 1.4)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
             _outcomeRow(
               icon: Icons.lock_open,
               colour: Colors.greenAccent,
@@ -6982,10 +7001,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     );
   }
 
-  /// The last physical steps, which differ by how the install ended. Both
-  /// paths now unlock the scooter themselves, so neither asks the user to.
+  /// The last physical steps. Both paths unlock the scooter themselves, so
+  /// neither asks the user to.
   List<Widget> _finalSteps(AppLocalizations l10n) {
-    final swapped = _deviceFinishArmed;
+    final swapped = dashboardCableIsBack(
+      laptopSeesBoard: _device != null,
+      deviceFinishArmed: _deviceFinishArmed,
+    );
     final steps = <({String title, String description})>[
       if (!swapped)
         (
@@ -7171,6 +7193,20 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
   }
 }
+
+/// Whether the dashboard's USB cable is the one currently in the MDB.
+///
+/// The board has a single USB port, so the laptop and the dashboard cannot
+/// both be in it. The laptop seeing the board is proof its own cable is in
+/// that port, whatever the run did earlier: someone who plugged back in to
+/// read a log must not be told the dashboard cable is already seated. With no
+/// link, an armed device-run finish means the user swapped it over before
+/// walking away, and tightening the screws is all that is left.
+bool dashboardCableIsBack({
+  required bool laptopSeesBoard,
+  required bool deviceFinishArmed,
+}) =>
+    !laptopSeesBoard && deviceFinishArmed;
 
 /// An install failure whose message is already in the user's language.
 /// [toString] is the message itself because the artifact screen renders

@@ -2555,8 +2555,14 @@ abstract class AppLocalizations {
   /// No description provided for @dbcFlashFailSignal.
   ///
   /// In en, this message translates to:
-  /// **'Failed: the hazards come on and the dashboard LED blinks red. Plug USB back into the MDB and fetch the log here.'**
+  /// **'Failed: the dashboard LED blinks red and the hazards come on. Plug USB back into the MDB and fetch the log here.'**
   String get dbcFlashFailSignal;
+
+  /// No description provided for @dbcFlashLedIsTheSignal.
+  ///
+  /// In en, this message translates to:
+  /// **'The LED on the dashboard is the error signal: if it blinks red, something has gone wrong.'**
+  String get dbcFlashLedIsTheSignal;
 
   /// No description provided for @dbcFlashSomethingWrong.
   ///
