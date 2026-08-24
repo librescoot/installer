@@ -35,7 +35,10 @@ class PhaseSidebar extends StatelessWidget {
       // aktualisieren", 238px at this weight) to stay on one line. At 220
       // they wrapped and left the markers hanging beside ragged text.
       width: 300,
-      color: kBgSidebar,
+      decoration: const BoxDecoration(
+        color: kBgSidebar,
+        border: Border(right: BorderSide(color: kSidebarEdge)),
+      ),
       child: Column(
         children: [
           Expanded(
