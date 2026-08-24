@@ -79,6 +79,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   // Phase guard flags (prevent auto-start methods from re-firing on rebuild)
   bool _mdbConnectStarted = false;
+
+  /// Which physical-prep step is open. Three photo pairs at once made that
+  /// screen nearly two windows tall; one at a time is what someone with a
+  /// screwdriver in hand is actually working on.
+  int _prepStepOpen = 0;
   bool _healthCheckStarted = false;
   final PhaseAttempt _mdbToUmsAttempt = PhaseAttempt();
   bool _mdbFlashStarted = false;
@@ -2222,26 +2227,40 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          InstructionStep(
-            number: 1,
-            title: l10n.removeFootwellCover,
-            description: l10n.removeFootwellCoverDesc,
-            beforeImageAsset:
-                'assets/images/lsi-unu_scooter_footwell_closed.jpg',
-            imageAsset: 'assets/images/lsi-unu_scooter_footwell_open.jpg',
-          ),
-          InstructionStep(
-            number: 2,
-            title: l10n.unscrewUsbCable,
-            description: l10n.unscrewUsbCableDesc,
-            beforeImageAsset: 'assets/images/lsi-mdb_usb_connected.jpg',
-            imageAsset: 'assets/images/lsi-mdb_usb_disconnected.jpg',
-          ),
-          InstructionStep(
-            number: 3,
-            title: l10n.connectLaptopUsb,
-            description: l10n.connectLaptopUsbDesc,
-          ),
+          for (final (i, step) in <({
+            String title,
+            String description,
+            String? before,
+            String? after
+          })>[
+            (
+              title: l10n.removeFootwellCover,
+              description: l10n.removeFootwellCoverDesc,
+              before: 'assets/images/lsi-unu_scooter_footwell_closed.jpg',
+              after: 'assets/images/lsi-unu_scooter_footwell_open.jpg',
+            ),
+            (
+              title: l10n.unscrewUsbCable,
+              description: l10n.unscrewUsbCableDesc,
+              before: 'assets/images/lsi-mdb_usb_connected.jpg',
+              after: 'assets/images/lsi-mdb_usb_disconnected.jpg',
+            ),
+            (
+              title: l10n.connectLaptopUsb,
+              description: l10n.connectLaptopUsbDesc,
+              before: null,
+              after: null,
+            ),
+          ].indexed)
+            InstructionStep(
+              number: i + 1,
+              title: step.title,
+              description: step.description,
+              beforeImageAsset: step.before,
+              imageAsset: step.after,
+              expanded: i == _prepStepOpen,
+              onTap: () => setState(() => _prepStepOpen = i),
+            ),
         ],
       ),
     );
@@ -5881,16 +5900,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               ],
             ),
             const SizedBox(height: 24),
-            InstructionStep(
-              number: 1,
-              title: l10n.disconnectUsbFromLaptop,
-              description: l10n.disconnectUsbFromLaptopDesc,
-            ),
-            InstructionStep(
-              number: 2,
-              title: l10n.reconnectDbcUsbToMdb,
-              description: l10n.reconnectDbcUsbToMdbDesc,
-            ),
+            // No numbered steps under the photos: they repeated what the
+            // photos already show, and the pair is captioned Laptop and DBC
+            // with an arrow between them.
             const SizedBox(height: 16),
             Text(
               l10n.waitingForUsbDisconnect,
@@ -8005,7 +8017,30 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           // leave loose. An MDB-only run still has the laptop plugged in.
           ..._finalSteps(l10n),
           const SizedBox(height: 24),
-          _buildGettingStarted(l10n),
+          // Read once, and not part of finishing the install: closed by
+          // default, it is the difference between this screen fitting the
+          // window and running 280px past it.
+          Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              title: Row(
+                children: [
+                  const Icon(Icons.lightbulb_outline, size: 20, color: kAccent),
+                  const SizedBox(width: 8),
+                  Text(l10n.gettingStartedTitle,
+                      style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: kAccent)),
+                ],
+              ),
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: EdgeInsets.zero,
+              shape: const Border(),
+              collapsedShape: const Border(),
+              children: [_buildGettingStarted(l10n, showTitle: false)],
+            ),
+          ),
           const SizedBox(height: 24),
           CheckboxListTile(
             dense: true,
@@ -8059,7 +8094,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     ];
   }
 
-  Widget _buildGettingStarted(AppLocalizations l10n) {
+  Widget _buildGettingStarted(AppLocalizations l10n, {bool showTitle = true}) {
     final isGerman = Localizations.localeOf(context).languageCode == 'de';
     final handbookUrl = isGerman
         ? 'https://librescoot.org/handbook/'
@@ -8076,21 +8111,23 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.lightbulb_outline, size: 20, color: kAccent),
-              const SizedBox(width: 8),
-              Text(
-                l10n.gettingStartedTitle,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: kAccent,
+          if (showTitle) ...[
+            Row(
+              children: [
+                const Icon(Icons.lightbulb_outline, size: 20, color: kAccent),
+                const SizedBox(width: 8),
+                Text(
+                  l10n.gettingStartedTitle,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: kAccent,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
           _buildTip(
             Icons.menu_open,
             l10n.gettingStartedOpenMenuTitle,
