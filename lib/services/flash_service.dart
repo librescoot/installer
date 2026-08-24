@@ -116,13 +116,10 @@ class FlashService {
   }
 
   /// User area of the eMMC every MDB carries: 15269888 sectors of 512 bytes.
+  /// Matched exactly. Every platform supplies the raw device size, and a host
+  /// that cannot reports none, which warns rather than comparing a wrong
+  /// number.
   static const int mdbEmmcBytes = 7818182656;
-
-  /// Exact. Every platform reports the raw device size: Linux from
-  /// /sys/block, macOS from diskutil, Windows from Get-Disk. A host that
-  /// cannot produce the raw size reports none, which warns rather than
-  /// comparing a wrong number.
-  static const int mdbEmmcToleranceBytes = 0;
 
   /// An eMMC that has lost its user area reports a few tens of MB.
   static const int failedEmmcCeilingBytes = 64 * 1024 * 1024;
@@ -178,21 +175,18 @@ class FlashService {
       errors.add('Wrong product ID: 0x${productId.toRadixString(16)} (expected 0xa4a5)');
     }
 
-    // Every MDB carries the same eMMC, so this matches one value. A range
-    // wide enough for "any small disk" also admits the SD cards and sticks
-    // the detector's match pattern can adopt.
+    // One value, not a range: a range wide enough for "any small disk" also
+    // admits the SD cards and sticks the detector's match pattern can adopt.
     if (sizeBytes != null) {
-      final off = (sizeBytes - mdbEmmcBytes).abs();
       if (sizeBytes <= failedEmmcCeilingBytes) {
         errors.add(
           'eMMC reports only ${_mib(sizeBytes)} MB. The eMMC on this board '
           'has failed; it cannot be flashed.',
         );
-      } else if (off > mdbEmmcToleranceBytes) {
+      } else if (sizeBytes != mdbEmmcBytes) {
         errors.add(
-          'Unexpected device size: ${_gib(sizeBytes)} GB. Every MDB eMMC is '
-          '${_gib(mdbEmmcBytes)} GB, so this is not one, or it is something '
-          'we do not have a name for. Refusing.',
+          'Unexpected device size: ${_gib(sizeBytes)} GB, expected '
+          '${_gib(mdbEmmcBytes)} GB. This is not an MDB eMMC.',
         );
       }
     } else {
