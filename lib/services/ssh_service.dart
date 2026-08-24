@@ -16,6 +16,7 @@ class DeviceInfo {
   final String host;
   final String firmwareVersion;
   final String? serialNumber;
+
   /// Value of ID= in /etc/os-release if known (e.g. 'librescoot-mdb').
   /// Used to distinguish Librescoot from stock when version numbers collide.
   final String? osId;
@@ -33,10 +34,11 @@ class DeviceInfo {
 /// [version] is the firmware version we believe the device is running (or
 /// null if undetectable). [previousAttempts] is how many manual passwords
 /// have already been tried this session. Return null/empty string to give up.
-typedef ManualPasswordPrompt = Future<String?> Function({
-  required String? version,
-  required int previousAttempts,
-});
+typedef ManualPasswordPrompt =
+    Future<String?> Function({
+      required String? version,
+      required int previousAttempts,
+    });
 
 /// Service for SSH communication with MDB/DBC devices
 class SshService {
@@ -177,7 +179,9 @@ done
       try {
         final data = await rootBundle.load('$assetsPath/device_configs.bin');
         debugPrint('SSH: loading device profile (bundle)');
-        yamlContent = _decryptAsset(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+        yamlContent = _decryptAsset(
+          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+        );
       } catch (_) {
         final encFile = File(path.join(assetsPath, 'device_configs.bin'));
         if (await encFile.exists()) {
@@ -272,7 +276,8 @@ done
       final cmds = <String>[];
       if (tz != null) {
         cmds.add(
-            'timedatectl set-timezone $tz 2>/dev/null || ln -sf /usr/share/zoneinfo/$tz /etc/localtime 2>/dev/null || true');
+          'timedatectl set-timezone $tz 2>/dev/null || ln -sf /usr/share/zoneinfo/$tz /etc/localtime 2>/dev/null || true',
+        );
       }
       // -u: interpret the stamp as UTC, independent of the device's timezone.
       cmds.add('date -u -s "$stamp" >/dev/null 2>&1 || true');
@@ -282,7 +287,9 @@ done
       // wrong on a board about to write date-stamped logs is worth waiting
       // for, and this is best-effort anyway.
       await runCommand(cmds.join('; '), timeout: const Duration(seconds: 60));
-      debugPrint('SSH: synced device time to ${stamp}Z, tz=${tz ?? '(unknown)'}');
+      debugPrint(
+        'SSH: synced device time to ${stamp}Z, tz=${tz ?? '(unknown)'}',
+      );
     } catch (e) {
       debugPrint('SSH: device time sync failed (non-fatal): $e');
     }
@@ -355,9 +362,13 @@ done
             // Stage 0 already verified this version has a non-empty bundled
             // credential before transitioning here.
             pw = _resolveDeviceCredential(authVersion);
-            debugPrint('SSH: attempting bundled device configuration for version $authVersion');
+            debugPrint(
+              'SSH: attempting bundled device configuration for version $authVersion',
+            );
           } else {
-            debugPrint('SSH: attempting user-supplied configuration (attempt $manualAttempts)');
+            debugPrint(
+              'SSH: attempting user-supplied configuration (attempt $manualAttempts)',
+            );
             pw = manualPassword ?? '';
           }
           attemptedPassword = pw;
@@ -394,8 +405,10 @@ done
         if (isPreAuthDrop(e) && preAuthRetries < maxPreAuthRetries) {
           preAuthRetries++;
           final backoff = Duration(seconds: 1 << (preAuthRetries - 1));
-          debugPrint('SSH: dropped before authentication, retry '
-              '$preAuthRetries/$maxPreAuthRetries in ${backoff.inSeconds}s');
+          debugPrint(
+            'SSH: dropped before authentication, retry '
+            '$preAuthRetries/$maxPreAuthRetries in ${backoff.inSeconds}s',
+          );
           await Future.delayed(backoff);
           continue;
         }
@@ -413,17 +426,23 @@ done
             }
             if (bundled != null && bundled.isNotEmpty) {
               stage = 1;
-              debugPrint('SSH: default configuration not accepted, attempting bundled device configuration for $authVersion');
+              debugPrint(
+                'SSH: default configuration not accepted, attempting bundled device configuration for $authVersion',
+              );
               continue;
             }
-            debugPrint('SSH: no bundled device configuration for $authVersion, prompting user');
+            debugPrint(
+              'SSH: no bundled device configuration for $authVersion, prompting user',
+            );
           }
           stage = 2;
         } else if (stage == 1) {
           stage = 2;
         }
 
-        if (stage == 2 && _manualPasswordPrompt != null && manualAttempts < maxManualPasswordAttempts) {
+        if (stage == 2 &&
+            _manualPasswordPrompt != null &&
+            manualAttempts < maxManualPasswordAttempts) {
           final entered = await _manualPasswordPrompt!(
             version: bannerVersionSeen != 'v1.20' ? bannerVersionSeen : null,
             previousAttempts: manualAttempts,
@@ -434,7 +453,9 @@ done
           }
           manualPassword = entered;
           manualAttempts++;
-          debugPrint('SSH: retrying with user-supplied configuration (attempt $manualAttempts)');
+          debugPrint(
+            'SSH: retrying with user-supplied configuration (attempt $manualAttempts)',
+          );
           continue;
         }
 
@@ -444,13 +465,17 @@ done
 
     // Stop power manager to prevent suspend/hibernate during flashing
     try {
-      await runCommand('systemctl stop librescoot-pm 2>/dev/null; systemctl stop pm-service 2>/dev/null; systemctl stop unu-pm 2>/dev/null; true');
+      await runCommand(
+        'systemctl stop librescoot-pm 2>/dev/null; systemctl stop pm-service 2>/dev/null; systemctl stop unu-pm 2>/dev/null; true',
+      );
       debugPrint('SSH: stopped power manager');
     } catch (_) {}
 
     // Check if SFTP subsystem is available (stock scooterOS doesn't have it)
     try {
-      final sftpCheck = (await runCommand('test -e /usr/libexec/sftp-server -o -e /usr/lib/openssh/sftp-server && echo yes || echo no')).trim();
+      final sftpCheck = (await runCommand(
+        'test -e /usr/libexec/sftp-server -o -e /usr/lib/openssh/sftp-server && echo yes || echo no',
+      )).trim();
       _sftpAvailable = sftpCheck == 'yes';
       debugPrint('SSH: SFTP ${_sftpAvailable ? "available" : "not available"}');
     } catch (_) {
@@ -460,10 +485,14 @@ done
     final detected = await _detectFirmwareVersion();
     if (detected.version != null) {
       authVersion = detected.version!;
-      debugPrint('SSH: detected firmware version ${detected.version}'
-          '${detected.osId != null ? " (os-id=${detected.osId})" : ""}');
+      debugPrint(
+        'SSH: detected firmware version ${detected.version}'
+        '${detected.osId != null ? " (os-id=${detected.osId})" : ""}',
+      );
     } else {
-      debugPrint('SSH: firmware version detection failed, using Unknown for UI');
+      debugPrint(
+        'SSH: firmware version detection failed, using Unknown for UI',
+      );
     }
 
     // Get serial number
@@ -474,8 +503,9 @@ done
       // kernels); mainline kernels (1.2.0+ MDBs on linux-fslc 6.12) expose
       // the same value preformatted at /sys/devices/soc0/serial_number.
       final result = await runCommand(
-          'cat /sys/fsl_otp/HW_OCOTP_CFG1 /sys/fsl_otp/HW_OCOTP_CFG0 2>/dev/null'
-          ' || cat /sys/devices/soc0/serial_number 2>/dev/null');
+        'cat /sys/fsl_otp/HW_OCOTP_CFG1 /sys/fsl_otp/HW_OCOTP_CFG0 2>/dev/null'
+        ' || cat /sys/devices/soc0/serial_number 2>/dev/null',
+      );
       serial = _parseSerial(result);
       if (serial != null) {
         debugPrint('SSH: parsed serial $serial');
@@ -495,7 +525,10 @@ done
   Future<({String? version, String? osId})> _detectFirmwareVersion() async {
     if (_client == null) return (version: null, osId: null);
 
-    final versionIdRegex = RegExp(r'^VERSION_ID="?([^"\n]+)"?$', multiLine: true);
+    final versionIdRegex = RegExp(
+      r'^VERSION_ID="?([^"\n]+)"?$',
+      multiLine: true,
+    );
     final idRegex = RegExp(r'^ID="?([^"\n]+)"?$', multiLine: true);
     final semverRegex = RegExp(r'\bv?(\d+\.\d+(?:\.\d+)?)\b');
 
@@ -563,7 +596,9 @@ done
 
   String _resolveDeviceCredential(String version) {
     if (_deviceConfig == null || _deviceConfig!.isEmpty) {
-      debugPrint('SSH: no device profile available, using default configuration');
+      debugPrint(
+        'SSH: no device profile available, using default configuration',
+      );
       return '';
     }
 
@@ -659,8 +694,11 @@ done
     }();
 
     try {
-      await Future.wait([stdoutDone, stderrDone, session.done])
-          .timeout(timeout);
+      await Future.wait([
+        stdoutDone,
+        stderrDone,
+        session.done,
+      ]).timeout(timeout);
     } catch (_) {
       // A timed-out session stays open otherwise, and every stalled command
       // costs another channel until the connection hits its limit and stops
@@ -724,7 +762,11 @@ done
     // then close the channel either way; killing the session ends both
     // streams, which is what lets the drains finish.
     try {
-      await Future.wait([stdoutDone, stderrDone, session.done]).timeout(timeout);
+      await Future.wait([
+        stdoutDone,
+        stderrDone,
+        session.done,
+      ]).timeout(timeout);
     } catch (e) {
       try {
         session.kill(SSHSignal.TERM);
@@ -765,10 +807,12 @@ done
 
   Future<int?> freeBytesOn(String path) async {
     try {
-      return parseDfFreeBytes(await runCommand(
-        'df -kP ${_shellEscape(path)}',
-        replayOnDisconnect: true,
-      ));
+      return parseDfFreeBytes(
+        await runCommand(
+          'df -kP ${_shellEscape(path)}',
+          replayOnDisconnect: true,
+        ),
+      );
     } catch (e) {
       debugPrint('SSH: df probe failed: $e');
       return null;
@@ -809,10 +853,12 @@ done
 
   Future<Map<String, String>> readOsRelease() async {
     try {
-      return parseOsRelease(await runCommand(
-        'cat /etc/os-release 2>/dev/null; true',
-        replayOnDisconnect: true,
-      ));
+      return parseOsRelease(
+        await runCommand(
+          'cat /etc/os-release 2>/dev/null; true',
+          replayOnDisconnect: true,
+        ),
+      );
     } catch (e) {
       debugPrint('SSH: os-release read failed: $e');
       return const {};
@@ -850,7 +896,7 @@ done
       timeout: connectionTimeout,
     );
     final client = SSHClient(
-        keepAliveInterval: const Duration(seconds: 5),
+      keepAliveInterval: const Duration(seconds: 5),
       socket,
       username: sshUser,
       onPasswordRequest: () => pw,
@@ -907,19 +953,19 @@ done
     try {
       final file = await sftp.open(
         remotePath,
-        mode: SftpFileOpenMode.write | SftpFileOpenMode.create | SftpFileOpenMode.truncate,
+        mode:
+            SftpFileOpenMode.write |
+            SftpFileOpenMode.create |
+            SftpFileOpenMode.truncate,
       );
       try {
         const chunkSize = 64 * 1024;
         final stream = Stream<Uint8List>.fromIterable(
-          Iterable.generate(
-            (content.length + chunkSize - 1) ~/ chunkSize,
-            (i) {
-              final start = i * chunkSize;
-              final end = (start + chunkSize).clamp(0, content.length);
-              return Uint8List.sublistView(content, start, end);
-            },
-          ),
+          Iterable.generate((content.length + chunkSize - 1) ~/ chunkSize, (i) {
+            final start = i * chunkSize;
+            final end = (start + chunkSize).clamp(0, content.length);
+            return Uint8List.sublistView(content, start, end);
+          }),
         );
 
         final writer = file.write(
@@ -940,8 +986,12 @@ done
     session.stdin.add(content);
     await session.stdin.close();
     // Drain stdout/stderr to prevent blocking
-    final stdoutDone = () async { await for (final _ in session.stdout) {} }();
-    final stderrDone = () async { await for (final _ in session.stderr) {} }();
+    final stdoutDone = () async {
+      await for (final _ in session.stdout) {}
+    }();
+    final stderrDone = () async {
+      await for (final _ in session.stderr) {}
+    }();
     await Future.wait([stdoutDone, stderrDone, session.done]);
   }
 
@@ -954,8 +1004,16 @@ done
     // Check if the device already has fw_setenv and fw_env.config (Librescoot).
     // If so, use the device's own tools and config (correct env offsets).
     // If not (stock scooterOS), upload our bundled versions.
-    final hasNativeFwSetenv = (await runCommand('command -v fw_setenv >/dev/null 2>&1 && echo yes || echo no')).trim() == 'yes';
-    final hasNativeConfig = (await runCommand('test -f /etc/fw_env.config && echo yes || echo no')).trim() == 'yes';
+    final hasNativeFwSetenv =
+        (await runCommand(
+          'command -v fw_setenv >/dev/null 2>&1 && echo yes || echo no',
+        )).trim() ==
+        'yes';
+    final hasNativeConfig =
+        (await runCommand(
+          'test -f /etc/fw_env.config && echo yes || echo no',
+        )).trim() ==
+        'yes';
 
     final String fwSetenvCmd;
     final String configFlag;
@@ -970,7 +1028,9 @@ done
       final fwEnvConfig = await _readToolAsset('fw_env.config');
       debugPrint('SSH: uploading fw_setenv (${fwSetenv.length} bytes)...');
       await uploadFile(fwSetenv, '/tmp/fw_setenv');
-      debugPrint('SSH: uploading fw_env.config (${fwEnvConfig.length} bytes)...');
+      debugPrint(
+        'SSH: uploading fw_env.config (${fwEnvConfig.length} bytes)...',
+      );
       await uploadFile(fwEnvConfig, '/tmp/fw_env.config');
       debugPrint('SSH: uploads complete');
       fwSetenvCmd = '/tmp/fw_setenv';
@@ -985,8 +1045,7 @@ done
     final fullBootcmd =
         "$fwSetenvCmd $configFlag bootcmd 'fuse prog -y 0 5 0x00002860; "
         "fuse prog -y 0 6 0x00000010; ums 0 mmc 1'";
-    final fallbackBootcmd =
-        "$fwSetenvCmd $configFlag bootcmd 'ums 0 mmc 1'";
+    final fallbackBootcmd = "$fwSetenvCmd $configFlag bootcmd 'ums 0 mmc 1'";
 
     try {
       debugPrint('SSH: running: $fullBootcmd');
@@ -1001,7 +1060,9 @@ done
     // Give fw_setenv time to flush to eMMC
     await Future.delayed(const Duration(seconds: 2));
 
-    final delayResult = await runCommand('$fwSetenvCmd $configFlag bootdelay 0');
+    final delayResult = await runCommand(
+      '$fwSetenvCmd $configFlag bootdelay 0',
+    );
     debugPrint('SSH: fw_setenv bootdelay result: "$delayResult"');
 
     // Give fw_setenv time to flush
@@ -1106,9 +1167,17 @@ done
   }
 
   String? _parseSerial(String raw) {
-    final matches = RegExp(r'0x[0-9a-fA-F]+').allMatches(raw).map((m) => m.group(0)!).toList();
+    final matches = RegExp(
+      r'0x[0-9a-fA-F]+',
+    ).allMatches(raw).map((m) => m.group(0)!).toList();
     if (matches.isNotEmpty) {
-      return matches.map((part) => part.replaceFirst(RegExp(r'^0x', caseSensitive: false), '')).join().toLowerCase();
+      return matches
+          .map(
+            (part) =>
+                part.replaceFirst(RegExp(r'^0x', caseSensitive: false), ''),
+          )
+          .join()
+          .toLowerCase();
     }
     // soc0/serial_number is a bare 16-digit uppercase hex word, no 0x prefix.
     final bare = RegExp(r'^[0-9a-fA-F]{16}$').firstMatch(raw.trim());
@@ -1155,11 +1224,7 @@ done
       value: value,
       operationId: operationId,
     );
-    await runCommand(
-      command,
-      timeout: timeout,
-      replayOnDisconnect: true,
-    );
+    await runCommand(command, timeout: timeout, replayOnDisconnect: true);
   }
 
   @visibleForTesting
@@ -1168,7 +1233,8 @@ done
     required String value,
     required String operationId,
   }) {
-    const script = "local fresh=redis.call('SET',KEYS[2],'1','EX',ARGV[2],'NX');"
+    const script =
+        "local fresh=redis.call('SET',KEYS[2],'1','EX',ARGV[2],'NX');"
         "if fresh then return redis.call('LPUSH',KEYS[1],ARGV[1]) end;"
         'return 0';
     final dedupKey = 'librescoot-installer:queue-op:$operationId';
@@ -1188,7 +1254,7 @@ done
   /// filter accepts both for safety. fflush() defeats line buffering so
   /// events arrive promptly.
   Future<({Stream<String> events, Future<void> Function() stop})>
-      subscribeRedisChannel(String channel) async {
+  subscribeRedisChannel(String channel) async {
     if (_client == null) throw Exception('Not connected');
     final escapedChannel = _shellEscape(channel);
     final cmd =
@@ -1301,7 +1367,9 @@ done
       if (!present) return 'present=false';
       final parts = <String>['present=true'];
       if (cbb['charge'] != null) parts.add('charge=${cbb['charge']}%');
-      if (cbb['state-of-health'] != null) parts.add('soh=${cbb['state-of-health']}%');
+      if (cbb['state-of-health'] != null) {
+        parts.add('soh=${cbb['state-of-health']}%');
+      }
       if (cbb['cycle-count'] != null) parts.add('cycles=${cbb['cycle-count']}');
       if (cbb['temperature'] != null) parts.add('temp=${cbb['temperature']}C');
       if (cbb['cell-voltage'] != null) parts.add('V=${cbb['cell-voltage']}uV');
@@ -1327,9 +1395,15 @@ done
         final t = int.tryParse(b['temperature:$i'] ?? '');
         if (t != null) temps.add(t);
       }
-      if (temps.isNotEmpty) parts.add('temp=${temps.reduce((a, b) => a > b ? a : b)}C');
-      if (b['temperature-state'] != null) parts.add('temp-state=${b['temperature-state']}');
-      if (b['state-of-health'] != null) parts.add('soh=${b['state-of-health']}%');
+      if (temps.isNotEmpty) {
+        parts.add('temp=${temps.reduce((a, b) => a > b ? a : b)}C');
+      }
+      if (b['temperature-state'] != null) {
+        parts.add('temp-state=${b['temperature-state']}');
+      }
+      if (b['state-of-health'] != null) {
+        parts.add('soh=${b['state-of-health']}%');
+      }
       if (b['cycle-count'] != null) parts.add('cycles=${b['cycle-count']}');
       if (b['serial-number'] != null && b['serial-number']!.isNotEmpty) {
         parts.add('sn=${b['serial-number']}');
@@ -1380,8 +1454,10 @@ done
   }
 
   Future<void> forceVehicleState(String state) async {
-    await runCommand('redis-cli hset vehicle state $state >/dev/null; '
-        'redis-cli publish vehicle state >/dev/null; true');
+    await runCommand(
+      'redis-cli hset vehicle state $state >/dev/null; '
+      'redis-cli publish vehicle state >/dev/null; true',
+    );
   }
 
   /// Probe whether the connected MDB is running a full image with the redis
@@ -1460,9 +1536,15 @@ done
   /// Query scooter health from Redis.
   Future<ScooterHealth> queryHealth() async {
     final health = ScooterHealth();
-    health.auxCharge = int.tryParse(await redisHget('aux-battery', 'charge') ?? '');
-    health.cbbStateOfHealth = int.tryParse(await redisHget('cb-battery', 'state-of-health') ?? '');
-    health.cbbCharge = int.tryParse(await redisHget('cb-battery', 'charge') ?? '');
+    health.auxCharge = int.tryParse(
+      await redisHget('aux-battery', 'charge') ?? '',
+    );
+    health.cbbStateOfHealth = int.tryParse(
+      await redisHget('cb-battery', 'state-of-health') ?? '',
+    );
+    health.cbbCharge = int.tryParse(
+      await redisHget('cb-battery', 'charge') ?? '',
+    );
     final batteryPresent = await redisHget('battery:0', 'present');
     health.batteryPresent = batteryPresent == 'true';
     return health;
@@ -1546,8 +1628,11 @@ done
       final stderrDone = () async {
         await for (final _ in session!.stderr) {}
       }();
-      await Future.wait([stdoutDone, stderrDone, session.done])
-          .timeout(const Duration(seconds: 30));
+      await Future.wait([
+        stdoutDone,
+        stderrDone,
+        session.done,
+      ]).timeout(const Duration(seconds: 30));
       if (session.exitCode != 0) return null;
       return Uint8List.fromList(chunks);
     } catch (_) {
@@ -1562,7 +1647,9 @@ done
   /// List files in a remote directory. Returns empty list if directory doesn't exist.
   Future<List<String>> listRemoteDir(String remotePath) async {
     try {
-      final output = await runCommand('ls -1 ${_shellEscape(remotePath)} 2>/dev/null');
+      final output = await runCommand(
+        'ls -1 ${_shellEscape(remotePath)} 2>/dev/null',
+      );
       return output.trim().split('\n').where((l) => l.isNotEmpty).toList();
     } catch (_) {
       return [];
@@ -1575,8 +1662,14 @@ done
   /// Checks both Librescoot (/data/radio-gaga/) and stock (/etc/rescoot/) paths.
   /// Returns the backup directory path, or null if no config was found.
   Future<String?> backupRadioGagaConfig(String backupBaseDir) async {
-    final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-').split('.').first;
-    final backupDir = Directory(path.join(backupBaseDir, 'radio-gaga-backup-$timestamp'));
+    final timestamp = DateTime.now()
+        .toIso8601String()
+        .replaceAll(':', '-')
+        .split('.')
+        .first;
+    final backupDir = Directory(
+      path.join(backupBaseDir, 'radio-gaga-backup-$timestamp'),
+    );
 
     var found = false;
 
@@ -1585,7 +1678,9 @@ done
     if (lsConfig != null && lsConfig.isNotEmpty) {
       final targetDir = Directory(path.join(backupDir.path, 'data-radio-gaga'));
       await targetDir.create(recursive: true);
-      await File(path.join(targetDir.path, 'config.yaml')).writeAsBytes(lsConfig);
+      await File(
+        path.join(targetDir.path, 'config.yaml'),
+      ).writeAsBytes(lsConfig);
       debugPrint('SSH: backed up /data/radio-gaga/config.yaml');
       found = true;
 
@@ -1601,7 +1696,9 @@ done
               final certData = await downloadFile(caCertPath);
               if (certData != null && certData.isNotEmpty) {
                 final certFilename = path.basename(caCertPath);
-                await File(path.join(targetDir.path, certFilename)).writeAsBytes(certData);
+                await File(
+                  path.join(targetDir.path, certFilename),
+                ).writeAsBytes(certData);
                 debugPrint('SSH: backed up CA cert $caCertPath');
               }
             }
@@ -1623,7 +1720,9 @@ done
 
       final targetDir = Directory(path.join(backupDir.path, 'etc-rescoot'));
       await targetDir.create(recursive: true);
-      await File(path.join(targetDir.path, 'radio-gaga.yml')).writeAsBytes(stockConfig);
+      await File(
+        path.join(targetDir.path, 'radio-gaga.yml'),
+      ).writeAsBytes(stockConfig);
       debugPrint('SSH: backed up $stockPath');
       found = true;
 
@@ -1639,7 +1738,9 @@ done
               final certData = await downloadFile(caCertPath);
               if (certData != null && certData.isNotEmpty) {
                 final certFilename = path.basename(caCertPath);
-                await File(path.join(targetDir.path, certFilename)).writeAsBytes(certData);
+                await File(
+                  path.join(targetDir.path, certFilename),
+                ).writeAsBytes(certData);
                 debugPrint('SSH: backed up CA cert $caCertPath');
               }
             }
@@ -1675,7 +1776,10 @@ done
         if (file is! File) continue;
         final filename = path.basename(file.path);
         final data = await file.readAsBytes();
-        await uploadFile(Uint8List.fromList(data), '/data/radio-gaga/$filename');
+        await uploadFile(
+          Uint8List.fromList(data),
+          '/data/radio-gaga/$filename',
+        );
         debugPrint('SSH: restored /data/radio-gaga/$filename');
       }
       return true;
@@ -1715,14 +1819,18 @@ done
         }
       }
     } catch (e) {
-      debugPrint('SSH: failed to rewrite cert paths, uploading config as-is: $e');
+      debugPrint(
+        'SSH: failed to rewrite cert paths, uploading config as-is: $e',
+      );
     }
 
     await uploadFile(
       Uint8List.fromList(utf8.encode(configContent)),
       '/data/radio-gaga/config.yaml',
     );
-    debugPrint('SSH: restored /data/radio-gaga/config.yaml (converted from stock)');
+    debugPrint(
+      'SSH: restored /data/radio-gaga/config.yaml (converted from stock)',
+    );
     return true;
   }
 
@@ -1730,8 +1838,9 @@ done
   Future<TrampolineStatus> readTrampolineStatus({String? expectedRunId}) async {
     try {
       TrampolineStatus? matchingStatus;
-      final content =
-          await runCommand('cat /data/installer/trampoline-status 2>/dev/null');
+      final content = await runCommand(
+        'cat /data/installer/trampoline-status 2>/dev/null',
+      );
       if (content.trim().isNotEmpty) {
         final status = TrampolineStatus.parse(content);
         if (expectedRunId == null || status.runId == expectedRunId) {
@@ -1744,7 +1853,8 @@ done
       }
 
       final currentState = await runCommand(
-          'cat /data/installer-run-state 2>/dev/null; true');
+        'cat /data/installer-run-state 2>/dev/null; true',
+      );
       if (currentState.trim().isNotEmpty) {
         final state = InstallRunState.parse(currentState);
         if (expectedRunId == null || state.runId == expectedRunId) {
@@ -1757,8 +1867,7 @@ done
       // finished the install on its own sweeps that directory as its last act.
       // Its completion record is what survives, and a run that got far enough
       // to write one is a run that succeeded.
-      final record =
-          await runCommand('cat /data/last-install 2>/dev/null');
+      final record = await runCommand('cat /data/last-install 2>/dev/null');
       if (record.trim().isNotEmpty) {
         final status = TrampolineStatus.parseCompletionRecord(record);
         if (expectedRunId == null) {
@@ -1777,8 +1886,9 @@ done
   /// wrote it last, and whether it ended. Null when the board has none.
   Future<InstallRunState?> readInstallRunState() async {
     try {
-      final content =
-          await runCommand('cat /data/installer-run-state 2>/dev/null; true');
+      final content = await runCommand(
+        'cat /data/installer-run-state 2>/dev/null; true',
+      );
       if (content.trim().isEmpty) return null;
       return InstallRunState.parse(content);
     } catch (_) {
