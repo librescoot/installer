@@ -579,6 +579,22 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
   }
 
   @visibleForTesting
+  /// `Removable Media` from `diskutil info`. Null when the field is absent.
+  ///
+  /// diskutil pads its value column to the width of the longest label in the
+  /// block, so the column position moves between disks and between OS
+  /// versions. Match the field, not the layout.
+  @visibleForTesting
+  static bool? parseMacRemovable(String info) {
+    final match =
+        RegExp(r'Removable Media:\s*(\S+)', multiLine: true).firstMatch(info);
+    if (match == null) return null;
+    final value = match.group(1)!.toLowerCase();
+    if (value == 'removable') return true;
+    if (value == 'fixed') return false;
+    return null;
+  }
+
   static WindowsDiskProbe parseWindowsDiskProbe(int exitCode, String stdout) =>
       _parseWindowsDiskProbe(exitCode, stdout);
 
@@ -969,8 +985,7 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
         sizeBytes = int.tryParse(sizeMatch.group(1)!);
       }
 
-      final isRemovable = info.contains('Removable Media:') &&
-          info.contains('Removable Media:              Removable');
+      final isRemovable = parseMacRemovable(info) ?? false;
       final isSystemDisk = _isMacOSSystemDisk(info, diskPath);
 
       return {
