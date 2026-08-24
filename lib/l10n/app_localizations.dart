@@ -3296,6 +3296,54 @@ abstract class AppLocalizations {
   /// **'That ends the learning and the cards take effect.'**
   String get keycardStep3Desc;
 
+  /// No description provided for @keycardPanelHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Reader'**
+  String get keycardPanelHeading;
+
+  /// No description provided for @keycardReaderPreparing.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing'**
+  String get keycardReaderPreparing;
+
+  /// No description provided for @keycardReaderReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready'**
+  String get keycardReaderReady;
+
+  /// No description provided for @keycardReaderUnreachable.
+  ///
+  /// In en, this message translates to:
+  /// **'Reader not reachable'**
+  String get keycardReaderUnreachable;
+
+  /// No description provided for @keycardReaderScanning.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold a card to the reader'**
+  String get keycardReaderScanning;
+
+  /// No description provided for @keycardTaughtThisSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Taught in now'**
+  String get keycardTaughtThisSession;
+
+  /// No description provided for @keycardTaughtAlready.
+  ///
+  /// In en, this message translates to:
+  /// **'Already on the scooter'**
+  String get keycardTaughtAlready;
+
+  /// No description provided for @keycardNeedOneToFinish.
+  ///
+  /// In en, this message translates to:
+  /// **'One card is enough to finish.'**
+  String get keycardNeedOneToFinish;
+
   /// No description provided for @keycardPreparingReader.
   ///
   /// In en, this message translates to:

@@ -20,6 +20,7 @@ import '../models/download_state.dart';
 import '../models/install_plan.dart';
 import '../l10n/phase_l10n.dart';
 import '../models/installer_phase.dart';
+import '../models/keycard_capability.dart';
 import '../models/phase_attempt.dart';
 import '../models/resume_state.dart';
 import '../models/wait_plan.dart';
@@ -7598,11 +7599,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       debugPrint('UI: failed to disengage master-learning on entry: $e');
     }
 
-    final canMaster = await _keycardDetectCapability();
+    final capability = await _keycardDetectCapability();
     await _keycardRefreshCounts();
     if (!mounted) return;
 
     setState(() {
+      _keycardCapability = capability;
+      final canMaster = capability == KeycardCapability.current;
       _keycardServiceCanMaster = canMaster;
       if (canMaster &&
           (_keycardMasterCount > 0 || _keycardAuthorizedCount > 0)) {
@@ -7613,7 +7616,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     });
   }
 
-  bool get _canDriveKeycard => _sshService.isConnected || _isDryRun;
+  KeycardCapability? _keycardCapability;
+
+  /// A reader nobody answers for cannot enrol a card, so the buttons that
+  /// drive it are dead regardless of the link being up.
+  bool get _canDriveKeycard =>
+      (_sshService.isConnected &&
+          _keycardCapability != KeycardCapability.unreachable) ||
+      _isDryRun;
 
   /// Probe the keycard-service for new-command support by sending
   /// `learn:master:stop` and inspecting `keycard.command-result`. The new
@@ -7622,7 +7632,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// `error:unknown command`. We snapshot command-result before the probe so
   /// we can wait for it to actually change, instead of racing against an old
   /// stale value.
-  Future<bool> _keycardDetectCapability() async {
+  ///
+  /// Silence is its own answer. Nobody writing command-result at all means no
+  /// keycard-service is listening, which is not an old one: the reader sits on
+  /// the DBC panel, so a board with no dashboard reachable cannot enrol
+  /// anything. Reporting that as legacy sends the UI down a path that offers
+  /// teach-in on hardware that cannot do it.
+  Future<KeycardCapability> _keycardDetectCapability() async {
     try {
       final before = await _sshService.redisHget('keycard', 'command-result');
       await _sshService.redisLpush('scooter:keycard', 'learn:master:stop');
@@ -7635,16 +7651,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         final lower = result.toLowerCase();
         if (lower.startsWith('error:unknown')) {
           debugPrint('UI: keycard capability probe -> legacy ($result)');
-          return false;
+          return KeycardCapability.legacy;
         }
         debugPrint('UI: keycard capability probe -> new ($result)');
-        return true;
+        return KeycardCapability.current;
       }
-      debugPrint('UI: keycard capability probe timed out, assuming legacy');
+      debugPrint('UI: keycard capability probe: nobody answered');
     } catch (e) {
       debugPrint('UI: keycard capability probe failed: $e');
     }
-    return false;
+    return KeycardCapability.unreachable;
   }
 
   Future<void> _keycardRefreshCounts() async {
@@ -8015,20 +8031,41 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             Text(l10n.keycardWhy,
                 style: TextStyle(fontSize: 14, color: Colors.grey.shade300)),
             const SizedBox(height: 20),
-            InstructionStep(
-              number: 1,
-              title: l10n.keycardStep1,
-              description: l10n.keycardStep1Desc,
-            ),
-            InstructionStep(
-              number: 2,
-              title: l10n.keycardStep2,
-              description: l10n.keycardStep2Desc,
-            ),
-            InstructionStep(
-              number: 3,
-              title: l10n.keycardStep3,
-              description: l10n.keycardStep3Desc,
+            // Steps on the left, what is true right now on the right, the same
+            // shape the pairing screen uses. This step needs it more: it is the
+            // only one with a count, and that count is what enables Finish, so
+            // without somewhere to show it the user infers it from whether the
+            // button lit up.
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      InstructionStep(
+                        number: 1,
+                        title: l10n.keycardStep1,
+                        description: l10n.keycardStep1Desc,
+                      ),
+                      InstructionStep(
+                        number: 2,
+                        title: l10n.keycardStep2,
+                        description: l10n.keycardStep2Desc,
+                      ),
+                      InstructionStep(
+                        number: 3,
+                        title: l10n.keycardStep3,
+                        description: l10n.keycardStep3Desc,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 24),
+                Expanded(flex: 2, child: _keycardStatusPanel(l10n)),
+              ],
             ),
             const SizedBox(height: 12),
           ],
@@ -8191,6 +8228,82 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// taught in, which is the condition it depends on. Start becomes Stop while
   /// the reader is scanning, so ending a scan and ending the step are separate
   /// buttons rather than the same one under two names.
+  /// What is true right now: the reader, and the count that gates Finish.
+  Widget _keycardStatusPanel(AppLocalizations l10n) {
+    final scanning = _keycardLearning;
+    final preparing = _keycardStage == _KeycardStage.loading ||
+        _keycardStage == _KeycardStage.done;
+    final unreachable = _keycardCapability == KeycardCapability.unreachable;
+    final (state, colour) = switch ((preparing, unreachable, scanning)) {
+      (true, _, _) => (l10n.keycardReaderPreparing, Colors.grey.shade400),
+      // Nobody answered the capability probe, so there is no reader to hold a
+      // card to. Saying "Ready" here would be the panel's only lie.
+      (_, true, _) => (l10n.keycardReaderUnreachable, Colors.orange),
+      (_, _, true) => (l10n.keycardReaderScanning, Colors.amber),
+      _ => (l10n.keycardReaderReady, kAccent),
+    };
+    // Taps land as events before the count hash settles, so the session figure
+    // is what moves while a card is held to the reader.
+    final taught = _keycardSessionTapCount;
+    final already = _keycardAuthorizedCountBefore;
+
+    Widget line(String label, String value) => Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+              Text(value,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        );
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: colour.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colour.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 9,
+                height: 9,
+                decoration:
+                    BoxDecoration(shape: BoxShape.circle, color: colour),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  state,
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold, color: colour, fontSize: 14),
+                ),
+              ),
+            ],
+          ),
+          line(l10n.keycardTaughtThisSession, '$taught'),
+          if (already > 0) line(l10n.keycardTaughtAlready, '$already'),
+          if (taught == 0 && !unreachable) ...[
+            const SizedBox(height: 12),
+            Text(
+              l10n.keycardNeedOneToFinish,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   List<PhaseAction> _keycardCardsActions(AppLocalizations l10n) {
     // A tap this session counts even before the hash catches up: learn:stop
     // can take seconds to settle on a freshly flashed eMMC.
