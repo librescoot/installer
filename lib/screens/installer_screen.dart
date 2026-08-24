@@ -429,27 +429,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Future<void> _cleanupBeforeClose() async {
-    if (_btPairingActive) {
-      await _stopBluetoothPairing(advance: false);
-    }
-    if (_keycardLearning && !_isDryRun) {
-      try {
-        await _sshService.redisLpush('scooter:keycard', 'learn:stop');
-        debugPrint('UI: stopped keycard learning before close');
-      } catch (e) {
-        debugPrint('UI: failed to stop keycard learning before close: $e');
-      }
-    }
-    if (_keycardMasterLearning && !_isDryRun) {
-      try {
-        await _sshService.redisLpush(
-            'scooter:keycard', 'learn:master:stop');
-        debugPrint('UI: stopped master keycard learning before close');
-      } catch (e) {
-        debugPrint('UI: failed to stop master keycard learning before close: $e');
-      }
-    }
-    await _keycardTearDown();
+    await runBoundedCleanupActions([
+      if (_btPairingActive ||
+          _bleWhitelistDisabled ||
+          _pairingVehicleStateChanged)
+        () => _stopBluetoothPairing(advance: false),
+      if (_keycardLearning || _keycardMasterLearning)
+        _stopActiveKeycardModes,
+    ]);
+    await _keycardTearDown().timeout(const Duration(seconds: 2),
+        onTimeout: () {});
     _allowSleep();
   }
 
@@ -510,7 +499,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     _queueInstallPhaseRecord(phase);
     if (leaving == InstallerPhase.keycardSetup &&
         phase != InstallerPhase.keycardSetup) {
-      _keycardTearDown();
+      unawaited(_cleanupKeycardPhase());
     }
     if (phase == InstallerPhase.cbbReconnect) {
       _cbbPollAbandoned = false;
@@ -6214,6 +6203,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// Vehicle state as it stood before the pairing window forced `parked`,
   /// restored when the window closes.
   String? _stateBeforePairing;
+  bool _pairingVehicleStateChanged = false;
+  bool _bleWhitelistDisabled = false;
 
   Future<void> _startBluetoothPairing() async {
     try {
@@ -6221,11 +6212,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // parked; in stand-by it leaves the request unanswered and the peer
       // manager refuses. The install runs with the scooter locked, so the
       // window is opened here and closed again in _stopBluetoothPairing.
-      if (!_isDryRun) {
+      if (!_isDryRun && !_pairingVehicleStateChanged) {
         try {
           _stateBeforePairing = await _sshService.getVehicleState();
           if (_stateBeforePairing != 'parked') {
             await _sshService.forceVehicleState('parked');
+            _pairingVehicleStateChanged = true;
             debugPrint('UI: vehicle state -> parked for the pairing window '
                 '(was $_stateBeforePairing)');
           }
@@ -6241,6 +6233,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // scooter pairs and its state is never touched.
       await _sshService.redisLpush(
           'scooter:bluetooth', 'advertising-restart-no-whitelisting');
+      _bleWhitelistDisabled = true;
       debugPrint('UI: BLE advertising restarted without whitelisting');
       _startBleAdvRearm();
       setState(() {
@@ -6311,32 +6304,48 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     });
   }
 
+  Future<void> _restoreBluetoothWhitelist() async {
+    if (!_bleWhitelistDisabled) return;
+    try {
+      await _sshService.redisLpush(
+          'scooter:bluetooth', 'advertising-start-with-whitelisting');
+      _bleWhitelistDisabled = false;
+      debugPrint('UI: BLE advertising restored to whitelisting');
+    } catch (e) {
+      debugPrint('UI: failed to restore BLE whitelisting: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _restorePairingVehicleState() async {
+    if (!_pairingVehicleStateChanged || _isDryRun) return;
+    final before = _stateBeforePairing;
+    if (before == null || before == 'parked') {
+      _pairingVehicleStateChanged = false;
+      _stateBeforePairing = null;
+      return;
+    }
+    try {
+      await _sshService.forceVehicleState(before);
+      _pairingVehicleStateChanged = false;
+      _stateBeforePairing = null;
+      debugPrint('UI: vehicle state restored to $before after pairing');
+    } catch (e) {
+      debugPrint('UI: could not restore vehicle state (ok): $e');
+      rethrow;
+    }
+  }
+
   Future<void> _stopBluetoothPairing({bool advance = true}) async {
     _blePinPollTimer?.cancel();
     _blePinPollTimer = null;
     _bleAdvRearmTimer?.cancel();
     _bleAdvRearmTimer = null;
-    try {
-      // Put the whitelist back. Leaving the radio open to anything is not a
-      // state to hand a vehicle back in, and the device just bonded is on the
-      // whitelist, so it keeps working.
-      await _sshService.redisLpush(
-          'scooter:bluetooth', 'advertising-start-with-whitelisting');
-      debugPrint('UI: BLE advertising restored to whitelisting');
-    } catch (e) {
-      debugPrint('UI: failed to restore BLE whitelisting: $e');
-    }
-    // Hand the key back to vehicle-service.
-    final before = _stateBeforePairing;
-    _stateBeforePairing = null;
-    if (before != null && before != 'parked' && !_isDryRun) {
-      try {
-        await _sshService.forceVehicleState(before);
-        debugPrint('UI: vehicle state restored to $before after pairing');
-      } catch (e) {
-        debugPrint('UI: could not restore vehicle state (ok): $e');
-      }
-    }
+    await runBoundedCleanupActions([
+      if (_bleWhitelistDisabled) _restoreBluetoothWhitelist,
+      if (_pairingVehicleStateChanged) _restorePairingVehicleState,
+    ]);
+    if (!_pairingVehicleStateChanged) _stateBeforePairing = null;
     if (!mounted) return;
     setState(() {
       _btPairingActive = false;
@@ -6556,6 +6565,34 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
     await _keycardEventsSub?.cancel();
     _keycardEventsSub = null;
+  }
+
+  Future<void> _stopActiveKeycardModes() async {
+    if (_isDryRun) {
+      _keycardLearning = false;
+      _keycardMasterLearning = false;
+      return;
+    }
+    await runBoundedCleanupActions([
+      if (_keycardLearning)
+        () async {
+          await _sshService.redisLpush('scooter:keycard', 'learn:stop');
+          _keycardLearning = false;
+          debugPrint('UI: stopped keycard learning during cleanup');
+        },
+      if (_keycardMasterLearning)
+        () async {
+          await _sshService.redisLpush(
+              'scooter:keycard', 'learn:master:stop');
+          _keycardMasterLearning = false;
+          debugPrint('UI: stopped master keycard learning during cleanup');
+        },
+    ]);
+  }
+
+  Future<void> _cleanupKeycardPhase() async {
+    await _stopActiveKeycardModes();
+    await _keycardTearDown();
   }
 
   Future<void> _startKeycardLearning() async {

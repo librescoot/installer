@@ -2,6 +2,19 @@ import 'dart:async';
 
 typedef AsyncAction = Future<void> Function();
 
+Future<void> runBoundedCleanupActions(
+  Iterable<AsyncAction> actions, {
+  Duration actionTimeout = const Duration(seconds: 3),
+}) async {
+  await Future.wait(
+    actions.map((action) async {
+      try {
+        await action().timeout(actionTimeout);
+      } catch (_) {}
+    }),
+  );
+}
+
 class WindowCloseCoordinator {
   WindowCloseCoordinator({this.cleanupTimeout = const Duration(seconds: 8)});
 

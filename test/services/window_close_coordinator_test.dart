@@ -106,4 +106,34 @@ void main() {
       expect(closeCalls, 1);
     });
   });
+
+  group('runBoundedCleanupActions', () {
+    test('attempts every active cleanup even when one hangs', () async {
+      final hanging = Completer<void>();
+      var secondCalls = 0;
+
+      await runBoundedCleanupActions(
+        [
+          () => hanging.future,
+          () async => secondCalls++,
+        ],
+        actionTimeout: const Duration(milliseconds: 1),
+      );
+
+      expect(secondCalls, 1);
+    });
+
+    test('contains individual cleanup failures', () async {
+      var secondCalls = 0;
+
+      await runBoundedCleanupActions(
+        [
+          () async => throw StateError('SSH dropped'),
+          () async => secondCalls++,
+        ],
+      );
+
+      expect(secondCalls, 1);
+    });
+  });
 }
