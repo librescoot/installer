@@ -43,3 +43,14 @@ class BoardState {
     provenance: StateProvenance.unknown,
   );
 }
+
+/// Whether a board should be treated as still running a bootstrap image.
+///
+/// The artifact name is the authority: a stage-0 image carries "minimal" in
+/// it. The service-stack probe only overrules that when it actually answered,
+/// because a board that could not be asked is not a board that said no.
+bool looksLikeBootstrapImage({
+  required String? artifactName,
+  required bool? hasServiceStack,
+}) =>
+    (artifactName ?? '').contains('minimal') || hasServiceStack == false;

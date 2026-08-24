@@ -458,6 +458,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   Future<void> _cleanupBeforeClose() async {
     await runBoundedCleanupActions([
+      DriverService.restoreAutoPlay,
       if (_btPairingActive ||
           _bleWhitelistDisabled ||
           _pairingVehicleStateChanged)
@@ -2457,7 +2458,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // wedging the installer. Detect that here and route straight to the
       // health screen (which shows a recovery banner) and on to re-flashing
       // the full firmware, bypassing every redis-backed step.
-      if (!await _sshService.hasRedisStack()) {
+      if (await _sshService.hasFullServiceStack() == false) {
         debugPrint(
           'SSH: MDB has no redis stack (bootstrap or incomplete image)',
         );
@@ -3060,8 +3061,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // artifact's reboot that field still holds the answer the stage-0 board
     // gave before the install, which would make every clean install look as
     // if it had never left the bootstrap image.
-    final hasStack = await _sshService.hasRedisStack();
-    final minimal = (artifact ?? '').contains('minimal') || !hasStack;
+    final hasStack = await _sshService.hasFullServiceStack();
+    final minimal = looksLikeBootstrapImage(
+      artifactName: artifact,
+      hasServiceStack: hasStack,
+    );
 
     return BoardState(
       board: Board.mdb,
@@ -3596,6 +3600,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _setPhase(InstallerPhase.mdbFlash);
       return;
     }
+    var autoPlayHandedToFlash = false;
     try {
       // Turn the main pack off before the board goes away. The UMS reboot
       // deactivates it either way, but only by the pack noticing the MDB has
@@ -3641,6 +3646,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         timeout: const Duration(seconds: 60),
       );
       if (found) {
+        autoPlayHandedToFlash = true;
         _setPhase(InstallerPhase.mdbFlash);
         return;
       }
@@ -3649,6 +3655,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _setStatus(l10n.umsNotDetectedTimeout);
     } catch (e) {
       _setStatus('Error: $e');
+    } finally {
+      if (!autoPlayHandedToFlash) {
+        await DriverService.restoreAutoPlay();
+      }
     }
     setState(() {
       _isProcessing = false;
@@ -3865,6 +3875,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       }
     }
 
+    await DriverService.suppressAutoPlay();
     try {
       bool mdbDownloadsReady() {
         final image = _downloadState.itemOfType(DownloadItemType.mdbFirmware);
@@ -3974,8 +3985,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       );
 
       criticalOperation.release();
-      // Restore Windows AutoPlay after flashing
-      await DriverService.restoreAutoPlay();
       _setStatus(l10n.mdbFlashComplete);
       await Future.delayed(const Duration(seconds: 1));
       _setPhase(InstallerPhase.scooterPrep);
@@ -3985,7 +3994,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       debugPrint('Flash ERROR: $e');
       debugPrint('Flash STACKTRACE: $stackTrace');
       criticalOperation.release();
-      await DriverService.restoreAutoPlay();
 
       final errText = e.toString();
       final downloadFailure = e is DownloadWaitFailure;
@@ -4060,7 +4068,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       }
       setState(() => _mdbFlashStarted = false);
     } finally {
-      criticalOperation.release();
+      try {
+        await DriverService.restoreAutoPlay();
+      } finally {
+        criticalOperation.release();
+      }
     }
   }
 
@@ -4694,7 +4706,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         ],
       ],
       child: ArtifactProgressPanel(
-        status: staging ? l10n.artifactStagingInBackground : _statusMessage,
+        // A blank line for the whole install reads as a screen that has
+        // stopped. Until a step reports in, say what is happening.
+        status: staging
+            ? l10n.artifactStagingInBackground
+            : (_statusMessage.isEmpty ? l10n.artifactStaging : _statusMessage),
         progress: staging ? _mdbStageProgress : _progress,
         error: error,
       ),
@@ -7528,15 +7544,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           style: TextStyle(fontSize: 13, color: Colors.grey.shade300),
         ),
         const SizedBox(height: 16),
-        if (!_keycardLearning && _keycardAuthorizedCount == 0)
-          Center(
-            child: OutlinedButton.icon(
-              onPressed: _canDriveKeycard ? _startKeycardLearning : null,
-              icon: const Icon(Icons.nfc, size: 18),
-              label: Text(l10n.keycardStartLearning),
-            ),
-          )
-        else ...[
+        // Nothing to show before the first card: the action bar already
+        // carries Start, and having it here too made one screen ask twice.
+        if (_keycardLearning || _keycardAuthorizedCount > 0) ...[
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
