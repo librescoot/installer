@@ -15,33 +15,6 @@ import 'font_harness.dart';
 void main() {
   setUpAll(loadRealFonts);
 
-  List<DropdownMenuItem<Region>> items(List<Region> regions) {
-    final out = <DropdownMenuItem<Region>>[];
-    String? country;
-    for (final r in regions) {
-      if (r.country != country) {
-        country = r.country;
-        out.add(DropdownMenuItem<Region>(
-          enabled: false,
-          value: Region(name: r.country, slug: '__c__${r.country}'),
-          child: Text(r.country,
-              style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey.shade600)),
-        ));
-      }
-      out.add(DropdownMenuItem<Region>(
-        value: r,
-        child: Padding(
-          padding: const EdgeInsets.only(left: 12),
-          child: Text(r.name),
-        ),
-      ));
-    }
-    return out;
-  }
-
   testWidgets('the region menu, open', (tester) async {
     tester.view.physicalSize = const Size(982, 800);
     tester.view.devicePixelRatio = 1.0;
@@ -82,19 +55,7 @@ void main() {
     }
 
     await tester.pumpWidget(MaterialApp(
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: kAccent,
-          brightness: Brightness.dark,
-        ).copyWith(
-          primary: kAccent,
-          onPrimary: kOnAccent,
-          surface: kBgPrimary,
-          onSurface: kTextPrimary,
-        ),
-        scaffoldBackgroundColor: kBgPrimary,
-        useMaterial3: true,
-      ),
+      theme: librescootTheme(),
       home: Scaffold(
         body: PhaseLayout(
           title: 'Willkommen beim Librescoot Installer',
@@ -116,30 +77,6 @@ void main() {
                     size: 20, color: Colors.grey.shade400),
                 enableFilter: false,
                 requestFocusOnTap: false,
-                inputDecorationTheme: InputDecorationTheme(
-                  filled: true,
-                  fillColor: kBgSidebar,
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide:
-                        BorderSide(color: Colors.white.withValues(alpha: 0.22)),
-                  ),
-                ),
-                menuStyle: MenuStyle(
-                  backgroundColor: const WidgetStatePropertyAll(kBgSidebar),
-                  surfaceTintColor:
-                      const WidgetStatePropertyAll(Colors.transparent),
-                  elevation: const WidgetStatePropertyAll(12),
-                  shape: WidgetStatePropertyAll(
-                    RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.22)),
-                    ),
-                  ),
-                  padding: const WidgetStatePropertyAll(
-                      EdgeInsets.symmetric(vertical: 6)),
-                ),
                 dropdownMenuEntries: entries(),
                 onSelected: (_) {},
               ),

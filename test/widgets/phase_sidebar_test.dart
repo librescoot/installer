@@ -18,20 +18,8 @@ void main() {
   // font the app never uses, and this file is all about widths.
   setUpAll(loadRealFonts);
 
-  /// The app's own theme. With the default one the buttons come out half as
-  /// wide again, which is enough to make this test report an overflow the app
-  /// does not have.
-  ThemeData appTheme() => ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: kAccent,
-          brightness: Brightness.dark,
-        ).copyWith(surface: kBgPrimary, onSurface: kTextPrimary),
-        scaffoldBackgroundColor: kBgPrimary,
-        useMaterial3: true,
-      );
-
   Widget host(Widget child, {Locale locale = const Locale('de')}) => MaterialApp(
-        theme: appTheme(),
+        theme: librescootTheme(),
         locale: locale,
         localizationsDelegates: const [
           AppLocalizations.delegate,

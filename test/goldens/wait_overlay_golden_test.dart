@@ -26,7 +26,7 @@ void main() {
           GlobalCupertinoLocalizations.delegate,
         ],
         supportedLocales: AppLocalizations.supportedLocales,
-        theme: ThemeData.dark().copyWith(scaffoldBackgroundColor: kBgPrimary),
+        theme: librescootTheme(),
         home: Scaffold(body: child),
       );
 
