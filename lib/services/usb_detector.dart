@@ -114,6 +114,8 @@ class UsbDetector {
   final _deviceController = StreamController<UsbDevice?>.broadcast();
   Timer? _pollingTimer;
   UsbDevice? _lastDevice;
+  bool _pollInFlight = false;
+  int _pollGeneration = 0;
   Map<String, dynamic>? _macDiskInfoCache;
   bool _macDiskProbeInFlight = false;
   int _macDiskProbeAttempts = 0;
@@ -135,6 +137,15 @@ class UsbDetector {
     return null;
   }
 
+  /// How long a single poll may take before its result is abandoned.
+  ///
+  /// Nothing under detectDevice() bounds its own subprocesses, and a wedged
+  /// diskutil or PowerShell would otherwise hold the in-flight guard forever
+  /// and stop detection for good. Generous on purpose: a cold Windows host
+  /// legitimately spends several seconds in its PnP queries, and cutting a
+  /// working probe short is worse than waiting for it.
+  static const Duration pollTimeout = Duration(seconds: 30);
+
   /// Start monitoring for USB devices
   void startMonitoring({Duration interval = const Duration(seconds: 1)}) {
     stopMonitoring();
@@ -143,14 +154,36 @@ class UsbDetector {
   }
 
   /// Stop monitoring
+  ///
+  /// Bumps the generation so that a poll already in flight can no longer
+  /// write state or emit when it lands. Callers stop monitoring precisely
+  /// when they need USB left alone, and a late result arriving in the middle
+  /// of a flash carries a pre-flash view of a device that is re-enumerating.
   void stopMonitoring() {
     _pollingTimer?.cancel();
     _pollingTimer = null;
+    _pollGeneration++;
+    // Release the guard as well. Whatever is still running out there is now
+    // orphaned by the generation bump and can no longer touch anything, so
+    // holding the guard for it would only delay the first poll after a
+    // restart by however long the orphan takes to finish.
+    _pollInFlight = false;
   }
 
   Future<void> _poll() async {
+    // A tick that arrives while a poll is still running is dropped rather
+    // than stacking another set of subprocesses on top of it.
+    if (_pollInFlight) return;
+    _pollInFlight = true;
+    final generation = _pollGeneration;
     try {
-      final device = await detectDevice();
+      final device = await detectDevice().timeout(pollTimeout);
+      // Superseded while we were away by a stop, or by the stop inside a
+      // restart. This answer describes a device state nobody is waiting for
+      // any more, and applying it would undo whatever replaced it. A poll
+      // that runs past pollTimeout never reaches here at all: the await
+      // throws and its late result is simply dropped.
+      if (generation != _pollGeneration) return;
       final changed = device?.id != _lastDevice?.id ||
           device?.mode != _lastDevice?.mode ||
           device?.path != _lastDevice?.path ||
@@ -173,6 +206,8 @@ class UsbDetector {
       }
     } catch (e) {
       // Ignore polling errors, will retry next interval.
+    } finally {
+      _pollInFlight = false;
     }
   }
 
