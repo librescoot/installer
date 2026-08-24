@@ -102,10 +102,13 @@ void main() {
     expect(result.errors.join('; '), contains('has failed'));
   });
 
-  test('a host reporting usable rather than raw capacity still passes', () {
+  test('a cylinder-truncated size still passes', () {
+    // Windows reports a geometry product rounded down to whole cylinders, so
+    // it reads up to one cylinder below the raw count. 255x63x512 is 8225280
+    // bytes; the tolerance has to clear it.
     final result = flash.validateDevice(
       devicePath: _goodPath,
-      sizeBytes: FlashService.mdbEmmcBytes - 8 * 1024 * 1024,
+      sizeBytes: FlashService.mdbEmmcBytes - 8225280,
       isRemovable: true,
       isSystemDisk: false,
       vendorId: 0x0525,
