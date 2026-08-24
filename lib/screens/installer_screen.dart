@@ -4746,12 +4746,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   Future<void> _waitForMdbBoot(int generation) async {
     final l10n = AppLocalizations.of(context)!;
-    // The board is off for most of this; a minute and a half is normal, and
-    // saying so is the difference between waiting and reaching for the cable.
+    // The board is off for most of this; two minutes is normal, and saying so
+    // is the difference between waiting and reaching for the cable. Measured
+    // on a healthy board: gadget back on the bus at +10s, network up at
+    // ~+114s, ten stable pings at ~+132s. A typical under that marks every
+    // good boot as running long, which is how an overdue mark stops meaning
+    // anything.
     _beginWait([
       WaitStep(
           label: l10n.waitingStableConnection,
-          typical: const Duration(seconds: 90)),
+          typical: const Duration(seconds: 135)),
       WaitStep(
           label: l10n.reconnectingSsh, typical: const Duration(seconds: 25)),
     ]);

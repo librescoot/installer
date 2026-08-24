@@ -25,14 +25,17 @@ class HealthCheckPanel extends StatelessWidget {
           // noise when there is no number to compare against it.
           _row(
             l10n.auxBatteryCharge,
-            health.auxCharge == null
-                ? l10n.healthValueUnknown
-                : health.auxVoltageMv == null
-                    ? '${health.auxCharge}%'
-                    // Charge is quantised to 25% steps by the firmware, so the
-                    // volts carry what decides whether a tired pack lasts an
-                    // install. Beside it, being the same reading.
-                    : '${health.auxCharge}%  ${l10n.healthAuxVoltage(health.auxVoltageMv!)}',
+            // Charge is quantised to 25% steps by the firmware, so the volts
+            // carry what decides whether a tired pack lasts an install. The
+            // bootstrap image publishes voltage and no charge at all, so the
+            // volts also stand alone: a reading we have is worth more than the
+            // word for one we do not.
+            switch ((health.auxCharge, health.auxVoltageMv)) {
+              (final c?, final mv?) => '$c%  ${l10n.healthAuxVoltage(mv)}',
+              (final c?, null) => '$c%',
+              (null, final mv?) => l10n.healthAuxVoltage(mv),
+              (null, null) => l10n.healthValueUnknown,
+            },
             health.auxCharge == null ? '' : '\u2265 50%',
             health.auxChargeOk,
           ),
