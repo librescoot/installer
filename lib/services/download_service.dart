@@ -359,31 +359,80 @@ class DownloadService {
     final cacheFile = File(p.join(cacheDir.path, '$cacheKey-latest.json'));
     final manifestUrl = '$_manifestBase/${repo.split('/').last}.json';
 
-    // Try disk cache first
+    // Try disk cache first. A cache we cannot read counts as no cache, even
+    // while it is fresh: the alternative is throwing here, above the fetch,
+    // which leaves every later call doing the same thing until the mtime ages
+    // out and nothing ever replaces the bad file.
     if (await cacheFile.exists()) {
       final age = DateTime.now().difference(await cacheFile.lastModified());
       if (age.inHours < 1) {
-        return _assetsFromCache(await cacheFile.readAsString());
+        final cached = await _readCachedAssets(cacheFile);
+        if (cached != null) return cached;
       }
     }
 
     try {
       final response = await _client.get(Uri.parse(manifestUrl));
       if (response.statusCode != 200) {
-        // Fall back to stale cache
-        if (await cacheFile.exists()) {
-          return _assetsFromCache(await cacheFile.readAsString());
-        }
+        final cached = await _readCachedAssets(cacheFile);
+        if (cached != null) return cached;
         throw Exception('manifest error for $repo: ${response.statusCode}');
       }
-      await cacheFile.writeAsString(response.body);
-      return (jsonDecode(response.body) as List).cast<Map<String, dynamic>>();
+      // Parsed before it is stored, so a body we cannot understand never
+      // becomes tomorrow's unreadable cache.
+      final assets = _assetsFromCache(response.body);
+      await _writeCache(cacheFile, response.body);
+      return assets;
     } catch (e) {
-      // Fall back to stale cache on any network error
-      if (await cacheFile.exists()) {
-        return _assetsFromCache(await cacheFile.readAsString());
-      }
+      // Fall back to stale cache on any network error, but only a cache that
+      // still parses. A broken one here would replace the real failure with a
+      // parse error and hide what actually went wrong.
+      final cached = await _readCachedAssets(cacheFile);
+      if (cached != null) return cached;
       rethrow;
+    }
+  }
+
+  /// Read a cached asset listing, or null when the file is missing or cannot
+  /// be understood.
+  ///
+  /// Catches broadly on purpose. A truncated file throws FormatException, but
+  /// a well-formed document of the wrong shape throws a cast error instead:
+  /// _assetsFromCache does `decoded as Map<String, dynamic>` and then
+  /// `['assets'] as List`, so an object without that key never reaches a
+  /// JSON-specific exception at all.
+  static Future<List<Map<String, dynamic>>?> _readCachedAssets(
+    File cacheFile,
+  ) async {
+    try {
+      if (!await cacheFile.exists()) return null;
+      return _assetsFromCache(await cacheFile.readAsString());
+    } catch (e) {
+      debugPrint('Download: ignoring unreadable manifest cache '
+          '${cacheFile.path}: $e');
+      return null;
+    }
+  }
+
+  /// Replace the cache in one step.
+  ///
+  /// writeAsString truncates first, so a run that dies mid-write leaves a
+  /// short file wearing a fresh timestamp, which is exactly the state that
+  /// used to wedge this for an hour. Writing beside it and renaming means the
+  /// cache is either the old listing or the new one. File.rename removes an
+  /// existing file at the destination, on every platform this ships to.
+  static Future<void> _writeCache(File cacheFile, String body) async {
+    final staging = File('${cacheFile.path}.part');
+    try {
+      await staging.writeAsString(body, flush: true);
+      await staging.rename(cacheFile.path);
+    } catch (e) {
+      debugPrint('Download: could not store manifest cache: $e');
+      if (await staging.exists()) {
+        try {
+          await staging.delete();
+        } catch (_) {}
+      }
     }
   }
 

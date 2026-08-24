@@ -132,6 +132,135 @@ void main() {
       expect(assets.single['url'], contains('tiles-20260812T162557Z'));
     });
 
+    group('tile manifest cache', () {
+      const repo = 'librescoot/osm-tiles';
+      const manifestUrl =
+          'https://downloads.librescoot.org/releases/osm-tiles.json';
+      final good = jsonEncode([
+        {
+          'name': 'tiles_berlin_brandenburg.mbtiles',
+          'size': 208076800,
+          'url': 'https://example.com/tiles_berlin_brandenburg.mbtiles',
+        },
+      ]);
+
+      late File cacheFile;
+
+      setUp(() async {
+        final dir = await DownloadService.getCacheDir();
+        cacheFile = File(p.join(dir.path, 'librescoot_osm-tiles-latest.json'));
+        if (await cacheFile.exists()) await cacheFile.delete();
+        final staging = File('${cacheFile.path}.part');
+        if (await staging.exists()) await staging.delete();
+      });
+
+      /// Serves [body] with [status], and records that it was asked.
+      DownloadService serving(
+        String body, {
+        int status = 200,
+        required List<String> requested,
+      }) => DownloadService(
+        client: http_testing.MockClient((request) async {
+          requested.add(request.url.toString());
+          return http.Response(body, status);
+        }),
+      );
+
+      test('a truncated but fresh cache is refetched, not thrown', () async {
+        // Half a JSON document, written moments ago: what an interrupted
+        // write leaves behind.
+        await cacheFile.writeAsString('[{"name": "tiles_berlin');
+        final requested = <String>[];
+        final service = serving(good, requested: requested);
+
+        final assets = await service.resolveTileAssets(repo, 'tiles_');
+
+        expect(requested.single, manifestUrl);
+        expect(assets.single['name'], 'tiles_berlin_brandenburg.mbtiles');
+      });
+
+      test('the repaired cache is what the next call reads', () async {
+        await cacheFile.writeAsString('[{"name": "tiles_berlin');
+        final requested = <String>[];
+        final service = serving(good, requested: requested);
+
+        await service.resolveTileAssets(repo, 'tiles_');
+        final second = await service.resolveTileAssets(repo, 'tiles_');
+
+        expect(requested, hasLength(1), reason: 'cache was not repaired');
+        expect(second.single['name'], 'tiles_berlin_brandenburg.mbtiles');
+      });
+
+      test('a fresh cache of the wrong shape is refetched', () async {
+        // Valid JSON, no assets key: throws a cast error rather than a
+        // FormatException, so catching only the latter would miss it.
+        await cacheFile.writeAsString(jsonEncode({'tag_name': 'v1'}));
+        final requested = <String>[];
+        final service = serving(good, requested: requested);
+
+        final assets = await service.resolveTileAssets(repo, 'tiles_');
+
+        expect(requested.single, manifestUrl);
+        expect(assets.single['name'], 'tiles_berlin_brandenburg.mbtiles');
+      });
+
+      test('a valid stale cache still serves a failing network', () async {
+        await cacheFile.writeAsString(good);
+        await cacheFile.setLastModified(
+          DateTime.now().subtract(const Duration(hours: 4)),
+        );
+        final requested = <String>[];
+        final service = serving('nope', status: 500, requested: requested);
+
+        final assets = await service.resolveTileAssets(repo, 'tiles_');
+
+        expect(requested, hasLength(1));
+        expect(assets.single['name'], 'tiles_berlin_brandenburg.mbtiles');
+      });
+
+      test('a broken stale cache surfaces the network failure', () async {
+        await cacheFile.writeAsString('{ truncated');
+        await cacheFile.setLastModified(
+          DateTime.now().subtract(const Duration(hours: 4)),
+        );
+        final service = serving('nope', status: 500, requested: <String>[]);
+
+        // The manifest error, not a parse error standing in for it.
+        await expectLater(
+          service.resolveTileAssets(repo, 'tiles_'),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('manifest error'),
+            ),
+          ),
+        );
+      });
+
+      test('an unparseable response is never cached', () async {
+        final service = serving(
+          '<html>504 gateway</html>',
+          requested: <String>[],
+        );
+
+        await expectLater(
+          service.resolveTileAssets(repo, 'tiles_'),
+          throwsA(anything),
+        );
+        expect(await cacheFile.exists(), isFalse);
+      });
+
+      test('a good fetch leaves no staging file behind', () async {
+        final service = serving(good, requested: <String>[]);
+
+        await service.resolveTileAssets(repo, 'tiles_');
+
+        expect(await cacheFile.exists(), isTrue);
+        expect(await File('${cacheFile.path}.part').exists(), isFalse);
+      });
+    });
+
     test('resolveRelease throws when the channel is absent', () async {
       final service = DownloadService(
         client: _manifestClient({
