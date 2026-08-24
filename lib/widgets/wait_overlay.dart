@@ -61,6 +61,20 @@ class WaitOverlay extends StatefulWidget {
   State<WaitOverlay> createState() => _WaitOverlayState();
 }
 
+/// Time left on a step from how long it has run and how far it has got.
+///
+/// Null until the fraction is large enough to divide by without the answer
+/// being noise, and null for a fraction that reports complete. The work
+/// reports the fraction already, so this needs nothing plumbed through it.
+@visibleForTesting
+Duration? estimateRemaining(Duration elapsed, double? progress) {
+  if (progress == null || progress <= 0.02 || progress >= 1.0) return null;
+  if (elapsed.inMilliseconds <= 0) return null;
+  final remainingMs = elapsed.inMilliseconds * (1 - progress) / progress;
+  if (!remainingMs.isFinite || remainingMs < 0) return null;
+  return Duration(milliseconds: remainingMs.round());
+}
+
 class _WaitOverlayState extends State<WaitOverlay> {
   Timer? _tick;
   bool _logOpen = false;
@@ -149,6 +163,7 @@ class _WaitOverlayState extends State<WaitOverlay> {
                       ? WaitStepState.active
                       : WaitStepState.todo,
               elapsed: stepElapsed,
+              remaining: estimateRemaining(stepElapsed, widget.progress),
               overdue: overdue,
               l10n: l10n,
             ),
@@ -253,6 +268,7 @@ class _WaitOverlayState extends State<WaitOverlay> {
     required Duration elapsed,
     required bool overdue,
     required AppLocalizations l10n,
+    Duration? remaining,
   }) {
     final Color colour = switch (state) {
       WaitStepState.done => Colors.grey.shade500,
@@ -277,10 +293,13 @@ class _WaitOverlayState extends State<WaitOverlay> {
 
     final String timing = switch (state) {
       WaitStepState.done => '',
+      // A measured estimate beats the plan's guess once the work reports
+      // enough progress to compute one, so it replaces the typical rather
+      // than sitting beside it.
       WaitStepState.active => overdue
           ? l10n.waitLongerThanUsual(_WaitOverlayState.formatDuration(elapsed))
           : '${_WaitOverlayState.formatDuration(elapsed)} / '
-              '${_WaitOverlayState.formatTypical(step.typical)}',
+              '${remaining == null ? _WaitOverlayState.formatTypical(step.typical) : l10n.waitRemaining(_WaitOverlayState.formatDuration(remaining))}',
       WaitStepState.todo => _WaitOverlayState.formatTypical(step.typical),
     };
 

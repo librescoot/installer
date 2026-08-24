@@ -1811,6 +1811,11 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String waitRemaining(String duration) {
+    return 'noch etwa $duration';
+  }
+
+  @override
   String waitElapsed(String time) {
     return '$time vergangen';
   }

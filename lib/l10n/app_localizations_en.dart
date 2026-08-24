@@ -1790,6 +1790,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String waitRemaining(String duration) {
+    return 'about $duration left';
+  }
+
+  @override
   String waitElapsed(String time) {
     return '$time elapsed';
   }

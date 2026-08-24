@@ -674,6 +674,8 @@
   },
   "keycardFinishCards": "Fertig",
   "waitStepCounter": "Schritt {current} von {total}",
+  "waitRemaining": "noch etwa {duration}",
+  "@waitRemaining": { "placeholders": { "duration": { "type": "String" } } },
   "@waitStepCounter": {
     "placeholders": {
       "current": {

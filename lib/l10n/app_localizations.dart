@@ -3158,6 +3158,12 @@ abstract class AppLocalizations {
   /// **'Step {current} of {total}'**
   String waitStepCounter(int current, int total);
 
+  /// No description provided for @waitRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'about {duration} left'**
+  String waitRemaining(String duration);
+
   /// No description provided for @waitElapsed.
   ///
   /// In en, this message translates to:

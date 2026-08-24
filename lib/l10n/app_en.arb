@@ -820,6 +820,8 @@
   },
   "keycardFinishCards": "Finish",
   "waitStepCounter": "Step {current} of {total}",
+  "waitRemaining": "about {duration} left",
+  "@waitRemaining": { "placeholders": { "duration": { "type": "String" } } },
   "@waitStepCounter": {
     "placeholders": {
       "current": {
