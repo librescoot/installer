@@ -42,6 +42,7 @@ import '../widgets/phase_layout.dart';
 import '../widgets/phase_sidebar.dart';
 import '../widgets/substep_list.dart';
 import '../widgets/wait_overlay.dart';
+import '../widgets/wait_scaffold.dart';
 import '../theme.dart';
 
 class InstallerScreen extends StatefulWidget {
@@ -1202,7 +1203,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                                   // not yet moved over keep the old behaviour:
                                   // one scroll for the whole screen.
                                   final content = _buildPhaseContent(l10n);
-                                  if (content is PhaseLayout) return content;
+                                  if (content is PhaseLayout ||
+                                      content is WaitScaffold) {
+                                    return content;
+                                  }
                                   return Scrollbar(
                                     controller: _phaseScrollController,
                                     thumbVisibility: true,
@@ -1343,32 +1347,19 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     double? progress,
     List<Widget> actions = const [],
   }) {
-    final backdrop = _frozenBackdrop;
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        if (backdrop != null)
-          IgnorePointer(child: ExcludeSemantics(child: backdrop)),
-        Container(color: kBgPrimary.withValues(alpha: 0.74)),
-        Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: SingleChildScrollView(
-              child: WaitOverlay(
-                title: title,
-                steps: _waitSteps,
-                currentStep: _waitStep,
-                startedAt: _waitStartedAt ?? DateTime.now(),
-                stepStartedAt: _waitStepStartedAt,
-                progress: progress,
-                warning: warning,
-                logTail: _waitLog,
-                actions: actions,
-              ),
-            ),
-          ),
-        ),
-      ],
+    return WaitScaffold(
+      backdrop: _frozenBackdrop,
+      overlay: WaitOverlay(
+        title: title,
+        steps: _waitSteps,
+        currentStep: _waitStep,
+        startedAt: _waitStartedAt ?? DateTime.now(),
+        stepStartedAt: _waitStepStartedAt,
+        progress: progress,
+        warning: warning,
+        logTail: _waitLog,
+        actions: actions,
+      ),
     );
   }
 
