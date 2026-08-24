@@ -804,6 +804,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // Read before the first await: reaching for the context after one is how
     // a disposed widget turns a best-effort settings write into a crash.
     final lang = Localizations.localeOf(context).languageCode;
+    final handoverL10n = AppLocalizations.of(context)!;
 
     if (_isDryRun || !_sshService.isConnected) {
       // Dry-run / no SSH: nothing to hand over, render the success screen
@@ -913,6 +914,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     //    returns, so the drop is all we get.
     //
     // 60s cap so a stuck handover doesn't trap the user on the wait screen.
+    // The wait is one step with a real deadline, so the overlay can say how
+    // long it has been and whether that is normal, rather than showing a bare
+    // spinner on the last screen of the install.
+    _beginWait([
+      WaitStep(
+          label: handoverL10n.finishHandoverTitle,
+          typical: const Duration(seconds: 20)),
+    ]);
+    _setStatus(handoverL10n.finishHandoverTitle);
     final deadline = DateTime.now().add(const Duration(seconds: 60));
     while (DateTime.now().isBefore(deadline)) {
       await Future.delayed(const Duration(seconds: 1));
@@ -5567,6 +5577,21 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // proven itself, u-boot has already rolled back if it did not, and any
       // DBC work should run from the version the user asked for.
       _setStatus(l10n.waitingForMdbRestart);
+      // The breadcrumb write is queued and the reboot below tears the session
+      // down on purpose, so an unflushed write races a closing channel and the
+      // record of where this run reached is the thing lost. It is also the
+      // breadcrumb most worth having: it marks the moment before a reboot,
+      // which is when a run is most likely to be interrupted.
+      //
+      // Bounded, because the write is queued rather than awaited so that a
+      // slow one cannot stall the install, and draining it without a limit
+      // would hand that back. A few hundred bytes over a local link needs far
+      // less than this.
+      try {
+        await _installStateWriteQueue.timeout(const Duration(seconds: 3));
+      } catch (e) {
+        debugPrint('UI: install state write did not settle before reboot: $e');
+      }
       await _sshService.reboot();
       _expectMinimalMdb = false;
       await _reconnectAfterReboot(l10n);
@@ -8537,23 +8562,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Widget _buildFinish(AppLocalizations l10n) {
+    // The install is done by now; this is confirming the unlock landed, which
+    // is a wait like any other and takes the overlay rather than a frame with
+    // a spinner in it.
     if (_awaitingFinishHandover) {
-      return PhaseLayout(
+      return _waitPhase(
         title: l10n.finishHandoverTitle,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.lock_open, size: 56, color: kAccent),
-            const SizedBox(height: 20),
-            Text(
-              l10n.finishHandoverBody,
-              style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            const CircularProgressIndicator(),
-          ],
-        ),
+        warning: l10n.finishHandoverBody,
       );
     }
     return PhaseLayout(
