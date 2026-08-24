@@ -1888,6 +1888,30 @@ class AppLocalizationsDe extends AppLocalizations {
       'Damit endet das Anlernen und die Karten gelten.';
 
   @override
+  String get keycardPanelHeading => 'Kartenleser';
+
+  @override
+  String get keycardReaderPreparing => 'Wird vorbereitet';
+
+  @override
+  String get keycardReaderReady => 'Bereit';
+
+  @override
+  String get keycardReaderUnreachable => 'Kartenleser nicht erreichbar';
+
+  @override
+  String get keycardReaderScanning => 'Karte an den Leser halten';
+
+  @override
+  String get keycardTaughtThisSession => 'Jetzt angelernt';
+
+  @override
+  String get keycardTaughtAlready => 'Schon auf dem Roller';
+
+  @override
+  String get keycardNeedOneToFinish => 'Eine Karte reicht zum Abschließen.';
+
+  @override
   String get keycardPreparingReader => 'Kartenleser wird vorbereitet...';
 
   @override

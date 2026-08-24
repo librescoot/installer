@@ -1866,6 +1866,30 @@ class AppLocalizationsEn extends AppLocalizations {
       'That ends the learning and the cards take effect.';
 
   @override
+  String get keycardPanelHeading => 'Reader';
+
+  @override
+  String get keycardReaderPreparing => 'Preparing';
+
+  @override
+  String get keycardReaderReady => 'Ready';
+
+  @override
+  String get keycardReaderUnreachable => 'Reader not reachable';
+
+  @override
+  String get keycardReaderScanning => 'Hold a card to the reader';
+
+  @override
+  String get keycardTaughtThisSession => 'Taught in now';
+
+  @override
+  String get keycardTaughtAlready => 'Already on the scooter';
+
+  @override
+  String get keycardNeedOneToFinish => 'One card is enough to finish.';
+
+  @override
   String get keycardPreparingReader => 'Preparing the card reader...';
 
   @override
