@@ -785,14 +785,32 @@ abstract class AppLocalizations {
   /// No description provided for @awaitingUnlockDetail.
   ///
   /// In en, this message translates to:
-  /// **'Unlock your scooter to continue. Use your keycard or paired phone.'**
+  /// **'Unlock the scooter so the installer can carry on.'**
   String get awaitingUnlockDetail;
+
+  /// No description provided for @awaitingUnlockHintKeycard.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold your keycard against the reader on the handlebars'**
+  String get awaitingUnlockHintKeycard;
+
+  /// No description provided for @awaitingUnlockHintPhone.
+  ///
+  /// In en, this message translates to:
+  /// **'Or use a paired phone'**
+  String get awaitingUnlockHintPhone;
 
   /// No description provided for @awaitingUnlockWatching.
   ///
   /// In en, this message translates to:
-  /// **'The installer continues by itself as soon as the scooter reports it.'**
+  /// **'The installer continues automatically once the scooter is unlocked.'**
   String get awaitingUnlockWatching;
+
+  /// No description provided for @awaitingParkWatching.
+  ///
+  /// In en, this message translates to:
+  /// **'The installer continues automatically once the scooter is parked.'**
+  String get awaitingParkWatching;
 
   /// No description provided for @awaitingParkHeading.
   ///

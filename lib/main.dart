@@ -275,21 +275,7 @@ class LibrescootInstaller extends StatelessWidget {
         locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: kAccent,
-            brightness: Brightness.dark,
-          ).copyWith(
-            primary: kAccent,
-            onPrimary: kOnAccent,
-            secondary: kAccent,
-            onSecondary: kOnAccent,
-            surface: kBgPrimary,
-            onSurface: kTextPrimary,
-          ),
-          scaffoldBackgroundColor: kBgPrimary,
-          useMaterial3: true,
-        ),
+        theme: librescootTheme(),
         home: const InstallerScreen(),
       ),
     );

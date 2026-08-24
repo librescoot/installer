@@ -25,4 +25,25 @@ Future<void> loadRealFonts() async {
       ..addFont(Future.value(ByteData.view(bytes.buffer)));
     await loader.load();
   }
+  await _loadIcons();
+}
+
+/// The icon face, from the SDK the test is running under. Without it every
+/// icon in a golden is an empty box, and an empty box looks exactly like an
+/// icon that got dropped.
+Future<void> _loadIcons() async {
+  final root = Platform.environment['FLUTTER_ROOT'];
+  final candidates = [
+    if (root != null)
+      '$root/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+    '/home/teal/src/flutter/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+  ];
+  for (final path in candidates) {
+    final file = File(path);
+    if (!file.existsSync()) continue;
+    final loader = FontLoader('MaterialIcons')
+      ..addFont(Future.value(ByteData.view(file.readAsBytesSync().buffer)));
+    await loader.load();
+    return;
+  }
 }

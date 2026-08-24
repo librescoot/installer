@@ -44,6 +44,7 @@ import '../widgets/phase_layout.dart';
 import '../widgets/phase_sidebar.dart';
 import '../widgets/substep_list.dart';
 import '../widgets/wait_overlay.dart';
+import '../widgets/action_overlay.dart';
 import '../widgets/wait_scaffold.dart';
 import '../theme.dart';
 
@@ -1481,7 +1482,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             // across 960px read as a hairline rectangle. The menu is an M3
             // one because the older dropdown paints its list on the theme's
             // canvas colour, which on this ground is the page colour: no
-            // edge, no surface, nothing to say where the list ends.
+            // edge, no surface, nothing to say where the list ends. Its
+            // surface and border come from the theme.
             Align(
               alignment: Alignment.centerLeft,
               child: DropdownMenu<Region>(
@@ -1493,34 +1495,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 requestFocusOnTap: false,
                 leadingIcon: Icon(Icons.place_outlined,
                     size: 20, color: Colors.grey.shade400),
-                inputDecorationTheme: InputDecorationTheme(
-                  filled: true,
-                  fillColor: kBgSidebar,
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide:
-                        BorderSide(color: Colors.white.withValues(alpha: 0.22)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: kAccent, width: 2),
-                  ),
-                ),
-                menuStyle: MenuStyle(
-                  backgroundColor: WidgetStatePropertyAll(kBgSidebar),
-                  surfaceTintColor: const WidgetStatePropertyAll(
-                      Colors.transparent),
-                  elevation: const WidgetStatePropertyAll(12),
-                  shape: WidgetStatePropertyAll(
-                    RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.22)),
-                    ),
-                  ),
-                  padding: const WidgetStatePropertyAll(
-                      EdgeInsets.symmetric(vertical: 6)),
-                ),
                 dropdownMenuEntries: _regionMenuEntries(_availableRegions),
                 onSelected: (r) {
                   if (r == null || r.slug.startsWith(_regionHeaderPrefix)) {
@@ -1932,16 +1906,19 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
+          // Same radius and same border colour as the Cards elsewhere, so a
+          // card the user picks and a card that only groups things read as
+          // two states of one idiom.
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: selected ? kAccent : Colors.grey.shade700,
+            color: selected ? kAccent : kOutline,
             width: selected ? 2 : 1,
           ),
           color: selected
               ? kAccent.withValues(alpha: 0.08)
               : available
               ? Colors.transparent
-              : Colors.grey.shade900.withValues(alpha: 0.4),
+              : kSurfaceLow,
         ),
         child: Opacity(
           opacity: available ? 1.0 : 0.4,
@@ -2390,52 +2367,36 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   /// Waiting on the rider, not on the board.
   ///
-  /// So it keeps the frame rather than becoming a wait overlay: the overlay
-  /// exists to say which step is running and how long it usually takes, and
-  /// neither means anything for a step that finishes when a person acts. What
-  /// it needs instead is what every other screen asking for a physical action
-  /// has, a title, the instruction, and its controls in the actions row.
+  /// An overlay, like the waits on the machine, but its own card: steps and
+  /// typical durations say nothing about something that ends when a person
+  /// acts. What this one carries is the ask, the ways to do it, and the way
+  /// out. The screen behind it stays visible, which is where the scooter the
+  /// user has to walk over to was last described.
   Widget _buildAwaitingUnlock(AppLocalizations l10n) {
     final isRtd = _awaitingUnlockState == 'ready-to-drive';
-    return PhaseLayout(
-      title: isRtd ? l10n.awaitingParkHeading : l10n.awaitingUnlockHeading,
-      subtitle: isRtd ? l10n.awaitingParkDetail : l10n.awaitingUnlockDetail,
-      actions: [
-        PhaseAction(
-          label: l10n.cancelButton,
-          side: ActionSide.back,
-          onPressed: _userCancelUnlockWait,
-        ),
-        // Only the ready-to-drive case has an override: a scooter that is
-        // simply locked has nothing to go on with.
-        if (isRtd)
-          PhaseAction(
-            label: l10n.awaitingParkContinueAnyway,
-            icon: Icons.arrow_forward,
-            primary: true,
-            onPressed: _userOverrideRtd,
+    return WaitScaffold(
+      backdrop: _frozenBackdrop,
+      overlay: ActionOverlay(
+        title: isRtd ? l10n.awaitingParkHeading : l10n.awaitingUnlockHeading,
+        instruction: isRtd ? l10n.awaitingParkDetail : l10n.awaitingUnlockDetail,
+        icon: isRtd ? Icons.local_parking : Icons.lock_open,
+        hints: isRtd
+            ? const []
+            : [l10n.awaitingUnlockHintKeycard, l10n.awaitingUnlockHintPhone],
+        watching: isRtd ? l10n.awaitingParkWatching : l10n.awaitingUnlockWatching,
+        actions: [
+          TextButton(
+            onPressed: _userCancelUnlockWait,
+            child: Text(l10n.cancelButton),
           ),
-      ],
-      child: Row(
-        children: [
-          Icon(
-            isRtd ? Icons.local_parking : Icons.lock_open,
-            size: 32,
-            color: Colors.amber,
-          ),
-          const SizedBox(width: 16),
-          const SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              l10n.awaitingUnlockWatching,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+          // Only the ready-to-drive case has an override: a scooter that is
+          // simply locked has nothing to go on with.
+          if (isRtd)
+            FilledButton.icon(
+              onPressed: _userOverrideRtd,
+              icon: const Icon(Icons.arrow_forward, size: 18),
+              label: Text(l10n.awaitingParkContinueAnyway),
             ),
-          ),
         ],
       ),
     );
@@ -4599,80 +4560,74 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           // Kept, not replaced: a scooter whose levers are already apart for
           // other work, or one where the gesture does not take, still needs the
           // route that always works.
-          Theme(
-            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-            child: ExpansionTile(
-              // Grey caption text read as a label, and opening this is what
-              // tells the rest of the flow the user took the manual route, so
-              // it has to look like the control it is.
-              leading: const Icon(Icons.build_outlined, size: 20,
-                  color: kAccent),
-              title: Text(
-                l10n.scooterPrepManualFallback,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: kAccent,
-                  fontWeight: FontWeight.w600,
-                ),
+          ExpansionTile(
+            // Grey caption text read as a label, and opening this is what
+            // tells the rest of the flow the user took the manual route, so
+            // it has to look like the control it is.
+            leading: const Icon(Icons.build_outlined, size: 20, color: kAccent),
+            title: Text(
+              l10n.scooterPrepManualFallback,
+              style: const TextStyle(
+                fontSize: 14,
+                color: kAccent,
+                fontWeight: FontWeight.w600,
               ),
-              // Opening it is the signal. A false positive costs a step the user
-              // can ignore; a false negative hides the one instruction they
-              // needed, so err toward remembering.
-              onExpansionChanged: (open) {
-                if (open && !_manualPowerCut) {
-                  setState(() => _manualPowerCut = true);
-                }
-              },
-              tilePadding: EdgeInsets.zero,
-              childrenPadding: EdgeInsets.zero,
-              expandedCrossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                InstructionStep(
-                  number: 1,
-                  title: l10n.disconnectCbb,
-                  description: l10n.disconnectCbbDesc,
-                  isWarning: true,
-                  beforeImageAsset:
-                      'assets/images/lsi-unu_scooter_cbb_connected.jpg',
-                  imageAsset:
-                      'assets/images/lsi-unu_scooter_cbb_disconnected.jpg',
+            ),
+            // Opening it is the signal. A false positive costs a step the user
+            // can ignore; a false negative hides the one instruction they
+            // needed, so err toward remembering.
+            onExpansionChanged: (open) {
+              if (open && !_manualPowerCut) {
+                setState(() => _manualPowerCut = true);
+              }
+            },
+            expandedCrossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              InstructionStep(
+                number: 1,
+                title: l10n.disconnectCbb,
+                description: l10n.disconnectCbbDesc,
+                isWarning: true,
+                beforeImageAsset:
+                    'assets/images/lsi-unu_scooter_cbb_connected.jpg',
+                imageAsset:
+                    'assets/images/lsi-unu_scooter_cbb_disconnected.jpg',
+              ),
+              InstructionStep(
+                number: 2,
+                title: l10n.disconnectAuxPole,
+                description: l10n.disconnectAuxPoleDesc,
+                isWarning: true,
+                beforeImageAsset:
+                    'assets/images/lsi-unu_scooter_aux_connected.jpg',
+                imageAsset:
+                    'assets/images/lsi-unu_scooter_aux_pos_disconnected.jpg',
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade900.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade700),
                 ),
-                InstructionStep(
-                  number: 2,
-                  title: l10n.disconnectAuxPole,
-                  description: l10n.disconnectAuxPoleDesc,
-                  isWarning: true,
-                  beforeImageAsset:
-                      'assets/images/lsi-unu_scooter_aux_connected.jpg',
-                  imageAsset:
-                      'assets/images/lsi-unu_scooter_aux_pos_disconnected.jpg',
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade900.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange.shade700),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.warning, color: Colors.orange),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          l10n.auxDisconnectWarning,
-                          style: const TextStyle(
-                            color: Colors.orange,
-                            fontSize: 13,
-                          ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning, color: Colors.orange),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        l10n.auxDisconnectWarning,
+                        style: const TextStyle(
+                          color: Colors.orange,
+                          fontSize: 13,
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),

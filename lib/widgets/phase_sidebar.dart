@@ -454,7 +454,6 @@ class _DownloadStatus extends StatelessWidget {
           LinearProgressIndicator(
             value: overallProgress,
             minHeight: 3,
-            backgroundColor: Colors.grey.shade800,
           ),
           const SizedBox(height: 4),
           Wrap(

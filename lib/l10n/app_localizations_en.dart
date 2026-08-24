@@ -383,11 +383,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get awaitingUnlockDetail =>
-      'Unlock your scooter to continue. Use your keycard or paired phone.';
+      'Unlock the scooter so the installer can carry on.';
+
+  @override
+  String get awaitingUnlockHintKeycard =>
+      'Hold your keycard against the reader on the handlebars';
+
+  @override
+  String get awaitingUnlockHintPhone => 'Or use a paired phone';
 
   @override
   String get awaitingUnlockWatching =>
-      'The installer continues by itself as soon as the scooter reports it.';
+      'The installer continues automatically once the scooter is unlocked.';
+
+  @override
+  String get awaitingParkWatching =>
+      'The installer continues automatically once the scooter is parked.';
 
   @override
   String get awaitingParkHeading => 'Park your scooter';

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/wait_plan.dart';
+import 'overlay_card.dart';
 import '../theme.dart';
 
 /// The card shown while the installer is waiting on the scooter.
@@ -120,145 +121,124 @@ class _WaitOverlayState extends State<WaitOverlay> {
     final overdue =
         active != null && waitStepIsOverdue(stepElapsed, active.typical);
 
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 560),
-      padding: const EdgeInsets.fromLTRB(24, 22, 24, 18),
-      decoration: BoxDecoration(
-        color: kBgSidebar,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.55),
-            blurRadius: 40,
-            offset: const Offset(0, 16),
+    return OverlayCard(
+      title: widget.title,
+      children: [
+        // A phase can render before its work has said what its steps are:
+        // the builder runs on the frame the work is scheduled, not after
+        // it. One line and a bar until then, rather than an exception.
+        if (widget.steps.isEmpty) ...[
+          LinearProgressIndicator(
+            value: widget.progress,
+            minHeight: 4,
+            backgroundColor: Colors.white.withValues(alpha: 0.08),
           ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(widget.title,
-              style: const TextStyle(
-                  fontSize: 20, fontWeight: FontWeight.bold, color: kAccent)),
-          const SizedBox(height: 16),
-          // A phase can render before its work has said what its steps are:
-          // the builder runs on the frame the work is scheduled, not after
-          // it. One line and a bar until then, rather than an exception.
-          if (widget.steps.isEmpty) ...[
-            LinearProgressIndicator(
-              value: widget.progress,
-              minHeight: 4,
-              backgroundColor: Colors.white.withValues(alpha: 0.08),
-            ),
-            const SizedBox(height: 14),
-          ],
-          for (var i = 0; i < widget.steps.length; i++)
-            _stepRow(
-              step: widget.steps[i],
-              state: i < widget.currentStep
-                  ? WaitStepState.done
-                  : i == widget.currentStep
-                      ? WaitStepState.active
-                      : WaitStepState.todo,
-              elapsed: stepElapsed,
-              remaining: estimateRemaining(stepElapsed, widget.progress),
-              overdue: overdue,
-              l10n: l10n,
-            ),
           const SizedBox(height: 14),
-          if (widget.steps.isNotEmpty)
+        ],
+        for (var i = 0; i < widget.steps.length; i++)
+          _stepRow(
+            step: widget.steps[i],
+            state: i < widget.currentStep
+                ? WaitStepState.done
+                : i == widget.currentStep
+                    ? WaitStepState.active
+                    : WaitStepState.todo,
+            elapsed: stepElapsed,
+            remaining: estimateRemaining(stepElapsed, widget.progress),
+            overdue: overdue,
+            l10n: l10n,
+          ),
+        const SizedBox(height: 14),
+        if (widget.steps.isNotEmpty)
+        Row(
+          children: [
+            Text(
+              l10n.waitStepCounter(
+                  (widget.currentStep + 1).clamp(1, widget.steps.length),
+                  widget.steps.length),
+              style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade500,
+                  fontFamily: 'monospace'),
+            ),
+            const Spacer(),
+            Text(
+              l10n.waitElapsed(formatDuration(total)),
+              style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade500,
+                  fontFamily: 'monospace'),
+            ),
+          ],
+        ),
+        if (widget.warning != null) ...[
+          const SizedBox(height: 12),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                l10n.waitStepCounter(
-                    (widget.currentStep + 1).clamp(1, widget.steps.length),
-                    widget.steps.length),
-                style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade500,
-                    fontFamily: 'monospace'),
-              ),
-              const Spacer(),
-              Text(
-                l10n.waitElapsed(formatDuration(total)),
-                style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade500,
-                    fontFamily: 'monospace'),
+              Icon(Icons.power_off, size: 16, color: Colors.orange.shade300),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(widget.warning!,
+                    style: TextStyle(
+                        fontSize: 13, color: Colors.orange.shade200)),
               ),
             ],
           ),
-          if (widget.warning != null) ...[
-            const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.power_off, size: 16, color: Colors.orange.shade300),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(widget.warning!,
-                      style: TextStyle(
-                          fontSize: 13, color: Colors.orange.shade200)),
-                ),
-              ],
-            ),
-          ],
-          if (widget.logTail.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
-            InkWell(
-              onTap: () => setState(() => _logOpen = !_logOpen),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Row(
-                  children: [
-                    Icon(_logOpen ? Icons.expand_less : Icons.expand_more,
-                        size: 18, color: kAccent),
-                    const SizedBox(width: 6),
-                    Text(_logOpen ? l10n.waitHideLog : l10n.waitShowLog,
-                        style: const TextStyle(fontSize: 13, color: kAccent)),
-                  ],
-                ),
-              ),
-            ),
-            if (_logOpen)
-              Container(
-                constraints: const BoxConstraints(maxHeight: 132),
-                width: double.infinity,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0E1214),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: SingleChildScrollView(
-                  reverse: true,
-                  child: Text(
-                    widget.logTail.join('\n'),
-                    style: TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 11,
-                        height: 1.4,
-                        color: Colors.grey.shade400),
-                  ),
-                ),
-              ),
-          ],
-          if (widget.actions.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                for (final a in widget.actions) ...[
-                  const SizedBox(width: 8),
-                  a,
-                ],
-              ],
-            ),
-          ],
         ],
-      ),
+        if (widget.logTail.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
+          InkWell(
+            onTap: () => setState(() => _logOpen = !_logOpen),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                children: [
+                  Icon(_logOpen ? Icons.expand_less : Icons.expand_more,
+                      size: 18, color: kAccent),
+                  const SizedBox(width: 6),
+                  Text(_logOpen ? l10n.waitHideLog : l10n.waitShowLog,
+                      style: const TextStyle(fontSize: 13, color: kAccent)),
+                ],
+              ),
+            ),
+          ),
+          if (_logOpen)
+            Container(
+              constraints: const BoxConstraints(maxHeight: 132),
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0E1214),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: SingleChildScrollView(
+                reverse: true,
+                child: Text(
+                  widget.logTail.join('\n'),
+                  style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                      height: 1.4,
+                      color: Colors.grey.shade400),
+                ),
+              ),
+            ),
+        ],
+        if (widget.actions.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              for (final a in widget.actions) ...[
+                const SizedBox(width: 8),
+                a,
+              ],
+            ],
+          ),
+        ],
+      ],
     );
   }
 
