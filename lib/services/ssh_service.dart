@@ -1092,6 +1092,7 @@ done
     ];
 
     var requested = false;
+    final misses = <String>[];
     for (final cmd in rebootCommands) {
       try {
         debugPrint('SSH: sending reboot command: $cmd');
@@ -1106,12 +1107,18 @@ done
           requested = true;
           break;
         }
-        debugPrint('SSH: reboot command failed: $cmd -> $e');
+        // Each entry covers a different image, so most runs miss the first
+        // few. Only an exhausted list is a failure, and saying so per rung
+        // sends whoever reads the log after a real fault to the wrong place.
+        misses.add('$cmd -> $e');
+        debugPrint('SSH: reboot command not available: $cmd');
       }
     }
 
     if (!requested) {
-      throw Exception('Failed to trigger reboot with known commands');
+      throw Exception(
+        'Failed to trigger reboot with known commands: ${misses.join('; ')}',
+      );
     }
 
     debugPrint('SSH: disconnecting local SSH client after reboot attempt');
