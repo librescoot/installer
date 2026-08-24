@@ -176,8 +176,11 @@ class PhaseLayout extends StatelessWidget {
           child: Center(
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: maxWidth),
+              // Without the stretch the column shrinks to its widest line, so
+              // the title and subtitle end up centred as a block while reading
+              // left-aligned inside it, and neither lines up with the body.
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
                     title,

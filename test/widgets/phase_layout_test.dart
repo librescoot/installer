@@ -132,6 +132,27 @@ void main() {
     expect(tester.getSize(find.text('body')).width, greaterThan(900));
   });
 
+  testWidgets('the title starts where the body starts', (tester) async {
+    tester.view.physicalSize = const Size(1400, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(host(const PhaseLayout(
+      title: 'Short',
+      subtitle: 'A subtitle that is quite a bit longer than the title itself',
+      child: Align(alignment: Alignment.centerLeft, child: Text('body')),
+    )));
+
+    // A shrink-wrapped header centres itself as a block, which reads as a
+    // centred heading that happens to be left-aligned inside. Every line
+    // shares one left edge instead.
+    final left = tester.getTopLeft(find.text('Short')).dx;
+    expect(tester.getTopLeft(find.text('A subtitle that is quite a bit longer '
+        'than the title itself')).dx, left);
+    expect(tester.getTopLeft(find.text('body')).dx, left);
+  });
+
   testWidgets('the title stays put while the body scrolls', (tester) async {
     tester.view.physicalSize = const Size(1000, 400);
     tester.view.devicePixelRatio = 1.0;
