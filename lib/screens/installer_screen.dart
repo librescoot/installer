@@ -3790,8 +3790,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   Future<void> _configureMdbUms(int generation) async {
     final l10n = AppLocalizations.of(context)!;
+    // reboot() disconnects on purpose and clears the stored credential with
+    // it, so nothing can reconnect on its own. A retry therefore arrives here
+    // with no session and has to rebuild one before the first SSH step.
+    final resuming = !_isDryRun && !_sshService.isConnected;
     // Timings from real runs on a healthy board; the reboot is the long pole.
     _beginWait([
+      if (resuming)
+        WaitStep(
+            label: l10n.waitingForMdb, typical: const Duration(seconds: 45)),
       WaitStep(
           label: l10n.deactivatingMainBattery,
           typical: const Duration(seconds: 15)),
@@ -3815,6 +3822,21 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     var autoPlayHandedToFlash = false;
     String? failureStatus;
     try {
+      if (resuming) {
+        // The board rebooted out from under the previous attempt. Either it
+        // came back in ethernet mode, or it is not coming back at all.
+        _setStatus(l10n.waitingForMdb);
+        if (!await _waitForDevice(
+          DeviceMode.ethernet,
+          timeout: const Duration(seconds: 90),
+        )) {
+          throw _LocalizedInstallException(l10n.umsNotDetectedTimeout);
+        }
+        if (!_ownsMdbToUmsAttempt(generation)) return;
+        _setStatus(l10n.reconnectingSsh);
+        await _sshService.connectToMdb();
+      }
+
       // Turn the main pack off before the board goes away. The UMS reboot
       // deactivates it either way, but only by the pack noticing the MDB has
       // stopped talking and timing out, which takes as long as it takes and
