@@ -16,7 +16,7 @@ void main() {
   // not a system disk, 8 GB, platform-appropriate path.
   SafetyCheck checkGood() => flash.validateDevice(
         devicePath: _goodPath,
-        sizeBytes: 8 * 1024 * 1024 * 1024,
+        sizeBytes: FlashService.mdbEmmcBytes,
         isRemovable: true,
         isSystemDisk: false,
         vendorId: 0x0525,
@@ -32,7 +32,7 @@ void main() {
   test('a system disk is refused', () {
     final result = flash.validateDevice(
       devicePath: _goodPath,
-      sizeBytes: 8 * 1024 * 1024 * 1024,
+      sizeBytes: FlashService.mdbEmmcBytes,
       isRemovable: true,
       isSystemDisk: true,
       vendorId: 0x0525,
@@ -45,7 +45,7 @@ void main() {
   test('a foreign vendor id is refused', () {
     final result = flash.validateDevice(
       devicePath: _goodPath,
-      sizeBytes: 8 * 1024 * 1024 * 1024,
+      sizeBytes: FlashService.mdbEmmcBytes,
       isRemovable: true,
       isSystemDisk: false,
       vendorId: 0x1234,
@@ -58,7 +58,7 @@ void main() {
   test('RNDIS mode (PID A4A2) is refused, only mass storage may be written', () {
     final result = flash.validateDevice(
       devicePath: _goodPath,
-      sizeBytes: 8 * 1024 * 1024 * 1024,
+      sizeBytes: FlashService.mdbEmmcBytes,
       isRemovable: true,
       isSystemDisk: false,
       vendorId: 0x0525,
@@ -68,30 +68,50 @@ void main() {
     expect(result.errors.join(' '), contains('product ID'));
   });
 
-  test('an implausibly large disk is refused', () {
-    final result = flash.validateDevice(
-      devicePath: _goodPath,
-      sizeBytes: 2000 * 1024 * 1024 * 1024, // 2 TB, i.e. someone's laptop disk
-      isRemovable: true,
-      isSystemDisk: false,
-      vendorId: 0x0525,
-      productId: 0xA4A5,
-    );
-    expect(result.passed, isFalse);
-    expect(result.errors.join(' '), contains('too large'));
+  test('a disk that is not the MDB eMMC is refused, however plausible', () {
+    // 2 TB is someone's laptop disk; 8 GB is an ordinary USB stick. Neither
+    // is the eMMC, and only the eMMC may be written.
+    for (final size in [
+      2000 * 1024 * 1024 * 1024,
+      8 * 1024 * 1024 * 1024,
+      512 * 1024 * 1024,
+    ]) {
+      final result = flash.validateDevice(
+        devicePath: _goodPath,
+        sizeBytes: size,
+        isRemovable: true,
+        isSystemDisk: false,
+        vendorId: 0x0525,
+        productId: 0xA4A5,
+      );
+      expect(result.passed, isFalse, reason: 'size $size was accepted');
+      expect(result.errors.join('; '), contains('Unexpected device size'));
+    }
   });
 
-  test('an implausibly small disk is refused', () {
+  test('a failed eMMC is named as such, not called a small disk', () {
     final result = flash.validateDevice(
       devicePath: _goodPath,
-      sizeBytes: 512 * 1024 * 1024,
+      sizeBytes: 32 * 1024 * 1024,
       isRemovable: true,
       isSystemDisk: false,
       vendorId: 0x0525,
       productId: 0xA4A5,
     );
     expect(result.passed, isFalse);
-    expect(result.errors.join(' '), contains('too small'));
+    expect(result.errors.join('; '), contains('has failed'));
+  });
+
+  test('a host reporting usable rather than raw capacity still passes', () {
+    final result = flash.validateDevice(
+      devicePath: _goodPath,
+      sizeBytes: FlashService.mdbEmmcBytes - 8 * 1024 * 1024,
+      isRemovable: true,
+      isSystemDisk: false,
+      vendorId: 0x0525,
+      productId: 0xA4A5,
+    );
+    expect(result.passed, isTrue, reason: result.errors.join('; '));
   });
 
   test('an unknown size warns but does not block', () {
@@ -110,7 +130,7 @@ void main() {
   test('the platform system-disk path is refused even with a valid identity', () {
     final result = flash.validateDevice(
       devicePath: _systemPath,
-      sizeBytes: 8 * 1024 * 1024 * 1024,
+      sizeBytes: FlashService.mdbEmmcBytes,
       isRemovable: true,
       isSystemDisk: false, // deliberately lying; the path check must still bite
       vendorId: 0x0525,
@@ -123,7 +143,7 @@ void main() {
   test('an empty device path is refused', () {
     final result = flash.validateDevice(
       devicePath: '',
-      sizeBytes: 8 * 1024 * 1024 * 1024,
+      sizeBytes: FlashService.mdbEmmcBytes,
       isRemovable: true,
       isSystemDisk: false,
       vendorId: 0x0525,
@@ -134,13 +154,12 @@ void main() {
   });
 
   group('the detected path and the target path must agree', () {
-    // The scooter's own identity is what makes a stale pair dangerous: VID,
-    // PID, size and removability all come from the arrived device and pass on
-    // their own merits, while the path still names the one that left.
+    // VID, PID, size and removability come from the detected object and pass
+    // on their own merits while the path names a different disk.
     SafetyCheck checkPair({required String detected, required String target}) =>
         flash.validateDevice(
           devicePath: target,
-          sizeBytes: 8 * 1024 * 1024 * 1024,
+          sizeBytes: FlashService.mdbEmmcBytes,
           isRemovable: true,
           isSystemDisk: false,
           vendorId: 0x0525,
@@ -160,12 +179,11 @@ void main() {
     });
 
     test('no detected path means no claim, and no refusal', () {
-      // macOS resolves the path separately and can legitimately have nothing
-      // to compare. Refusing there would block a good flash on missing data.
+      // macOS resolves the path separately and may have nothing to compare.
       expect(checkPair(detected: '', target: _goodPath).passed, isTrue);
       final result = flash.validateDevice(
         devicePath: _goodPath,
-        sizeBytes: 8 * 1024 * 1024 * 1024,
+        sizeBytes: FlashService.mdbEmmcBytes,
         isRemovable: true,
         isSystemDisk: false,
         vendorId: 0x0525,
@@ -174,11 +192,23 @@ void main() {
       expect(result.passed, isTrue, reason: result.errors.join('; '));
     });
 
-    test('a mismatch inside the size window is still refused', () {
-      // The dangerous shape: an SD card or an old stick, 1-16 GB, so the size
-      // window never fires and the identity is the scooter's by construction.
-      final result = checkPair(detected: _goodPath, target: _otherPath);
+    test('the size window cannot catch this, whatever the real disk holds',
+        () {
+      // sizeBytes describes the detected object, not the disk at devicePath,
+      // so it matches the eMMC exactly however large that disk is. The real
+      // disk's size never reaches this function; only the path check refuses.
+      final result = flash.validateDevice(
+        devicePath: _otherPath,
+        sizeBytes: FlashService.mdbEmmcBytes,
+        isRemovable: true,
+        isSystemDisk: false,
+        vendorId: 0x0525,
+        productId: 0xA4A5,
+        detectedPath: _goodPath,
+      );
       expect(result.passed, isFalse);
+      expect(result.errors.join('; '), contains('does not match'));
+      expect(result.errors.join('; '), isNot(contains('Unexpected device size')));
     });
   });
 }

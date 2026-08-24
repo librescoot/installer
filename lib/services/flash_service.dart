@@ -115,6 +115,20 @@ class FlashService {
     return 'Unsupported platform';
   }
 
+  /// User area of the eMMC every MDB carries: 15269888 sectors of 512 bytes.
+  static const int mdbEmmcBytes = 7818182656;
+
+  /// Absorbs a host reporting usable rather than raw capacity.
+  static const int mdbEmmcToleranceBytes = 16 * 1024 * 1024;
+
+  /// An eMMC that has lost its user area reports a few tens of MB.
+  static const int failedEmmcCeilingBytes = 64 * 1024 * 1024;
+
+  static String _gib(int bytes) =>
+      (bytes / (1024 * 1024 * 1024)).toStringAsFixed(2);
+
+  static String _mib(int bytes) => (bytes / (1024 * 1024)).toStringAsFixed(1);
+
   /// Validate that a device is safe to flash
   ///
   /// Returns a SafetyCheck with any warnings or errors.
@@ -132,14 +146,11 @@ class FlashService {
     final errors = <String>[];
     final warnings = <String>[];
 
-    // The path and the identity reach this call from two separate reads of a
-    // field the detector replaces between polls, so they can describe two
-    // different devices: the path from the one that has left, the size, VID
-    // and PID from the one that arrived. Every other check here reads the
-    // identity, so a mismatched pair passes them all by construction. The
-    // size window is what would otherwise have to catch it, and it only
-    // catches disks outside 1-16 GB -- an SD card or an old stick sits right
-    // inside the window.
+    // devicePath is the only argument describing the disk to be written; the
+    // others come from the detected device object, which the caller reads
+    // separately. Windows reassigns a freed disk number to the next device,
+    // so the two can name different disks. Every check below reads the
+    // object, so this is the only one that ties the identity to the path.
     if (detectedPath != null &&
         detectedPath.isNotEmpty &&
         detectedPath != devicePath) {
@@ -164,16 +175,22 @@ class FlashService {
       errors.add('Wrong product ID: 0x${productId.toRadixString(16)} (expected 0xa4a5)');
     }
 
-    // Size sanity check
+    // Every MDB carries the same eMMC, so this matches one value. A range
+    // wide enough for "any small disk" also admits the SD cards and sticks
+    // the detector's match pattern can adopt.
     if (sizeBytes != null) {
-      const minSize = 1 * 1024 * 1024 * 1024; // 1 GB
-      const maxSize = 16 * 1024 * 1024 * 1024; // 16 GB
-
-      if (sizeBytes < minSize) {
-        errors.add('Device too small: ${(sizeBytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB (minimum 1 GB)');
-      }
-      if (sizeBytes > maxSize) {
-        errors.add('Device too large: ${(sizeBytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB (maximum 16 GB)');
+      final off = (sizeBytes - mdbEmmcBytes).abs();
+      if (sizeBytes <= failedEmmcCeilingBytes) {
+        errors.add(
+          'eMMC reports only ${_mib(sizeBytes)} MB. The eMMC on this board '
+          'has failed; it cannot be flashed.',
+        );
+      } else if (off > mdbEmmcToleranceBytes) {
+        errors.add(
+          'Unexpected device size: ${_gib(sizeBytes)} GB. Every MDB eMMC is '
+          '${_gib(mdbEmmcBytes)} GB, so this is not one, or it is something '
+          'we do not have a name for. Refusing.',
+        );
       }
     } else {
       warnings.add('Could not determine device size');
@@ -192,7 +209,9 @@ class FlashService {
       }
       // Never allow PHYSICALDRIVE0
       if (devicePath.contains('PHYSICALDRIVE0')) {
-        errors.add('DANGER: Cannot flash PHYSICALDRIVE0 (system disk)');
+        // Index 0 does not identify the system disk. Refused because the
+        // scooter is never index 0.
+        errors.add('DANGER: Cannot flash PHYSICALDRIVE0');
       }
     } else if (Platform.isMacOS) {
       if (devicePath.trim().isEmpty || !devicePath.startsWith('/dev/')) {

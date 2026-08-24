@@ -4115,10 +4115,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // Windows could not say whether this disk carries boot or system. The
       // detector already matched it by vendor and product, so put that to the
       // user rather than guessing in either direction.
-      // Only a mass-storage target is worth asking about. Anything else is
-      // refused by the product-ID guard below whatever the user answers, so
-      // putting a disk-confirmation dialog in front of that refusal asks them
-      // to vouch for a device that is not going to be written either way.
+      // Only a mass-storage target is worth confirming; anything else is
+      // refused by the product-ID guard regardless of the answer.
       if (target != null &&
           target.mode == DeviceMode.massStorage &&
           target.systemDiskVerdict == SystemDiskVerdict.unknown) {
@@ -4153,10 +4151,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         isSystemDisk: target?.isSystemDisk ?? false,
         vendorId: target?.vendorId ?? 0,
         productId: target?.productId ?? 0,
-        // Off Linux there is no linuxVerdict, and the detector's own verdict
-        // is what there is. It does no work in validateDevice today, which is
-        // precisely why it should be passed: a Windows or macOS rule added
-        // later would otherwise read unknown forever and look like it worked.
+        // Inert in validateDevice off Linux, but passed so a rule added
+        // there later reads the real verdict rather than a constant unknown.
         systemDiskVerdict:
             linuxVerdict ?? target?.systemDiskVerdict ?? SystemDiskVerdict.unknown,
         detectedPath: target?.path,
@@ -4248,12 +4244,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // waits forever for a mass-storage device that is never coming, and the
       // user is stuck in front of a flash screen for a flash that is done.
       //
-      // _mdbFlashStarted stays set on the way out, exactly as it does on the
-      // success path above. Clearing it here rebuilds this phase with the
-      // start conditions satisfied again, and the build path launches a
-      // second flash within the frame, long before the delay below hands the
-      // screen over. That flash resolves whatever the board is now, which is
-      // a network interface, and dies in the safety check.
+      // _mdbFlashStarted stays set, as on the success path above. Clearing it
+      // satisfies the build path's start conditions again and launches a
+      // second flash before the phase change lands.
       if (!back && _device?.mode == DeviceMode.ethernet) {
         debugPrint('Flash: board booted the image, treating the flash as done');
         _setStatus(l10n.mdbFlashComplete);

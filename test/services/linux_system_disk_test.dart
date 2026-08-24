@@ -89,7 +89,7 @@ void main() {
     SafetyCheck check(String path, SystemDiskVerdict verdict) =>
         FlashService().validateDevice(
           devicePath: path,
-          sizeBytes: 8 * 1024 * 1024 * 1024,
+          sizeBytes: FlashService.mdbEmmcBytes,
           isRemovable: true,
           isSystemDisk: false,
           vendorId: 0x0525,
@@ -109,7 +109,7 @@ void main() {
     test('a disk carrying a filesystem is refused whatever its name', () {
       final result = FlashService().validateDevice(
         devicePath: '/dev/sdc',
-        sizeBytes: 8 * 1024 * 1024 * 1024,
+        sizeBytes: FlashService.mdbEmmcBytes,
         isRemovable: true,
         isSystemDisk: true,
         vendorId: 0x0525,
@@ -122,7 +122,7 @@ void main() {
     test('the identity check still stands on its own', () {
       final result = FlashService().validateDevice(
         devicePath: '/dev/sda',
-        sizeBytes: 8 * 1024 * 1024 * 1024,
+        sizeBytes: FlashService.mdbEmmcBytes,
         isRemovable: true,
         isSystemDisk: false,
         vendorId: 0x1234,
