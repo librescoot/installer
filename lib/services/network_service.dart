@@ -142,21 +142,39 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
 
       if (result.exitCode != 0) return null;
 
-      final line = result.stdout.toString().trim();
-      if (line.isEmpty) return null;
-
-      final parts = line.split('\t');
-      final name = parts.isNotEmpty ? parts[0].trim() : 'USB Ethernet';
-      final netConn = parts.length > 1 ? parts[1].trim() : '';
-      final isUp = parts.length > 2 && parts[2].trim().toLowerCase() == 'true';
-
-      return NetworkInterface(
-        name: netConn,
-        displayName: name,
-        isUp: isUp,
-      );
+      return parseWindowsAdapter(result.stdout.toString());
     } catch (_) {}
     return null;
+  }
+
+  /// One tab-separated adapter row: Name, NetConnectionID, NetEnabled.
+  ///
+  /// Null where there is no usable interface yet. netsh addresses an interface
+  /// by its connection name, so an adapter without one cannot be configured,
+  /// and Windows creates the adapter before the connection object: an empty
+  /// NetConnectionID is the ordinary state for the first seconds after the
+  /// board re-enumerates. The callers poll, so not-found is the answer that
+  /// gets retried; a name of '' is one netsh cannot match.
+  @visibleForTesting
+  static NetworkInterface? parseWindowsAdapter(String stdout) {
+    final line = stdout.trim();
+    if (line.isEmpty) return null;
+
+    final parts = line.split('\t');
+    final name = parts.isNotEmpty && parts[0].trim().isNotEmpty
+        ? parts[0].trim()
+        : 'USB Ethernet';
+    final netConn = parts.length > 1 ? parts[1].trim() : '';
+    final isUp = parts.length > 2 && parts[2].trim().toLowerCase() == 'true';
+
+    if (netConn.isEmpty) {
+      debugPrint(
+        'Network: adapter "$name" has no connection name yet, not ready',
+      );
+      return null;
+    }
+
+    return NetworkInterface(name: netConn, displayName: name, isUp: isUp);
   }
 
   Future<bool> _configureWindows(NetworkInterface iface) async {
