@@ -338,43 +338,46 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// Build dropdown items grouped by country: a disabled bold header per
   /// country, followed by its (indented) regions. Relies on [_availableRegions]
   /// already being ordered so each country's regions are contiguous.
-  List<DropdownMenuItem<Region>> _buildRegionDropdownItems(
-    List<Region> regions,
-  ) {
-    final items = <DropdownMenuItem<Region>>[];
+  /// Countries as disabled headers, their regions indented under them. The
+  /// grouping is the only thing that says there is more here than one
+  /// country's worth of states.
+  List<DropdownMenuEntry<Region>> _regionMenuEntries(List<Region> regions) {
+    final entries = <DropdownMenuEntry<Region>>[];
     String? currentCountry;
     for (final region in regions) {
       if (region.country != currentCountry) {
         currentCountry = region.country;
-        items.add(
-          DropdownMenuItem<Region>(
-            enabled: false,
+        entries.add(
+          DropdownMenuEntry<Region>(
             value: Region(
               name: region.country,
               slug: '$_regionHeaderPrefix${region.country}',
             ),
-            child: Text(
-              region.country,
-              style: TextStyle(
-                fontSize: 12,
+            label: region.country.toUpperCase(),
+            enabled: false,
+            style: MenuItemButton.styleFrom(
+              foregroundColor: kAccent.withValues(alpha: 0.75),
+              textStyle: const TextStyle(
+                fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey.shade600,
+                letterSpacing: 1.2,
+                height: 2.0,
               ),
             ),
           ),
         );
       }
-      items.add(
-        DropdownMenuItem<Region>(
+      entries.add(
+        DropdownMenuEntry<Region>(
           value: region,
-          child: Padding(
-            padding: const EdgeInsets.only(left: 12),
-            child: Text(region.name),
+          label: region.name,
+          style: MenuItemButton.styleFrom(
+            padding: const EdgeInsets.only(left: 28, right: 16),
           ),
         ),
       );
     }
-    return items;
+    return entries;
   }
 
   Future<void> _detectRegionFromIp() async {
@@ -1449,57 +1452,59 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           const SizedBox(height: 8),
           if (_downloadState.wantsOfflineMaps)
             // Answer-width, not measure-width: a one-word answer stretched
-            // across 960px read as a hairline rectangle that ran into
-            // everything around it. Filled and bordered so it reads as a
-            // control on a near-black ground.
+            // across 960px read as a hairline rectangle. The menu is an M3
+            // one because the older dropdown paints its list on the theme's
+            // canvas colour, which on this ground is the page colour: no
+            // edge, no surface, nothing to say where the list ends.
             Align(
               alignment: Alignment.centerLeft,
-              child: SizedBox(
+              child: DropdownMenu<Region>(
                 width: 420,
-                child: DropdownButtonFormField<Region>(
-              initialValue: _downloadState.selectedRegion,
-              // Twenty-odd regions with a header per country make a menu
-              // taller than the window: it opened as a slab over the title
-              // with a hairline scrollbar nobody could see. Capped, it reads
-              // as a list that scrolls.
-              menuMaxHeight: 360,
-              borderRadius: BorderRadius.circular(8),
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: kBgSidebar,
+                menuHeight: 400,
+                initialSelection: _downloadState.selectedRegion,
                 hintText: l10n.selectRegion,
-                prefixIcon: Icon(Icons.place_outlined,
+                enableFilter: false,
+                requestFocusOnTap: false,
+                leadingIcon: Icon(Icons.place_outlined,
                     size: 20, color: Colors.grey.shade400),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide:
-                      BorderSide(color: Colors.white.withValues(alpha: 0.22)),
+                inputDecorationTheme: InputDecorationTheme(
+                  filled: true,
+                  fillColor: kBgSidebar,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide:
+                        BorderSide(color: Colors.white.withValues(alpha: 0.22)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: kAccent, width: 2),
+                  ),
                 ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: kAccent, width: 2),
+                menuStyle: MenuStyle(
+                  backgroundColor: WidgetStatePropertyAll(kBgSidebar),
+                  surfaceTintColor: const WidgetStatePropertyAll(
+                      Colors.transparent),
+                  elevation: const WidgetStatePropertyAll(12),
+                  shape: WidgetStatePropertyAll(
+                    RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.22)),
+                    ),
+                  ),
+                  padding: const WidgetStatePropertyAll(
+                      EdgeInsets.symmetric(vertical: 6)),
                 ),
-              ),
-              items: _buildRegionDropdownItems(_availableRegions),
-              selectedItemBuilder: (context) =>
-                  _buildRegionDropdownItems(_availableRegions).map((item) {
-                    final r = item.value!;
-                    final isHeader = r.slug.startsWith(_regionHeaderPrefix);
-                    return Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(isHeader ? '' : r.name),
-                    );
-                  }).toList(),
-              onChanged: (r) {
-                // Country headers are disabled, so onChanged only fires for real
-                // regions, but guard against the header sentinel just in case.
-                if (r == null || r.slug.startsWith(_regionHeaderPrefix)) return;
-                if (_downloadState.selectedRegion == r) return;
-                _updateDownloadSelection(() {
-                  _downloadState.selectedRegion = r;
-                });
-              },
-                ),
+                dropdownMenuEntries: _regionMenuEntries(_availableRegions),
+                onSelected: (r) {
+                  if (r == null || r.slug.startsWith(_regionHeaderPrefix)) {
+                    return;
+                  }
+                  if (_downloadState.selectedRegion == r) return;
+                  _updateDownloadSelection(() {
+                    _downloadState.selectedRegion = r;
+                  });
+                },
               ),
             ),
 

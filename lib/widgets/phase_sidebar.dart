@@ -46,10 +46,11 @@ class PhaseSidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Container(
-      // Wide enough for the longest step title in either language ("MDB
-      // aktualisieren", 238px at this weight) to stay on one line. At 220
-      // they wrapped and left the markers hanging beside ragged text.
-      width: 300,
+      // Wide enough for the longest step title to stay on one line. The 300
+      // it started at came from a width measured in a widget test, where the
+      // font is a fixed-width stand-in and every string comes out half again
+      // too wide.
+      width: 264,
       decoration: const BoxDecoration(
         color: kBgSidebar,
         border: Border(right: BorderSide(color: kSidebarEdge)),
