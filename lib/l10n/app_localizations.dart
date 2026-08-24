@@ -3121,6 +3121,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Preparing the card reader...'**
   String get keycardPreparingReader;
+
+  /// No description provided for @blePairingDeviceName.
+  ///
+  /// In en, this message translates to:
+  /// **'Device name'**
+  String get blePairingDeviceName;
+
+  /// No description provided for @blePairingStateIdle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pairing not started'**
+  String get blePairingStateIdle;
+
+  /// No description provided for @blePairingStateVisible.
+  ///
+  /// In en, this message translates to:
+  /// **'Visible, waiting for a device'**
+  String get blePairingStateVisible;
+
+  /// No description provided for @blePinConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm this PIN on your phone'**
+  String get blePinConfirmTitle;
+
+  /// No description provided for @blePinConfirmHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Your phone shows the same number. If they match, confirm it there.'**
+  String get blePinConfirmHint;
+
+  /// No description provided for @blePairingStep2DescCompare.
+  ///
+  /// In en, this message translates to:
+  /// **'Compare the name and address on the right if several devices show up.'**
+  String get blePairingStep2DescCompare;
+
+  /// No description provided for @blePairingStep3DescOverlay.
+  ///
+  /// In en, this message translates to:
+  /// **'The installer shows it in large type as soon as your phone asks.'**
+  String get blePairingStep3DescOverlay;
 }
 
 class _AppLocalizationsDelegate

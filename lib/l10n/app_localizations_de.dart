@@ -1785,4 +1785,28 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get keycardPreparingReader => 'Kartenleser wird vorbereitet...';
+
+  @override
+  String get blePairingDeviceName => 'Gerätename';
+
+  @override
+  String get blePairingStateIdle => 'Kopplung nicht gestartet';
+
+  @override
+  String get blePairingStateVisible => 'Sichtbar, wartet auf ein Gerät';
+
+  @override
+  String get blePinConfirmTitle => 'Diese PIN am Handy bestätigen';
+
+  @override
+  String get blePinConfirmHint =>
+      'Dein Handy zeigt dieselbe Zahl. Stimmen sie überein, bestätige dort.';
+
+  @override
+  String get blePairingStep2DescCompare =>
+      'Vergleiche den Namen und die Adresse rechts, wenn mehrere Geräte auftauchen.';
+
+  @override
+  String get blePairingStep3DescOverlay =>
+      'Der Installer zeigt sie groß an, sobald dein Handy danach fragt.';
 }

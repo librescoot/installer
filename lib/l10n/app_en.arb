@@ -835,5 +835,12 @@
   "keycardStep2Desc": "The reader sits at the front of the dashboard. Hold it there until the installer counts the card.",
   "keycardStep3": "Press Finish",
   "keycardStep3Desc": "That ends the learning and the cards take effect.",
-  "keycardPreparingReader": "Preparing the card reader..."
+  "keycardPreparingReader": "Preparing the card reader...",
+  "blePairingDeviceName": "Device name",
+  "blePairingStateIdle": "Pairing not started",
+  "blePairingStateVisible": "Visible, waiting for a device",
+  "blePinConfirmTitle": "Confirm this PIN on your phone",
+  "blePinConfirmHint": "Your phone shows the same number. If they match, confirm it there.",
+  "blePairingStep2DescCompare": "Compare the name and address on the right if several devices show up.",
+  "blePairingStep3DescOverlay": "The installer shows it in large type as soon as your phone asks."
 }

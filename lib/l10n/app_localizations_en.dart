@@ -1763,4 +1763,28 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get keycardPreparingReader => 'Preparing the card reader...';
+
+  @override
+  String get blePairingDeviceName => 'Device name';
+
+  @override
+  String get blePairingStateIdle => 'Pairing not started';
+
+  @override
+  String get blePairingStateVisible => 'Visible, waiting for a device';
+
+  @override
+  String get blePinConfirmTitle => 'Confirm this PIN on your phone';
+
+  @override
+  String get blePinConfirmHint =>
+      'Your phone shows the same number. If they match, confirm it there.';
+
+  @override
+  String get blePairingStep2DescCompare =>
+      'Compare the name and address on the right if several devices show up.';
+
+  @override
+  String get blePairingStep3DescOverlay =>
+      'The installer shows it in large type as soon as your phone asks.';
 }

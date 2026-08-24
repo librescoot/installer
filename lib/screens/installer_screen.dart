@@ -6760,43 +6760,157 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
   }
 
+  /// What the nRF advertises itself as, which is what a phone's Bluetooth
+  /// list shows. Nothing publishes it at runtime (the `ble` hash carries the
+  /// address, the link state and the firmware status, but no name), so it is
+  /// written here and checked against the hardware.
+  static const _advertisedBleName = 'unu Scooter';
+
   Widget _buildBluetoothPairing(AppLocalizations l10n) {
     // Poll from the moment the panel opens, not from Start: the state that
     // matters most (someone already holds the link) is true before the user
     // touches anything.
     if (!_blePinPolling.isRunning) _startBlePinPolling();
-    Widget panel({
-      required Color colour,
-      required IconData icon,
-      required String heading,
-      required String hint,
-    }) => Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colour.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colour.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, size: 32, color: colour),
-          const SizedBox(height: 12),
-          Text(
-            heading,
-            textAlign: TextAlign.center,
-            style: TextStyle(fontWeight: FontWeight.bold, color: colour),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            hint,
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-          ),
-        ],
-      ),
+
+    final (String state, Color colour) = switch ((
+      _btPairingActive,
+      _bleConnected,
+      _blePairedCount > 0,
+    )) {
+      (_, true, true) => (l10n.blePairedHeading, Colors.green),
+      (_, true, false) => (l10n.bleLinkHeldHeading, Colors.orangeAccent),
+      (true, false, _) => (l10n.blePairingStateVisible, Colors.blueAccent),
+      (false, false, _) => (l10n.blePairingStateIdle, Colors.grey),
+    };
+
+    Widget field(String label, String value) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label,
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+            const SizedBox(height: 4),
+            SelectableText(value,
+                style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'monospace')),
+          ],
+        );
+
+    // Steps on the left, what the scooter is doing on the right. The state
+    // moves while the steps stay put, and the PIN is not here: it gets the
+    // whole screen when it arrives, and saying it twice was confusing.
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(l10n.blePairingWhy,
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade300)),
+        const SizedBox(height: 20),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 3,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  InstructionStep(
+                    number: 1,
+                    title: l10n.blePairingStep1,
+                    description: l10n.blePairingStep1Desc,
+                  ),
+                  InstructionStep(
+                    number: 2,
+                    title: l10n.blePairingStep2,
+                    description: l10n.blePairingStep2DescCompare,
+                  ),
+                  InstructionStep(
+                    number: 3,
+                    title: l10n.blePairingStep3,
+                    description: l10n.blePairingStep3DescOverlay,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 24),
+            Expanded(
+              flex: 2,
+              child: Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: colour.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: colour.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 9,
+                          height: 9,
+                          decoration: BoxDecoration(
+                              shape: BoxShape.circle, color: colour),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(state,
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: colour,
+                                  fontSize: 14)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    field(l10n.blePairingDeviceName, _advertisedBleName),
+                    const SizedBox(height: 14),
+                    if (_bleMac != null) field(l10n.bleMacLabel, _bleMac!),
+                    if (_btAdvertisingSettling) ...[
+                      const SizedBox(height: 14),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(l10n.blePreparingRadio,
+                                style: TextStyle(
+                                    fontSize: 12, color: Colors.grey.shade400)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.link_off, size: 15, color: Colors.grey.shade500),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(l10n.blePairingOneAtATime,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+            ),
+          ],
+        ),
+      ],
     );
 
-    return PhaseLayout(
+    final screen = PhaseLayout(
       title: l10n.bluetoothPairingHeading,
       subtitle: l10n.bluetoothPairingHint,
       actions: [
@@ -6822,190 +6936,44 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             onPressed: _stopBluetoothPairing,
           ),
       ],
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // The screen used to be an icon, an address and two buttons. What
-          // it was missing is the part someone actually needs: that this
-          // happens in the phone's own Bluetooth settings, and what to expect
-          // when it asks.
-          Text(l10n.blePairingWhy,
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade300)),
-          const SizedBox(height: 20),
-          InstructionStep(
-            number: 1,
-            title: l10n.blePairingStep1,
-            description: l10n.blePairingStep1Desc,
-          ),
-          InstructionStep(
-            number: 2,
-            title: l10n.blePairingStep2,
-            description: l10n.blePairingStep2Desc,
-          ),
-          InstructionStep(
-            number: 3,
-            title: l10n.blePairingStep3,
-            description: l10n.blePairingStep3Desc,
-          ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.link_off, size: 16, color: Colors.grey.shade500),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(l10n.blePairingOneAtATime,
-                    style:
-                        TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          if (_bleMac != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.blueAccent.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Colors.blueAccent.withValues(alpha: 0.25),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '${l10n.bleMacLabel}: ',
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-                  ),
-                  SelectableText(
-                    _bleMac!,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          const SizedBox(height: 24),
-          // A phone that is already bonded reconnects by itself, and the radio
-          // takes one central at a time, so the user can arrive here with the
-          // link already spoken for. Starting would then look like it did
-          // nothing at all.
-          if (!_btPairingActive && _bleConnected)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.orangeAccent.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Colors.orangeAccent.withValues(alpha: 0.3),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.info_outline,
-                    size: 20,
-                    color: Colors.orangeAccent,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      l10n.bleLinkHeldHint,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey.shade400,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          if (_btPairingActive) ...[
-            if (_btAdvertisingSettling)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    const SizedBox(width: 10),
-                    Flexible(
-                      child: Text(
-                        l10n.blePreparingRadio,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade400,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            if (_bleConnected)
-              // One link, two meanings: an edge since the window opened is a
-              // device that just paired, a link that was already taken is the
-              // reason nothing else can.
-              panel(
-                colour: _blePairedCount > 0
-                    ? Colors.green
-                    : Colors.orangeAccent,
-                icon: _blePairedCount > 0
-                    ? Icons.bluetooth_connected
-                    : Icons.info_outline,
-                heading: _blePairedCount > 0
-                    ? l10n.blePairedHeading
-                    : l10n.bleLinkHeldHeading,
-                hint: _blePairedCount > 0
-                    ? l10n.blePairedHint
-                    : l10n.bleLinkHeldHint,
-              )
-            else
-              panel(
-                colour: Colors.blueAccent,
-                icon: Icons.bluetooth_searching,
-                heading: l10n.pairingActive,
-                hint: l10n.pairingActiveHint,
-              ),
-            if (_blePinCode != null) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.blueAccent.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Colors.blueAccent.withValues(alpha: 0.4),
-                  ),
-                ),
-                child: Text(
-                  _blePinCode!,
-                  style: const TextStyle(
-                    fontSize: 36,
+      child: body,
+    );
+
+    final pin = _blePinCode;
+    if (pin == null || pin.isEmpty) return screen;
+
+    // The one moment in the flow that wants the whole screen: the phone is
+    // asking, and the number has to be compared and confirmed there.
+    return WaitScaffold(
+      backdrop: screen,
+      overlay: Container(
+        constraints: const BoxConstraints(maxWidth: 460),
+        padding: const EdgeInsets.fromLTRB(28, 26, 28, 22),
+        decoration: BoxDecoration(
+          color: kBgSidebar,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(l10n.blePinConfirmTitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.bold, color: kAccent)),
+            const SizedBox(height: 20),
+            SelectableText(pin,
+                style: const TextStyle(
+                    fontSize: 46,
                     fontWeight: FontWeight.bold,
-                    letterSpacing: 8,
-                    fontFamily: 'monospace',
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                l10n.blePinHint,
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-              ),
-            ],
+                    letterSpacing: 10,
+                    fontFamily: 'monospace')),
+            const SizedBox(height: 18),
+            Text(l10n.blePinConfirmHint,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
           ],
-        ],
+        ),
       ),
     );
   }

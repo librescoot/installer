@@ -689,5 +689,12 @@
   "keycardStep2Desc": "Der Leser sitzt vorne am Display. Kurz halten, bis der Installer die Karte zählt.",
   "keycardStep3": "Fertig drücken",
   "keycardStep3Desc": "Damit endet das Anlernen und die Karten gelten.",
-  "keycardPreparingReader": "Kartenleser wird vorbereitet..."
+  "keycardPreparingReader": "Kartenleser wird vorbereitet...",
+  "blePairingDeviceName": "Gerätename",
+  "blePairingStateIdle": "Kopplung nicht gestartet",
+  "blePairingStateVisible": "Sichtbar, wartet auf ein Gerät",
+  "blePinConfirmTitle": "Diese PIN am Handy bestätigen",
+  "blePinConfirmHint": "Dein Handy zeigt dieselbe Zahl. Stimmen sie überein, bestätige dort.",
+  "blePairingStep2DescCompare": "Vergleiche den Namen und die Adresse rechts, wenn mehrere Geräte auftauchen.",
+  "blePairingStep3DescOverlay": "Der Installer zeigt sie groß an, sobald dein Handy danach fragt."
 }
