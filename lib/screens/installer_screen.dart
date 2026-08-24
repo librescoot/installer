@@ -3932,6 +3932,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _mdbFlashStarted = true;
       Future.microtask(_flashMdb);
     }
+    // The longest wait in the install, so it follows the same rule as the
+    // others: the overlay while it runs, the whole frame back on a failure,
+    // where the log and the retry live.
+    if (!_mdbFlashBlocked) {
+      return _waitPhase(
+        title: l10n.flashingMdb,
+        warning: l10n.dbcFlashDoNotDisconnect,
+        progress: _progress > 0 ? _progress : null,
+      );
+    }
     return PhaseLayout(
       title: l10n.flashingMdb,
       subtitle: l10n.flashingMdbSubheading,
@@ -4097,6 +4107,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   Future<void> _flashMdb() async {
     if (_windowClosing || !mounted) return;
     final l10n = AppLocalizations.of(context)!;
+    // Timings from real runs: the path resolves in seconds, the bmap write of
+    // a stage-0 image takes about a minute and a half. The flasher's own
+    // per-phase messages carry the detail and land in the log tail.
+    _beginWait([
+      WaitStep(
+          label: l10n.waitingForDevicePath,
+          typical: const Duration(seconds: 15)),
+      WaitStep(
+          label: l10n.flashingMdb, typical: const Duration(seconds: 90)),
+    ]);
     setState(() => _isProcessing = true);
     final criticalOperation = _acquireCriticalOperation();
 
@@ -4229,6 +4249,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       }
 
       final bmapPath = _downloadState.bmapPathFor(DownloadItemType.mdbFirmware);
+      _setStatus(l10n.flashingMdb);
       await flashService.writeTwoPhase(
         mdbItem.localPath!,
         devicePath,
