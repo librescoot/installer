@@ -193,9 +193,10 @@ class DownloadService {
   /// The pinned stage-0 release, or null when the manifest does not name one.
   ///
   /// The stage-0 image has to carry what the installer needs while it runs:
-  /// redis, bluetooth-service, mender-update. The firmware line a user picks
-  /// may predate any of that, and taking the stage-0 from the target release
-  /// made the installer's own features come and go with the target version.
+  /// redis, bluetooth-service, mender-update, zstd. The firmware line a user
+  /// picks may predate any of that, and taking the stage-0 from the target
+  /// release made the installer's own features come and go with the target
+  /// version.
   /// Artifacts depend on device_type alone, so any stage-0 for this board can
   /// carry any target version.
   ///

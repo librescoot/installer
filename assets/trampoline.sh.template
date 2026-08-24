@@ -2298,8 +2298,8 @@ if [ -n "$DBC_MENDER" ]; then
 
   # Tiles go up while the dashboard still runs the stage-0 image. That image is
   # pinned, so it is the one place whose contents the installer controls; the
-  # firmware being installed on top may be older than any given tool, and
-  # stable 1.2.1 has no zstd to unpack routing tiles with.
+  # firmware being installed on top may predate any tool the upload needs,
+  # zstd included.
   #
   # It runs alongside the artifact install rather than before it: the two touch
   # different partitions, the artifact write is the long pole at roughly a
