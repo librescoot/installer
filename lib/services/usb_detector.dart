@@ -14,6 +14,18 @@ enum SystemDiskVerdict {
   unknown,
 }
 
+/// What asking Windows about one disk number came back with.
+class WindowsDiskProbe {
+  /// Whether the disk number still enumerates. False only when the probe
+  /// positively established the disk is gone.
+  final bool present;
+
+  /// Whether the disk carries boot or system, as far as the probe could tell.
+  final SystemDiskVerdict verdict;
+
+  const WindowsDiskProbe({required this.verdict, this.present = true});
+}
+
 /// One disk as the OS enumerates it, for the dialog that asks the user to
 /// confirm the flash target when the system-disk probe came back unknown.
 class UsbDiskInfo {
@@ -369,7 +381,15 @@ if ($dev) { "$($dev.Model)`t$($dev.PNPDeviceID)`t$($dev.DeviceID)`t$($dev.Size)`
           final isRemovable = mediaType.toLowerCase().contains('removable');
 
           // CRITICAL: Check if this might be a system disk
-          final verdict = await _windowsSystemDiskVerdict(deviceId);
+          final probe = await _windowsSystemDiskVerdict(deviceId);
+
+          // The enumeration above can hand back a disk the storage stack has
+          // already let go of. Reporting one is worse than reporting nothing:
+          // downstream it reads as a board sitting in mass storage, which is
+          // the state that says a flash has not taken yet, so a finished
+          // install turns into another write against a path that no longer
+          // opens.
+          if (!probe.present) return null;
 
           return UsbDevice(
             id: pnpId,
@@ -380,7 +400,7 @@ if ($dev) { "$($dev.Model)`t$($dev.PNPDeviceID)`t$($dev.DeviceID)`t$($dev.Size)`
             mode: DeviceMode.massStorage,
             sizeBytes: sizeBytes,
             isRemovable: isRemovable,
-            systemDiskVerdict: verdict,
+            systemDiskVerdict: probe.verdict,
           );
       }
     } catch (_) {}
@@ -532,17 +552,48 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
         p == '/mnt';
   }
 
-  Future<SystemDiskVerdict> _windowsSystemDiskVerdict(String deviceId) async {
+  /// What the disk probe on Windows came back with.
+  ///
+  /// [present] is the narrow claim that the disk number still enumerates.
+  /// Only a probe that positively established the disk is gone sets it false;
+  /// every other outcome, including one that answered nothing at all, leaves
+  /// it true, so a probe that cannot speak never removes a device.
+  static WindowsDiskProbe _parseWindowsDiskProbe(int exitCode, String stdout) {
+    final answer = stdout.trim().toLowerCase();
+    if (exitCode != 0) {
+      return const WindowsDiskProbe(verdict: SystemDiskVerdict.unknown);
+    }
+    return switch (answer) {
+      'system' =>
+        const WindowsDiskProbe(verdict: SystemDiskVerdict.systemDisk),
+      'ok' => const WindowsDiskProbe(verdict: SystemDiskVerdict.notSystem),
+      'absent' => const WindowsDiskProbe(
+          verdict: SystemDiskVerdict.unknown,
+          present: false,
+        ),
+      _ => const WindowsDiskProbe(verdict: SystemDiskVerdict.unknown),
+    };
+  }
+
+  @visibleForTesting
+  static WindowsDiskProbe parseWindowsDiskProbe(int exitCode, String stdout) =>
+      _parseWindowsDiskProbe(exitCode, stdout);
+
+  Future<WindowsDiskProbe> _windowsSystemDiskVerdict(String deviceId) async {
     // Anything we cannot name a disk number for is not something we are
     // willing to write to.
     final diskMatch = RegExp(r'PHYSICALDRIVE(\d+)').firstMatch(deviceId);
-    if (diskMatch == null) return SystemDiskVerdict.systemDisk;
+    if (diskMatch == null) {
+      return const WindowsDiskProbe(verdict: SystemDiskVerdict.systemDisk);
+    }
 
     final diskNumber = int.parse(diskMatch.group(1)!);
 
     // Disk 0 is the boot disk on essentially every Windows install, and the
     // path guard in FlashService refuses it too. Never probe, never flash.
-    if (diskNumber == 0) return SystemDiskVerdict.systemDisk;
+    if (diskNumber == 0) {
+      return const WindowsDiskProbe(verdict: SystemDiskVerdict.systemDisk);
+    }
 
     try {
       final result = await Process.run(
@@ -561,7 +612,7 @@ try {
 } catch {}
 try {
   \$drive = Get-CimInstance Win32_DiskDrive -Filter "Index=\$n"
-  if (-not \$drive) { 'unknown'; exit }
+  if (-not \$drive) { 'absent'; exit }
   \$letters = \$drive |
     Get-CimAssociatedInstance -ResultClassName Win32_DiskPartition |
     Get-CimAssociatedInstance -ResultClassName Win32_LogicalDisk |
@@ -572,23 +623,25 @@ try {
         ],
       );
 
-      final verdict = result.stdout.toString().trim().toLowerCase();
-      if (result.exitCode == 0 && verdict == 'system') {
-        return SystemDiskVerdict.systemDisk;
-      }
-      if (result.exitCode == 0 && verdict == 'ok') {
-        return SystemDiskVerdict.notSystem;
-      }
+      final answer = result.stdout.toString().trim().toLowerCase();
+      final probe = _parseWindowsDiskProbe(result.exitCode, answer);
 
-      debugPrint(
-        'USB detector: system-disk check inconclusive for $deviceId '
-        '(exit ${result.exitCode}, output "$verdict"), '
-        'asking the user to confirm the target',
-      );
-      return SystemDiskVerdict.unknown;
+      if (!probe.present) {
+        debugPrint(
+          'USB detector: disk $deviceId no longer enumerates, '
+          'dropping the stale mass-storage entry',
+        );
+      } else if (probe.verdict == SystemDiskVerdict.unknown) {
+        debugPrint(
+          'USB detector: system-disk check inconclusive for $deviceId '
+          '(exit ${result.exitCode}, output "$answer"), '
+          'asking the user to confirm the target',
+        );
+      }
+      return probe;
     } catch (e) {
       debugPrint('USB detector: system-disk check failed for $deviceId: $e');
-      return SystemDiskVerdict.unknown;
+      return const WindowsDiskProbe(verdict: SystemDiskVerdict.unknown);
     }
   }
 
