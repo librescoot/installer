@@ -374,6 +374,47 @@ void main() {
           isFalse);
     });
 
+    test('a superseded generation cancels and removes its partial file',
+        () async {
+      final controller = StreamController<List<int>>();
+      addTearDown(controller.close);
+      final service = DownloadService(client: _StreamClient(controller.stream));
+      addTearDown(service.dispose);
+      final generation = DateTime.now().microsecondsSinceEpoch;
+      final token = DownloadCancellationToken(generation);
+      final item = DownloadItem(
+        type: DownloadItemType.mdbArtifact,
+        url: 'https://example.com/cancelled.mender',
+        filename: 'cancelled-$generation.mender',
+        expectedSize: 2,
+      );
+      final firstChunk = Completer<void>();
+      final download = service.downloadItem(
+        item,
+        cancellationToken: token,
+        onProgress: (bytes, total) {
+          if (!firstChunk.isCompleted) firstChunk.complete();
+        },
+      );
+
+      controller.add(<int>[1]);
+      await firstChunk.future;
+      token.cancel();
+      controller.add(<int>[2]);
+
+      await expectLater(download, throwsA(isA<DownloadCancelled>()));
+      expect(item.localPath, isNull);
+      expect(item.bytesDownloaded, 0);
+      final cacheDir = await DownloadService.getCacheDir();
+      expect(
+        File(p.join(
+          cacheDir.path,
+          '${item.filename}.$generation.part',
+        )).existsSync(),
+        isFalse,
+      );
+    });
+
     test('fullImageBoards swaps the minimal images for the full ones', () async {
       final service = DownloadService(
         client: _manifestClient({'stable': _release('v1.2.1', fullRelease())}),

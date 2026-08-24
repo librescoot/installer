@@ -12,6 +12,25 @@ import '../models/board_state.dart';
 import '../models/download_state.dart';
 import '../models/region.dart';
 
+class DownloadCancelled implements Exception {
+  const DownloadCancelled();
+}
+
+class DownloadCancellationToken {
+  DownloadCancellationToken(this.generation);
+
+  final int generation;
+  bool _isCancelled = false;
+
+  bool get isCancelled => _isCancelled;
+
+  void cancel() => _isCancelled = true;
+
+  void throwIfCancelled() {
+    if (_isCancelled) throw const DownloadCancelled();
+  }
+}
+
 class DownloadService {
   static const _osmTilesRepo = 'librescoot/osm-tiles';
   static const _valhallaTilesRepo = 'librescoot/valhalla-tiles';
@@ -282,6 +301,15 @@ class DownloadService {
   Future<String> _sha256OfFile(File file) async {
     final digest = await sha256.bind(file.openRead()).first;
     return digest.toString();
+  }
+
+  Future<void> _throwIfDownloadCancelled(
+    DownloadCancellationToken? cancellationToken,
+    File partFile,
+  ) async {
+    if (!(cancellationToken?.isCancelled ?? false)) return;
+    if (await partFile.exists()) await partFile.delete();
+    throw const DownloadCancelled();
   }
 
   Future<void> _restoreCachedFile(File cached, DownloadItem item) async {
@@ -557,12 +585,16 @@ class DownloadService {
   Future<void> downloadItem(
     DownloadItem item, {
     void Function(int bytesDownloaded, int totalBytes)? onProgress,
+    DownloadCancellationToken? cancellationToken,
   }) async {
     if (item.isComplete) return;
+    cancellationToken?.throwIfCancelled();
 
     final cacheDir = await getCacheDir();
     final targetFile = File(p.join(cacheDir.path, item.filename));
-    final partFile = File('${targetFile.path}.part');
+    final partFile = File(cancellationToken == null
+        ? '${targetFile.path}.part'
+        : '${targetFile.path}.${cancellationToken.generation}.part');
 
     final request = http.Request('GET', Uri.parse(item.url));
     final response = await _client.send(request).timeout(
@@ -572,6 +604,7 @@ class DownloadService {
             _requestTimeout,
           ),
         );
+    cancellationToken?.throwIfCancelled();
 
     if (response.statusCode != 200) {
       throw Exception('Download failed: HTTP ${response.statusCode}');
@@ -593,6 +626,7 @@ class DownloadService {
             _idleTimeout,
           )),
         )) {
+          cancellationToken?.throwIfCancelled();
           sink.add(chunk);
           downloaded += chunk.length;
           item.bytesDownloaded = downloaded;
@@ -607,6 +641,8 @@ class DownloadService {
       rethrow;
     }
 
+    await _throwIfDownloadCancelled(cancellationToken, partFile);
+
     // Verify size
     if (await partFile.length() != item.expectedSize) {
       await partFile.delete();
@@ -617,6 +653,7 @@ class DownloadService {
     // Catches transit corruption that the size check would miss.
     if (item.expectedSha256 != null) {
       final actual = await _sha256OfFile(partFile);
+      await _throwIfDownloadCancelled(cancellationToken, partFile);
       if (actual != item.expectedSha256) {
         await partFile.delete();
         throw Exception(
@@ -626,10 +663,13 @@ class DownloadService {
       }
     }
 
+    await _throwIfDownloadCancelled(cancellationToken, partFile);
     await partFile.rename(targetFile.path);
+    await _throwIfDownloadCancelled(cancellationToken, partFile);
     item.localPath = targetFile.path;
 
     // Clean up old versions of the same type in the cache
+    await _throwIfDownloadCancelled(cancellationToken, partFile);
     await _cleanupOldVersions(cacheDir, item);
   }
 
@@ -685,12 +725,14 @@ class DownloadService {
   Future<void> downloadAll(
     List<DownloadItem> items, {
     void Function(DownloadItem item, int bytesDownloaded, int totalBytes)? onProgress,
+    DownloadCancellationToken? cancellationToken,
   }) async {
     for (final item in items) {
+      cancellationToken?.throwIfCancelled();
       if (item.isComplete) continue;
       await downloadItem(item, onProgress: (bytes, total) {
         onProgress?.call(item, bytes, total);
-      });
+      }, cancellationToken: cancellationToken);
     }
   }
 

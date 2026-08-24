@@ -384,6 +384,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   @override
   void dispose() {
     windowManager.removeListener(this);
+    _downloadCancellationToken?.cancel();
     _deviceSub?.cancel();
     _usbDetector.stopMonitoring();
     _blePinPollTimer?.cancel();
@@ -1256,8 +1257,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             Text(l10n.region, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const Spacer(),
             InkWell(
-              onTap: () => setState(() {
-                _downloadState.wantsOfflineMaps = !_downloadState.wantsOfflineMaps;
+              onTap: () => _updateDownloadSelection(() {
+                _downloadState.wantsOfflineMaps =
+                    !_downloadState.wantsOfflineMaps;
               }),
               borderRadius: BorderRadius.circular(4),
               child: Padding(
@@ -1267,7 +1269,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                   children: [
                     Checkbox(
                       value: !_downloadState.wantsOfflineMaps,
-                      onChanged: (v) => setState(() {
+                      onChanged: (v) => _updateDownloadSelection(() {
                         _downloadState.wantsOfflineMaps = !(v ?? false);
                       }),
                     ),
@@ -1304,7 +1306,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               // Country headers are disabled, so onChanged only fires for real
               // regions, but guard against the header sentinel just in case.
               if (r == null || r.slug.startsWith(_regionHeaderPrefix)) return;
-              setState(() => _downloadState.selectedRegion = r);
+              if (_downloadState.selectedRegion == r) return;
+              _updateDownloadSelection(() {
+                _downloadState.selectedRegion = r;
+              });
             },
           ),
 
@@ -1625,17 +1630,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }) {
     return GestureDetector(
       onTap: available
-          ? () => setState(() {
-                if (_downloadState.channel == channel) return;
+          ? () {
+              if (_downloadState.channel == channel) return;
+              _updateDownloadSelection(() {
                 _downloadState.channel = channel;
-                // The queue is built once, on entering Notices. Without
-                // this, coming back here to change channel would carry the
-                // old release's queue forward, and changing channel is the
-                // only way out of a release that is missing an asset the
-                // install needs.
-                _downloadsKicked = false;
-                _downloadsFailed = null;
-              })
+              });
+            }
           : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
@@ -1767,6 +1767,32 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   bool _downloadsKicked = false;
+  int _downloadGeneration = 0;
+  DownloadCancellationToken? _downloadCancellationToken;
+
+  void _updateDownloadSelection(void Function() update) {
+    setState(() {
+      update();
+      _downloadGeneration++;
+      _downloadCancellationToken?.cancel();
+      _downloadCancellationToken = null;
+      _downloadsKicked = false;
+      _downloadsFailed = null;
+      _downloadState.releaseTag = null;
+      _downloadState.requiredTypes = const {};
+      _downloadState.items = [];
+      _downloadState.error = null;
+    });
+  }
+
+  bool _ownsDownloadGeneration(
+    int generation,
+    DownloadCancellationToken cancellationToken,
+  ) =>
+      mounted &&
+      generation == _downloadGeneration &&
+      identical(cancellationToken, _downloadCancellationToken) &&
+      !cancellationToken.isCancelled;
 
   /// Why the last kick failed, or null. Holding the reason here is what stops
   /// the retry: the kick is scheduled from build(), so re-arming
@@ -1781,7 +1807,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// Notices then waits on _downloadState.allReady (or the override).
   Future<void> _kickoffDownloads() async {
     if (_downloadsKicked) return;
+    if (!mounted) return;
     _downloadsKicked = true;
+    final generation = ++_downloadGeneration;
+    _downloadCancellationToken?.cancel();
+    final cancellationToken = DownloadCancellationToken(generation);
+    _downloadCancellationToken = cancellationToken;
+    final channel = _downloadState.channel;
+    final region = _downloadState.selectedRegion;
+    final wantsOfflineMaps = _downloadState.wantsOfflineMaps;
     final l10n = AppLocalizations.of(context)!;
     setState(() {
       _isProcessing = true;
@@ -1816,18 +1850,21 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           )..localPath = launchArgs.dbcImage
            ..bytesDownloaded = await File(launchArgs.dbcImage!).length());
         }
+        if (!_ownsDownloadGeneration(generation, cancellationToken)) return;
         setState(() => _downloadState.items = items);
       } else {
         _setStatus(l10n.resolvingReleases);
         // The tag is the target version every later check compares a board
         // against, so it has to be recorded, not just used to pick assets.
         // Reads the same in-memory manifest the queue build does.
-        final release = await _downloadService.resolveRelease(_downloadState.channel);
+        final release = await _downloadService.resolveRelease(channel);
+        if (!_ownsDownloadGeneration(generation, cancellationToken)) return;
         final items = await _downloadService.buildDownloadQueue(
-          channel: _downloadState.channel,
-          region: _downloadState.selectedRegion,
-          wantsOfflineMaps: _downloadState.wantsOfflineMaps,
+          channel: channel,
+          region: region,
+          wantsOfflineMaps: wantsOfflineMaps,
         );
+        if (!_ownsDownloadGeneration(generation, cancellationToken)) return;
         setState(() {
           _downloadState.releaseTag = release.tag;
           _downloadState.requiredTypes = DownloadState.defaultRequiredTypes;
@@ -1847,6 +1884,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         final cacheDir = await DownloadService.getCacheDir();
         final shortfall = await DownloadService.shortfallFor(
             _downloadState.items, cacheDir);
+        if (!_ownsDownloadGeneration(generation, cancellationToken)) return;
         if (shortfall != null) {
           final mb = (shortfall / (1024 * 1024)).ceil();
           debugPrint('Downloads: $mb MB short on ${cacheDir.path}');
@@ -1856,14 +1894,22 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           }
           return;
         }
-        _downloadInBackground();
+        _downloadInBackground(
+          items,
+          generation,
+          cancellationToken,
+        );
       }
+    } on DownloadCancelled {
+      return;
     } catch (e) {
       // Deliberately NOT re-arming _downloadsKicked: the retry is the user's
       // to ask for, via the button this failure puts on screen.
-      if (mounted) setState(() => _downloadsFailed = e.toString());
+      if (_ownsDownloadGeneration(generation, cancellationToken)) {
+        setState(() => _downloadsFailed = e.toString());
+      }
     } finally {
-      if (mounted) {
+      if (_ownsDownloadGeneration(generation, cancellationToken)) {
         // Leave a failure on screen. Clearing unconditionally was why the
         // error only ever flickered: the catch set it and the finally wiped
         // it on the next frame, so the user got a strobing status line and no
@@ -1885,19 +1931,30 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (mounted) _setPhase(InstallerPhase.physicalPrep);
   }
 
-  void _downloadInBackground() async {
+  void _downloadInBackground(
+    List<DownloadItem> items,
+    int generation,
+    DownloadCancellationToken cancellationToken,
+  ) async {
     try {
       await _downloadService.downloadAll(
-        _downloadState.items,
+        items,
+        cancellationToken: cancellationToken,
         onProgress: (item, bytes, total) {
-          if (mounted) setState(() {}); // Trigger rebuild to update progress
+          if (_ownsDownloadGeneration(generation, cancellationToken)) {
+            setState(() {});
+          }
         },
       );
       // The last onProgress fires before localPath is set on the final item,
       // so the UI is stuck in "almost-but-not-done" without this final rebuild.
-      if (mounted) setState(() {});
+      if (_ownsDownloadGeneration(generation, cancellationToken)) {
+        setState(() {});
+      }
+    } on DownloadCancelled {
+      return;
     } catch (e) {
-      if (mounted) {
+      if (_ownsDownloadGeneration(generation, cancellationToken)) {
         final message = e.toString();
         setState(() {
           _downloadState.error = message;
@@ -1909,11 +1966,21 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   void _restartFailedDownloads() {
     if (_downloadState.error == null) return;
+    var cancellationToken = _downloadCancellationToken;
+    if (cancellationToken == null || cancellationToken.isCancelled) {
+      final generation = ++_downloadGeneration;
+      cancellationToken = DownloadCancellationToken(generation);
+      _downloadCancellationToken = cancellationToken;
+    }
     setState(() {
       _downloadState.error = null;
       _downloadsFailed = null;
     });
-    _downloadInBackground();
+    _downloadInBackground(
+      _downloadState.items,
+      _downloadGeneration,
+      cancellationToken,
+    );
   }
 
   Widget _buildPhysicalPrep(AppLocalizations l10n) {
@@ -5030,6 +5097,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       final dbcArtifact = _downloadState.artifactFor(Board.dbc);
       final osmItem = _downloadState.itemOfType(DownloadItemType.osmTiles);
       final valhallaItem = _downloadState.itemOfType(DownloadItemType.valhallaTiles);
+      final installTiles =
+          _plan?.installTiles ?? _downloadState.wantsOfflineMaps;
 
       final dbcBmapItem = _downloadState.itemOfType(DownloadItemType.dbcBmap);
 
@@ -5086,9 +5155,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             ? null
             : _downloadState.releaseTag ??
                 _versionFromArtifactFilename(dbcArtifact.filename),
-        osmTilesLocalPath: osmItem?.localPath,
-        valhallaTilesLocalPath: valhallaItem?.localPath,
-        region: _downloadState.selectedRegion,
+        osmTilesLocalPath: installTiles ? osmItem?.localPath : null,
+        valhallaTilesLocalPath:
+            installTiles ? valhallaItem?.localPath : null,
+        region: installTiles ? _downloadState.selectedRegion : null,
         finish: _buildDeviceFinish(),
         onProgress: (status, progress) {
           _setStatus(status, progress: progress);
