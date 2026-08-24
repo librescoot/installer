@@ -4153,7 +4153,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         isSystemDisk: target?.isSystemDisk ?? false,
         vendorId: target?.vendorId ?? 0,
         productId: target?.productId ?? 0,
-        systemDiskVerdict: linuxVerdict ?? SystemDiskVerdict.unknown,
+        // Off Linux there is no linuxVerdict, and the detector's own verdict
+        // is what there is. It does no work in validateDevice today, which is
+        // precisely why it should be passed: a Windows or macOS rule added
+        // later would otherwise read unknown forever and look like it worked.
+        systemDiskVerdict:
+            linuxVerdict ?? target?.systemDiskVerdict ?? SystemDiskVerdict.unknown,
+        detectedPath: target?.path,
       );
       if (!safetyCheck.passed) {
         debugPrint(

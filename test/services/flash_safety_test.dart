@@ -132,6 +132,55 @@ void main() {
     expect(result.passed, isFalse);
     expect(result.errors, isNotEmpty);
   });
+
+  group('the detected path and the target path must agree', () {
+    // The scooter's own identity is what makes a stale pair dangerous: VID,
+    // PID, size and removability all come from the arrived device and pass on
+    // their own merits, while the path still names the one that left.
+    SafetyCheck checkPair({required String detected, required String target}) =>
+        flash.validateDevice(
+          devicePath: target,
+          sizeBytes: 8 * 1024 * 1024 * 1024,
+          isRemovable: true,
+          isSystemDisk: false,
+          vendorId: 0x0525,
+          productId: 0xA4A5,
+          detectedPath: detected,
+        );
+
+    test('a mismatched pair is refused', () {
+      final result = checkPair(detected: _goodPath, target: _otherPath);
+      expect(result.passed, isFalse);
+      expect(result.errors.join('; '), contains('does not match'));
+    });
+
+    test('a matching pair passes', () {
+      final result = checkPair(detected: _goodPath, target: _goodPath);
+      expect(result.passed, isTrue, reason: result.errors.join('; '));
+    });
+
+    test('no detected path means no claim, and no refusal', () {
+      // macOS resolves the path separately and can legitimately have nothing
+      // to compare. Refusing there would block a good flash on missing data.
+      expect(checkPair(detected: '', target: _goodPath).passed, isTrue);
+      final result = flash.validateDevice(
+        devicePath: _goodPath,
+        sizeBytes: 8 * 1024 * 1024 * 1024,
+        isRemovable: true,
+        isSystemDisk: false,
+        vendorId: 0x0525,
+        productId: 0xA4A5,
+      );
+      expect(result.passed, isTrue, reason: result.errors.join('; '));
+    });
+
+    test('a mismatch inside the size window is still refused', () {
+      // The dangerous shape: an SD card or an old stick, 1-16 GB, so the size
+      // window never fires and the identity is the scooter's by construction.
+      final result = checkPair(detected: _goodPath, target: _otherPath);
+      expect(result.passed, isFalse);
+    });
+  });
 }
 
 /// A plausible target path for the host we happen to be running the suite on.
@@ -146,4 +195,11 @@ String get _systemPath {
   if (Platform.isWindows) return r'\\.\PHYSICALDRIVE0';
   if (Platform.isMacOS) return '/dev/rdisk0';
   return '/dev/sda';
+}
+
+/// A second valid-looking target on this host, for the stale-path case.
+String get _otherPath {
+  if (Platform.isWindows) return r'\\.\PHYSICALDRIVE7';
+  if (Platform.isMacOS) return '/dev/rdisk7';
+  return '/dev/sdc';
 }

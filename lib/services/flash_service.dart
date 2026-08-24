@@ -127,9 +127,27 @@ class FlashService {
     required int vendorId,
     required int productId,
     SystemDiskVerdict systemDiskVerdict = SystemDiskVerdict.unknown,
+    String? detectedPath,
   }) {
     final errors = <String>[];
     final warnings = <String>[];
+
+    // The path and the identity reach this call from two separate reads of a
+    // field the detector replaces between polls, so they can describe two
+    // different devices: the path from the one that has left, the size, VID
+    // and PID from the one that arrived. Every other check here reads the
+    // identity, so a mismatched pair passes them all by construction. The
+    // size window is what would otherwise have to catch it, and it only
+    // catches disks outside 1-16 GB -- an SD card or an old stick sits right
+    // inside the window.
+    if (detectedPath != null &&
+        detectedPath.isNotEmpty &&
+        detectedPath != devicePath) {
+      errors.add(
+        'Device identity does not match the target path: detected on '
+        '$detectedPath, about to write to $devicePath',
+      );
+    }
 
     // CRITICAL: Never flash system disk
     if (isSystemDisk) {
