@@ -369,6 +369,41 @@ void main() {
         reason: 'the mender install needs a ceiling, applied on the MDB');
   });
 
+  test('what was installed is recorded before the upload server goes away', () {
+    // record_tiles reads the artifacts back over the same PUT server the
+    // uploads used. Tearing that down first would leave it with only ssh, and
+    // the metadata upload would fail on every run.
+    final src = File('assets/trampoline.sh.template').readAsStringSync();
+    final record = src.indexOf(RegExp(r'^record_tiles$', multiLine: true));
+    final teardown = src.indexOf('Stop DBC Python upload server');
+    expect(record, greaterThan(-1), reason: 'record_tiles is never called');
+    expect(record, lessThan(teardown),
+        reason: 'record_tiles runs after the upload server is stopped');
+  });
+
+  test('tile metadata is uploaded, not echoed through a remote shell', () {
+    // The dashboard runs the bootstrap image during the tile phase and its
+    // busybox has no base64 applet, so the record has to go over the PUT
+    // server like every other file.
+    final src = File('assets/trampoline.sh.template').readAsStringSync();
+    expect(src, contains('"/maps/metadata.json"'),
+        reason: 'metadata.json is not uploaded to the dashboard');
+    // The word appears in the comment explaining why; what must not appear is
+    // an actual invocation.
+    expect(src, isNot(contains(RegExp(r'base64\s+-d'))),
+        reason: 'base64 is not available on the bootstrap image');
+  });
+
+  test('the region reaches the recorded metadata', () {
+    // Baked in from the region the user picked. Parsing it back out of the
+    // staged filenames on the device would be a second source of truth.
+    final src = File('assets/trampoline.sh.template').readAsStringSync();
+    expect(src, contains('TILES_REGION="{{TILES_REGION}}"'));
+    expect(src, contains('TILES_REGION_NAME="{{TILES_REGION_NAME}}"'));
+    expect(src, contains(r'\\"region\\":\\"$TILES_REGION\\"'),
+        reason: 'the region is not written into metadata.json');
+  });
+
   test('commands sent to the dashboard use binaries it actually has', () {
     // The dashboard spends most of the install running a bootstrap image: a
     // core-image with dropbear, data-server, the mender client and busybox,
@@ -384,21 +419,33 @@ void main() {
       'rm', 'sync', 'test', 'reboot', 'sh', 'true',
       // systemd, in the image
       'systemctl',
+      // busybox applets used to read back what was installed
+      'sha256sum', 'stat', 'cut',
       // shipped explicitly by the bootstrap recipe
       'mender-update',
-      // only ever run after the dashboard reboots onto the full image
+      // also shipped by the bootstrap recipe, for unpacking .tar.zst routing
+      // tiles while the dashboard still runs it
       'zstd',
     };
 
     final source = File('assets/trampoline.sh.template').readAsStringSync();
+    // The command argument may itself contain quotes, escaped or nested, so
+    // the capture cannot stop at the first one. An earlier version did, and
+    // silently checked only the leading word of any command that quoted an
+    // argument, which let three unverified binaries through.
     final re = RegExp(
-        r"""dbc_ssh(?:_bounded)?\s+(?:\d+\s+)?["']([^"']+)["']""");
-    final calls = re.allMatches(source).map((m) => m.group(1)!).toList();
+        r"""dbc_ssh(?:_bounded)?\s+(?:\d+\s+)?(["'])((?:\\.|(?!\1)[\s\S])*)\1""");
+    final calls = re.allMatches(source).map((m) => m.group(2)!).toList();
     expect(calls, isNotEmpty, reason: 'no dashboard commands found to check');
 
     final unknown = <String>{};
     for (final c in calls) {
-      for (final part in c.split(RegExp(r'[;&|]'))) {
+      // A nested single-quoted segment is an argument, not a command list:
+      // fw_setenv stores a whole U-Boot script that way, and its `fuse` and
+      // `ums` are U-Boot builtins that never run as binaries here. Drop those
+      // segments before splitting, or the check reports words it invented.
+      final flat = c.replaceAll(RegExp(r"'[^']*'"), ' ');
+      for (final part in flat.split(RegExp(r'[;&|]'))) {
         final t = part.trim();
         if (t.isEmpty) continue;
         final word = t.split(RegExp(r'\s+')).first;

@@ -140,6 +140,15 @@ class TrampolineService {
           installTiles && region != null
               ? '/data/installer/${valhallaTilesFilename ?? region.valhallaTilesFilename}'
               : '',
+        )
+        // Baked in rather than parsed back out of the filenames on the device:
+        // the region is picked here, and the trampoline records it so the
+        // dashboard does not have to re-identify it from the release manifest,
+        // which needs network the vehicle may not have yet.
+        .replaceAll('{{TILES_REGION}}', installTiles && region != null ? region.slug : '')
+        .replaceAll(
+          '{{TILES_REGION_NAME}}',
+          installTiles && region != null ? region.name : '',
         );
   }
 
