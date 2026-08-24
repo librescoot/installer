@@ -1220,6 +1220,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get keycardMasterStageLearnedToast => 'Master card registered.';
 
   @override
+  String get keycardMasterStageStartFailed =>
+      'Master card setup could not be started';
+
+  @override
+  String get keycardMasterStageRetryButton => 'Try again';
+
+  @override
   String get keycardMasterStageSkipButton => 'Skip';
 
   @override
