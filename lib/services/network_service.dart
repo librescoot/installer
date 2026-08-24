@@ -250,40 +250,76 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
 
   Future<NetworkInterface?> _findMacOSNewInterface() async {
     try {
-      // Get list of interfaces without IPs
       final result = await Process.run('ifconfig', ['-a']);
       if (result.exitCode != 0) return null;
 
-      final output = result.stdout.toString();
-      final interfaces = <String>[];
-
-      // Parse ifconfig output
-      String? currentInterface;
-      for (final line in output.split('\n')) {
-        if (line.isNotEmpty && !line.startsWith('\t') && !line.startsWith(' ')) {
-          final match = RegExp(r'^(\w+):').firstMatch(line);
-          if (match != null) {
-            currentInterface = match.group(1);
-          }
-        } else if (currentInterface != null &&
-            line.contains('status: active') &&
-            !output.contains('inet ') &&
-            currentInterface.startsWith('en')) {
-          interfaces.add(currentInterface);
-        }
-      }
-
-      if (interfaces.isNotEmpty) {
-        // Pick the highest numbered en interface (likely the newest)
-        interfaces.sort();
-        final iface = interfaces.last;
-        return NetworkInterface(
-          name: iface,
-          displayName: 'USB Ethernet ($iface)',
-        );
-      }
+      final iface = newestUnconfiguredEthernet(result.stdout.toString());
+      if (iface == null) return null;
+      return NetworkInterface(
+        name: iface,
+        displayName: 'USB Ethernet ($iface)',
+      );
     } catch (_) {}
     return null;
+  }
+
+  /// Interfaces in `ifconfig -a` output that are up and carry no IPv4 address
+  /// of their own, which is what a USB gadget looks like before it is given
+  /// one.
+  ///
+  /// Each block is judged on its own lines. Testing the whole dump instead is
+  /// what broke this: lo0 always carries 127.0.0.1, so a global "no inet"
+  /// test is false on every machine and no candidate ever qualified.
+  @visibleForTesting
+  static List<String> unconfiguredActiveInterfaces(String ifconfigOutput) {
+    final found = <String>[];
+    String? name;
+    var active = false;
+    var hasIpv4 = false;
+
+    void closeBlock() {
+      final current = name;
+      if (current != null && active && !hasIpv4) found.add(current);
+    }
+
+    for (final line in ifconfigOutput.split('\n')) {
+      final isHeader =
+          line.isNotEmpty && !line.startsWith('\t') && !line.startsWith(' ');
+      if (isHeader) {
+        closeBlock();
+        name = RegExp(r'^([\w.]+):').firstMatch(line)?.group(1);
+        active = false;
+        hasIpv4 = false;
+        continue;
+      }
+      if (name == null) continue;
+      if (line.contains('status: active')) active = true;
+      // The trailing space is load-bearing. An unconfigured interface still
+      // gets an inet6 link-local address, and matching that would rule out
+      // every candidate this is meant to find.
+      if (line.trimLeft().startsWith('inet ')) hasIpv4 = true;
+    }
+    closeBlock();
+
+    return found;
+  }
+
+  /// The highest-numbered unconfigured `en` interface, taken as the most
+  /// recently attached one.
+  ///
+  /// Ordered by the number rather than the string: sorting text puts en10
+  /// before en2, so a Mac that has reached double digits, which any dock or
+  /// Thunderbolt chain does, would never have en10 chosen.
+  @visibleForTesting
+  static String? newestUnconfiguredEthernet(String ifconfigOutput) {
+    final candidates = unconfiguredActiveInterfaces(
+      ifconfigOutput,
+    ).where((name) => name.startsWith('en')).toList();
+    if (candidates.isEmpty) return null;
+
+    int number(String name) => int.tryParse(name.substring(2)) ?? -1;
+    candidates.sort((a, b) => number(a).compareTo(number(b)));
+    return candidates.last;
   }
 
   Future<bool> _configureMacOS(NetworkInterface iface) async {
