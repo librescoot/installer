@@ -22,6 +22,7 @@ import '../models/substep.dart';
 import '../models/trampoline_status.dart';
 import '../services/artifact_service.dart';
 import '../services/critical_operation_coordinator.dart';
+import '../services/data_partition_service.dart';
 import '../services/services.dart';
 import '../services/window_close_coordinator.dart';
 import '../widgets/artifact_progress_panel.dart';
@@ -3992,7 +3993,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // success. Wait for the mount first.
       if (_radioGagaBackupPath != null) {
         _setStatus(l10n.restoringConfig);
-        await _waitForDataPartition();
+        if (!await _waitForDataPartition()) return;
         if (!mounted) return;
         final restored = await _sshService.restoreRadioGagaConfig(_radioGagaBackupPath!);
         if (restored) {
@@ -4228,6 +4229,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               setState(() {
                 _artifactError = null;
                 _artifactStarted = false;
+                _mdbStageError = null;
+                _mdbStageStarted = false;
+                _mdbStageDone = false;
+                _mdbStageProgress = 0;
               });
             },
           ),
@@ -4245,19 +4250,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// stage-0 image resizes its data partition on first boot, and until
   /// data.mount has run, `df /data` answers for the root filesystem instead,
   /// which would make the free-space preflight meaningless.
-  Future<void> _waitForDataPartition() async {
-    for (var i = 0; i < 60; i++) {
-      try {
-        final out = await _sshService.runCommand(
-            'grep -q " /data " /proc/mounts && echo mounted; true');
-        if (out.trim() == 'mounted') return;
-      } catch (e) {
-        debugPrint('SSH: /data mount probe failed: $e');
-      }
-      await Future.delayed(const Duration(seconds: 5));
-      if (!mounted) return;
-    }
-    debugPrint('SSH: /data still not mounted after 5 minutes, continuing anyway');
+  Future<bool> _waitForDataPartition() async {
+    final result = await waitForMdbDataPartition(
+      runCommand: (command) => _sshService.runCommand(command),
+      isCancelled: () => !mounted,
+    );
+    return result == DataPartitionWaitResult.ready;
   }
 
   /// Wait for the board to come back after a reboot we issued, and
@@ -4383,7 +4381,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       }
 
       final artifacts = ArtifactService(_sshService, TrampolineService(_sshService));
-      await _waitForDataPartition();
+      if (!await _waitForDataPartition()) return;
       if (!mounted) return;
 
       final preflight = await artifacts.preflight(
@@ -4495,7 +4493,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       if (!alreadyInstalled) {
         final artifacts = ArtifactService(_sshService, TrampolineService(_sshService));
 
-        await _waitForDataPartition();
+        if (!await _waitForDataPartition()) return;
         if (!mounted) return;
 
         // preflight takes assetName so it can discount an artifact already at
