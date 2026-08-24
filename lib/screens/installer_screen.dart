@@ -1967,32 +1967,21 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       return _buildAwaitingUnlock(l10n);
     }
 
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(l10n.connectingToMdb,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          if (_isProcessing) ...[
-            const SizedBox(width: 48, height: 48, child: CircularProgressIndicator()),
-            const SizedBox(height: 16),
-          ],
-          Text(_statusMessage.isEmpty ? l10n.waitingForUsbDevice : _statusMessage,
-              style: TextStyle(color: Colors.grey.shade400)),
-          if (!_isProcessing) ...[
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () {
-                setState(() => _mdbConnectStarted = true);
-                Future.microtask(_autoConnectMdb);
-              },
-              icon: const Icon(Icons.refresh),
-              label: Text(l10n.retryMdbConnect),
-            ),
-          ],
-        ],
-      ),
+    return _waitingPhase(
+      title: l10n.connectingToMdb,
+      status: _statusMessage.isEmpty ? l10n.waitingForUsbDevice : _statusMessage,
+      actions: [
+        if (!_isProcessing)
+          PhaseAction(
+            label: l10n.retryMdbConnect,
+            icon: Icons.refresh,
+            primary: true,
+            onPressed: () {
+              setState(() => _mdbConnectStarted = true);
+              Future.microtask(_autoConnectMdb);
+            },
+          ),
+      ],
     );
   }
 
@@ -2848,13 +2837,68 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _setPhase(InstallerPhase.installPlan);
     }
 
-    return Center(
+    final health = _scooterHealth;
+    Widget warning(IconData icon, Widget content) => Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.amber.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: Colors.amber),
+              const SizedBox(width: 12),
+              Expanded(child: content),
+            ],
+          ),
+        );
+
+    return PhaseLayout(
+      title: l10n.healthCheckHeading,
+      subtitle: l10n.verifyingReadiness,
+      actions: [
+        if (_mdbStackMissing)
+          PhaseAction(
+            label: l10n.reflashToRecover,
+            icon: Icons.build,
+            primary: true,
+            onPressed: _isProcessing ? null : () => proceed(),
+          )
+        else if (health != null && health.allOk)
+          PhaseAction(
+            label: l10n.continueButton,
+            icon: Icons.arrow_forward,
+            primary: true,
+            onPressed: _isProcessing ? null : () => proceed(),
+          )
+        else if (health != null) ...[
+          // Going on despite a failed check still goes forward, so it sits
+          // with the primary rather than opposite it. Retrying is the one
+          // worth pressing, so it gets the weight.
+          PhaseAction(
+            label: l10n.proceedAtOwnRisk,
+            danger: true,
+            onPressed: _isProcessing ? null : () => proceed(),
+          ),
+          PhaseAction(
+            label: l10n.retryButton,
+            icon: Icons.refresh,
+            primary: true,
+            onPressed: () {
+              setState(() {
+                _scooterHealth = null;
+                _healthCheckStarted = false;
+              });
+            },
+          ),
+        ],
+      ],
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(l10n.healthCheckHeading,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
           if (_mdbInfo != null)
             Text(l10n.firmwareVersionDisplay(_mdbInfo!.firmwareVersion),
                 style: TextStyle(color: Colors.grey.shade400)),
@@ -2868,135 +2912,75 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
             ),
           ],
-          const SizedBox(height: 8),
-          Text(l10n.verifyingReadiness,
-              style: TextStyle(color: Colors.grey.shade400)),
           if (_mdbStackMissing) ...[
             const SizedBox(height: 16),
-            Container(
-              width: 400,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
-              ),
-              child: Row(
+            warning(
+              Icons.healing,
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.healing, color: Colors.amber),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(l10n.incompleteImageHeading,
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber)),
-                        const SizedBox(height: 4),
-                        Text(l10n.incompleteImageBody,
-                            style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
-                      ],
-                    ),
-                  ),
+                  Text(l10n.incompleteImageHeading,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, color: Colors.amber)),
+                  const SizedBox(height: 4),
+                  Text(l10n.incompleteImageBody,
+                      style: TextStyle(
+                          fontSize: 13, color: Colors.grey.shade300)),
                 ],
               ),
             ),
           ],
           if (_isUntestedStockFirmware) ...[
             const SizedBox(height: 16),
-            Container(
-              width: 400,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
-              ),
-              child: Row(
+            warning(
+              Icons.warning_amber,
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.warning_amber, color: Colors.amber),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(l10n.untestedFirmwareHeading,
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber)),
-                        const SizedBox(height: 4),
-                        Text(l10n.untestedFirmwareBody(_mdbInfo?.firmwareVersion ?? ''),
-                            style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
-                        const SizedBox(height: 8),
-                        TextButton.icon(
-                          onPressed: () => _openExternalUrl('https://discord.gg/BmY2P2T9j3'),
-                          icon: const Icon(Icons.chat_bubble_outline, size: 16, color: Colors.amber),
-                          label: Text(l10n.openLibrescootDiscord,
-                              style: const TextStyle(color: Colors.amber)),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                        ),
-                      ],
+                  Text(l10n.untestedFirmwareHeading,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, color: Colors.amber)),
+                  const SizedBox(height: 4),
+                  Text(l10n.untestedFirmwareBody(_mdbInfo?.firmwareVersion ?? ''),
+                      style: TextStyle(
+                          fontSize: 13, color: Colors.grey.shade300)),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () =>
+                        _openExternalUrl('https://discord.gg/BmY2P2T9j3'),
+                    icon: const Icon(Icons.chat_bubble_outline,
+                        size: 16, color: Colors.amber),
+                    label: Text(l10n.openLibrescootDiscord,
+                        style: const TextStyle(color: Colors.amber)),
+                    style: TextButton.styleFrom(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                   ),
                 ],
               ),
             ),
           ],
-          const SizedBox(height: 24),
-          if (_scooterHealth != null)
-            SizedBox(width: 400, child: HealthCheckPanel(health: _scooterHealth!)),
-
-          // Config backup status
-          if (_scooterHealth != null && _radioGagaBackupPath != null)
+          if (health != null) ...[
+            const SizedBox(height: 24),
+            HealthCheckPanel(health: health),
+          ],
+          if (health != null && _radioGagaBackupPath != null)
             Padding(
               padding: const EdgeInsets.only(top: 12),
-              child: SizedBox(
-                width: 400,
-                child: Row(
-                  children: [
-                    const Icon(Icons.check_circle, color: Colors.green, size: 16),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(l10n.configBackedUp,
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade400))),
-                  ],
-                ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                      child: Text(l10n.configBackedUp,
+                          style: TextStyle(
+                              fontSize: 13, color: Colors.grey.shade400))),
+                ],
               ),
             ),
-
-          const SizedBox(height: 24),
-          if (_mdbStackMissing)
-            FilledButton.icon(
-              onPressed: _isProcessing ? null : () => proceed(),
-              icon: const Icon(Icons.build),
-              label: Text(l10n.reflashToRecover),
-            ),
-          if (!_mdbStackMissing && _scooterHealth != null && _scooterHealth!.allOk)
-            FilledButton.icon(
-              onPressed: _isProcessing ? null : () => proceed(),
-              icon: const Icon(Icons.arrow_forward),
-              label: Text(l10n.continueButton),
-            ),
-          if (!_mdbStackMissing && _scooterHealth != null && !_scooterHealth!.allOk) ...[
-            OutlinedButton.icon(
-              onPressed: () {
-                setState(() {
-                  _scooterHealth = null;
-                  _healthCheckStarted = false;
-                });
-              },
-              icon: const Icon(Icons.refresh),
-              label: Text(l10n.retryButton),
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: _isProcessing ? null : () => proceed(),
-              child: Text(l10n.proceedAtOwnRisk,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-            ),
-          ],
         ],
       ),
     );
@@ -3150,47 +3134,65 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _setPhase(InstallerPhase.bluetoothPairing);
     }
   }
+  /// A phase with nothing for the user to do but watch: one line of status
+  /// under a spinner, and whatever they can reach for if it stalls.
+  Widget _waitingPhase({
+    required String title,
+    String? subtitle,
+    required String status,
+    List<PhaseAction> actions = const [],
+    List<Widget> extra = const [],
+  }) {
+    return PhaseLayout(
+      title: title,
+      subtitle: subtitle,
+      actions: actions,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_isProcessing)
+            const SizedBox(
+                width: 48, height: 48, child: CircularProgressIndicator()),
+          const SizedBox(height: 20),
+          Text(status,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade400)),
+          ...extra,
+        ],
+      ),
+    );
+  }
+
   Widget _buildMdbToUms(AppLocalizations l10n) {
     if (!_mdbToUmsStarted && !_isProcessing) {
       _mdbToUmsStarted = true;
       Future.microtask(_configureMdbUms);
     }
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(l10n.configuringMdbBootloader,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          if (_isProcessing)
-            const SizedBox(width: 48, height: 48, child: CircularProgressIndicator()),
-          const SizedBox(height: 16),
-          Text(_statusMessage.isEmpty ? l10n.preparing : _statusMessage,
-              style: TextStyle(color: Colors.grey.shade400)),
-          if (!_isProcessing && !_mdbToUmsStarted) ...[
-            const SizedBox(height: 24),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FilledButton.icon(
-                  onPressed: () {
-                    _mdbToUmsStarted = true;
-                    _configureMdbUms();
-                  },
-                  icon: const Icon(Icons.refresh),
-                  label: Text(l10n.retryMdbToUms),
-                ),
-                const SizedBox(width: 16),
-                OutlinedButton.icon(
-                  onPressed: _showLogDialog,
-                  icon: const Icon(Icons.article_outlined),
-                  label: Text(l10n.showLog),
-                ),
-              ],
-            ),
-          ],
+    final stalled = !_isProcessing && !_mdbToUmsStarted;
+    return _waitingPhase(
+      title: l10n.configuringMdbBootloader,
+      status: _statusMessage.isEmpty ? l10n.preparing : _statusMessage,
+      actions: [
+        if (stalled) ...[
+          // Reading the log is neither going on nor going back, so it sits
+          // away from the action that moves the install.
+          PhaseAction(
+            label: l10n.showLog,
+            icon: Icons.article_outlined,
+            side: ActionSide.back,
+            onPressed: _showLogDialog,
+          ),
+          PhaseAction(
+            label: l10n.retryMdbToUms,
+            icon: Icons.refresh,
+            primary: true,
+            onPressed: () {
+              _mdbToUmsStarted = true;
+              _configureMdbUms();
+            },
+          ),
         ],
-      ),
+      ],
     );
   }
 
@@ -3277,23 +3279,21 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   Widget _buildMdbFlash(AppLocalizations l10n) {
     if (!_flashConfirmed) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(l10n.readyToFlash,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(l10n.readyToFlashHint,
-                style: TextStyle(color: Colors.grey.shade400)),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: () { _resetRetries('mdbFlash'); setState(() => _flashConfirmed = true); },
-              icon: const Icon(Icons.flash_on),
-              label: Text(l10n.beginFlashing),
-            ),
-          ],
-        ),
+      return PhaseLayout(
+        title: l10n.readyToFlash,
+        subtitle: l10n.readyToFlashHint,
+        actions: [
+          PhaseAction(
+            label: l10n.beginFlashing,
+            icon: Icons.flash_on,
+            primary: true,
+            onPressed: () {
+              _resetRetries('mdbFlash');
+              setState(() => _flashConfirmed = true);
+            },
+          ),
+        ],
+        child: const SizedBox.shrink(),
       );
     }
 
@@ -3301,53 +3301,43 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _mdbFlashStarted = true;
       Future.microtask(_flashMdb);
     }
-    return Center(
+    return PhaseLayout(
+      title: l10n.flashingMdb,
+      subtitle: l10n.flashingMdbSubheading,
+      maxWidth: 560,
+      actions: [
+        if (_mdbFlashBlocked) ...[
+          PhaseAction(
+            label: l10n.showLog,
+            icon: Icons.article_outlined,
+            side: ActionSide.back,
+            onPressed: _showLogDialog,
+          ),
+          PhaseAction(
+            label: l10n.retryMdbFlash,
+            icon: Icons.refresh,
+            primary: true,
+            onPressed: () {
+              _resetRetries('mdbFlash');
+              _restartFailedDownloads();
+              setState(() {
+                _mdbFlashBlocked = false;
+                _mdbFlashStarted = true;
+              });
+              Future.microtask(_flashMdb);
+            },
+          ),
+        ],
+      ],
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(l10n.flashingMdb,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          LinearProgressIndicator(value: _progress, minHeight: 8),
           const SizedBox(height: 8),
-          Text(l10n.flashingMdbSubheading,
+          Text(_statusMessage,
+              textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey.shade400)),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: 400,
-            child: Column(
-              children: [
-                LinearProgressIndicator(value: _progress, minHeight: 8),
-                const SizedBox(height: 8),
-                Text(_statusMessage, style: TextStyle(color: Colors.grey.shade400)),
-              ],
-            ),
-          ),
-          if (_mdbFlashBlocked) ...[
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                FilledButton.icon(
-                  onPressed: () {
-                    _resetRetries('mdbFlash');
-                    _restartFailedDownloads();
-                    setState(() {
-                      _mdbFlashBlocked = false;
-                      _mdbFlashStarted = true;
-                    });
-                    Future.microtask(_flashMdb);
-                  },
-                  icon: const Icon(Icons.refresh),
-                  label: Text(l10n.retryMdbFlash),
-                ),
-                const SizedBox(width: 16),
-                OutlinedButton.icon(
-                  onPressed: _showLogDialog,
-                  icon: const Icon(Icons.article_outlined),
-                  label: Text(l10n.showLog),
-                ),
-              ],
-            ),
-          ],
         ],
       ),
     );
@@ -3810,51 +3800,44 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _mdbBootStarted = true;
       Future.microtask(_waitForMdbBoot);
     }
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(l10n.waitingForMdbBoot,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          // Only the manual route unplugs anything, and the installer cannot
-          // tell the two restarts apart from outside, so this follows what the
-          // user actually chose. Asking for an AUX pole back from someone who
-          // used the brake gesture sends them looking for a screw they never
-          // undid.
-          if (_manualPowerCut)
-            InstructionStep(
-              number: 1,
-              title: l10n.reconnectAuxPole,
-              description: l10n.reconnectAuxPoleDesc,
-              imageAsset: 'assets/images/lsi-unu_scooter_aux_connected.jpg',
-            )
-          else
-            Text(l10n.mdbBootRestartingNote,
-                style: TextStyle(color: Colors.grey.shade400),
-                textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          Text(l10n.dbcLedHint,
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
-          const SizedBox(height: 16),
-          if (_isProcessing)
-            const SizedBox(width: 48, height: 48, child: CircularProgressIndicator()),
-          const SizedBox(height: 8),
-          Text(_statusMessage.isEmpty ? l10n.waitingForUsbDevice : _statusMessage,
-              style: TextStyle(color: Colors.grey.shade400)),
-          if (!_isProcessing && !_mdbBootStarted) ...[
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () {
-                setState(() => _mdbBootStarted = true);
-                Future.microtask(_waitForMdbBoot);
-              },
-              icon: const Icon(Icons.refresh),
-              label: Text(l10n.retryMdbBoot),
-            ),
-          ],
-        ],
-      ),
+    return _waitingPhase(
+      title: l10n.waitingForMdbBoot,
+      status: _statusMessage.isEmpty ? l10n.waitingForUsbDevice : _statusMessage,
+      actions: [
+        if (!_isProcessing && !_mdbBootStarted)
+          PhaseAction(
+            label: l10n.retryMdbBoot,
+            icon: Icons.refresh,
+            primary: true,
+            onPressed: () {
+              setState(() => _mdbBootStarted = true);
+              Future.microtask(_waitForMdbBoot);
+            },
+          ),
+      ],
+      extra: [
+        const SizedBox(height: 20),
+        // Only the manual route unplugs anything, and the installer cannot
+        // tell the two restarts apart from outside, so this follows what the
+        // user actually chose. Asking for an AUX pole back from someone who
+        // used the brake gesture sends them looking for a screw they never
+        // undid.
+        if (_manualPowerCut)
+          InstructionStep(
+            number: 1,
+            title: l10n.reconnectAuxPole,
+            description: l10n.reconnectAuxPoleDesc,
+            imageAsset: 'assets/images/lsi-unu_scooter_aux_connected.jpg',
+          )
+        else
+          Text(l10n.mdbBootRestartingNote,
+              style: TextStyle(color: Colors.grey.shade400),
+              textAlign: TextAlign.center),
+        const SizedBox(height: 16),
+        Text(l10n.dbcLedHint,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+      ],
     );
   }
 
@@ -4225,17 +4208,36 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // While the background work is still going this panel is the only thing
     // the user is waiting on, so show its progress rather than an idle bar.
     final staging = _mdbStageStarted && !_mdbStageDone && _mdbStageError == null;
-    return ArtifactProgressPanel(
-      status: staging ? l10n.artifactStagingInBackground : _statusMessage,
-      progress: staging ? _mdbStageProgress : _progress,
-      error: _artifactError ?? _mdbStageError,
-      onRetry: () {
-        setState(() {
-          _artifactError = null;
-          _artifactStarted = false;
-        });
-      },
-      onFallBackToFullImage: _fallBackToFullImage,
+    final error = _artifactError ?? _mdbStageError;
+    return PhaseLayout(
+      title: l10n.phaseMdbArtifactTitle,
+      maxWidth: 640,
+      actions: [
+        if (error != null) ...[
+          // Writing the whole image instead is a different install, not a
+          // second go at this one, so it is kept apart from the retry.
+          PhaseAction(
+            label: l10n.artifactFallBackToFullImage,
+            side: ActionSide.back,
+            onPressed: _fallBackToFullImage,
+          ),
+          PhaseAction(
+            label: l10n.artifactRetry,
+            primary: true,
+            onPressed: () {
+              setState(() {
+                _artifactError = null;
+                _artifactStarted = false;
+              });
+            },
+          ),
+        ],
+      ],
+      child: ArtifactProgressPanel(
+        status: staging ? l10n.artifactStagingInBackground : _statusMessage,
+        progress: staging ? _mdbStageProgress : _progress,
+        error: error,
+      ),
     );
   }
 
@@ -4758,14 +4760,85 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // plug it back in. The battery step then carries whichever number is left.
     final showCbbStep = _manualPowerCut && _mainPackOffForCbb;
 
-    return Center(
+    final verifyCbb = PhaseAction(
+      label: l10n.verifyCbbConnection,
+      primary: true,
+      onPressed: () async {
+        setState(() => _isProcessing = true);
+        _setStatus(l10n.checkingCbb);
+        final detected = await _pollForCbb(l10n);
+        if (!mounted || _cbbPollAbandoned) return;
+        if (detected) {
+          setState(() {
+            _cbbDetected = true;
+            _isProcessing = false;
+          });
+          _setStatus('');
+        } else {
+          _setStatus(l10n.cbbNotDetected);
+          setState(() {
+            _isProcessing = false;
+            _cbbDetected = false;
+          });
+        }
+      },
+    );
+
+    final verifyBattery = PhaseAction(
+      label: l10n.verifyBatteryPresence,
+      primary: true,
+      onPressed: () async {
+        setState(() => _isProcessing = true);
+        _setStatus(l10n.checkingCbbAndBattery);
+        final bat = _isDryRun ? true : await _sshService.isBatteryPresent();
+        if (bat) {
+          debugPrint('Battery: insert detected on battery:0 (manual verify)');
+          await _sshService.logScooterStats('cbb-and-battery-reconnected');
+          setState(() {
+            _batteryDetected = true;
+            _isProcessing = false;
+          });
+          await Future.delayed(const Duration(seconds: 1));
+          if (mounted) _setPhase(_phaseAfterCbbReconnect);
+        } else {
+          _setStatus(l10n.cbbNotDetected);
+          setState(() => _isProcessing = false);
+        }
+      },
+    );
+
+    // Going on without the CBB is still going on, so it keeps the company of
+    // the check rather than sitting where an abort would.
+    final proceedAnyway = PhaseAction(
+      label: l10n.proceedWithoutCbb,
+      danger: true,
+      onPressed: _cbbDetected
+          ? () => _setPhase(_phaseAfterCbbReconnect)
+          : () => setState(() => _cbbDetected = true),
+    );
+
+    Widget detected(String text) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.check_circle, size: 16, color: kAccent),
+            const SizedBox(width: 8),
+            Text(text, style: const TextStyle(color: kAccent, fontSize: 13)),
+          ],
+        );
+
+    return PhaseLayout(
+      title: _manualPowerCut
+          ? l10n.reconnectCbbHeading
+          : l10n.checkingCbbAndBattery,
+      actions: [
+        if (!_isProcessing) ...[
+          proceedAnyway,
+          if (!_cbbDetected) verifyCbb else if (!_batteryDetected) verifyBattery,
+        ],
+      ],
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(_manualPowerCut ? l10n.reconnectCbbHeading : l10n.checkingCbbAndBattery,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 24),
-
           // The check below runs either way: a CBB missing for some other
           // reason still matters before the dashboard flash.
           if (showCbbStep)
@@ -4776,58 +4849,25 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               imageAsset: 'assets/images/lsi-unu_scooter_cbb_connected.jpg',
             ),
           if (_cbbDetected)
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.check_circle, size: 16, color: kAccent),
-                const SizedBox(width: 8),
-                Text(l10n.cbbDetected, style: const TextStyle(color: kAccent, fontSize: 13)),
-              ],
-            )
-          else ...[
-            if (_cbbWaitNoticeShown)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 4),
-                child: Text(
-                  l10n.cbbDetectionMayTakeMinutes,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey.shade400, fontSize: 12, fontStyle: FontStyle.italic),
-                ),
+            detected(l10n.cbbDetected)
+          else if (_cbbWaitNoticeShown)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 4),
+              child: Text(
+                l10n.cbbDetectionMayTakeMinutes,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    color: Colors.grey.shade400,
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic),
               ),
-            if (!_isProcessing)
-              FilledButton(
-                onPressed: () async {
-                  setState(() => _isProcessing = true);
-                  _setStatus(l10n.checkingCbb);
-                  final detected = await _pollForCbb(l10n);
-                  if (!mounted || _cbbPollAbandoned) return;
-                  if (detected) {
-                    setState(() { _cbbDetected = true; _isProcessing = false; });
-                    _setStatus('');
-                  } else {
-                    _setStatus(l10n.cbbNotDetected);
-                    setState(() { _isProcessing = false; _cbbDetected = false; });
-                  }
-                },
-                child: Text(l10n.verifyCbbConnection),
-              ),
-          ],
-
+            ),
           const SizedBox(height: 16),
-
           // Nothing in this install takes the main pack out, so there is no
           // step to give here. The pack is only reported, and only spoken
           // about when it is missing, which does block the dashboard flash.
           if (_cbbDetected && _batteryDetected)
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.check_circle, size: 16, color: kAccent),
-                const SizedBox(width: 8),
-                Text(l10n.batteryDetected,
-                    style: const TextStyle(color: kAccent, fontSize: 13)),
-              ],
-            )
+            detected(l10n.batteryDetected)
           else if (_cbbDetected)
             Container(
               width: 400,
@@ -4868,45 +4908,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 ],
               ),
             ),
-
-          const SizedBox(height: 16),
           if (_isProcessing) ...[
+            const SizedBox(height: 20),
             const CircularProgressIndicator(),
             const SizedBox(height: 8),
-            Text(_statusMessage, style: TextStyle(color: Colors.grey.shade400)),
-          ] else if (_cbbDetected) ...[
-            FilledButton(
-              onPressed: () async {
-                setState(() => _isProcessing = true);
-                _setStatus(l10n.checkingCbbAndBattery);
-                final bat = _isDryRun ? true : await _sshService.isBatteryPresent();
-                if (bat) {
-                  debugPrint('Battery: insert detected on battery:0 (manual verify)');
-                  await _sshService.logScooterStats('cbb-and-battery-reconnected');
-                  setState(() { _batteryDetected = true; _isProcessing = false; });
-                  await Future.delayed(const Duration(seconds: 1));
-                  if (mounted) _setPhase(_phaseAfterCbbReconnect);
-                } else {
-                  _setStatus(l10n.cbbNotDetected);
-                  setState(() => _isProcessing = false);
-                }
-              },
-              child: Text(l10n.verifyBatteryPresence),
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => _setPhase(_phaseAfterCbbReconnect),
-              child: Text(l10n.proceedWithoutCbb,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-            ),
-          ] else ...[
-            TextButton(
-              onPressed: () {
-                setState(() => _cbbDetected = true);
-              },
-              child: Text(l10n.proceedWithoutCbb,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-            ),
+            Text(_statusMessage,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade400)),
           ],
         ],
       ),
@@ -4923,81 +4931,66 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _dbcPrepStarted = true;
       Future.microtask(_uploadDbcFiles);
     }
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(l10n.preparingDbcFlash,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+    return PhaseLayout(
+      title: l10n.preparingDbcFlash,
+      actions: [
+        if (_dbcUploadReady)
+          PhaseAction(
+            label: l10n.dbcReadyButton,
+            icon: Icons.bolt,
+            primary: true,
+            onPressed: busy ? null : _startTrampoline,
+          )
+        else if (!busy) ...[
+          if (_dbcPrepBlocked)
+            PhaseAction(
+              label: l10n.skipToFinish,
+              onPressed: () {
+                setState(() => _dbcPrepBlocked = false);
+                _setPhase(InstallerPhase.finish);
+              },
+            ),
+          PhaseAction(
+            label: l10n.retryDbcPrep,
+            icon: Icons.refresh,
+            primary: true,
+            onPressed: () {
+              _restartFailedDownloads();
+              setState(() {
+                _dbcPrepStarted = false;
+                _dbcStageInFlight = false;
+                _dbcPrepBlocked = false;
+                _dbcPrepSubsteps = const [];
+              });
+              Future.microtask(() {
+                setState(() => _dbcPrepStarted = true);
+                _uploadDbcFiles();
+              });
+            },
+          ),
+        ],
+      ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          LinearProgressIndicator(value: _progress, minHeight: 6),
+          const SizedBox(height: 16),
+          if (_dbcPrepSubsteps.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade800),
+              ),
+              child: SubstepList(substeps: _dbcPrepSubsteps),
+            )
+          else
+            Text(_statusMessage,
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                 textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            LinearProgressIndicator(value: _progress, minHeight: 6),
-            const SizedBox(height: 16),
-            if (_dbcPrepSubsteps.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A1A1A),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade800),
-                ),
-                child: SubstepList(substeps: _dbcPrepSubsteps),
-              )
-            else
-              Text(_statusMessage,
-                  style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-                  textAlign: TextAlign.center),
-            if (_dbcUploadReady) ...[
-              const SizedBox(height: 20),
-              Center(
-                child: FilledButton.icon(
-                  onPressed: busy ? null : _startTrampoline,
-                  icon: const Icon(Icons.bolt),
-                  label: Text(l10n.dbcReadyButton),
-                ),
-              ),
-            ] else if (!busy) ...[
-              const SizedBox(height: 16),
-              Center(
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    FilledButton.icon(
-                      onPressed: () {
-                        _restartFailedDownloads();
-                        setState(() {
-                          _dbcPrepStarted = false;
-                          _dbcStageInFlight = false;
-                          _dbcPrepBlocked = false;
-                          _dbcPrepSubsteps = const [];
-                        });
-                        Future.microtask(() {
-                          setState(() => _dbcPrepStarted = true);
-                          _uploadDbcFiles();
-                        });
-                      },
-                      icon: const Icon(Icons.refresh),
-                      label: Text(l10n.retryDbcPrep),
-                    ),
-                    if (_dbcPrepBlocked)
-                      TextButton(
-                        onPressed: () {
-                          setState(() => _dbcPrepBlocked = false);
-                          _setPhase(InstallerPhase.finish);
-                        },
-                        child: Text(l10n.skipToFinish),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -5200,77 +5193,72 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // Step 1: waiting for user to swap cables. The trampoline is already
       // running and waiting for the laptop to disconnect, so this is the
       // first place we tell the user to touch the cable.
-      return Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(l10n.dbcFlashSwapCablesTitle,
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center),
-              const SizedBox(height: 8),
-              // The scooter is already counting. It waits a few minutes for
-              // the dashboard to answer on the cable the user is about to
-              // plug in, and then gives up: worth saying, because the screen
-              // otherwise reads as untimed and the plug is a screw-lock
-              // mini-B in a footwell.
-              Text(l10n.dbcFlashSwapCablesDeadline,
-                  style: TextStyle(fontSize: 13, color: Colors.orange.shade200),
-                  textAlign: TextAlign.center),
-              const SizedBox(height: 20),
-              // Move the same MDB USB plug from the laptop cable to the DBC
-              // cable. Photos are self-labelled ("Laptop"/"DBC"), so the
-              // arrow between them carries the meaning without extra captions.
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: Image.asset('assets/images/lsi-mdb_usb_laptop.jpg',
-                            fit: BoxFit.cover),
-                      ),
+      return PhaseLayout(
+        title: l10n.dbcFlashSwapCablesTitle,
+        maxWidth: 620,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // The scooter is already counting. It waits a few minutes for
+            // the dashboard to answer on the cable the user is about to
+            // plug in, and then gives up: worth saying, because the screen
+            // otherwise reads as untimed and the plug is a screw-lock
+            // mini-B in a footwell.
+            Text(l10n.dbcFlashSwapCablesDeadline,
+                style: TextStyle(fontSize: 13, color: Colors.orange.shade200),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 20),
+            // Move the same MDB USB plug from the laptop cable to the DBC
+            // cable. Photos are self-labelled ("Laptop"/"DBC"), so the
+            // arrow between them carries the meaning without extra captions.
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: Image.asset('assets/images/lsi-mdb_usb_laptop.jpg',
+                          fit: BoxFit.cover),
                     ),
                   ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 10),
-                    child: Icon(Icons.arrow_forward, color: kAccent, size: 28),
-                  ),
-                  Expanded(
-                    child: AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: Image.asset('assets/images/lsi-mdb_usb_dbc.jpg',
-                            fit: BoxFit.cover),
-                      ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10),
+                  child: Icon(Icons.arrow_forward, color: kAccent, size: 28),
+                ),
+                Expanded(
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: Image.asset('assets/images/lsi-mdb_usb_dbc.jpg',
+                          fit: BoxFit.cover),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              InstructionStep(
-                number: 1,
-                title: l10n.disconnectUsbFromLaptop,
-                description: l10n.disconnectUsbFromLaptopDesc,
-              ),
-              InstructionStep(
-                number: 2,
-                title: l10n.reconnectDbcUsbToMdb,
-                description: l10n.reconnectDbcUsbToMdbDesc,
-              ),
-              const SizedBox(height: 16),
-              Text(l10n.waitingForUsbDisconnect,
-                  style: TextStyle(color: Colors.grey.shade400),
-                  textAlign: TextAlign.center),
-              const SizedBox(height: 8),
-              const Center(child: CircularProgressIndicator()),
-            ],
-          ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            InstructionStep(
+              number: 1,
+              title: l10n.disconnectUsbFromLaptop,
+              description: l10n.disconnectUsbFromLaptopDesc,
+            ),
+            InstructionStep(
+              number: 2,
+              title: l10n.reconnectDbcUsbToMdb,
+              description: l10n.reconnectDbcUsbToMdbDesc,
+            ),
+            const SizedBox(height: 16),
+            Text(l10n.waitingForUsbDisconnect,
+                style: TextStyle(color: Colors.grey.shade400),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            const Center(child: CircularProgressIndicator()),
+          ],
         ),
       );
     }
@@ -5282,117 +5270,104 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // it tells the user what's happening on the scooter lights and
     // gives them a "I see X" button to advance when the boot LED
     // settles on green or red.
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 620),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(l10n.dbcFlashInProgress,
-                style: const TextStyle(
-                    fontSize: 24, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center),
-            const SizedBox(height: 8),
-            Text(l10n.dbcFlashDurationHeadline,
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade400),
-                textAlign: TextAlign.center),
-            const SizedBox(height: 20),
-
-            // One instruction, then the two things that can end it. The LED
-            // legend and the blinker diagram that used to sit here said the
-            // same things a third time, and the dashboard now shows its own
-            // progress, so the only thing left worth saying is what to wait
-            // for and what each outcome looks like.
-            Text(l10n.dbcFlashSequence,
-                style: TextStyle(
-                    fontSize: 14, color: Colors.grey.shade300, height: 1.45)),
-            const SizedBox(height: 18),
-
-            // A key for reading the scooter, not a status display: the
-            // laptop is unplugged and knows nothing about the blinkers. It
-            // stays because the blinkers are the one progress indicator still
-            // visible while the dashboard reboots and its own screen is dark,
-            // and the user needs to know what the four of them mean.
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade800),
-              ),
-              child: _blinkerPhases(l10n),
-            ),
-            const SizedBox(height: 18),
-            // Once the laptop is unplugged the dashboard LED is the only
-            // thing that can report a failure, so name it above the outcomes
-            // instead of leaving it buried in one of them.
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.lightbulb_outline,
-                    size: 20, color: Colors.grey.shade400),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(l10n.dbcFlashLedIsTheSignal,
-                      style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade300,
-                          height: 1.4)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            _outcomeRow(
-              icon: Icons.lock_open,
-              colour: Colors.greenAccent,
-              text: l10n.dbcFlashDoneSignal,
-            ),
-            const SizedBox(height: 12),
-            _outcomeRow(
-              icon: Icons.warning_amber_rounded,
-              colour: Colors.redAccent,
-              text: l10n.dbcFlashFailSignal,
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Icon(Icons.power_off, size: 18, color: Colors.orange.shade300),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(l10n.dbcFlashDoNotDisconnect,
-                      style: TextStyle(
-                          fontSize: 13, color: Colors.orange.shade200)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            const SizedBox(height: 16),
-            Center(
-              child: FilledButton.icon(
-                onPressed: () {
-                  _dbcFlashSimulateError = false;
-                  _setPhase(InstallerPhase.finish);
-                },
-                icon: const Icon(Icons.arrow_forward),
-                label: Text(l10n.dbcFlashAllDone),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Center(
-              child: TextButton(
-                onPressed: () {
-                  _dbcFlashSimulateError = true;
-                  _setPhase(InstallerPhase.reconnect);
-                },
-                child: Text(l10n.dbcFlashSomethingWrong,
-                    style:
-                        TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-              ),
-            ),
-          ],
+    return PhaseLayout(
+      title: l10n.dbcFlashInProgress,
+      subtitle: l10n.dbcFlashDurationHeadline,
+      maxWidth: 680,
+      actions: [
+        // Both lead onwards: one to the last step, one to the diagnosis. The
+        // failing branch is still the way out of this screen, so it sits with
+        // the other rather than where an abort would.
+        PhaseAction(
+          label: l10n.dbcFlashSomethingWrong,
+          danger: true,
+          onPressed: () {
+            _dbcFlashSimulateError = true;
+            _setPhase(InstallerPhase.reconnect);
+          },
         ),
+        PhaseAction(
+          label: l10n.dbcFlashAllDone,
+          icon: Icons.arrow_forward,
+          primary: true,
+          onPressed: () {
+            _dbcFlashSimulateError = false;
+            _setPhase(InstallerPhase.finish);
+          },
+        ),
+      ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // One instruction, then the two things that can end it. The LED
+          // legend and the blinker diagram that used to sit here said the
+          // same things a third time, and the dashboard now shows its own
+          // progress, so the only thing left worth saying is what to wait
+          // for and what each outcome looks like.
+          Text(l10n.dbcFlashSequence,
+              style: TextStyle(
+                  fontSize: 14, color: Colors.grey.shade300, height: 1.45)),
+          const SizedBox(height: 18),
+
+          // A key for reading the scooter, not a status display: the
+          // laptop is unplugged and knows nothing about the blinkers. It
+          // stays because the blinkers are the one progress indicator still
+          // visible while the dashboard reboots and its own screen is dark,
+          // and the user needs to know what the four of them mean.
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A1A),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade800),
+            ),
+            child: _blinkerPhases(l10n),
+          ),
+          const SizedBox(height: 18),
+          // Once the laptop is unplugged the dashboard LED is the only
+          // thing that can report a failure, so name it above the outcomes
+          // instead of leaving it buried in one of them.
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.lightbulb_outline,
+                  size: 20, color: Colors.grey.shade400),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(l10n.dbcFlashLedIsTheSignal,
+                    style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade300,
+                        height: 1.4)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _outcomeRow(
+            icon: Icons.lock_open,
+            colour: Colors.greenAccent,
+            text: l10n.dbcFlashDoneSignal,
+          ),
+          const SizedBox(height: 12),
+          _outcomeRow(
+            icon: Icons.warning_amber_rounded,
+            colour: Colors.redAccent,
+            text: l10n.dbcFlashFailSignal,
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Icon(Icons.power_off, size: 18, color: Colors.orange.shade300),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(l10n.dbcFlashDoNotDisconnect,
+                    style: TextStyle(
+                        fontSize: 13, color: Colors.orange.shade200)),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -5519,87 +5494,81 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _reconnectStarted = true;
       Future.microtask(_verifyDbcFlash);
     }
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 620),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(l10n.verifyingDbcInstallation,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center),
+    return PhaseLayout(
+      title: l10n.verifyingDbcInstallation,
+      maxWidth: 620,
+      actions: [
+        if (!_isProcessing) ...[
+          // Redoing the dashboard install means going back through the prep
+          // phase, so it belongs on the leaving side; the checks and the way
+          // out of this screen stay on the right.
+          PhaseAction(
+            label: l10n.retryDbcFlash,
+            icon: Icons.replay,
+            side: ActionSide.back,
+            onPressed: () => _returnToDbcPrep(),
+          ),
+          // The DBC's version is a last-seen guess, so a plan that said
+          // Upgrade can meet a board with no mender layout. Retrying the
+          // flash renders the same upgrade-mode trampoline and fails the same
+          // way; the way out is stage 0, which the queue already holds.
+          // Offered only where it is a change: a plan that already says clean
+          // install has nothing to switch to.
+          if (_plan?.dbc.action == BoardAction.upgrade)
+            PhaseAction(
+              label: l10n.dbcCleanInstallButton,
+              icon: Icons.restart_alt,
+              side: ActionSide.back,
+              onPressed: () => _cleanInstallDbcAfterFailure(l10n),
+            ),
+          PhaseAction(
+            label: l10n.skipToFinish,
+            onPressed: () => _setPhase(InstallerPhase.finish),
+          ),
+          PhaseAction(
+            label: l10n.retryVerification,
+            icon: Icons.refresh,
+            primary: true,
+            onPressed: () {
+              setState(() {
+                _reconnectStarted = true;
+                _reconnectShowDiagnostics = false;
+                _reconnectDiagnostics = null;
+              });
+              Future.microtask(_verifyDbcFlash);
+            },
+          ),
+        ],
+      ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_reconnectSubsteps.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade800),
+              ),
+              child: SubstepList(substeps: _reconnectSubsteps),
+            )
+          else
+            Center(
+              child: Text(
+                _statusMessage.isEmpty
+                    ? l10n.reconnectUsbToLaptop
+                    : _statusMessage,
+                style: TextStyle(color: Colors.grey.shade400),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          if (_reconnectShowDiagnostics) ...[
             const SizedBox(height: 16),
-            if (_reconnectSubsteps.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A1A1A),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade800),
-                ),
-                child: SubstepList(substeps: _reconnectSubsteps),
-              )
-            else
-              Center(
-                child: Text(
-                  _statusMessage.isEmpty ? l10n.reconnectUsbToLaptop : _statusMessage,
-                  style: TextStyle(color: Colors.grey.shade400),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            if (_reconnectShowDiagnostics) ...[
-              const SizedBox(height: 16),
-              _buildReconnectDiagnosticsPanel(l10n),
-            ],
-            if (!_isProcessing) ...[
-              const SizedBox(height: 16),
-              Center(
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    FilledButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _reconnectStarted = true;
-                          _reconnectShowDiagnostics = false;
-                          _reconnectDiagnostics = null;
-                        });
-                        Future.microtask(_verifyDbcFlash);
-                      },
-                      icon: const Icon(Icons.refresh),
-                      label: Text(l10n.retryVerification),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () => _returnToDbcPrep(),
-                      icon: const Icon(Icons.replay),
-                      label: Text(l10n.retryDbcFlash),
-                    ),
-                    // The DBC's version is a last-seen guess, so a plan that
-                    // said Upgrade can meet a board with no mender layout.
-                    // Retrying the flash renders the same upgrade-mode
-                    // trampoline and fails the same way; the way out is stage
-                    // 0, which the queue already holds. Offered only where it
-                    // is a change: a plan that already says clean install has
-                    // nothing to switch to.
-                    if (_plan?.dbc.action == BoardAction.upgrade)
-                      OutlinedButton.icon(
-                        onPressed: () => _cleanInstallDbcAfterFailure(l10n),
-                        icon: const Icon(Icons.restart_alt),
-                        label: Text(l10n.dbcCleanInstallButton),
-                      ),
-                    TextButton(
-                      onPressed: () => _setPhase(InstallerPhase.finish),
-                      child: Text(l10n.skipToFinish),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            _buildReconnectDiagnosticsPanel(l10n),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -5986,31 +5955,81 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // matters most (someone already holds the link) is true before the user
     // touches anything.
     if (_blePinPollTimer == null) _startBlePinPolling();
-    return Center(
+    Widget panel({
+      required Color colour,
+      required IconData icon,
+      required String heading,
+      required String hint,
+    }) =>
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: colour.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: colour.withValues(alpha: 0.3)),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, size: 32, color: colour),
+              const SizedBox(height: 12),
+              Text(heading,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontWeight: FontWeight.bold, color: colour)),
+              const SizedBox(height: 8),
+              Text(hint,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+            ],
+          ),
+        );
+
+    return PhaseLayout(
+      title: l10n.bluetoothPairingHeading,
+      subtitle: l10n.bluetoothPairingHint,
+      maxWidth: 560,
+      actions: [
+        // Both choices carry on: one pairs a phone first, the other does not.
+        // The window is open or it is not, so each state gets one way to end
+        // it rather than a Start that turns into a Start over.
+        if (!_btPairingActive) ...[
+          PhaseAction(
+            label: l10n.skipPairing,
+            onPressed: () => _setPhase(InstallerPhase.keycardSetup),
+          ),
+          PhaseAction(
+            label: l10n.startPairing,
+            icon: Icons.bluetooth_searching,
+            primary: true,
+            onPressed: _startBluetoothPairing,
+          ),
+        ] else
+          PhaseAction(
+            label: l10n.pairingDone,
+            icon: Icons.check,
+            primary: true,
+            onPressed: _stopBluetoothPairing,
+          ),
+      ],
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(Icons.bluetooth, size: 48, color: Colors.blueAccent),
           const SizedBox(height: 16),
-          Text(l10n.bluetoothPairingHeading,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text(l10n.bluetoothPairingHint,
-              style: TextStyle(color: Colors.grey.shade400)),
-          if (_bleMac != null) ...[
-            const SizedBox(height: 12),
+          if (_bleMac != null)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
                 color: Colors.blueAccent.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.25)),
+                border:
+                    Border.all(color: Colors.blueAccent.withValues(alpha: 0.25)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text('${l10n.bleMacLabel}: ',
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+                      style:
+                          TextStyle(fontSize: 13, color: Colors.grey.shade400)),
                   SelectableText(_bleMac!,
                       style: const TextStyle(
                           fontSize: 14,
@@ -6019,53 +6038,34 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 ],
               ),
             ),
-          ],
           const SizedBox(height: 24),
-
-          if (!_btPairingActive) ...[
-            // A phone that is already bonded reconnects by itself, and the
-            // radio takes one central at a time, so the user can arrive here
-            // with the link already spoken for. Pressing Start would then look
-            // like it did nothing at all.
-            if (_bleConnected) ...[
-              Container(
-                width: 400,
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.orangeAccent.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: Colors.orangeAccent.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline,
-                        size: 20, color: Colors.orangeAccent),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(l10n.bleLinkHeldHint,
-                          style: TextStyle(
-                              fontSize: 13, color: Colors.grey.shade400)),
-                    ),
-                  ],
-                ),
+          // A phone that is already bonded reconnects by itself, and the radio
+          // takes one central at a time, so the user can arrive here with the
+          // link already spoken for. Starting would then look like it did
+          // nothing at all.
+          if (!_btPairingActive && _bleConnected)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orangeAccent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: Colors.orangeAccent.withValues(alpha: 0.3)),
               ),
-            ],
-            FilledButton.icon(
-              onPressed: _startBluetoothPairing,
-              icon: const Icon(Icons.bluetooth_searching),
-              label: Text(l10n.startPairing),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline,
+                      size: 20, color: Colors.orangeAccent),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(l10n.bleLinkHeldHint,
+                        style: TextStyle(
+                            fontSize: 13, color: Colors.grey.shade400)),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => _setPhase(InstallerPhase.keycardSetup),
-              child: Text(l10n.skipPairing),
-            ),
-          ],
-
           if (_btPairingActive) ...[
-            const SizedBox(height: 16),
             if (_btAdvertisingSettling)
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
@@ -6090,65 +6090,35 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               // One link, two meanings: an edge since the window opened is a
               // device that just paired, a link that was already taken is the
               // reason nothing else can.
-              Builder(builder: (_) {
-                final paired = _blePairedCount > 0;
-                final colour = paired ? Colors.green : Colors.orangeAccent;
-                return Container(
-                  width: 400,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: colour.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: colour.withValues(alpha: 0.3)),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(paired ? Icons.bluetooth_connected : Icons.info_outline,
-                          size: 32, color: colour),
-                      const SizedBox(height: 12),
-                      Text(paired ? l10n.blePairedHeading : l10n.bleLinkHeldHeading,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, color: colour)),
-                      const SizedBox(height: 8),
-                      Text(paired ? l10n.blePairedHint : l10n.bleLinkHeldHint,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              fontSize: 13, color: Colors.grey.shade400)),
-                    ],
-                  ),
-                );
-              })
+              panel(
+                colour: _blePairedCount > 0 ? Colors.green : Colors.orangeAccent,
+                icon: _blePairedCount > 0
+                    ? Icons.bluetooth_connected
+                    : Icons.info_outline,
+                heading: _blePairedCount > 0
+                    ? l10n.blePairedHeading
+                    : l10n.bleLinkHeldHeading,
+                hint: _blePairedCount > 0
+                    ? l10n.blePairedHint
+                    : l10n.bleLinkHeldHint,
+              )
             else
-              Container(
-                width: 400,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.blueAccent.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
-                ),
-                child: Column(
-                  children: [
-                    const Icon(Icons.bluetooth_searching, size: 32, color: Colors.blueAccent),
-                    const SizedBox(height: 12),
-                    Text(l10n.pairingActive,
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    Text(l10n.pairingActiveHint,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
-                  ],
-                ),
+              panel(
+                colour: Colors.blueAccent,
+                icon: Icons.bluetooth_searching,
+                heading: l10n.pairingActive,
+                hint: l10n.pairingActiveHint,
               ),
             if (_blePinCode != null) ...[
               const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                 decoration: BoxDecoration(
                   color: Colors.blueAccent.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.4)),
+                  border:
+                      Border.all(color: Colors.blueAccent.withValues(alpha: 0.4)),
                 ),
                 child: Text(_blePinCode!,
                     style: const TextStyle(
@@ -6162,12 +6132,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               Text(l10n.blePinHint,
                   style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
             ],
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _stopBluetoothPairing,
-              icon: const Icon(Icons.check),
-              label: Text(l10n.pairingDone),
-            ),
           ],
         ],
       ),
