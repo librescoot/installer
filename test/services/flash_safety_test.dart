@@ -124,7 +124,10 @@ void main() {
     }
   });
 
-  test('an unknown size warns but does not block', () {
+  test('an unknown size stops the flash on Windows', () {
+    // Get-Disk answers for any disk the storage stack can see, so no size
+    // there means the stack itself cannot answer. Elsewhere the size is
+    // resolved separately and may legitimately not have landed yet.
     final result = flash.validateDevice(
       devicePath: _goodPath,
       sizeBytes: null,
@@ -133,8 +136,13 @@ void main() {
       vendorId: 0x0525,
       productId: 0xA4A5,
     );
-    expect(result.passed, isTrue, reason: result.errors.join('; '));
-    expect(result.warnings.join(' '), contains('size'));
+    if (Platform.isWindows) {
+      expect(result.passed, isFalse);
+      expect(result.errors.join(' '), contains('size'));
+    } else {
+      expect(result.passed, isTrue, reason: result.errors.join('; '));
+      expect(result.warnings.join(' '), contains('size'));
+    }
   });
 
   test('the platform system-disk path is refused even with a valid identity', () {

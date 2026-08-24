@@ -189,6 +189,14 @@ class FlashService {
           '${_gib(mdbEmmcBytes)} GB. This is not an MDB eMMC.',
         );
       }
+    } else if (Platform.isWindows) {
+      // Windows supplies the size from Get-Disk, which answers for any disk
+      // the storage stack can see. No size means that stack cannot answer,
+      // which is the state to stop in rather than write through.
+      errors.add(
+        'Could not determine the device size. The storage stack did not '
+        'answer for this disk.',
+      );
     } else {
       warnings.add('Could not determine device size');
     }

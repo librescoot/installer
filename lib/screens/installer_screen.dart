@@ -4157,6 +4157,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             linuxVerdict ?? target?.systemDiskVerdict ?? SystemDiskVerdict.unknown,
         detectedPath: target?.path,
       );
+      if (safetyCheck.warnings.isNotEmpty) {
+        debugPrint(
+          'Flash: safety check warnings: ${safetyCheck.warnings.join('; ')}',
+        );
+      }
       if (!safetyCheck.passed) {
         debugPrint(
           'Flash: safety check failed: ${safetyCheck.errors.join('; ')}',
