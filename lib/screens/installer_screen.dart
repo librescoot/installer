@@ -4231,10 +4231,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // means the write that "failed" had already finished. Retrying then
       // waits forever for a mass-storage device that is never coming, and the
       // user is stuck in front of a flash screen for a flash that is done.
+      //
+      // _mdbFlashStarted stays set on the way out, exactly as it does on the
+      // success path above. Clearing it here rebuilds this phase with the
+      // start conditions satisfied again, and the build path launches a
+      // second flash within the frame, long before the delay below hands the
+      // screen over. That flash resolves whatever the board is now, which is
+      // a network interface, and dies in the safety check.
       if (!back && _device?.mode == DeviceMode.ethernet) {
         debugPrint('Flash: board booted the image, treating the flash as done');
         _setStatus(l10n.mdbFlashComplete);
-        setState(() => _mdbFlashStarted = false);
         await Future.delayed(const Duration(seconds: 1));
         _setPhase(InstallerPhase.scooterPrep);
         return;
