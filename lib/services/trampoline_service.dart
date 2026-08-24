@@ -10,6 +10,38 @@ import '../models/substep.dart';
 import '../models/trampoline_status.dart';
 import 'ssh_service.dart';
 
+typedef ToolAssetLoader = Future<ByteData> Function(String path);
+typedef ToolUploader =
+    Future<void> Function(Uint8List content, String remotePath);
+typedef RemoteCommandRunner = Future<String> Function(String command);
+
+Future<void> stageDbcBootloaderTools({
+  required ToolAssetLoader loadAsset,
+  required ToolUploader uploadFile,
+  required RemoteCommandRunner runCommand,
+}) async {
+  const remoteDir = '/data/installer/fwtools/stock-dbc';
+  const fwSetenvPath = '$remoteDir/fw_setenv';
+  const fwEnvConfigPath = '$remoteDir/fw_env.config';
+
+  await runCommand('mkdir -p $remoteDir');
+
+  final fwSetenv = await loadAsset('assets/tools/fw_setenv-dbc');
+  await uploadFile(fwSetenv.buffer.asUint8List(), fwSetenvPath);
+  await runCommand('chmod 755 $fwSetenvPath');
+
+  final fwEnvConfig = await loadAsset('assets/tools/fw_env-dbc.config');
+  await uploadFile(fwEnvConfig.buffer.asUint8List(), fwEnvConfigPath);
+
+  final verification = await runCommand(
+    'if test -s $fwSetenvPath && test -x $fwSetenvPath && '
+    'test -s $fwEnvConfigPath; then printf ready; else printf missing; fi',
+  );
+  if (verification.trim() != 'ready') {
+    throw StateError('DBC bootloader tools failed remote verification');
+  }
+}
+
 /// Directory component of [remotePath], or null when the path has no `/`
 /// and so nothing to create ahead of an upload (a bare filename lands
 /// wherever the SSH session's own working directory already puts it).
@@ -586,25 +618,17 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       setStep('fwtools', SubstepState.active);
       onProgress?.call('Uploading DBC tools...', 0.96);
       try {
-        await _ssh.runCommand('mkdir -p /data/installer/fwtools/stock-dbc');
-
-        final stockFwSetenv = await rootBundle.load('assets/tools/fw_setenv-dbc');
-        debugPrint('Trampoline: loaded fw_setenv-dbc (${stockFwSetenv.lengthInBytes} bytes)');
-        await _ssh.uploadFile(
-          stockFwSetenv.buffer.asUint8List(),
-          '/data/installer/fwtools/stock-dbc/fw_setenv',
-        );
-        await _ssh.runCommand('chmod +x /data/installer/fwtools/stock-dbc/fw_setenv');
-
-        final dbcFwEnvConfig = await rootBundle.load('assets/tools/fw_env-dbc.config');
-        await _ssh.uploadFile(
-          dbcFwEnvConfig.buffer.asUint8List(),
-          '/data/installer/fwtools/stock-dbc/fw_env.config',
+        await stageDbcBootloaderTools(
+          loadAsset: rootBundle.load,
+          uploadFile: (content, remotePath) =>
+              _ssh.uploadFile(content, remotePath),
+          runCommand: (command) => _ssh.runCommand(command),
         );
         setStep('fwtools', SubstepState.done);
       } catch (e) {
         debugPrint('Trampoline: failed to upload DBC tools: $e');
         setStep('fwtools', SubstepState.failed, detail: e.toString());
+        rethrow;
       }
     }
 
