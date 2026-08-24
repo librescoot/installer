@@ -4115,7 +4115,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // Windows could not say whether this disk carries boot or system. The
       // detector already matched it by vendor and product, so put that to the
       // user rather than guessing in either direction.
+      // Only a mass-storage target is worth asking about. Anything else is
+      // refused by the product-ID guard below whatever the user answers, so
+      // putting a disk-confirmation dialog in front of that refusal asks them
+      // to vouch for a device that is not going to be written either way.
       if (target != null &&
+          target.mode == DeviceMode.massStorage &&
           target.systemDiskVerdict == SystemDiskVerdict.unknown) {
         final confirmed = await _confirmFlashTarget(target, devicePath);
         if (!mounted) return;

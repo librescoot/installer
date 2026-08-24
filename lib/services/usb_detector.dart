@@ -83,7 +83,12 @@ class UsbDevice {
     required this.mode,
     this.sizeBytes,
     this.isRemovable = false,
-    this.systemDiskVerdict = SystemDiskVerdict.notSystem,
+    // A device nobody probed carries no verdict. Defaulting to notSystem
+    // states the opposite: that the storage stack was asked and cleared the
+    // disk. A construction site that simply omits the argument then produces
+    // a positive safety answer out of nothing, and the confirmation dialog
+    // that exists for exactly this case is skipped.
+    this.systemDiskVerdict = SystemDiskVerdict.unknown,
   });
 
   /// Only a confirmed system disk blocks the flash outright. An unknown
@@ -763,9 +768,17 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
             mode: DeviceMode.massStorage,
             sizeBytes: diskInfo?['size'],
             isRemovable: diskInfo?['removable'] ?? false,
-            systemDiskVerdict: (diskInfo?['systemDisk'] ?? false)
-                ? SystemDiskVerdict.systemDisk
-                : SystemDiskVerdict.notSystem,
+            // The probe runs asynchronously and this returns immediately, so
+            // diskInfo is null on every poll before the first one lands. That
+            // is the absence of an answer, not an answer of "not the system
+            // disk": the path is filled in separately at flash time, by which
+            // point a fabricated notSystem here would have skipped the
+            // confirmation and left size and removability unmeasured too.
+            systemDiskVerdict: switch (diskInfo?['systemDisk']) {
+              true => SystemDiskVerdict.systemDisk,
+              false => SystemDiskVerdict.notSystem,
+              _ => SystemDiskVerdict.unknown,
+            },
           );
         }
 
