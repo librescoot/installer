@@ -207,8 +207,12 @@ void main() {
     )));
 
     expect(find.text('Erases the offline maps only'), findsOneWidget);
-    // The main board keeps the wording that is true for it.
-    expect(find.text('Erases settings, keycards, maps and trips'),
+    // The main board keeps the wording that is true for it: keycards and maps
+    // are paired and installed again at step 4 of this same run, so only
+    // settings and trip history are named as lost.
+    expect(
+        find.text('Erases settings and trip history. Keycards and maps are set '
+            'up again later in this run'),
         findsOneWidget);
   });
 }
