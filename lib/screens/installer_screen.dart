@@ -21,6 +21,7 @@ import '../models/install_plan.dart';
 import '../models/installer_phase.dart';
 import '../models/phase_attempt.dart';
 import '../models/resume_state.dart';
+import '../models/wait_plan.dart';
 import '../models/mdb_boot_action.dart';
 import '../models/region.dart';
 import '../models/scooter_health.dart';
@@ -40,6 +41,8 @@ import '../widgets/instruction_step.dart';
 import '../widgets/phase_layout.dart';
 import '../widgets/phase_sidebar.dart';
 import '../widgets/substep_list.dart';
+import '../widgets/wait_overlay.dart';
+import '../widgets/wait_scaffold.dart';
 import '../theme.dart';
 
 class InstallerScreen extends StatefulWidget {
@@ -79,6 +82,19 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   // Phase guard flags (prevent auto-start methods from re-firing on rebuild)
   bool _mdbConnectStarted = false;
+
+  /// The last screen that had content, kept so a wait can dim it instead of
+  /// replacing it with an empty frame. It is the built widget, not a rebuild:
+  /// the phase builders start work as a side effect, and none of that may run
+  /// again just because something is waiting in front of it.
+  Widget? _frozenBackdrop;
+
+  /// The steps of the wait currently running, and where it has got to.
+  List<WaitStep> _waitSteps = const [];
+  int _waitStep = 0;
+  DateTime? _waitStartedAt;
+  DateTime? _waitStepStartedAt;
+  final List<String> _waitLog = [];
 
   /// Which physical-prep step is open. Three photo pairs at once made that
   /// screen nearly two windows tall; one at a time is what someone with a
@@ -929,6 +945,21 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   void _setStatus(String message, {double? progress}) {
     if (message.isNotEmpty) appendLog(message);
+    // A wait's steps are its status messages, so a phase advances itself just
+    // by saying what it is doing. No second set of call sites to keep in step
+    // with the first.
+    if (message.isNotEmpty && _waitSteps.isNotEmpty) {
+      final now = DateTime.now();
+      _waitLog.add('${now.hour.toString().padLeft(2, '0')}:'
+          '${now.minute.toString().padLeft(2, '0')}:'
+          '${now.second.toString().padLeft(2, '0')} $message');
+      if (_waitLog.length > 60) _waitLog.removeAt(0);
+      final at = _waitSteps.indexWhere((step) => step.matches(message));
+      if (at > _waitStep) {
+        _waitStep = at;
+        _waitStepStartedAt = now;
+      }
+    }
     setState(() {
       _statusMessage = message;
       if (progress != null) _progress = progress;
@@ -1172,7 +1203,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                                   // not yet moved over keep the old behaviour:
                                   // one scroll for the whole screen.
                                   final content = _buildPhaseContent(l10n);
-                                  if (content is PhaseLayout) return content;
+                                  if (content is PhaseLayout ||
+                                      content is WaitScaffold) {
+                                    return content;
+                                  }
                                   return Scrollbar(
                                     controller: _phaseScrollController,
                                     thumbVisibility: true,
@@ -1273,6 +1307,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         ),
       );
     }
+    final content = _phaseContent(l10n);
+    // Waits draw over the screen the user just left, so only screens with
+    // something to show get remembered.
+    if (!_currentPhase.isWait) _frozenBackdrop = content;
+    return content;
+  }
+
+  Widget _phaseContent(AppLocalizations l10n) {
     return switch (_currentPhase) {
       InstallerPhase.welcome => _buildWelcome(l10n),
       InstallerPhase.notices => _buildNotices(l10n),
@@ -1294,6 +1336,42 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       InstallerPhase.keycardSetup => _buildKeycardSetup(l10n),
       InstallerPhase.finish => _buildFinish(l10n),
     };
+  }
+
+  /// A wait: the previous screen, dimmed and inert, with the overlay over it.
+  /// The sidebar sits outside this and stays lit, so the step list keeps
+  /// running while the card explains what the board is doing.
+  Widget _waitPhase({
+    required String title,
+    String? warning,
+    double? progress,
+    List<Widget> actions = const [],
+  }) {
+    return WaitScaffold(
+      backdrop: _frozenBackdrop,
+      overlay: WaitOverlay(
+        title: title,
+        steps: _waitSteps,
+        currentStep: _waitStep,
+        startedAt: _waitStartedAt ?? DateTime.now(),
+        stepStartedAt: _waitStepStartedAt,
+        progress: progress,
+        warning: warning,
+        logTail: _waitLog,
+        actions: actions,
+      ),
+    );
+  }
+
+  /// Start a wait at its first step. Called where the work begins, not where
+  /// the screen is built, so a rebuild cannot restart the clock.
+  void _beginWait(List<WaitStep> steps) {
+    final now = DateTime.now();
+    _waitSteps = steps;
+    _waitStep = 0;
+    _waitStartedAt = now;
+    _waitStepStartedAt = now;
+    _waitLog.clear();
   }
 
   Widget _buildWelcome(AppLocalizations l10n) {
@@ -2274,6 +2352,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
     if (_awaitingUnlockState != null) {
       return _buildAwaitingUnlock(l10n);
+    }
+
+    // While it is running it is a wait; a stall gets the frame back so the
+    // retry has somewhere to live.
+    if (_isProcessing) {
+      return _waitPhase(title: l10n.connectingToMdb);
     }
 
     return _waitingPhase(
@@ -3628,6 +3712,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   Widget _buildMdbToUms(AppLocalizations l10n) {
     final stalled = _mdbToUmsAttempt.isFailed;
+    // While it is going, it is a wait: the overlay over the screen the user
+    // just left. A failure gets the whole frame back, because that is where
+    // the log and the retry live.
+    if (!stalled) {
+      return _waitPhase(
+        title: l10n.configuringMdbBootloader,
+        warning: l10n.dbcFlashDoNotDisconnect,
+      );
+    }
     return _waitingPhase(
       title: l10n.configuringMdbBootloader,
       status: _statusMessage.isEmpty ? l10n.preparing : _statusMessage,
@@ -3689,6 +3782,20 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   Future<void> _configureMdbUms(int generation) async {
     final l10n = AppLocalizations.of(context)!;
+    // Timings from real runs on a healthy board; the reboot is the long pole.
+    _beginWait([
+      WaitStep(
+          label: l10n.deactivatingMainBattery,
+          typical: const Duration(seconds: 15)),
+      WaitStep(
+          label: l10n.uploadingBootloaderTools,
+          typical: const Duration(seconds: 20)),
+      WaitStep(
+          label: l10n.rebootingMdbUms, typical: const Duration(seconds: 60)),
+      WaitStep(
+          label: l10n.waitingForUmsDevice,
+          typical: const Duration(seconds: 25)),
+    ]);
     if (_isDryRun) {
       _setStatus('[DRY RUN] Simulating UMS mode...');
       await Future.delayed(const Duration(seconds: 1));
@@ -4394,6 +4501,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   Future<void> _waitForMdbBoot(int generation) async {
     final l10n = AppLocalizations.of(context)!;
+    // The board is off for most of this; a minute and a half is normal, and
+    // saying so is the difference between waiting and reaching for the cable.
+    _beginWait([
+      WaitStep(
+          label: l10n.waitingStableConnection,
+          typical: const Duration(seconds: 90)),
+      WaitStep(
+          label: l10n.reconnectingSsh, typical: const Duration(seconds: 25)),
+    ]);
 
     if (_isDryRun) {
       _setStatus('[DRY RUN] Simulating MDB boot...');
@@ -5021,6 +5137,20 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   Future<void> _runMdbArtifactInstall() async {
     final l10n = AppLocalizations.of(context)!;
+    // Staging is a minute of upload, the install about two, and the reboot
+    // and the version check together about two more.
+    final installing = l10n.artifactInstalling(0);
+    _beginWait([
+      WaitStep(
+          label: l10n.artifactStaging, typical: const Duration(seconds: 60)),
+      WaitStep(
+        label: installing,
+        matchPrefix: installing.split('(').first.trimRight(),
+        typical: const Duration(minutes: 2),
+      ),
+      WaitStep(
+          label: l10n.artifactVerifying, typical: const Duration(minutes: 2)),
+    ]);
 
     if (_isDryRun) {
       setState(() {

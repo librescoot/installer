@@ -789,5 +789,34 @@
       }
     }
   },
-  "keycardFinishCards": "Finish"
+  "keycardFinishCards": "Finish",
+  "waitStepCounter": "Step {current} of {total}",
+  "@waitStepCounter": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "waitElapsed": "{time} elapsed",
+  "@waitElapsed": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "waitLongerThanUsual": "{time} · longer than usual",
+  "@waitLongerThanUsual": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "waitShowLog": "Show log",
+  "waitHideLog": "Hide log"
 }

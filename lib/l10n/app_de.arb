@@ -643,5 +643,34 @@
       }
     }
   },
-  "keycardFinishCards": "Fertig"
+  "keycardFinishCards": "Fertig",
+  "waitStepCounter": "Schritt {current} von {total}",
+  "@waitStepCounter": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "waitElapsed": "{time} vergangen",
+  "@waitElapsed": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "waitLongerThanUsual": "{time} · länger als üblich",
+  "@waitLongerThanUsual": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "waitShowLog": "Protokoll anzeigen",
+  "waitHideLog": "Protokoll verbergen"
 }
