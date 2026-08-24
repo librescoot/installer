@@ -876,6 +876,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get finalSteps => 'Final steps:';
 
   @override
+  String get finishNextHeading => 'What happens next';
+
+  @override
+  String get finishNextDbcFlash =>
+      'When you reconnect the DBC cable, the scooter starts installing the dashboard by itself. That takes about 20 minutes. Leave the power connected and let it finish; the boot light shows it working.';
+
+  @override
+  String get finishNextOnDevice =>
+      'When you reconnect the DBC cable, the scooter finishes the rest by itself. You do not need to plug the laptop back in.';
+
+  @override
+  String get finishNextNothing =>
+      'The main board is done and nothing else runs on the scooter. Reassemble it and ride.';
+
+  @override
+  String get finishHandbookTitle => 'Handbook and quick start';
+
+  @override
+  String get finishHandbookBody => 'Setup, day-to-day use and troubleshooting.';
+
+  @override
   String get disconnectUsbFromLaptopFinal =>
       'Unplug the laptop USB cable from the MDB';
 

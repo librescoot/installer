@@ -882,6 +882,27 @@ class AppLocalizationsDe extends AppLocalizations {
   String get finalSteps => 'Letzte Schritte:';
 
   @override
+  String get finishNextHeading => 'Was als Nächstes passiert';
+
+  @override
+  String get finishNextDbcFlash =>
+      'Sobald du das DBC-Kabel wieder ansteckst, installiert der Roller das Display von allein. Das dauert etwa 20 Minuten. Lass den Strom dran und lass ihn fertig werden; das Boot-Licht zeigt, dass er arbeitet.';
+
+  @override
+  String get finishNextOnDevice =>
+      'Sobald du das DBC-Kabel wieder ansteckst, erledigt der Roller den Rest von allein. Du musst den Laptop nicht noch einmal anstecken.';
+
+  @override
+  String get finishNextNothing =>
+      'Das Hauptboard ist fertig, auf dem Roller läuft nichts mehr. Bau ihn wieder zusammen und fahr los.';
+
+  @override
+  String get finishHandbookTitle => 'Handbuch und Schnellstart';
+
+  @override
+  String get finishHandbookBody => 'Einrichtung, Alltag und Fehlersuche.';
+
+  @override
   String get disconnectUsbFromLaptopFinal =>
       'Laptop-USB-Kabel vom MDB abziehen';
 

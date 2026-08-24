@@ -8439,6 +8439,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         children: [
           const Icon(Icons.celebration, size: 64, color: kAccent),
           const SizedBox(height: 16),
+          // The reassembly steps are the same on every route, but what they
+          // set in motion is not: on the trampoline routes reconnecting the
+          // cable starts work on the board, and the screen used to end the
+          // conversation right where that begins.
+          _finishWhatHappensNext(l10n),
+          const SizedBox(height: 24),
           Text(
             l10n.finalSteps,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -8450,28 +8456,54 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           // leave loose. An MDB-only run still has the laptop plugged in.
           ..._finalSteps(l10n),
           const SizedBox(height: 24),
-          // Read once, and not part of finishing the install: closed by
-          // default, it is the difference between this screen fitting the
-          // window and running 280px past it.
-          Theme(
-            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-            child: ExpansionTile(
-              title: Row(
+          // The one part of this screen about actually using the scooter, so
+          // it is open. The frame scrolls, which is what the old collapse was
+          // working around.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lightbulb_outline, size: 20, color: kAccent),
+                const SizedBox(width: 8),
+                Text(l10n.gettingStartedTitle,
+                    style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: kAccent)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _buildGettingStarted(l10n, showTitle: false),
+          const SizedBox(height: 20),
+          InkWell(
+            onTap: () => _openExternalUrl(_handbookUrl),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+              child: Row(
                 children: [
-                  const Icon(Icons.lightbulb_outline, size: 20, color: kAccent),
-                  const SizedBox(width: 8),
-                  Text(l10n.gettingStartedTitle,
-                      style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: kAccent)),
+                  const Icon(Icons.menu_book_outlined, size: 20,
+                      color: kAccent),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(l10n.finishHandbookTitle,
+                            style: const TextStyle(
+                                fontSize: 14, color: kAccent)),
+                        const SizedBox(height: 2),
+                        Text(l10n.finishHandbookBody,
+                            style: TextStyle(
+                                fontSize: 12, color: Colors.grey.shade500)),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.open_in_new, size: 16, color: Colors.grey.shade500),
                 ],
               ),
-              tilePadding: EdgeInsets.zero,
-              childrenPadding: EdgeInsets.zero,
-              shape: const Border(),
-              collapsedShape: const Border(),
-              children: [_buildGettingStarted(l10n, showTitle: false)],
             ),
           ),
           const SizedBox(height: 24),
@@ -8485,6 +8517,63 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             ),
             value: _keepCache,
             onChanged: (v) => setState(() => _keepCache = v ?? false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static const _handbookUrl = 'https://librescoot.github.io/';
+
+  /// What the reassembly steps set in motion, which differs by route.
+  ///
+  /// Any run that started the trampoline continues on the board after the
+  /// cable goes back: that is what arms _deviceFinishArmed, and the trampoline
+  /// is always given onDevice, so there is no variant that hands back to the
+  /// laptop. Whether the dashboard is being written on top of that is the
+  /// plan's own answer, since tiles alone also require the handoff.
+  Widget _finishWhatHappensNext(AppLocalizations l10n) {
+    final continues = _deviceFinishArmed;
+    final flashesDbc = continues && (_plan?.needsDbcWork ?? false);
+    final body = !continues
+        ? l10n.finishNextNothing
+        : (flashesDbc ? l10n.finishNextDbcFlash : l10n.finishNextOnDevice);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: (continues ? Colors.amber : kAccent).withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: (continues ? Colors.amber : kAccent).withValues(alpha: 0.35),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            continues ? Icons.autorenew : Icons.check_circle_outline,
+            size: 20,
+            color: continues ? Colors.amber : kAccent,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.finishNextHeading,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  body,
+                  style: TextStyle(
+                      fontSize: 13, height: 1.4, color: Colors.grey.shade300),
+                ),
+              ],
+            ),
           ),
         ],
       ),

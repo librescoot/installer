@@ -1634,6 +1634,42 @@ abstract class AppLocalizations {
   /// **'Final steps:'**
   String get finalSteps;
 
+  /// No description provided for @finishNextHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'What happens next'**
+  String get finishNextHeading;
+
+  /// No description provided for @finishNextDbcFlash.
+  ///
+  /// In en, this message translates to:
+  /// **'When you reconnect the DBC cable, the scooter starts installing the dashboard by itself. That takes about 20 minutes. Leave the power connected and let it finish; the boot light shows it working.'**
+  String get finishNextDbcFlash;
+
+  /// No description provided for @finishNextOnDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'When you reconnect the DBC cable, the scooter finishes the rest by itself. You do not need to plug the laptop back in.'**
+  String get finishNextOnDevice;
+
+  /// No description provided for @finishNextNothing.
+  ///
+  /// In en, this message translates to:
+  /// **'The main board is done and nothing else runs on the scooter. Reassemble it and ride.'**
+  String get finishNextNothing;
+
+  /// No description provided for @finishHandbookTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Handbook and quick start'**
+  String get finishHandbookTitle;
+
+  /// No description provided for @finishHandbookBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Setup, day-to-day use and troubleshooting.'**
+  String get finishHandbookBody;
+
   /// No description provided for @disconnectUsbFromLaptopFinal.
   ///
   /// In en, this message translates to:
