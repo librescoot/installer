@@ -619,8 +619,11 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
         await _ssh.runCommand('chmod +x /data/installer/librescoot-flasher');
         setStep('flasher', SubstepState.done);
       } catch (e) {
-        debugPrint('Trampoline: failed to upload ARM flasher: $e');
-        setStep('flasher', SubstepState.failed, detail: e.toString());
+        // trampoline.sh falls back to `gunzip | dd oflag=direct` when the
+        // flasher is not executable on the board, so the write still happens
+        // without the bmap fast path.
+        debugPrint('Trampoline: ARM flasher not uploaded ($e), dd fallback');
+        setStep('flasher', SubstepState.degraded, detail: 'dd fallback');
       }
 
       // Upload stock DBC fw_setenv binary + DBC-specific fw_env config

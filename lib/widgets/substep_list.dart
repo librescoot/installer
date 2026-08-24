@@ -44,6 +44,10 @@ class _SubstepRow extends StatelessWidget {
           ),
           Colors.white,
         ),
+      SubstepState.degraded => (
+          Icon(Icons.info_outline, size: 16, color: Colors.amber.shade300),
+          Colors.amber.shade200,
+        ),
       SubstepState.failed => (
           Icon(Icons.error_outline, size: 16, color: Colors.red.shade300),
           Colors.red.shade200,
@@ -75,7 +79,9 @@ class _SubstepRow extends StatelessWidget {
                     fontWeight: fontWeight,
                   ),
                 ),
-                if (substep.detail != null && substep.state == SubstepState.active)
+                if (substep.detail != null &&
+                    (substep.state == SubstepState.active ||
+                        substep.state == SubstepState.degraded))
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
