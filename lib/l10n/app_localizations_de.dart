@@ -109,7 +109,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get phaseFinishDescription => 'Zusammenbau und Abschluss';
 
   @override
-  String get majorStepPrepare => 'Vorbereitung';
+  String get majorStepPrepare => 'Einrichten';
 
   @override
   String get majorStepConnect => 'Verbinden';
@@ -586,10 +586,13 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get auxDisconnectWarning =>
-      'Die USB-Verbindung geht verloren, wenn du AUX trennst. Das ist normal. Der Installer wartet auf den Neustart des MDB.';
+      'Die USB-Verbindung geht verloren, wenn du AUX trennst. Das ist normal. Schließe den AUX-Pol im nächsten Schritt wieder an, um das MDB zu starten.';
 
   @override
   String get doneCbbAuxDisconnected => 'Fertig, der Roller startet neu';
+
+  @override
+  String get doneAuxDisconnected => 'Fertig, AUX ist getrennt';
 
   @override
   String get brakeResetHeading => 'Roller neu starten';
@@ -1750,7 +1753,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get blePairingStep1Desc =>
-      'Die Bluetooth-Einstellungen deines Handys, nicht die App.';
+      'Die Bluetooth-Einstellungen deines Handys oder die App.';
 
   @override
   String get blePairingStep2 => 'Roller in der Geräteliste auswählen';

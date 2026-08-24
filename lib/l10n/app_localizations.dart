@@ -293,7 +293,7 @@ abstract class AppLocalizations {
   /// No description provided for @majorStepPrepare.
   ///
   /// In en, this message translates to:
-  /// **'Prepare'**
+  /// **'Set up'**
   String get majorStepPrepare;
 
   /// No description provided for @majorStepConnect.
@@ -1121,7 +1121,7 @@ abstract class AppLocalizations {
   /// No description provided for @auxDisconnectWarning.
   ///
   /// In en, this message translates to:
-  /// **'The USB connection will be lost when you disconnect AUX. This is expected. The installer will wait for the MDB to reboot.'**
+  /// **'The USB connection drops when you disconnect AUX. That is expected. Reconnect the AUX pole on the next screen to start the MDB.'**
   String get auxDisconnectWarning;
 
   /// No description provided for @doneCbbAuxDisconnected.
@@ -1129,6 +1129,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Done, the scooter is restarting'**
   String get doneCbbAuxDisconnected;
+
+  /// No description provided for @doneAuxDisconnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Done, AUX is disconnected'**
+  String get doneAuxDisconnected;
 
   /// No description provided for @brakeResetHeading.
   ///
@@ -3059,7 +3065,7 @@ abstract class AppLocalizations {
   /// No description provided for @blePairingStep1Desc.
   ///
   /// In en, this message translates to:
-  /// **'Your phone\'s Bluetooth settings, not the app.'**
+  /// **'Your phone\'s Bluetooth settings, or the app.'**
   String get blePairingStep1Desc;
 
   /// No description provided for @blePairingStep2.

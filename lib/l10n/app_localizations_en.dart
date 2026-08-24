@@ -105,7 +105,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get phaseFinishDescription => 'Reassemble and welcome';
 
   @override
-  String get majorStepPrepare => 'Prepare';
+  String get majorStepPrepare => 'Set up';
 
   @override
   String get majorStepConnect => 'Connect';
@@ -579,10 +579,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get auxDisconnectWarning =>
-      'The USB connection will be lost when you disconnect AUX. This is expected. The installer will wait for the MDB to reboot.';
+      'The USB connection drops when you disconnect AUX. That is expected. Reconnect the AUX pole on the next screen to start the MDB.';
 
   @override
   String get doneCbbAuxDisconnected => 'Done, the scooter is restarting';
+
+  @override
+  String get doneAuxDisconnected => 'Done, AUX is disconnected';
 
   @override
   String get brakeResetHeading => 'Restart the scooter';
@@ -1729,7 +1732,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get blePairingStep1Desc =>
-      'Your phone\'s Bluetooth settings, not the app.';
+      'Your phone\'s Bluetooth settings, or the app.';
 
   @override
   String get blePairingStep2 => 'Pick the scooter from the device list';
