@@ -1684,4 +1684,25 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get keycardFinishCards => 'Finish';
+
+  @override
+  String waitStepCounter(int current, int total) {
+    return 'Step $current of $total';
+  }
+
+  @override
+  String waitElapsed(String time) {
+    return '$time elapsed';
+  }
+
+  @override
+  String waitLongerThanUsual(String time) {
+    return '$time · longer than usual';
+  }
+
+  @override
+  String get waitShowLog => 'Show log';
+
+  @override
+  String get waitHideLog => 'Hide log';
 }

@@ -2989,6 +2989,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Finish'**
   String get keycardFinishCards;
+
+  /// No description provided for @waitStepCounter.
+  ///
+  /// In en, this message translates to:
+  /// **'Step {current} of {total}'**
+  String waitStepCounter(int current, int total);
+
+  /// No description provided for @waitElapsed.
+  ///
+  /// In en, this message translates to:
+  /// **'{time} elapsed'**
+  String waitElapsed(String time);
+
+  /// No description provided for @waitLongerThanUsual.
+  ///
+  /// In en, this message translates to:
+  /// **'{time} · longer than usual'**
+  String waitLongerThanUsual(String time);
+
+  /// No description provided for @waitShowLog.
+  ///
+  /// In en, this message translates to:
+  /// **'Show log'**
+  String get waitShowLog;
+
+  /// No description provided for @waitHideLog.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide log'**
+  String get waitHideLog;
 }
 
 class _AppLocalizationsDelegate
