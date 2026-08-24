@@ -95,6 +95,43 @@ void main() {
     );
   });
 
+  testWidgets('the title and the actions read as bars, not as body',
+      (tester) async {
+    await tester.pumpWidget(host(const PhaseLayout(
+      title: 'A phase',
+      actions: [PhaseAction(label: 'Continue', primary: true)],
+      child: Text('body'),
+    )));
+
+    // Both bars carry the same tint and hairline, which is what separates
+    // them from the page. Without it the title floats above the body and the
+    // buttons read as if they belonged to whatever text sits above them.
+    final tinted = tester
+        .widgetList<Container>(find.byType(Container))
+        .where((c) {
+          final d = c.decoration;
+          return d is BoxDecoration && d.color == kBarTint;
+        })
+        .length;
+    expect(tinted, 2, reason: 'expected a tinted title bar and action bar');
+  });
+
+  testWidgets('the body is not penned into a narrow column', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(host(const PhaseLayout(
+      title: 'A phase',
+      child: SizedBox(width: double.infinity, height: 40, child: Text('body')),
+    )));
+
+    // A 720-wide cap in a 1280 window left a gutter on both sides wide enough
+    // to read as a design mistake.
+    expect(tester.getSize(find.text('body')).width, greaterThan(900));
+  });
+
   testWidgets('the title stays put while the body scrolls', (tester) async {
     tester.view.physicalSize = const Size(1000, 400);
     tester.view.devicePixelRatio = 1.0;

@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../theme.dart';
 
+/// The title and the actions are chrome, not content: a tint a shade off the
+/// page and a hairline at the edge are enough to read them as bars without
+/// drawing a box around every screen.
+const Color kBarTint = Color(0xFF141414);
+const Color kBarBorder = Color(0xFF262626);
+
 /// Which way an action moves the user through the installer.
 enum ActionSide {
   /// Carries on along the install path: continue, skip, retry, proceed
@@ -113,7 +119,7 @@ class PhaseLayout extends StatelessWidget {
     this.actions = const [],
     this.onBack,
     this.backLabel,
-    this.maxWidth = 720,
+    this.maxWidth = 960,
     this.scrollable = true,
     this.centerContent = true,
   });
@@ -161,8 +167,12 @@ class PhaseLayout extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(32, 28, 32, 0),
+        Container(
+          decoration: BoxDecoration(
+            color: kBarTint,
+            border: Border(bottom: BorderSide(color: kBarBorder)),
+          ),
+          padding: const EdgeInsets.fromLTRB(32, 22, 32, 18),
           child: Center(
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: maxWidth),
@@ -181,8 +191,6 @@ class PhaseLayout extends StatelessWidget {
                     Text(subtitle!,
                         style: TextStyle(color: Colors.grey.shade400)),
                   ],
-                  const SizedBox(height: 16),
-                  Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
                 ],
               ),
             ),
@@ -191,10 +199,9 @@ class PhaseLayout extends StatelessWidget {
         Expanded(child: _body(context)),
         if (actions.isNotEmpty || onBack != null)
           Container(
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
-              ),
+            decoration: const BoxDecoration(
+              color: kBarTint,
+              border: Border(top: BorderSide(color: kBarBorder)),
             ),
             padding: const EdgeInsets.fromLTRB(32, 12, 32, 12),
             child: Center(
