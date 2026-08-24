@@ -2753,7 +2753,7 @@ abstract class AppLocalizations {
   /// No description provided for @finishHandoverTitle.
   ///
   /// In en, this message translates to:
-  /// **'Finishing the install…'**
+  /// **'Waiting for the scooter to unlock'**
   String get finishHandoverTitle;
 
   /// No description provided for @finishHandoverBody.
@@ -2963,7 +2963,7 @@ abstract class AppLocalizations {
   /// No description provided for @gettingStartedTitle.
   ///
   /// In en, this message translates to:
-  /// **'Getting started'**
+  /// **'Using your scooter'**
   String get gettingStartedTitle;
 
   /// No description provided for @gettingStartedOpenMenuTitle.

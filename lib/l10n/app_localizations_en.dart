@@ -1550,7 +1550,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'The DBC flash can take 10 to 20 minutes.';
 
   @override
-  String get finishHandoverTitle => 'Finishing the install…';
+  String get finishHandoverTitle => 'Waiting for the scooter to unlock';
 
   @override
   String get finishHandoverBody =>
@@ -1673,7 +1673,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get languageEnglish => 'English';
 
   @override
-  String get gettingStartedTitle => 'Getting started';
+  String get gettingStartedTitle => 'Using your scooter';
 
   @override
   String get gettingStartedOpenMenuTitle => 'Open the menu';

@@ -1567,7 +1567,8 @@ class AppLocalizationsDe extends AppLocalizations {
       'Das DBC-Flashen kann 10 bis 20 Minuten dauern.';
 
   @override
-  String get finishHandoverTitle => 'Installation wird abgeschlossen…';
+  String get finishHandoverTitle =>
+      'Warte darauf, dass der Roller sich entsperrt';
 
   @override
   String get finishHandoverBody =>
@@ -1693,7 +1694,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get languageEnglish => 'English';
 
   @override
-  String get gettingStartedTitle => 'Erste Schritte';
+  String get gettingStartedTitle => 'So bedienst du den Roller';
 
   @override
   String get gettingStartedOpenMenuTitle => 'Menü öffnen';
