@@ -803,8 +803,14 @@ abstract class AppLocalizations {
   /// No description provided for @awaitingUnlockWatching.
   ///
   /// In en, this message translates to:
-  /// **'The installer continues by itself as soon as the scooter reports it.'**
+  /// **'The installer continues automatically once the scooter is unlocked.'**
   String get awaitingUnlockWatching;
+
+  /// No description provided for @awaitingParkWatching.
+  ///
+  /// In en, this message translates to:
+  /// **'The installer continues automatically once the scooter is parked.'**
+  String get awaitingParkWatching;
 
   /// No description provided for @awaitingParkHeading.
   ///

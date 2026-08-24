@@ -2371,7 +2371,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         hints: isRtd
             ? const []
             : [l10n.awaitingUnlockHintKeycard, l10n.awaitingUnlockHintPhone],
-        watching: l10n.awaitingUnlockWatching,
+        watching: isRtd ? l10n.awaitingParkWatching : l10n.awaitingUnlockWatching,
         actions: [
           TextButton(
             onPressed: _userCancelUnlockWait,

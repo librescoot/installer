@@ -394,7 +394,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get awaitingUnlockWatching =>
-      'The installer continues by itself as soon as the scooter reports it.';
+      'The installer continues automatically once the scooter is unlocked.';
+
+  @override
+  String get awaitingParkWatching =>
+      'The installer continues automatically once the scooter is parked.';
 
   @override
   String get awaitingParkHeading => 'Park your scooter';

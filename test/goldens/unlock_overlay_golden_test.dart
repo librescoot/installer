@@ -44,9 +44,8 @@ void main() {
               'Schlüsselkarte an den Leser am Lenker halten',
               'Oder ein gekoppeltes Handy benutzen',
             ],
-            watching:
-                'Der Installer macht von allein weiter, sobald der Roller '
-                'das meldet.',
+            watching: 'Der Installer macht automatisch weiter, sobald der '
+                'Roller entsperrt ist.',
             actions: [
               TextButton(onPressed: () {}, child: const Text('Abbrechen')),
             ],
@@ -54,7 +53,9 @@ void main() {
         ),
       ),
     ));
-    await tester.pump();
+    // Far enough into the spinner's cycle to draw an arc rather than the dot
+    // it starts as.
+    await tester.pump(const Duration(milliseconds: 400));
 
     await expectLater(
       find.byType(MaterialApp),

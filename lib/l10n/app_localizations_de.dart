@@ -399,7 +399,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get awaitingUnlockWatching =>
-      'Der Installer macht von allein weiter, sobald der Roller das meldet.';
+      'Der Installer macht automatisch weiter, sobald der Roller entsperrt ist.';
+
+  @override
+  String get awaitingParkWatching =>
+      'Der Installer macht automatisch weiter, sobald der Roller geparkt ist.';
 
   @override
   String get awaitingParkHeading => 'Roller parken';
