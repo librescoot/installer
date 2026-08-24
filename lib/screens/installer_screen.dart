@@ -87,7 +87,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// (failed safety check, no device path, retries exhausted). It keeps the
   /// build from auto-starting the flash again and shows the manual controls.
   bool _mdbFlashBlocked = false;
-  bool _mdbBootStarted = false;
+  final PhaseAttempt _mdbBootAttempt = PhaseAttempt();
   bool _dbcPrepStarted = false;
   bool _dbcUploadReady = false; // upload done, waiting for "Begin flashing DBC"
 
@@ -532,6 +532,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       if (phase == InstallerPhase.mdbToUms && leaving != phase) {
         _mdbToUmsAttempt.reset();
       }
+      if (phase == InstallerPhase.mdbBoot && leaving != phase) {
+        _mdbBootAttempt.reset();
+      }
       _completedPhases.add(_currentPhase);
       _currentPhase = phase;
       _statusMessage = '';
@@ -572,6 +575,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
     if (phase == InstallerPhase.mdbToUms && leaving != phase) {
       Future.microtask(_startMdbToUms);
+    }
+    if (phase == InstallerPhase.mdbBoot && leaving != phase) {
+      Future.microtask(_startMdbBoot);
     }
   }
 
@@ -4246,25 +4252,18 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Widget _buildMdbBoot(AppLocalizations l10n) {
-    if (!_mdbBootStarted && !_isProcessing) {
-      _mdbBootStarted = true;
-      Future.microtask(_waitForMdbBoot);
-    }
     return _waitingPhase(
       title: l10n.waitingForMdbBoot,
       status: _statusMessage.isEmpty
           ? l10n.waitingForUsbDevice
           : _statusMessage,
       actions: [
-        if (!_isProcessing && !_mdbBootStarted)
+        if (_mdbBootAttempt.isFailed)
           PhaseAction(
             label: l10n.retryMdbBoot,
             icon: Icons.refresh,
             primary: true,
-            onPressed: () {
-              setState(() => _mdbBootStarted = true);
-              Future.microtask(_waitForMdbBoot);
-            },
+            onPressed: _startMdbBoot,
           ),
       ],
       extra: [
@@ -4297,13 +4296,37 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     );
   }
 
-  Future<void> _waitForMdbBoot() async {
-    final l10n = AppLocalizations.of(context)!;
+  void _startMdbBoot() {
+    if (!mounted || _currentPhase != InstallerPhase.mdbBoot) return;
+    final generation = _mdbBootAttempt.begin();
+    if (generation == null) return;
     setState(() => _isProcessing = true);
+    unawaited(_waitForMdbBoot(generation));
+  }
+
+  bool _ownsMdbBootAttempt(int generation) {
+    return mounted &&
+        _currentPhase == InstallerPhase.mdbBoot &&
+        _mdbBootAttempt.isCurrent(generation);
+  }
+
+  void _failMdbBoot(int generation, String message) {
+    if (!_ownsMdbBootAttempt(generation)) return;
+    _setStatus(message);
+    setState(() {
+      _isProcessing = false;
+      _mdbBootAttempt.fail(generation, message);
+    });
+  }
+
+  Future<void> _waitForMdbBoot(int generation) async {
+    final l10n = AppLocalizations.of(context)!;
 
     if (_isDryRun) {
       _setStatus('[DRY RUN] Simulating MDB boot...');
       await Future.delayed(const Duration(seconds: 2));
+      if (!_ownsMdbBootAttempt(generation)) return;
+      _mdbBootAttempt.complete(generation);
       _setPhase(_beginMdbInstall());
       return;
     }
@@ -4335,12 +4358,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // Leaving mass storage, or leaving the bus at all, is the restart.
       if (_device?.mode != DeviceMode.massStorage) sawRestart = true;
       await Future.delayed(const Duration(seconds: 1));
-      if (!mounted) return;
-      if (_currentPhase != InstallerPhase.mdbBoot) return;
+      if (!_ownsMdbBootAttempt(generation)) return;
     }
 
     if (mdbBootActionFor(mode: _device?.mode, sawRestart: sawRestart) ==
         MdbBootAction.reflash) {
+      if (!_ownsMdbBootAttempt(generation)) return;
+      _mdbBootAttempt.complete(generation);
       _setStatus(l10n.mdbStillUms);
       setState(() {
         _isProcessing = false;
@@ -4360,17 +4384,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // no-ops if the MDB is already reachable.
     final networkService = NetworkService();
     final iface = await networkService.findLibrescootInterface();
+    if (!_ownsMdbBootAttempt(generation)) return;
     if (iface != null) {
       try {
         await networkService.configureInterface(iface);
       } on NetworkPrivilegeException catch (e) {
-        _setStatus(l10n.errorPrefix(e.toString()));
-        setState(() {
-          _isProcessing = false;
-          _mdbBootStarted = false;
-        });
+        _failMdbBoot(generation, l10n.errorPrefix(e.toString()));
         return;
       }
+      if (!_ownsMdbBootAttempt(generation)) return;
     }
 
     // A board that has just been written boots stage 0 from scratch, which
@@ -4386,6 +4408,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     var diagnosticsLogged = false;
     while (stableCount < 10) {
       final reachable = await _pingMdb();
+      if (!_ownsMdbBootAttempt(generation)) return;
       if (reachable) {
         stableCount++;
         failingSince = null;
@@ -4400,6 +4423,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             iface != null) {
           diagnosticsLogged = true;
           final diag = await networkService.gatherLinuxDiagnostics(iface.name);
+          if (!_ownsMdbBootAttempt(generation)) return;
           debugPrint(
             'Network: stable-ping stalled ${failedFor.inSeconds}s '
             'on ${iface.name}.\n$diag',
@@ -4410,12 +4434,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         }
       }
       await Future.delayed(const Duration(seconds: 1));
-      if (!mounted) return;
+      if (!_ownsMdbBootAttempt(generation)) return;
     }
 
     _setStatus(l10n.reconnectingSsh);
     try {
       await _sshService.connectToMdb();
+      if (!_ownsMdbBootAttempt(generation)) return;
 
       // Disable keycard-service for the rest of the install. A freshly flashed
       // MDB boots into auto-master-learn mode; any tap before the explicit
@@ -4464,7 +4489,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       if (_radioGagaBackupPath != null) {
         _setStatus(l10n.restoringConfig);
         if (!await _waitForDataPartition()) return;
-        if (!mounted) return;
+        if (!_ownsMdbBootAttempt(generation)) return;
         final restored = await _sshService.restoreRadioGagaConfig(
           _radioGagaBackupPath!,
         );
@@ -4473,14 +4498,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         }
       }
 
+      if (!_ownsMdbBootAttempt(generation)) return;
+      _mdbBootAttempt.complete(generation);
       _setPhase(_beginMdbInstall());
+    } on DataPartitionWaitException catch (e) {
+      _failMdbBoot(generation, l10n.errorPrefix(e.toString()));
     } catch (e) {
-      _setStatus(l10n.sshReconnectionFailed(e.toString()));
+      _failMdbBoot(generation, l10n.sshReconnectionFailed(e.toString()));
     }
-    setState(() {
-      _isProcessing = false;
-      _mdbBootStarted = false;
-    });
   }
 
   /// What the trampoline needs to close the install out without the laptop.
