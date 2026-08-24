@@ -1708,4 +1708,32 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get waitHideLog => 'Hide log';
+
+  @override
+  String get blePairingWhy =>
+      'A paired phone can unlock the scooter and show its state through the app. You can skip this and do it later.';
+
+  @override
+  String get blePairingStep1 => 'Open Bluetooth on your phone';
+
+  @override
+  String get blePairingStep1Desc =>
+      'Your phone\'s Bluetooth settings, not the app.';
+
+  @override
+  String get blePairingStep2 => 'Pick the scooter from the device list';
+
+  @override
+  String get blePairingStep2Desc => 'It shows up under the address given here.';
+
+  @override
+  String get blePairingStep3 => 'Confirm the PIN';
+
+  @override
+  String get blePairingStep3Desc =>
+      'The PIN appears on this screen as soon as your phone asks for it.';
+
+  @override
+  String get blePairingOneAtATime =>
+      'The scooter holds one Bluetooth connection at a time. If a device is already connected, disconnect it there first.';
 }

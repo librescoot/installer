@@ -3025,6 +3025,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Hide log'**
   String get waitHideLog;
+
+  /// No description provided for @blePairingWhy.
+  ///
+  /// In en, this message translates to:
+  /// **'A paired phone can unlock the scooter and show its state through the app. You can skip this and do it later.'**
+  String get blePairingWhy;
+
+  /// No description provided for @blePairingStep1.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Bluetooth on your phone'**
+  String get blePairingStep1;
+
+  /// No description provided for @blePairingStep1Desc.
+  ///
+  /// In en, this message translates to:
+  /// **'Your phone\'s Bluetooth settings, not the app.'**
+  String get blePairingStep1Desc;
+
+  /// No description provided for @blePairingStep2.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick the scooter from the device list'**
+  String get blePairingStep2;
+
+  /// No description provided for @blePairingStep2Desc.
+  ///
+  /// In en, this message translates to:
+  /// **'It shows up under the address given here.'**
+  String get blePairingStep2Desc;
+
+  /// No description provided for @blePairingStep3.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm the PIN'**
+  String get blePairingStep3;
+
+  /// No description provided for @blePairingStep3Desc.
+  ///
+  /// In en, this message translates to:
+  /// **'The PIN appears on this screen as soon as your phone asks for it.'**
+  String get blePairingStep3Desc;
+
+  /// No description provided for @blePairingOneAtATime.
+  ///
+  /// In en, this message translates to:
+  /// **'The scooter holds one Bluetooth connection at a time. If a device is already connected, disconnect it there first.'**
+  String get blePairingOneAtATime;
 }
 
 class _AppLocalizationsDelegate

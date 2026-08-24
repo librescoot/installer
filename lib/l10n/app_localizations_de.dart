@@ -1729,4 +1729,33 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get waitHideLog => 'Protokoll verbergen';
+
+  @override
+  String get blePairingWhy =>
+      'Mit einem gekoppelten Handy kannst du den Roller später über die App entsperren und seinen Zustand sehen. Du kannst das auch überspringen und später nachholen.';
+
+  @override
+  String get blePairingStep1 => 'Bluetooth am Handy öffnen';
+
+  @override
+  String get blePairingStep1Desc =>
+      'Die Bluetooth-Einstellungen deines Handys, nicht die App.';
+
+  @override
+  String get blePairingStep2 => 'Roller in der Geräteliste auswählen';
+
+  @override
+  String get blePairingStep2Desc =>
+      'Er erscheint unter der Adresse, die hier steht.';
+
+  @override
+  String get blePairingStep3 => 'PIN bestätigen';
+
+  @override
+  String get blePairingStep3Desc =>
+      'Die PIN erscheint hier auf dem Bildschirm, sobald dein Handy fragt.';
+
+  @override
+  String get blePairingOneAtATime =>
+      'Der Roller hält immer nur eine Bluetooth-Verbindung. Ist schon ein Gerät verbunden, trenne es zuerst dort.';
 }

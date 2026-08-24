@@ -6824,9 +6824,43 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       ],
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Icon(Icons.bluetooth, size: 48, color: Colors.blueAccent),
-          const SizedBox(height: 16),
+          // The screen used to be an icon, an address and two buttons. What
+          // it was missing is the part someone actually needs: that this
+          // happens in the phone's own Bluetooth settings, and what to expect
+          // when it asks.
+          Text(l10n.blePairingWhy,
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade300)),
+          const SizedBox(height: 20),
+          InstructionStep(
+            number: 1,
+            title: l10n.blePairingStep1,
+            description: l10n.blePairingStep1Desc,
+          ),
+          InstructionStep(
+            number: 2,
+            title: l10n.blePairingStep2,
+            description: l10n.blePairingStep2Desc,
+          ),
+          InstructionStep(
+            number: 3,
+            title: l10n.blePairingStep3,
+            description: l10n.blePairingStep3Desc,
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.link_off, size: 16, color: Colors.grey.shade500),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(l10n.blePairingOneAtATime,
+                    style:
+                        TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
           if (_bleMac != null)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

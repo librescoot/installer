@@ -819,5 +819,13 @@
     }
   },
   "waitShowLog": "Show log",
-  "waitHideLog": "Hide log"
+  "waitHideLog": "Hide log",
+  "blePairingWhy": "A paired phone can unlock the scooter and show its state through the app. You can skip this and do it later.",
+  "blePairingStep1": "Open Bluetooth on your phone",
+  "blePairingStep1Desc": "Your phone's Bluetooth settings, not the app.",
+  "blePairingStep2": "Pick the scooter from the device list",
+  "blePairingStep2Desc": "It shows up under the address given here.",
+  "blePairingStep3": "Confirm the PIN",
+  "blePairingStep3Desc": "The PIN appears on this screen as soon as your phone asks for it.",
+  "blePairingOneAtATime": "The scooter holds one Bluetooth connection at a time. If a device is already connected, disconnect it there first."
 }
