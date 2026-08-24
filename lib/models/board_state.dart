@@ -44,6 +44,23 @@ class BoardState {
   );
 }
 
+/// Which vehicle stack a board is running.
+///
+/// [stock] and [none] both lack the Librescoot units, and only [none] is a
+/// board with something wrong with it.
+enum ServiceStack {
+  /// Librescoot's own units are installed. Every redis-backed step here works.
+  librescoot,
+
+  /// The stock vehicle stack, under its own unit and key names. Healthy, and
+  /// the ordinary starting point for an install.
+  stock,
+
+  /// No vehicle stack under any known name: a stage-0 bootstrap image, or a
+  /// full image that did not come up.
+  none,
+}
+
 /// Whether a board should be treated as still running a bootstrap image.
 ///
 /// The artifact name is the authority: a stage-0 image carries "minimal" in
@@ -51,6 +68,6 @@ class BoardState {
 /// because a board that could not be asked is not a board that said no.
 bool looksLikeBootstrapImage({
   required String? artifactName,
-  required bool? hasServiceStack,
+  required ServiceStack? serviceStack,
 }) =>
-    (artifactName ?? '').contains('minimal') || hasServiceStack == false;
+    (artifactName ?? '').contains('minimal') || serviceStack == ServiceStack.none;

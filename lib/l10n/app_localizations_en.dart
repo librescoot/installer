@@ -442,6 +442,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reflashToRecover => 'Re-flash to recover';
 
   @override
+  String get stockFirmwareStatus =>
+      'Stock firmware detected. Ready to install Librescoot...';
+
+  @override
+  String get stockFirmwareHeading => 'Stock firmware';
+
+  @override
+  String get stockFirmwareBody =>
+      'This scooter is running its original firmware. Nothing is wrong with it. Some readings here come from a different set of keys and are shown as unknown rather than measured. Continue to install Librescoot.';
+
+  @override
   String get continueButton => 'Continue';
 
   @override
@@ -1258,7 +1269,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get actionCleanInstallDetail =>
-      'Erases settings, keycards, maps and trips';
+      'Erases settings and trip history. Keycards and maps are set up again later in this run';
 
   @override
   String get actionUpgradeDetailDbc => 'Keeps the offline maps';

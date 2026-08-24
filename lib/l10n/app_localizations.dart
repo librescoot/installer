@@ -884,6 +884,24 @@ abstract class AppLocalizations {
   /// **'Re-flash to recover'**
   String get reflashToRecover;
 
+  /// No description provided for @stockFirmwareStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Stock firmware detected. Ready to install Librescoot...'**
+  String get stockFirmwareStatus;
+
+  /// No description provided for @stockFirmwareHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Stock firmware'**
+  String get stockFirmwareHeading;
+
+  /// No description provided for @stockFirmwareBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This scooter is running its original firmware. Nothing is wrong with it. Some readings here come from a different set of keys and are shown as unknown rather than measured. Continue to install Librescoot.'**
+  String get stockFirmwareBody;
+
   /// No description provided for @continueButton.
   ///
   /// In en, this message translates to:
@@ -2267,7 +2285,7 @@ abstract class AppLocalizations {
   /// No description provided for @actionCleanInstallDetail.
   ///
   /// In en, this message translates to:
-  /// **'Erases settings, keycards, maps and trips'**
+  /// **'Erases settings and trip history. Keycards and maps are set up again later in this run'**
   String get actionCleanInstallDetail;
 
   /// No description provided for @actionUpgradeDetailDbc.

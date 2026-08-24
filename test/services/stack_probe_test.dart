@@ -7,21 +7,25 @@ import 'package:librescoot_installer/services/ssh_service.dart';
 /// returned false. "Could not ask" has to stay distinct from "no".
 void main() {
   group('probe output', () {
-    test('the two answers it is meant to give', () {
-      expect(SshService.parseStackProbe('yes\n'), isTrue);
-      expect(SshService.parseStackProbe('no\n'), isFalse);
+    test('the three answers it is meant to give', () {
+      expect(
+        SshService.parseStackProbe('librescoot\n'),
+        ServiceStack.librescoot,
+      );
+      expect(SshService.parseStackProbe('stock\n'), ServiceStack.stock);
+      expect(SshService.parseStackProbe('none\n'), ServiceStack.none);
     });
 
     test('shell noise before the answer does not hide it', () {
       // A login banner or a stray warning still leaves the answer last.
       expect(
-        SshService.parseStackProbe('Warning: something\nyes\n'),
-        isTrue,
+        SshService.parseStackProbe('Warning: something\nlibrescoot\n'),
+        ServiceStack.librescoot,
       );
     });
 
     test('anything that is not an answer is unknown', () {
-      for (final out in ['', '   ', '\n\n', 'Connection reset by peer']) {
+      for (final out in ['', '   ', '\n\n', 'Connection reset by peer', 'yes']) {
         expect(SshService.parseStackProbe(out), isNull, reason: out);
       }
     });
@@ -32,7 +36,7 @@ void main() {
       expect(
         looksLikeBootstrapImage(
           artifactName: 'librescoot-unu-mdb-minimal-nightly-20260823t082958',
-          hasServiceStack: true,
+          serviceStack: ServiceStack.librescoot,
         ),
         isTrue,
       );
@@ -42,7 +46,7 @@ void main() {
       expect(
         looksLikeBootstrapImage(
           artifactName: 'release-v1.2.1',
-          hasServiceStack: true,
+          serviceStack: ServiceStack.librescoot,
         ),
         isFalse,
       );
@@ -54,19 +58,30 @@ void main() {
       expect(
         looksLikeBootstrapImage(
           artifactName: 'release-v1.2.1',
-          hasServiceStack: false,
+          serviceStack: ServiceStack.none,
         ),
         isTrue,
       );
     });
 
     test('an unanswered probe does not condemn a finished install', () {
-      // What actually happened: os-release said v1.2.1, mender said
-      // release-v1.2.1, and one timed-out systemctl outvoted both.
       expect(
         looksLikeBootstrapImage(
           artifactName: 'release-v1.2.1',
-          hasServiceStack: null,
+          serviceStack: null,
+        ),
+        isFalse,
+      );
+    });
+
+    test('a healthy stock board is not a bootstrap image', () {
+      // Stock has a working vehicle stack under its own unit names and no
+      // mender artifact at all. Reading that as a damaged Librescoot install
+      // told the user to re-flash a scooter with nothing wrong with it.
+      expect(
+        looksLikeBootstrapImage(
+          artifactName: null,
+          serviceStack: ServiceStack.stock,
         ),
         isFalse,
       );

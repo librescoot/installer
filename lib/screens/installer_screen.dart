@@ -263,8 +263,17 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   String? _resumeActor; // who wrote that state last: installer or trampoline
   String _resumeLogTail = ''; // last lines of the previous run's own log
   bool _resumeStillRunning = false; // the board is mid-run, leave it alone
-  bool _mdbStackMissing =
-      false; // MDB answered SSH but has no redis (minimal/broken image) -> recover by re-flashing
+  // MDB answered SSH but has no Librescoot stack -> recover by re-flashing.
+  // Stock boards also lack it and are healthy, so the routing reads
+  // _mdbLacksLibrescootStack and only the rendering reads this.
+  bool _mdbStackMissing = false;
+  ServiceStack? _mdbStack;
+
+  /// No Librescoot units under any name: stock and minimal both. Every
+  /// redis-backed step here is written against Librescoot's schema, so both
+  /// route around them.
+  bool get _mdbLacksLibrescootStack =>
+      _mdbStackMissing || _mdbStack == ServiceStack.stock;
   Completer<bool>? _unlockCompleter;
   bool _keepCache = false;
   late final CriticalOperationCoordinator _criticalOperations;
@@ -2561,13 +2570,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // wedging the installer. Detect that here and route straight to the
       // health screen (which shows a recovery banner) and on to re-flashing
       // the full firmware, bypassing every redis-backed step.
-      if (await _sshService.hasFullServiceStack() == false) {
-        debugPrint(
-          'SSH: MDB has no redis stack (bootstrap or incomplete image)',
-        );
+      final stack = await _sshService.detectServiceStack();
+      if (stack != null && stack != ServiceStack.librescoot) {
+        debugPrint('SSH: MDB has no Librescoot stack (${stack.name})');
         if (!mounted) return;
         setState(() {
-          _mdbStackMissing = true;
+          _mdbStack = stack;
+          _mdbStackMissing = stack == ServiceStack.none;
           _isProcessing = false;
         });
         if (_expectMinimalMdb) {
@@ -2576,7 +2585,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           _setPhase(_beginMdbInstall());
           return;
         }
-        _setStatus(l10n.incompleteImageStatus);
+        _setStatus(
+          stack == ServiceStack.stock
+              ? l10n.stockFirmwareStatus
+              : l10n.incompleteImageStatus,
+        );
         _setPhase(InstallerPhase.healthCheck);
         return;
       }
@@ -3216,10 +3229,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // artifact's reboot that field still holds the answer the stage-0 board
     // gave before the install, which would make every clean install look as
     // if it had never left the bootstrap image.
-    final hasStack = await _sshService.hasFullServiceStack();
+    final stack = await _sshService.detectServiceStack();
     final minimal = looksLikeBootstrapImage(
       artifactName: artifact,
-      hasServiceStack: hasStack,
+      serviceStack: stack,
     );
 
     return BoardState(
@@ -3412,15 +3425,17 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
             ),
           ],
-          if (_mdbStackMissing) ...[
+          if (_mdbLacksLibrescootStack) ...[
             const SizedBox(height: 16),
             warning(
-              Icons.healing,
+              _mdbStackMissing ? Icons.healing : Icons.info_outline,
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    l10n.incompleteImageHeading,
+                    _mdbStackMissing
+                        ? l10n.incompleteImageHeading
+                        : l10n.stockFirmwareHeading,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Colors.amber,
@@ -3428,7 +3443,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    l10n.incompleteImageBody,
+                    _mdbStackMissing
+                        ? l10n.incompleteImageBody
+                        : l10n.stockFirmwareBody,
                     style: TextStyle(fontSize: 13, color: Colors.grey.shade300),
                   ),
                 ],
@@ -3523,10 +3540,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       return;
     }
     if (_mdbStackMissing) {
-      // No redis on this image: battery telemetry can't be read and there's
-      // nothing to back up. Render the verdict as all-unknown; the health
-      // screen shows the recovery banner and a Continue button that leads
-      // into the re-flash.
+      // No stack of any kind on this image: battery telemetry can't be read
+      // and there's nothing to back up. Render the verdict as all-unknown; the
+      // health screen shows the recovery banner and a Continue button that
+      // leads into the re-flash. Stock is not this case: it keeps aux-battery
+      // and cb-battery under the same keys and is read normally below.
       setState(() {
         _scooterHealth = ScooterHealth();
         _isProcessing = false;
@@ -3543,10 +3561,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // disconnected CBB/AUX should still surface as a failure).
       var health = await _sshService.queryHealth();
       final deadline = DateTime.now().add(const Duration(seconds: 90));
-      while ((health.auxCharge == null ||
-              health.cbbCharge == null ||
-              health.cbbStateOfHealth == null) &&
-          DateTime.now().isBefore(deadline)) {
+      // A CBB that reports itself absent has nothing to wait for; its charge
+      // and state-of-health never arrive.
+      bool stillWaiting(ScooterHealth h) =>
+          h.auxCharge == null ||
+          (h.cbbPresent != false &&
+              (h.cbbCharge == null || h.cbbStateOfHealth == null));
+      while (stillWaiting(health) && DateTime.now().isBefore(deadline)) {
         _setStatus(l10n.waitingForBatteryData);
         await Future.delayed(const Duration(seconds: 3));
         if (!mounted) return;
@@ -3732,8 +3753,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // A minimal image has no redis, so every call here fails. Catching that
     // is not enough: a failure inside executeWithReplayPolicy can invalidate
     // the connection, and the mandatory step after this one needs it.
-    if (_mdbStackMissing) {
-      debugPrint('Battery: minimal image, skipping main-pack deactivation');
+    if (_mdbLacksLibrescootStack) {
+      debugPrint('Battery: no Librescoot stack, skipping main-pack deactivation');
       return;
     }
     try {
@@ -5315,6 +5336,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       setState(() {
         _mdbState = after;
         _mdbStackMissing = after.isMinimalImage;
+        if (after.isMinimalImage) _mdbStack = ServiceStack.none;
       });
 
       // A board that answers SSH has not proven anything on its own: u-boot

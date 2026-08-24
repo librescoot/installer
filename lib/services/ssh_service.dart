@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../models/board_state.dart';
 import '../models/scooter_health.dart';
 import '../models/trampoline_status.dart';
 import 'device_probe.dart';
@@ -1473,34 +1474,29 @@ done
   /// gate, the pre-flash lock, the health telemetry) fails with
   /// `redis-cli: not found`. Returns false when redis-cli is absent so the
   /// caller can route straight to re-flash instead of getting wedged.
-  /// Whether the board runs a full image rather than a bootstrap one.
+  /// Which vehicle stack the board is running.
   ///
-  /// Null means the board could not answer, which is not the same as no. It
-  /// used to be: one `systemctl` that timed out over a busy link seconds
-  /// after a reboot was enough to report a finished install as a rollback to
-  /// the bootstrap image, with the artifact name and os-release both saying
-  /// otherwise. A board that is up but slow gets a few tries before this
-  /// gives up on it.
-  Future<bool?> hasFullServiceStack({int attempts = 3}) async {
+  /// Null means the board could not answer, which is not the same as
+  /// [ServiceStack.none]. It used to be: one `systemctl` that timed out over a
+  /// busy link seconds after a reboot was enough to report a finished install
+  /// as a rollback to the bootstrap image, with the artifact name and
+  /// os-release both saying otherwise. A board that is up but slow gets a few
+  /// tries before this gives up on it.
+  Future<ServiceStack?> detectServiceStack({int attempts = 3}) async {
     for (var attempt = 1; attempt <= attempts; attempt++) {
       try {
-        // redis-cli alone no longer separates a full image from a bootstrap
-        // one: the bootstrap image ships valkey so bluetooth-service can run
-        // during pairing. vehicle-service is what every redis-backed step
-        // here actually depends on. Without it there is no vehicle state to
-        // read, no state machine to lock, and nothing that can answer an
-        // unlock, so a probe that says yes leaves the installer waiting for a
-        // transition that cannot happen.
-        final out = await runCommand(
-          'command -v redis-cli >/dev/null 2>&1 || { echo no; exit 0; }; '
-          'systemctl list-unit-files 2>/dev/null '
-          '| grep -q "^librescoot-vehicle" && echo yes || echo no',
-        );
+        // redis-cli alone separates nothing: the bootstrap image ships valkey
+        // so bluetooth-service can run during pairing, and stock ships its own
+        // redis with its own schema. The vehicle unit is what every
+        // redis-backed step here depends on, and it carries a different name
+        // under each stack. Asking for both names is what keeps a healthy
+        // stock board distinct from a board with no stack at all.
+        final out = await runCommand(_stackProbeScript);
         final answer = parseStackProbe(out);
         if (answer != null) return answer;
-        debugPrint('SSH: full-image probe gave nothing useful: ${out.trim()}');
+        debugPrint('SSH: stack probe gave nothing useful: ${out.trim()}');
       } catch (e) {
-        debugPrint('SSH: full-image probe failed (attempt $attempt): $e');
+        debugPrint('SSH: stack probe failed (attempt $attempt): $e');
       }
       if (attempt < attempts) {
         await Future.delayed(const Duration(seconds: 5));
@@ -1509,19 +1505,28 @@ done
     return null;
   }
 
+  static const _stackProbeScript =
+      r'''command -v redis-cli >/dev/null 2>&1 || { echo none; exit 0; }; '''
+      r'''u=$(systemctl list-unit-files 2>/dev/null); '''
+      r'''echo "$u" | grep -q "^librescoot-vehicle" && { echo librescoot; exit 0; }; '''
+      r'''echo "$u" | grep -q "^vehicle-service" && { echo stock; exit 0; }; '''
+      r'''echo none''';
+
   /// The probe answers with one word. Anything else is not an answer.
   @visibleForTesting
-  static bool? parseStackProbe(String output) {
+  static ServiceStack? parseStackProbe(String output) {
     final lines = output
         .split('\n')
         .map((l) => l.trim())
         .where((l) => l.isNotEmpty)
         .toList();
     if (lines.isEmpty) return null;
-    final last = lines.last;
-    if (last == 'yes') return true;
-    if (last == 'no') return false;
-    return null;
+    return switch (lines.last) {
+      'librescoot' => ServiceStack.librescoot,
+      'stock' => ServiceStack.stock,
+      'none' => ServiceStack.none,
+      _ => null,
+    };
   }
 
   /// Wait for a specific vehicle state, polling every [interval].
@@ -1552,6 +1557,13 @@ done
     health.cbbCharge = int.tryParse(
       await redisHget('cb-battery', 'charge') ?? '',
     );
+    // Stock and Librescoot both keep the CBB under this key. `false` is the
+    // pack reporting itself absent, which is a different answer from the
+    // charge fields being unreadable.
+    final cbbPresent = await redisHget('cb-battery', 'present');
+    if (cbbPresent == 'true' || cbbPresent == 'false') {
+      health.cbbPresent = cbbPresent == 'true';
+    }
     final batteryPresent = await redisHget('battery:0', 'present');
     health.batteryPresent = batteryPresent == 'true';
     return health;

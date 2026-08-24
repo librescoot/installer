@@ -447,6 +447,17 @@ class AppLocalizationsDe extends AppLocalizations {
   String get reflashToRecover => 'Neu flashen zur Wiederherstellung';
 
   @override
+  String get stockFirmwareStatus =>
+      'Original-Firmware erkannt. Bereit für die Librescoot-Installation...';
+
+  @override
+  String get stockFirmwareHeading => 'Original-Firmware';
+
+  @override
+  String get stockFirmwareBody =>
+      'Dieser Roller läuft mit seiner Original-Firmware. Damit ist alles in Ordnung. Einige Werte hier stehen unter anderen Schlüsseln und werden deshalb als unbekannt statt als gemessen angezeigt. Fahre fort, um Librescoot zu installieren.';
+
+  @override
   String get continueButton => 'Weiter';
 
   @override
@@ -1270,7 +1281,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get actionCleanInstallDetail =>
-      'Löscht Einstellungen, Schlüsselkarten, Karten und Fahrten';
+      'Löscht Einstellungen und Fahrtenverlauf. Schlüsselkarten und Karten werden in diesem Durchlauf neu eingerichtet';
 
   @override
   String get actionUpgradeDetailDbc => 'Behält die Offline-Karten';
