@@ -532,6 +532,8 @@
   "keycardMasterStageRejectedToast": "This card is already registered as an unlock card.",
   "keycardMasterStageSaveFailedToast": "Could not save master card. Try again.",
   "keycardMasterStageLearnedToast": "Master card registered.",
+  "keycardMasterStageStartFailed": "Master card setup could not be started",
+  "keycardMasterStageRetryButton": "Try again",
   "keycardMasterStageSkipButton": "Skip",
   "keycardSimulateTapButton": "[DRY RUN] Simulate tap",
   "keycardSimulateMasterTapButton": "[DRY RUN] Simulate master tap",

@@ -414,6 +414,8 @@
   "keycardMasterStageRejectedToast": "Diese Karte ist bereits als Schlüsselkarte angelernt.",
   "keycardMasterStageSaveFailedToast": "Masterkarte konnte nicht gespeichert werden: Schreibvorgang fehlgeschlagen.",
   "keycardMasterStageLearnedToast": "Masterkarte wurde angelernt.",
+  "keycardMasterStageStartFailed": "Die Master-Karten-Einrichtung konnte nicht gestartet werden",
+  "keycardMasterStageRetryButton": "Erneut versuchen",
   "keycardMasterStageSkipButton": "Überspringen",
   "keycardSimulateTapButton": "[DRY RUN] Tap simulieren",
   "keycardSimulateMasterTapButton": "[DRY RUN] Master-Tap simulieren",

@@ -1229,6 +1229,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get keycardMasterStageLearnedToast => 'Masterkarte wurde angelernt.';
 
   @override
+  String get keycardMasterStageStartFailed =>
+      'Die Master-Karten-Einrichtung konnte nicht gestartet werden';
+
+  @override
+  String get keycardMasterStageRetryButton => 'Erneut versuchen';
+
+  @override
   String get keycardMasterStageSkipButton => 'Überspringen';
 
   @override

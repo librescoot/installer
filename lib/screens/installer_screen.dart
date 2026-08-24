@@ -238,6 +238,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   final ScrollController _phaseScrollController = ScrollController();
   bool _keycardLearning = false;
   bool _keycardMasterLearning = false;
+  String? _keycardMasterStartError;
   int _keycardAuthorizedCountBefore = 0; // captured at Start, compared at Done
   int _keycardSessionTapCount = 0; // driven by card-learned events
   // Substage of the keycardSetup phase. The phase is rendered as a small
@@ -7819,23 +7820,45 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     });
   }
 
-  Future<void> _keycardStartMasterStage() async {
+  /// Put the vehicle into master teach-in and show the stage that asks for a
+  /// tap.
+  ///
+  /// Subscribing and starting are one operation, because the screen is only
+  /// honest when both worked. A failed start means a tap does nothing at all;
+  /// a failed subscribe is worse, because the vehicle really does enrol the
+  /// card while the installer never hears the event, never advances, and ends
+  /// up disagreeing with the scooter about what happened.
+  Future<void> _keycardStartMasterStage({bool retry = false}) async {
     setState(() {
       _keycardStage = _KeycardStage.master;
       _keycardToastMessage = null;
+      _keycardMasterStartError = null;
     });
-    if (!_isDryRun) {
-      try {
-        await _keycardSubscribeEvents();
-      } catch (e) {
-        debugPrint('UI: failed to subscribe to keycard events: $e');
+    if (_isDryRun) return;
+
+    try {
+      await _keycardSubscribeEvents();
+      if (retry) {
+        // A push that threw may still have reached the service, so the board
+        // can already be in master mode. Put it back to a known state before
+        // asking again rather than starting on top of a start.
+        try {
+          await _sshService.redisLpush('scooter:keycard', 'learn:master:stop');
+        } catch (e) {
+          debugPrint('UI: could not clear master mode before retry: $e');
+        }
       }
-      try {
-        await _sshService.redisLpush('scooter:keycard', 'learn:master:start');
-        _keycardMasterLearning = true;
-      } catch (e) {
-        debugPrint('UI: failed to start master teach-in: $e');
-      }
+      // Set before the push, not after. If this throws we do not know whether
+      // the command landed, and the cleanup on window close only sends
+      // learn:master:stop when this flag is set. Claiming the mode we asked
+      // for means a board left in it still gets stopped; a stop it never
+      // needed is what the Skip button sends anyway.
+      _keycardMasterLearning = true;
+      await _sshService.redisLpush('scooter:keycard', 'learn:master:start');
+    } catch (e) {
+      debugPrint('UI: master teach-in did not start: $e');
+      if (!mounted) return;
+      setState(() => _keycardMasterStartError = e.toString());
     }
   }
 
@@ -8340,29 +8363,77 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           ),
         ),
         const SizedBox(height: 16),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: kAccent.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: kAccent.withValues(alpha: 0.3)),
-          ),
-          child: Column(
-            children: [
-              const Icon(Icons.contactless, size: 28, color: kAccent),
-              const SizedBox(height: 8),
-              Text(
-                l10n.keycardMasterStageHint,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: kAccent,
+        // Asking for a tap is only true while the vehicle is listening for
+        // one. When the stage could not be started, the same slot says so
+        // instead, because a card held against a reader that was never put
+        // into master mode does nothing and looks identical to waiting.
+        if (_keycardMasterStartError == null)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: kAccent.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: kAccent.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              children: [
+                const Icon(Icons.contactless, size: 28, color: kAccent),
+                const SizedBox(height: 8),
+                Text(
+                  l10n.keycardMasterStageHint,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: kAccent,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
+          )
+        else
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.redAccent.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 22,
+                      color: Colors.redAccent,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        l10n.keycardMasterStageStartFailed,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SelectableText(
+                  _keycardMasterStartError!,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    color: Colors.redAccent,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
         if (_keycardToastMessage != null) ...[
           const SizedBox(height: 12),
           Container(
@@ -8387,6 +8458,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           ),
         ],
         const SizedBox(height: 16),
+        if (_keycardMasterStartError != null) ...[
+          FilledButton.icon(
+            onPressed: () => _keycardStartMasterStage(retry: true),
+            icon: const Icon(Icons.refresh),
+            label: Text(l10n.keycardMasterStageRetryButton),
+          ),
+          const SizedBox(height: 8),
+        ],
         FilledButton.icon(
           onPressed: () => _keycardStopMasterStage(advance: true),
           icon: const Icon(Icons.skip_next),

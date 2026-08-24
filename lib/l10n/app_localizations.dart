@@ -2186,6 +2186,18 @@ abstract class AppLocalizations {
   /// **'Master card registered.'**
   String get keycardMasterStageLearnedToast;
 
+  /// No description provided for @keycardMasterStageStartFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Master card setup could not be started'**
+  String get keycardMasterStageStartFailed;
+
+  /// No description provided for @keycardMasterStageRetryButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get keycardMasterStageRetryButton;
+
   /// No description provided for @keycardMasterStageSkipButton.
   ///
   /// In en, this message translates to:
