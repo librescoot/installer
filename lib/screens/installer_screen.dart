@@ -8437,76 +8437,30 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.celebration, size: 64, color: kAccent),
-          const SizedBox(height: 16),
+          const Icon(Icons.celebration, size: 40, color: kAccent),
+          const SizedBox(height: 12),
           // The reassembly steps are the same on every route, but what they
           // set in motion is not: on the trampoline routes reconnecting the
           // cable starts work on the board, and the screen used to end the
           // conversation right where that begins.
           _finishWhatHappensNext(l10n),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           Text(
             l10n.finalSteps,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           // The dashboard path already swapped the cable back before the
           // trampoline ran, so telling the user to do it again is wrong;
           // what is left there is tightening the screws they were told to
           // leave loose. An MDB-only run still has the laptop plugged in.
           ..._finalSteps(l10n),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           // The one part of this screen about actually using the scooter, so
-          // it is open. The frame scrolls, which is what the old collapse was
-          // working around.
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.lightbulb_outline, size: 20, color: kAccent),
-                const SizedBox(width: 8),
-                Text(l10n.gettingStartedTitle,
-                    style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: kAccent)),
-              ],
-            ),
-          ),
+          // it is open rather than an expander at the bottom. It carries its
+          // own heading and the handbook and website links.
+          _buildGettingStarted(l10n),
           const SizedBox(height: 12),
-          _buildGettingStarted(l10n, showTitle: false),
-          const SizedBox(height: 20),
-          InkWell(
-            onTap: () => _openExternalUrl(_handbookUrl),
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-              child: Row(
-                children: [
-                  const Icon(Icons.menu_book_outlined, size: 20,
-                      color: kAccent),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(l10n.finishHandbookTitle,
-                            style: const TextStyle(
-                                fontSize: 14, color: kAccent)),
-                        const SizedBox(height: 2),
-                        Text(l10n.finishHandbookBody,
-                            style: TextStyle(
-                                fontSize: 12, color: Colors.grey.shade500)),
-                      ],
-                    ),
-                  ),
-                  Icon(Icons.open_in_new, size: 16, color: Colors.grey.shade500),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
           CheckboxListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
@@ -8522,8 +8476,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       ),
     );
   }
-
-  static const _handbookUrl = 'https://librescoot.github.io/';
 
   /// What the reassembly steps set in motion, which differs by route.
   ///
@@ -8606,12 +8558,42 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       ),
       (title: l10n.finalRide, description: l10n.finalRideDesc),
     ];
+    // One line each. These are physical steps someone is looking at while
+    // they do them, so the titles carry it. Only the last keeps its
+    // description, because it says the one thing the scooter cannot: that it
+    // has already unlocked itself, and what to do if it has not.
     return [
       for (var i = 0; i < steps.length; i++)
-        InstructionStep(
-          number: i + 1,
-          title: steps[i].title,
-          description: steps[i].description,
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 20,
+                child: Text('${i + 1}.',
+                    style:
+                        TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(steps[i].title,
+                        style: const TextStyle(fontSize: 13)),
+                    if (i == steps.length - 1) ...[
+                      const SizedBox(height: 2),
+                      Text(steps[i].description,
+                          style: TextStyle(
+                              fontSize: 12,
+                              height: 1.3,
+                              color: Colors.grey.shade400)),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
     ];
   }
@@ -8624,7 +8606,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     const websiteUrl = 'https://librescoot.org/';
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         border: Border.all(color: kAccent.withValues(alpha: 0.4)),
         borderRadius: BorderRadius.circular(8),

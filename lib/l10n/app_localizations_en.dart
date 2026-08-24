@@ -891,12 +891,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'The main board is done and nothing else runs on the scooter. Reassemble it and ride.';
 
   @override
-  String get finishHandbookTitle => 'Handbook and quick start';
-
-  @override
-  String get finishHandbookBody => 'Setup, day-to-day use and troubleshooting.';
-
-  @override
   String get disconnectUsbFromLaptopFinal =>
       'Unplug the laptop USB cable from the MDB';
 

@@ -897,12 +897,6 @@ class AppLocalizationsDe extends AppLocalizations {
       'Das Hauptboard ist fertig, auf dem Roller läuft nichts mehr. Bau ihn wieder zusammen und fahr los.';
 
   @override
-  String get finishHandbookTitle => 'Handbuch und Schnellstart';
-
-  @override
-  String get finishHandbookBody => 'Einrichtung, Alltag und Fehlersuche.';
-
-  @override
   String get disconnectUsbFromLaptopFinal =>
       'Laptop-USB-Kabel vom MDB abziehen';
 

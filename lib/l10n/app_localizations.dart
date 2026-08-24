@@ -1658,18 +1658,6 @@ abstract class AppLocalizations {
   /// **'The main board is done and nothing else runs on the scooter. Reassemble it and ride.'**
   String get finishNextNothing;
 
-  /// No description provided for @finishHandbookTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Handbook and quick start'**
-  String get finishHandbookTitle;
-
-  /// No description provided for @finishHandbookBody.
-  ///
-  /// In en, this message translates to:
-  /// **'Setup, day-to-day use and troubleshooting.'**
-  String get finishHandbookBody;
-
   /// No description provided for @disconnectUsbFromLaptopFinal.
   ///
   /// In en, this message translates to:
