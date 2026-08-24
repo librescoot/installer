@@ -63,3 +63,6 @@ build/
 /assets/tools/librescoot-flasher-darwin-arm64
 /assets/tools/librescoot-flasher-windows-amd64.exe
 /assets/tools/librescoot-flasher-windows-arm64.exe
+
+# Golden diffs, written by a failing golden run
+test/goldens/failures/

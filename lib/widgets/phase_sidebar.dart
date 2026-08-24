@@ -16,6 +16,10 @@ class PhaseSidebar extends StatelessWidget {
     this.skippedPhases = const {},
     this.upgradingSteps = const {},
     this.downloadItems = const [],
+    this.statusMessage,
+    this.isBusy = false,
+    this.progress,
+    this.onShowLog,
   });
 
   final InstallerPhase currentPhase;
@@ -26,6 +30,17 @@ class PhaseSidebar extends StatelessWidget {
   /// Only changes the wording; the phases themselves are the same.
   final Set<MajorStep> upgradingSteps;
   final List<DownloadItem> downloadItems;
+
+  /// What the installer is doing right now. It used to live in a strip along
+  /// the bottom of the window, which cost every screen 36px of height for one
+  /// line of text; the sidebar has the room and already carries the progress.
+  final String? statusMessage;
+  final bool isBusy;
+  final double? progress;
+
+  /// Opens the log window. Bottom left, with a label: it was an unlabelled
+  /// icon in the corner of that strip.
+  final VoidCallback? onShowLog;
 
   @override
   Widget build(BuildContext context) {
@@ -45,56 +60,36 @@ class PhaseSidebar extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 16),
               children: [
+                // Wordmark and version centred, with room above them: the
+                // sidebar reads as a masthead over a list rather than as a
+                // stack of left-aligned oddments.
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
+                  padding: const EdgeInsets.fromLTRB(16, 22, 16, 10),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.only(right: 12),
-                        child: SvgPicture.asset(
-                          'assets/logotype.svg',
-                          height: 24,
-                          colorFilter: const ColorFilter.mode(
-                            kAccent,
-                            BlendMode.srcIn,
-                          ),
+                      SvgPicture.asset(
+                        'assets/logotype.svg',
+                        height: 26,
+                        colorFilter: const ColorFilter.mode(
+                          kAccent,
+                          BlendMode.srcIn,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Installer',
-                                style: TextStyle(
-                                  color: kAccent.withValues(alpha: 0.7),
-                                  fontSize: 12,
-                                ),
-                              ),
-                              Text(
-                                appVersion,
-                                style: TextStyle(
-                                  color: kAccent.withValues(alpha: 0.45),
-                                  fontSize: 10,
-                                  fontFeatures: const [FontFeature.tabularFigures()],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(width: 4),
-                          const LanguageSwitcher(),
-                        ],
+                      const SizedBox(height: 6),
+                      Text(
+                        'Installer $appVersion',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: kAccent.withValues(alpha: 0.55),
+                          fontSize: 11,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 14),
                 for (final major in MajorStep.values) ...[
                   _MajorStepItem(
                     step: major,
@@ -118,10 +113,94 @@ class PhaseSidebar extends StatelessWidget {
               ],
             ),
           ),
+          if (statusMessage != null && statusMessage!.trim().isNotEmpty)
+            _StatusLine(
+                message: statusMessage!, busy: isBusy, progress: progress),
           if (downloadItems.isNotEmpty)
             downloadItems.every((i) => i.isComplete)
                 ? const _DownloadsFinished()
                 : _DownloadStatus(items: downloadItems),
+          _SidebarFooter(onShowLog: onShowLog),
+        ],
+      ),
+    );
+  }
+}
+
+/// The line that used to be the window's bottom strip.
+class _StatusLine extends StatelessWidget {
+  const _StatusLine({required this.message, this.busy = false, this.progress});
+
+  final String message;
+  final bool busy;
+  final double? progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: kSidebarEdge)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (busy) ...[
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                value: progress != null && progress! > 0 ? progress : null,
+                color: kAccent,
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Log and language, at the foot of the column.
+class _SidebarFooter extends StatelessWidget {
+  const _SidebarFooter({this.onShowLog});
+
+  final VoidCallback? onShowLog;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 6, 12, 8),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: kSidebarEdge)),
+      ),
+      child: Row(
+        children: [
+          TextButton.icon(
+            onPressed: onShowLog,
+            icon: const Icon(Icons.article_outlined, size: 16),
+            label: Text(l10n.showLog, style: const TextStyle(fontSize: 12)),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.grey.shade400,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+          const Spacer(),
+          const LanguageSwitcher(),
         ],
       ),
     );
