@@ -69,6 +69,30 @@ class SshService {
         text.contains('Software caused connection abort');
   }
 
+  @visibleForTesting
+  static Future<T> executeWithReplayPolicy<T>({
+    required Future<T> Function() execute,
+    required Future<void> Function() reconnect,
+    required void Function() invalidateConnection,
+    required bool Function(Object error) isDisconnect,
+    bool replayOnDisconnect = false,
+  }) async {
+    try {
+      return await execute();
+    } catch (error) {
+      if (!isDisconnect(error)) rethrow;
+      invalidateConnection();
+      if (!replayOnDisconnect) rethrow;
+      await reconnect();
+      try {
+        return await execute();
+      } catch (replayError) {
+        if (isDisconnect(replayError)) invalidateConnection();
+        rethrow;
+      }
+    }
+  }
+
   SSHClient? _client;
   Map<String, String>? _deviceConfig;
   bool _sftpAvailable = false;
@@ -81,6 +105,7 @@ class SshService {
   String _lastHost = mdbHost;
   String? _lastPassword;
   Future<void>? _reconnectInFlight;
+  int _redisQueueSequence = 0;
 
   /// Auth key injected at build time via --dart-define=AUTH_KEY=...
   static const _authKey = String.fromEnvironment('AUTH_KEY');
@@ -528,11 +553,12 @@ class SshService {
     throw Exception('No device config found for version $version');
   }
 
-  /// Run a command on the connected device. If the underlying SSH socket has
-  /// died (e.g. USB drop during a poll loop) and we still have credentials
-  /// from a prior successful auth, transparently re-establish the session
-  /// and retry the command once before surfacing the failure.
-  Future<String> runCommand(String command, {Duration timeout = const Duration(seconds: 60)}) async {
+  /// Run a command on the connected device.
+  Future<String> runCommand(
+    String command, {
+    Duration timeout = const Duration(seconds: 60),
+    bool replayOnDisconnect = false,
+  }) async {
     if (_client == null) {
       if (_lastPassword == null) {
         throw Exception('Not connected');
@@ -540,18 +566,20 @@ class SshService {
       await _reconnect();
     }
 
-    try {
-      return await _runCommandOnce(command, timeout);
-    } catch (e) {
-      if (_lastPassword != null && _looksLikeDisconnect(e.toString().toLowerCase())) {
-        debugPrint('SSH: command failed (disconnect-class), reconnecting and retrying once: $e');
+    return executeWithReplayPolicy(
+      execute: () => _runCommandOnce(command, timeout),
+      reconnect: () async {
+        debugPrint('SSH: replay-safe command disconnected, reconnecting once');
+        await _reconnect();
+      },
+      invalidateConnection: () {
         _client?.close();
         _client = null;
-        await _reconnect();
-        return await _runCommandOnce(command, timeout);
-      }
-      rethrow;
-    }
+      },
+      isDisconnect: (error) =>
+          _looksLikeDisconnect(error.toString().toLowerCase()),
+      replayOnDisconnect: replayOnDisconnect && _lastPassword != null,
+    );
   }
 
   Future<String> _runCommandOnce(String command, Duration timeout) async {
@@ -665,7 +693,10 @@ class SshService {
   /// impossible on an otherwise healthy Librescoot board.
   Future<bool> hasMenderUpdate() async {
     try {
-      final out = await runCommand('command -v mender-update 2>/dev/null; true');
+      final out = await runCommand(
+        'command -v mender-update 2>/dev/null; true',
+        replayOnDisconnect: true,
+      );
       return out.trim().isNotEmpty;
     } catch (e) {
       debugPrint('SSH: mender-update probe failed: $e');
@@ -675,7 +706,10 @@ class SshService {
 
   Future<int?> freeBytesOn(String path) async {
     try {
-      return parseDfFreeBytes(await runCommand('df -kP ${_shellEscape(path)}'));
+      return parseDfFreeBytes(await runCommand(
+        'df -kP ${_shellEscape(path)}',
+        replayOnDisconnect: true,
+      ));
     } catch (e) {
       debugPrint('SSH: df probe failed: $e');
       return null;
@@ -689,7 +723,9 @@ class SshService {
   Future<int?> remoteFileSizeBytes(String path) async {
     try {
       final out = await runCommand(
-          'stat -c%s ${_shellEscape(path)} 2>/dev/null; true');
+        'stat -c%s ${_shellEscape(path)} 2>/dev/null; true',
+        replayOnDisconnect: true,
+      );
       final trimmed = out.trim();
       return trimmed.isEmpty ? null : int.tryParse(trimmed);
     } catch (e) {
@@ -700,7 +736,10 @@ class SshService {
 
   Future<String?> menderArtifactName() async {
     try {
-      final out = await runCommand('mender-update show-artifact 2>/dev/null; true');
+      final out = await runCommand(
+        'mender-update show-artifact 2>/dev/null; true',
+        replayOnDisconnect: true,
+      );
       final name = out.trim();
       return name.isEmpty ? null : name;
     } catch (e) {
@@ -711,7 +750,10 @@ class SshService {
 
   Future<Map<String, String>> readOsRelease() async {
     try {
-      return parseOsRelease(await runCommand('cat /etc/os-release 2>/dev/null; true'));
+      return parseOsRelease(await runCommand(
+        'cat /etc/os-release 2>/dev/null; true',
+        replayOnDisconnect: true,
+      ));
     } catch (e) {
       debugPrint('SSH: os-release read failed: $e');
       return const {};
@@ -925,7 +967,7 @@ class SshService {
     for (final cmd in rebootCommands) {
       try {
         debugPrint('SSH: sending reboot command: $cmd');
-        await runCommand(cmd);
+        await runCommand(cmd, replayOnDisconnect: false);
         debugPrint('SSH: reboot command accepted: $cmd');
         requested = true;
         break;
@@ -1029,7 +1071,10 @@ class SshService {
   /// Run a Redis HGET command on the MDB and return the value.
   Future<String?> redisHget(String hash, String field) async {
     try {
-      final result = await runCommand('redis-cli HGET $hash $field');
+      final result = await runCommand(
+        'redis-cli HGET $hash $field',
+        replayOnDisconnect: true,
+      );
       final value = result.trim();
       if (value.isEmpty || value == '(nil)') return null;
       return value;
@@ -1039,8 +1084,38 @@ class SshService {
   }
 
   /// Run a Redis LPUSH command on the MDB.
-  Future<void> redisLpush(String key, String value) async {
-    await runCommand('redis-cli LPUSH $key $value');
+  Future<void> redisLpush(
+    String key,
+    String value, {
+    Duration timeout = const Duration(seconds: 60),
+  }) async {
+    final operationId =
+        '${DateTime.now().microsecondsSinceEpoch}-${_redisQueueSequence++}';
+    final command = buildDeduplicatedRedisLpushCommand(
+      key: key,
+      value: value,
+      operationId: operationId,
+    );
+    await runCommand(
+      command,
+      timeout: timeout,
+      replayOnDisconnect: true,
+    );
+  }
+
+  @visibleForTesting
+  static String buildDeduplicatedRedisLpushCommand({
+    required String key,
+    required String value,
+    required String operationId,
+  }) {
+    const script = "local fresh=redis.call('SET',KEYS[2],'1','EX',ARGV[2],'NX');"
+        "if fresh then return redis.call('LPUSH',KEYS[1],ARGV[1]) end;"
+        'return 0';
+    final dedupKey = 'librescoot-installer:queue-op:$operationId';
+    return 'redis-cli EVAL ${_shellEscape(script)} 2 '
+        '${_shellEscape(key)} ${_shellEscape(dedupKey)} '
+        '${_shellEscape(value)} 600';
   }
 
   /// Subscribe to a Redis pub/sub [channel] over a long-running SSH session.
@@ -1116,7 +1191,10 @@ class SshService {
   /// Returns an empty map on error or if the hash is empty.
   Future<Map<String, String>> redisHgetall(String hash) async {
     try {
-      final result = await runCommand('redis-cli HGETALL $hash');
+      final result = await runCommand(
+        'redis-cli HGETALL $hash',
+        replayOnDisconnect: true,
+      );
       final lines = result.split('\n');
       final out = <String, String>{};
       for (var i = 0; i + 1 < lines.length; i += 2) {
@@ -1416,7 +1494,7 @@ class SshService {
     }
   }
 
-  String _shellEscape(String s) => "'${s.replaceAll("'", "'\\''")}'";
+  static String _shellEscape(String s) => "'${s.replaceAll("'", "'\\''")}'";
 
   /// Back up radio-gaga config from the MDB to a local directory.
   /// Checks both Librescoot (/data/radio-gaga/) and stock (/etc/rescoot/) paths.

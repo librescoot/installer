@@ -6822,8 +6822,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       poll: (generation) async {
         if (!generation.isCurrent || !mounted || !_btPairingActive) return;
         try {
-          await _sshService.runCommand(
-            'redis-cli LPUSH scooter:bluetooth '
+          await _sshService.redisLpush(
+            'scooter:bluetooth',
             'advertising-restart-no-whitelisting',
             timeout: const Duration(seconds: 2),
           );
@@ -6851,6 +6851,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           final output = await _sshService.runCommand(
             'redis-cli --raw HMGET ble status pin-code',
             timeout: const Duration(seconds: 2),
+            replayOnDisconnect: true,
           );
           if (!generation.isCurrent ||
               !mounted ||
