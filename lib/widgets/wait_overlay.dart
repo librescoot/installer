@@ -129,6 +129,17 @@ class _WaitOverlayState extends State<WaitOverlay> {
               style: const TextStyle(
                   fontSize: 20, fontWeight: FontWeight.bold, color: kAccent)),
           const SizedBox(height: 16),
+          // A phase can render before its work has said what its steps are:
+          // the builder runs on the frame the work is scheduled, not after
+          // it. One line and a bar until then, rather than an exception.
+          if (widget.steps.isEmpty) ...[
+            LinearProgressIndicator(
+              value: widget.progress,
+              minHeight: 4,
+              backgroundColor: Colors.white.withValues(alpha: 0.08),
+            ),
+            const SizedBox(height: 14),
+          ],
           for (var i = 0; i < widget.steps.length; i++)
             _stepRow(
               step: widget.steps[i],
@@ -142,6 +153,7 @@ class _WaitOverlayState extends State<WaitOverlay> {
               l10n: l10n,
             ),
           const SizedBox(height: 14),
+          if (widget.steps.isNotEmpty)
           Row(
             children: [
               Text(

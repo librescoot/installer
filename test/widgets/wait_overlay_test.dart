@@ -81,6 +81,24 @@ void main() {
     expect(find.textContaining('UMS-Modus gesetzt'), findsOneWidget);
   });
 
+  testWidgets('it survives being drawn before the steps are known',
+      (tester) async {
+    // The builder runs on the frame the work is scheduled, so the first
+    // paint can land before the phase has said what its steps are. That used
+    // to throw out of a clamp and show up as "Interner Fehler".
+    await tester.pumpWidget(host(WaitOverlay(
+      title: 'MDB wird verbunden',
+      steps: const [],
+      currentStep: 0,
+      startedAt: start,
+      now: () => start,
+    )));
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('MDB wird verbunden'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+  });
+
   testWidgets('it fits the space a wait gets', (tester) async {
     tester.view.physicalSize = const Size(1000, 700);
     tester.view.devicePixelRatio = 1.0;
