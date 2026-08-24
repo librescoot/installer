@@ -86,6 +86,14 @@ void main() {
   });
 
   group('validateDevice and /dev/sda', () {
+    // validateDevice branches on the host platform, and the /dev/sda rules sit
+    // in the Linux arm. On another host that arm never runs, so the two tests
+    // keyed to it assert on code that did not execute.
+    final String? linuxOnly = Platform.isLinux
+        ? null
+        : 'validateDevice branches per platform, so the /dev/sda rules only '
+            'run on Linux';
+
     SafetyCheck check(String path, SystemDiskVerdict verdict) =>
         FlashService().validateDevice(
           devicePath: path,
@@ -99,12 +107,12 @@ void main() {
 
     test('sda passes once nothing is mounted on it', () {
       expect(check('/dev/sda', SystemDiskVerdict.notSystem).passed, isTrue);
-    });
+    }, skip: linuxOnly);
 
     test('sda is refused when the answer is unknown', () {
       // Without evidence the name is all there is, and sda is commonly root.
       expect(check('/dev/sda', SystemDiskVerdict.unknown).passed, isFalse);
-    });
+    }, skip: linuxOnly);
 
     test('a disk carrying a filesystem is refused whatever its name', () {
       final result = FlashService().validateDevice(
