@@ -255,7 +255,16 @@ class PhaseLayout extends StatelessWidget {
     // into two families for no reason a reader could see: the same kind of
     // content began in a different place depending on which screen it was on.
     // The waits, which were the honest case for centring, are overlays now.
-    return _ScrollableBody(child: constrained);
+    // The body claims the whole viewport even when the content is shorter.
+    // A menu opening from a field near the bottom asks its ancestors how much
+    // room is below it, and a body that stops where its text stops answers
+    // "none", which is why the region list only ever unfolded upwards.
+    return LayoutBuilder(
+      builder: (context, constraints) => _ScrollableBody(
+        minHeight: constraints.maxHeight,
+        child: constrained,
+      ),
+    );
   }
 }
 
@@ -266,9 +275,12 @@ class PhaseLayout extends StatelessWidget {
 /// had no last paragraph. The fade and chevron appear only while something is
 /// actually below the viewport, and go once the end is reached.
 class _ScrollableBody extends StatefulWidget {
-  const _ScrollableBody({required this.child});
+  const _ScrollableBody({required this.child, this.minHeight = 0});
 
   final Widget child;
+
+  /// How much room the body claims when the content needs less.
+  final double minHeight;
 
   @override
   State<_ScrollableBody> createState() => _ScrollableBodyState();
@@ -319,7 +331,14 @@ class _ScrollableBodyState extends State<_ScrollableBody> {
             child: SingleChildScrollView(
               controller: _controller,
               padding: const EdgeInsets.fromLTRB(32, 20, 32, 20),
-              child: widget.child,
+              child: ConstrainedBox(
+                constraints:
+                    BoxConstraints(minHeight: (widget.minHeight - 40).clamp(0.0, double.infinity)),
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: widget.child,
+                ),
+              ),
             ),
           ),
           if (_more)

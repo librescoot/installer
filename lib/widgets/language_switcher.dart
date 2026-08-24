@@ -21,15 +21,20 @@ class LanguageSwitcher extends StatelessWidget {
           PopupMenuItem(value: 'en', child: Text(l10n.languageEnglish)),
         ],
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.language, size: 16, color: Colors.grey.shade400),
               const SizedBox(width: 6),
+              // The name, not the code: the menu it opens says Deutsch and
+              // English, so the button should too.
               Text(
-                locale.languageCode.toUpperCase(),
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade300),
+                switch (locale.languageCode) {
+                  'de' => l10n.languageGerman,
+                  _ => l10n.languageEnglish,
+                },
+                style: TextStyle(fontSize: 12.5, color: Colors.grey.shade300),
               ),
               Icon(Icons.arrow_drop_down, size: 16, color: Colors.grey.shade400),
             ],

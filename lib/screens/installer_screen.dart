@@ -1355,16 +1355,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Prerequisites: items size to their content; a long item gets a row
-          // to itself, short items pack onto a single line.
+          // One per line. Packed onto shared rows they read as a paragraph of
+          // fragments, and the window has the height to spare now that the
+          // status strip is gone.
           Text(
             l10n.whatYouNeed,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 8),
-          Wrap(
-            spacing: 24,
-            runSpacing: 4,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (int i = 0; i < prerequisites.length; i++)
                 _prerequisite(prerequisites[i], i),

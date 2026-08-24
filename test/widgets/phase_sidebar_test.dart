@@ -3,14 +3,35 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/l10n/app_localizations.dart';
 import 'package:librescoot_installer/models/download_state.dart';
+import 'package:librescoot_installer/theme.dart';
 import 'package:librescoot_installer/models/installer_phase.dart';
 import 'package:librescoot_installer/l10n/phase_l10n.dart';
 import 'package:librescoot_installer/widgets/phase_sidebar.dart';
 
+import '../goldens/font_harness.dart';
+
 /// The sidebar is the only thing on screen for the whole install, so its
 /// labels have to survive the language they are read in.
 void main() {
+  // Without this every glyph is a fixed-width box, roughly half again as wide
+  // as the real face: any width measured here would be a measurement of a
+  // font the app never uses, and this file is all about widths.
+  setUpAll(loadRealFonts);
+
+  /// The app's own theme. With the default one the buttons come out half as
+  /// wide again, which is enough to make this test report an overflow the app
+  /// does not have.
+  ThemeData appTheme() => ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: kAccent,
+          brightness: Brightness.dark,
+        ).copyWith(surface: kBgPrimary, onSurface: kTextPrimary),
+        scaffoldBackgroundColor: kBgPrimary,
+        useMaterial3: true,
+      );
+
   Widget host(Widget child, {Locale locale = const Locale('de')}) => MaterialApp(
+        theme: appTheme(),
         locale: locale,
         localizationsDelegates: const [
           AppLocalizations.delegate,
@@ -65,6 +86,28 @@ void main() {
     // the title into a second, ragged line.
     expect(find.text('übersprungen'), findsOneWidget);
     expect(find.textContaining('(übersprungen)'), findsNothing);
+  });
+
+  testWidgets('the foot of the column fits in both languages', (tester) async {
+    for (final locale in [const Locale('de'), const Locale('en')]) {
+      await tester.pumpWidget(host(
+        const PhaseSidebar(
+          currentPhase: InstallerPhase.welcome,
+          completedPhases: {},
+        ),
+        locale: locale,
+      ));
+      await tester.pump();
+      // An overflow paints a striped banner and, in a test, throws. The log
+      // label is the one that has to survive; the language name may shorten.
+      expect(tester.takeException(), isNull,
+          reason: '${locale.languageCode}: the footer row overflowed');
+      // With both children at their natural size and no flex sibling to eat
+      // the room, an overflow is the only way a label gets cut. A painter
+      // comparison here would measure the fallback face, not what the widget
+      // just drew, which is how this file came to report a problem the app
+      // did not have.
+    }
   });
 
   testWidgets('the download chips speak the window language', (tester) async {

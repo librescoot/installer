@@ -187,33 +187,30 @@ class _SidebarFooter extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Container(
-      padding: const EdgeInsets.fromLTRB(10, 10, 12, 12),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: kSidebarEdge)),
       ),
       child: Row(
+        // Spaced, not spaced-by-a-Spacer: a Spacer is a flex child and takes
+        // the free space before a Flexible sibling sees any, which is what
+        // was cutting one of these two labels short.
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Flexible so a longer translation of either label shortens the
-          // button rather than overflowing the column.
-          Flexible(
-            child: TextButton.icon(
+          TextButton.icon(
             onPressed: onShowLog,
             icon: const Icon(Icons.article_outlined, size: 16),
-            label: Text(l10n.showLog,
-                style: const TextStyle(fontSize: 12.5),
-                overflow: TextOverflow.ellipsis),
+            label: Text(l10n.showLog, style: const TextStyle(fontSize: 12.5)),
             style: TextButton.styleFrom(
               foregroundColor: Colors.grey.shade400,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            ),
           ),
-          const Spacer(),
           const LanguageSwitcher(),
         ],
-      ),
+      )
     );
   }
 }
