@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart' as http_testing;
@@ -238,6 +239,109 @@ void main() {
       final lastArtifact =
           items.lastIndexWhere((i) => i.filename.endsWith('.mender'));
       expect(lastArtifact, lessThan(firstImage));
+    });
+
+    test('a valid SHA256 cache entry is restored as complete', () async {
+      final bytes = <int>[1, 2, 3, 4];
+      final name =
+          'librescoot-unu-mdb-minimal-cache-valid-${DateTime.now().microsecondsSinceEpoch}.sdimg.gz';
+      final cacheDir = await DownloadService.getCacheDir();
+      final cached = File(p.join(cacheDir.path, name));
+      addTearDown(() async {
+        if (await cached.exists()) await cached.delete();
+      });
+      await cached.writeAsBytes(bytes);
+
+      final service = DownloadService(
+        client: _manifestClient({
+          'stable': _release('v1.2.1', [
+            _asset(name, bytes.length, sha256: sha256.convert(bytes).toString()),
+          ]),
+        }),
+      );
+      final item = (await service.buildDownloadQueue(
+        channel: DownloadChannel.stable,
+        wantsOfflineMaps: false,
+      ))
+          .single;
+
+      expect(item.localPath, cached.path);
+      expect(item.bytesDownloaded, bytes.length);
+    });
+
+    test('a corrupted same-size cache entry is deleted and redownloaded',
+        () async {
+      final wanted = <int>[1, 2, 3, 4];
+      final name =
+          'librescoot-unu-mdb-minimal-cache-corrupt-${DateTime.now().microsecondsSinceEpoch}.sdimg.gz';
+      final cacheDir = await DownloadService.getCacheDir();
+      final cached = File(p.join(cacheDir.path, name));
+      final part = File('${cached.path}.part');
+      addTearDown(() async {
+        if (await cached.exists()) await cached.delete();
+        if (await part.exists()) await part.delete();
+      });
+      await cached.writeAsBytes(<int>[9, 9, 9, 9]);
+
+      final manifest = {
+        'stable': _release('v1.2.1', [
+          _asset(
+            name,
+            wanted.length,
+            sha256: sha256.convert(wanted).toString(),
+          ),
+        ]),
+      };
+      final service = DownloadService(
+        client: http_testing.MockClient((request) async {
+          if (request.url.path.endsWith('latest.json')) {
+            return http.Response(jsonEncode(manifest), 200);
+          }
+          if (request.url.path.endsWith(name)) {
+            return http.Response.bytes(wanted, 200);
+          }
+          return http.Response('Not found', 404);
+        }),
+      );
+      final item = (await service.buildDownloadQueue(
+        channel: DownloadChannel.stable,
+        wantsOfflineMaps: false,
+      ))
+          .single;
+
+      expect(item.localPath, isNull);
+      expect(await cached.exists(), isFalse);
+
+      await service.downloadItem(item);
+      expect(item.localPath, cached.path);
+      expect(await cached.readAsBytes(), wanted);
+    });
+
+    test('a legacy cache entry without SHA256 keeps size-only behavior',
+        () async {
+      final bytes = <int>[7, 8, 9];
+      final name =
+          'librescoot-unu-mdb-minimal-cache-legacy-${DateTime.now().microsecondsSinceEpoch}.sdimg.gz';
+      final cacheDir = await DownloadService.getCacheDir();
+      final cached = File(p.join(cacheDir.path, name));
+      addTearDown(() async {
+        if (await cached.exists()) await cached.delete();
+      });
+      await cached.writeAsBytes(bytes);
+
+      final service = DownloadService(
+        client: _manifestClient({
+          'stable': _release('v1.2.1', [_asset(name, bytes.length)]),
+        }),
+      );
+      final item = (await service.buildDownloadQueue(
+        channel: DownloadChannel.stable,
+        wantsOfflineMaps: false,
+      ))
+          .single;
+
+      expect(item.expectedSha256, isNull);
+      expect(item.localPath, cached.path);
     });
 
     test('a stalled response stream fails after the idle deadline', () async {

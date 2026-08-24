@@ -284,6 +284,31 @@ class DownloadService {
     return digest.toString();
   }
 
+  Future<void> _restoreCachedFile(File cached, DownloadItem item) async {
+    if (!await cached.exists()) return;
+
+    if (await cached.length() != item.expectedSize) {
+      await cached.delete();
+      return;
+    }
+
+    final expectedSha256 = item.expectedSha256;
+    if (expectedSha256 != null) {
+      final actualSha256 = await _sha256OfFile(cached);
+      if (actualSha256 != expectedSha256.toLowerCase()) {
+        debugPrint(
+          'Download: deleting cached ${item.filename}: SHA256 mismatch '
+          '(expected $expectedSha256, got $actualSha256)',
+        );
+        await cached.delete();
+        return;
+      }
+    }
+
+    item.localPath = cached.path;
+    item.bytesDownloaded = item.expectedSize;
+  }
+
   /// Resolve tile release assets for a repo, with disk caching.
   Future<List<Map<String, dynamic>>> resolveTileAssets(
     String repo,
@@ -468,13 +493,10 @@ class DownloadService {
         // sha256 is provided per-asset by downloads.librescoot.org's
         // generator (filled in from GitHub's server-computed digest).
         // Null on legacy manifests pre-feature → verification skipped.
-        expectedSha256: asset['sha256'] as String?,
+        expectedSha256: _sha256FromAsset(asset),
       );
 
-      if (await cached.exists() && await cached.length() == expectedSize) {
-        item.localPath = cached.path;
-        item.bytesDownloaded = expectedSize;
-      }
+      await _restoreCachedFile(cached, item);
 
       items.add(item);
     }
@@ -495,10 +517,7 @@ class DownloadService {
           expectedSize: expectedSize,
           expectedSha256: _sha256FromAsset(asset),
         );
-        if (await cached.exists() && await cached.length() == expectedSize) {
-          item.localPath = cached.path;
-          item.bytesDownloaded = expectedSize;
-        }
+        await _restoreCachedFile(cached, item);
         items.add(item);
       }
 
@@ -523,10 +542,7 @@ class DownloadService {
           expectedSize: expectedSize,
           expectedSha256: _sha256FromAsset(asset),
         );
-        if (await cached.exists() && await cached.length() == expectedSize) {
-          item.localPath = cached.path;
-          item.bytesDownloaded = expectedSize;
-        }
+        await _restoreCachedFile(cached, item);
         items.add(item);
       }
     }
