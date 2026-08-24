@@ -583,6 +583,7 @@
   "copyToClipboard": "In Zwischenablage kopieren",
   "logFilePath": "Logdatei: {path}",
   "revealLogFile": "Im Ordner anzeigen",
+  "debugShell": "Debug-Shell",
   "debugCommandHint": "Befehl im Installer-Kontext ausführen...",
   "mbOnDisk": "{size} MB belegt",
   "beforeImageLabel": "Vorher",

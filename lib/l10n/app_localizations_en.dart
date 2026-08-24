@@ -1548,6 +1548,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get revealLogFile => 'Show in folder';
 
   @override
+  String get debugShell => 'Debug shell';
+
+  @override
   String get debugCommandHint => 'Run a command in the installer context...';
 
   @override

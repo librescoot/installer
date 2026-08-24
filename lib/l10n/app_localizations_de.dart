@@ -1568,6 +1568,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get revealLogFile => 'Im Ordner anzeigen';
 
   @override
+  String get debugShell => 'Debug-Shell';
+
+  @override
   String get debugCommandHint => 'Befehl im Installer-Kontext ausführen...';
 
   @override

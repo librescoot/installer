@@ -970,146 +970,143 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   void _showLogDialog() {
     final l10n = AppLocalizations.of(context)!;
+    var debugShellOpen = false;
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Text(l10n.logDebugShell),
-          content: SizedBox(
-            width: 700,
-            height: 500,
-            child: Column(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    reverse: true,
-                    child: SelectableText(
-                      installerLog.join('\n'),
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 11,
-                      ),
-                    ),
-                  ),
-                ),
-                if (LogService.filePath != null)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SelectableText(
-                          l10n.logFilePath(LogService.filePath!),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: kTextPrimary.withValues(alpha: 0.6),
-                          ),
-                        ),
-                      ),
-                      TextButton.icon(
-                        onPressed: () => LogService.revealInFileManager(),
-                        icon: const Icon(Icons.folder_open, size: 16),
-                        label: Text(l10n.revealLogFile),
-                      ),
-                    ],
-                  ),
-                const Divider(),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _debugController,
+        builder: (ctx, setDialogState) {
+          Future<void> runDebugCommand() async {
+            final cmd = _debugController.text;
+            if (cmd.trim().isEmpty) return;
+            appendLogRaw('> $cmd');
+            setDialogState(() {});
+            try {
+              final result = await Process.run('/bin/sh', ['-c', cmd]);
+              final out = result.stdout.toString().trim();
+              final err = result.stderr.toString().trim();
+              if (out.isNotEmpty) appendLogRaw(out);
+              if (err.isNotEmpty) appendLogRaw('stderr: $err');
+              appendLogRaw('exit: ${result.exitCode}');
+            } catch (e) {
+              appendLogRaw('error: $e');
+            }
+            _debugController.clear();
+            setDialogState(() {});
+          }
+
+          return AlertDialog(
+            title: Text(l10n.logDebugShell),
+            content: SizedBox(
+              width: 700,
+              height: 500,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      reverse: true,
+                      child: SelectableText(
+                        installerLog.join('\n'),
                         style: const TextStyle(
                           fontFamily: 'monospace',
-                          fontSize: 12,
+                          fontSize: 11,
                         ),
-                        decoration: InputDecoration(
-                          hintText: l10n.debugCommandHint,
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 8,
-                          ),
-                        ),
-                        onSubmitted: (cmd) async {
-                          if (cmd.trim().isEmpty) return;
-                          appendLogRaw('> $cmd');
-                          setDialogState(() {});
-                          try {
-                            final result = await Process.run('/bin/sh', [
-                              '-c',
-                              cmd,
-                            ]);
-                            final out = result.stdout.toString().trim();
-                            final err = result.stderr.toString().trim();
-                            if (out.isNotEmpty) appendLogRaw(out);
-                            if (err.isNotEmpty) appendLogRaw('stderr: $err');
-                            appendLogRaw('exit: ${result.exitCode}');
-                          } catch (e) {
-                            appendLogRaw('error: $e');
-                          }
-                          _debugController.clear();
-                          setDialogState(() {});
-                        },
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.play_arrow),
-                      onPressed: () async {
-                        final cmd = _debugController.text;
-                        if (cmd.trim().isEmpty) return;
-                        appendLogRaw('> $cmd');
-                        setDialogState(() {});
-                        try {
-                          final result = await Process.run('/bin/sh', [
-                            '-c',
-                            cmd,
-                          ]);
-                          final out = result.stdout.toString().trim();
-                          final err = result.stderr.toString().trim();
-                          if (out.isNotEmpty) appendLogRaw(out);
-                          if (err.isNotEmpty) appendLogRaw('stderr: $err');
-                          appendLogRaw('exit: ${result.exitCode}');
-                        } catch (e) {
-                          appendLogRaw('error: $e');
-                        }
-                        _debugController.clear();
-                        setDialogState(() {});
-                      },
+                  ),
+                  if (LogService.filePath != null)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: SelectableText(
+                        l10n.logFilePath(LogService.filePath!),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: kTextPrimary.withValues(alpha: 0.6),
+                        ),
+                      ),
                     ),
-                  ],
+                  const Divider(),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () =>
+                          setDialogState(() => debugShellOpen = !debugShellOpen),
+                      icon: Icon(
+                        debugShellOpen
+                            ? Icons.expand_less
+                            : Icons.expand_more,
+                        size: 18,
+                      ),
+                      label: Text(l10n.debugShell),
+                    ),
+                  ),
+                  if (debugShellOpen)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _debugController,
+                            autofocus: true,
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 12,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: l10n.debugCommandHint,
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 8,
+                              ),
+                            ),
+                            onSubmitted: (_) => runDebugCommand(),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.play_arrow),
+                          onPressed: runDebugCommand,
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              if (LogService.filePath != null)
+                TextButton.icon(
+                  onPressed: () => LogService.revealInFileManager(),
+                  icon: const Icon(Icons.folder_open, size: 16),
+                  label: Text(l10n.revealLogFile),
                 ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                final text = installerLog.join('\n');
-                if (Platform.isMacOS) {
-                  final uid = (await Process.run('stat', [
-                    '-f',
-                    '%u',
-                    '/dev/console',
-                  ])).stdout.toString().trim();
-                  final proc = await Process.start('launchctl', [
-                    'asuser',
-                    uid,
-                    'pbcopy',
-                  ]);
-                  proc.stdin.write(text);
-                  await proc.stdin.close();
-                } else {
-                  await Clipboard.setData(ClipboardData(text: text));
-                }
-                if (ctx.mounted) Navigator.pop(ctx);
-              },
-              child: Text(l10n.copyToClipboard),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(l10n.closeButton),
-            ),
-          ],
-        ),
+              TextButton(
+                onPressed: () async {
+                  final text = installerLog.join('\n');
+                  if (Platform.isMacOS) {
+                    final uid = (await Process.run('stat', [
+                      '-f',
+                      '%u',
+                      '/dev/console',
+                    ])).stdout.toString().trim();
+                    final proc = await Process.start('launchctl', [
+                      'asuser',
+                      uid,
+                      'pbcopy',
+                    ]);
+                    proc.stdin.write(text);
+                    await proc.stdin.close();
+                  } else {
+                    await Clipboard.setData(ClipboardData(text: text));
+                  }
+                  if (ctx.mounted) Navigator.pop(ctx);
+                },
+                child: Text(l10n.copyToClipboard),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(l10n.closeButton),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1190,7 +1187,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                         skippedPhases: _skippedPhases,
                         upgradingSteps: _upgradingSteps,
                         downloadItems: _downloadState.items,
-                      ),
+                        statusMessage: _statusMessage,
+                        isBusy: _isProcessing,
+                        progress: _progress,
+                        onShowLog: _showLogDialog,),
                       Expanded(
                         child: Column(
                           children: [
@@ -1224,7 +1224,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                                 },
                               ),
                             ),
-                            _buildStatusBar(l10n),
                           ],
                         ),
                       ),
@@ -1235,53 +1234,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildStatusBar(AppLocalizations l10n) {
-    return Container(
-      height: 36,
-      color: kBgSidebar,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          if (_isProcessing)
-            SizedBox(
-              width: 12,
-              height: 12,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                value: _progress > 0 ? _progress : null,
-                color: kAccent,
-              ),
-            ),
-          if (_isProcessing) const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              _statusMessage,
-              style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (_progress > 0 && _isProcessing)
-            Text(
-              '${(_progress * 100).toStringAsFixed(0)}%',
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
-            ),
-          if (installerLog.isNotEmpty)
-            IconButton(
-              onPressed: _showLogDialog,
-              icon: Icon(
-                Icons.article_outlined,
-                size: 16,
-                color: Colors.grey.shade600,
-              ),
-              tooltip: l10n.showLogTooltip,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-            ),
-        ],
       ),
     );
   }
@@ -1498,6 +1450,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           if (_downloadState.wantsOfflineMaps)
             DropdownButtonFormField<Region>(
               initialValue: _downloadState.selectedRegion,
+              // Twenty-odd regions with a header per country make a menu
+              // taller than the window: it opened as a slab over the title
+              // with a hairline scrollbar nobody could see. Capped, it reads
+              // as a list that scrolls.
+              menuMaxHeight: 360,
+              borderRadius: BorderRadius.circular(8),
               decoration: InputDecoration(
                 border: const OutlineInputBorder(),
                 hintText: l10n.selectRegion,
@@ -4426,6 +4384,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Widget _buildMdbBoot(AppLocalizations l10n) {
+    // The manual route has something to do on this screen - the AUX pole goes
+    // back on - so it keeps the whole frame. The brake-gesture route is pure
+    // waiting, and a failure gets the frame back for the retry.
+    if (!_manualPowerCut && !_mdbBootAttempt.isFailed) {
+      return _waitPhase(
+        title: l10n.waitingForMdbBoot,
+        warning: l10n.dbcFlashDoNotDisconnect,
+      );
+    }
     return _waitingPhase(
       title: l10n.waitingForMdbBoot,
       status: _statusMessage.isEmpty
@@ -4907,10 +4874,20 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final staging =
         _mdbStageStarted && !_mdbStageDone && _mdbStageError == null;
     final error = _artifactError ?? _mdbStageError;
+    if (error == null) {
+      return _waitPhase(
+        title: l10n.phaseMdbArtifactTitle,
+        progress: staging
+            ? (_mdbStageProgress > 0 ? _mdbStageProgress : null)
+            : (_progress > 0 ? _progress : null),
+        warning: l10n.dbcFlashDoNotDisconnect,
+      );
+    }
+    // Only the failed case reaches here; the running one is an overlay.
     return PhaseLayout(
       title: l10n.phaseMdbArtifactTitle,
       actions: [
-        if (error != null) ...[
+        ...[
           // Writing the whole image instead is a different install, not a
           // second go at this one, so it is kept apart from the retry.
           PhaseAction(

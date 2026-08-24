@@ -2750,6 +2750,12 @@ abstract class AppLocalizations {
   /// **'Show in folder'**
   String get revealLogFile;
 
+  /// No description provided for @debugShell.
+  ///
+  /// In en, this message translates to:
+  /// **'Debug shell'**
+  String get debugShell;
+
   /// No description provided for @debugCommandHint.
   ///
   /// In en, this message translates to:
