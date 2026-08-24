@@ -126,7 +126,6 @@ class PhaseLayout extends StatelessWidget {
     this.onBack,
     this.backLabel,
     this.scrollable = true,
-    this.centerContent = true,
   });
 
   final String title;
@@ -151,10 +150,6 @@ class PhaseLayout extends StatelessWidget {
   /// False for a body that scrolls internally and needs the full height, such
   /// as a list with its own scroll view.
   final bool scrollable;
-
-  /// Vertically centre a body shorter than the space available. Long bodies
-  /// start at the top either way.
-  final bool centerContent;
 
   @override
   Widget build(BuildContext context) {
@@ -256,13 +251,11 @@ class PhaseLayout extends StatelessWidget {
         child: constrained,
       );
     }
-    return LayoutBuilder(
-      builder: (context, constraints) => _ScrollableBody(
-        centerContent: centerContent,
-        minHeight: constraints.maxHeight - 40,
-        child: constrained,
-      ),
-    );
+    // Always from the top. Screens used to choose, and the choice split them
+    // into two families for no reason a reader could see: the same kind of
+    // content began in a different place depending on which screen it was on.
+    // The waits, which were the honest case for centring, are overlays now.
+    return _ScrollableBody(child: constrained);
   }
 }
 
@@ -273,15 +266,9 @@ class PhaseLayout extends StatelessWidget {
 /// had no last paragraph. The fade and chevron appear only while something is
 /// actually below the viewport, and go once the end is reached.
 class _ScrollableBody extends StatefulWidget {
-  const _ScrollableBody({
-    required this.child,
-    required this.centerContent,
-    required this.minHeight,
-  });
+  const _ScrollableBody({required this.child});
 
   final Widget child;
-  final bool centerContent;
-  final double minHeight;
 
   @override
   State<_ScrollableBody> createState() => _ScrollableBodyState();
@@ -332,14 +319,7 @@ class _ScrollableBodyState extends State<_ScrollableBody> {
             child: SingleChildScrollView(
               controller: _controller,
               padding: const EdgeInsets.fromLTRB(32, 20, 32, 20),
-              child: ConstrainedBox(
-                constraints: widget.centerContent
-                    ? BoxConstraints(minHeight: widget.minHeight)
-                    : const BoxConstraints(),
-                child: widget.centerContent
-                    ? Center(child: widget.child)
-                    : widget.child,
-              ),
+              child: widget.child,
             ),
           ),
           if (_more)

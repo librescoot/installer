@@ -1385,7 +1385,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     return PhaseLayout(
       title: l10n.welcomeHeading,
       subtitle: l10n.welcomeSubheading,
-      centerContent: false,
       actions: [
         PhaseAction(
           label: l10n.startInstallation,
@@ -1587,7 +1586,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     return PhaseLayout(
       title: l10n.noticesHeading,
       subtitle: l10n.noticesSubheading,
-      centerContent: false,
       onBack: _isProcessing ? null : () => _setPhase(InstallerPhase.welcome),
       backLabel: l10n.backButton,
       actions: [
@@ -2291,7 +2289,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     return PhaseLayout(
       title: l10n.physicalPrepHeading,
       subtitle: l10n.physicalPrepSubheading,
-      centerContent: false,
       onBack: () => _setPhase(InstallerPhase.notices),
       backLabel: l10n.backButton,
       actions: [
@@ -2914,7 +2911,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     return PhaseLayout(
       title: running ? l10n.resumeRunningHeading : l10n.resumeFoundHeading,
       subtitle: running ? l10n.resumeRunningBody : l10n.resumeFoundBody,
-      centerContent: false,
       actions: [
         // A run that is still going has nothing for the user to decide: the
         // only honest control is none, until it stops.
@@ -3594,7 +3590,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     return PhaseLayout(
       title: l10n.installPlanHeading,
       subtitle: l10n.installPlanIntro(_downloadState.releaseTag ?? ''),
-      centerContent: false,
       onBack: () => _setPhase(InstallerPhase.healthCheck),
       backLabel: l10n.backButton,
       actions: [
@@ -4306,7 +4301,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     return PhaseLayout(
       title: l10n.scooterPrepHeading,
       subtitle: l10n.scooterPrepSubheading,
-      centerContent: false,
       actions: [
         PhaseAction(
           label: l10n.doneCbbAuxDisconnected,
@@ -8117,7 +8111,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
     return PhaseLayout(
       title: l10n.welcomeToLibrescoot,
-      centerContent: false,
       actions: [
         PhaseAction(
           label: l10n.finished,

@@ -174,6 +174,38 @@ void main() {
     expect(narrow.left, wide.left);
   });
 
+  testWidgets('content starts at the top, however little of it there is',
+      (tester) async {
+    tester.view.physicalSize = const Size(1000, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    // One line of content used to float in the middle of the window on some
+    // screens and sit under the title on others, depending on a flag each
+    // screen set for itself.
+    await tester.pumpWidget(host(const PhaseLayout(
+      title: 'A phase',
+      child: Text('one line'),
+    )));
+    final short = tester.getTopLeft(find.text('one line')).dy;
+
+    await tester.pumpWidget(host(PhaseLayout(
+      title: 'A phase',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('one line'),
+          for (var i = 0; i < 40; i++) Text('filler $i'),
+        ],
+      ),
+    )));
+    final long = tester.getTopLeft(find.text('one line')).dy;
+
+    expect(short, long,
+        reason: 'the first line belongs in the same place either way');
+  });
+
   testWidgets('the title stays put while the body scrolls', (tester) async {
     tester.view.physicalSize = const Size(1000, 400);
     tester.view.devicePixelRatio = 1.0;
