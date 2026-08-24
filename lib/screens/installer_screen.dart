@@ -28,6 +28,7 @@ import '../models/trampoline_status.dart';
 import '../services/artifact_service.dart';
 import '../services/critical_operation_coordinator.dart';
 import '../services/data_partition_service.dart';
+import '../services/serial_polling_loop.dart';
 import '../services/services.dart';
 import '../services/window_close_coordinator.dart';
 import '../widgets/artifact_progress_panel.dart';
@@ -202,7 +203,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// window opened is the closest the vehicle gets to reporting a pairing.
   int _blePairedCount = 0;
   String? _bleMac;
-  Timer? _blePinPollTimer;
+  final SerialPollingLoop _blePinPolling = SerialPollingLoop();
 
   /// Re-arms the open pairing window. The nRF advertises in bounded cycles and
   /// puts the whitelist back when one ends, so a single command gives the user
@@ -210,7 +211,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// through their phone's Bluetooth settings, and it fails silently when they
   /// do. Re-sending well inside the cycle keeps the window open for as long as
   /// the panel is.
-  Timer? _bleAdvRearmTimer;
+  final SerialPollingLoop _bleAdvRearming = SerialPollingLoop();
   final ScrollController _phaseScrollController = ScrollController();
   bool _keycardLearning = false;
   bool _keycardMasterLearning = false;
@@ -353,8 +354,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Future<void> _detectRegionFromIp() async {
-    if (_downloadState.selectedRegion != null)
+    if (_downloadState.selectedRegion != null) {
       return; // already set (e.g. from launch args)
+    }
     final slug = await Region.detectSlugFromIp();
     if (slug == null || !mounted || _downloadState.selectedRegion != null) {
       return;
@@ -413,8 +415,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     _downloadCancellationToken?.cancel();
     _deviceSub?.cancel();
     _usbDetector.stopMonitoring();
-    _blePinPollTimer?.cancel();
-    _bleAdvRearmTimer?.cancel();
+    unawaited(_blePinPolling.stop());
+    unawaited(_bleAdvRearming.stop());
     _keycardToastTimer?.cancel();
     final stop = _keycardEventsStop;
     if (stop != null) {
@@ -531,6 +533,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (leaving == InstallerPhase.keycardSetup &&
         phase != InstallerPhase.keycardSetup) {
       unawaited(_cleanupKeycardPhase());
+    }
+    if (leaving == InstallerPhase.bluetoothPairing &&
+        phase != InstallerPhase.bluetoothPairing &&
+        (_blePinPolling.isRunning ||
+            _bleAdvRearming.isRunning ||
+            _btPairingActive ||
+            _bleWhitelistDisabled ||
+            _pairingVehicleStateChanged)) {
+      unawaited(_stopBluetoothPairing(advance: false));
     }
     if (phase == InstallerPhase.cbbReconnect) {
       _cbbPollAbandoned = false;
@@ -4504,8 +4515,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   InstallerPhase get _phaseAfterKeycardSetup {
     // The gate first, whenever there is artifact work to collect. It is where
     // the background install is waited on and the single reboot happens.
-    if (_mdbArtifactPending || _mdbStageStarted)
+    if (_mdbArtifactPending || _mdbStageStarted) {
       return InstallerPhase.mdbArtifact;
+    }
     return _phaseBeforeDbcWork;
   }
 
@@ -4856,15 +4868,17 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         board: Board.mdb,
         assetName: item.filename,
         onProgress: (pct) {
-          if (mounted)
+          if (mounted) {
             setState(() => _mdbStageProgress = 0.5 + (pct / 100) * 0.5);
+          }
         },
       );
-      if (mounted)
+      if (mounted) {
         setState(() {
           _mdbStageDone = true;
           _mdbStageProgress = 1;
         });
+      }
     } catch (e) {
       if (mounted) setState(() => _mdbStageError = e.toString());
     }
@@ -4966,8 +4980,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           artifactBytes: item.expectedSize,
           assetName: item.filename,
         );
-        if (!preflight.ok)
+        if (!preflight.ok) {
           throw _LocalizedInstallException(_preflightMessage(l10n, preflight));
+        }
 
         _setStatus(l10n.artifactStaging, progress: 0);
         await artifacts.stage(
@@ -6523,7 +6538,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // Poll from the moment the panel opens, not from Start: the state that
     // matters most (someone already holds the link) is true before the user
     // touches anything.
-    if (_blePinPollTimer == null) _startBlePinPolling();
+    if (!_blePinPolling.isRunning) _startBlePinPolling();
     Widget panel({
       required Color colour,
       required IconData icon,
@@ -6802,53 +6817,63 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// open. Harmless to repeat: the firmware ignores it outright once something
   /// is connected, which is exactly when we no longer need it.
   void _startBleAdvRearm() {
-    _bleAdvRearmTimer?.cancel();
-    _bleAdvRearmTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
-      if (!mounted || !_btPairingActive) return;
-      try {
-        await _sshService.redisLpush(
-          'scooter:bluetooth',
-          'advertising-restart-no-whitelisting',
-        );
-        debugPrint('UI: re-armed the BLE pairing window');
-      } catch (e) {
-        debugPrint('UI: failed to re-arm the BLE pairing window (ok): $e');
-      }
-    });
+    _bleAdvRearming.start(
+      interval: const Duration(seconds: 30),
+      poll: (generation) async {
+        if (!generation.isCurrent || !mounted || !_btPairingActive) return;
+        try {
+          await _sshService.runCommand(
+            'redis-cli LPUSH scooter:bluetooth '
+            'advertising-restart-no-whitelisting',
+            timeout: const Duration(seconds: 2),
+          );
+          if (!generation.isCurrent) return;
+          debugPrint('UI: re-armed the BLE pairing window');
+        } catch (e) {
+          debugPrint('UI: failed to re-arm the BLE pairing window (ok): $e');
+        }
+      },
+    );
   }
 
   void _startBlePinPolling() {
-    _blePinPollTimer?.cancel();
-    _blePinPollTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
-      if (!mounted) {
-        _blePinPollTimer?.cancel();
-        return;
-      }
-      try {
-        // bluetooth-service writes `status` (connected/disconnected) from
-        // the nRF's own link state.
-        final status = await _sshService.redisHget('ble', 'status');
-        final isConnected = status == 'connected';
-        if (isConnected != _bleConnected) {
-          setState(() {
-            if (isConnected && !_bleConnected && _btPairingActive) {
-              _blePairedCount++;
-            }
-            _bleConnected = isConnected;
-          });
+    _blePinPolling.start(
+      interval: const Duration(seconds: 1),
+      poll: (generation) async {
+        if (!generation.isCurrent ||
+            !mounted ||
+            _currentPhase != InstallerPhase.bluetoothPairing) {
+          return;
         }
-
-        final pin = await _sshService.redisHget('ble', 'pin-code');
-        if (pin != null && pin.isNotEmpty) {
-          if (_blePinCode != pin) {
-            setState(() => _blePinCode = pin);
+        try {
+          // bluetooth-service writes `status` (connected/disconnected) from
+          // the nRF's own link state.
+          final output = await _sshService.runCommand(
+            'redis-cli --raw HMGET ble status pin-code',
+            timeout: const Duration(seconds: 2),
+          );
+          if (!generation.isCurrent ||
+              !mounted ||
+              _currentPhase != InstallerPhase.bluetoothPairing) {
+            return;
           }
-        } else if (_blePinCode != null) {
-          // PIN cleared: pairing completed for this device
-          setState(() => _blePinCode = null);
-        }
-      } catch (_) {}
-    });
+          final values = output.split('\n');
+          final status = values.isEmpty ? null : values[0].trim();
+          final rawPin = values.length < 2 ? null : values[1].trim();
+          final pin = rawPin == null || rawPin.isEmpty ? null : rawPin;
+          final isConnected = status == 'connected';
+          if (isConnected != _bleConnected || pin != _blePinCode) {
+            setState(() {
+              if (isConnected && !_bleConnected && _btPairingActive) {
+                _blePairedCount++;
+              }
+              _bleConnected = isConnected;
+              _blePinCode = pin;
+            });
+          }
+        } catch (_) {}
+      },
+    );
   }
 
   Future<void> _restoreBluetoothWhitelist() async {
@@ -6886,11 +6911,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Future<void> _stopBluetoothPairing({bool advance = true}) async {
-    _blePinPollTimer?.cancel();
-    _blePinPollTimer = null;
-    _bleAdvRearmTimer?.cancel();
-    _bleAdvRearmTimer = null;
+    final stopPinPolling = _blePinPolling.stop();
+    final stopAdvRearming = _bleAdvRearming.stop();
     await runBoundedCleanupActions([
+      () => stopPinPolling,
+      () => stopAdvRearming,
       if (_bleWhitelistDisabled) _restoreBluetoothWhitelist,
       if (_pairingVehicleStateChanged) _restorePairingVehicleState,
     ]);

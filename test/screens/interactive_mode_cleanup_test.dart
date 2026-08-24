@@ -53,4 +53,20 @@ void main() {
 
     expect(block, contains('unawaited(_cleanupKeycardPhase())'));
   });
+
+  test('BLE polling bounds the SSH sessions themselves', () {
+    final start = source.indexOf('void _startBleAdvRearm()');
+    final stop = source.indexOf(
+      'Future<void> _restoreBluetoothWhitelist()',
+      start,
+    );
+    final block = source.substring(start, stop);
+
+    expect(block, isNot(contains('.timeout(const Duration(seconds: 2))')));
+    expect(block, contains('redis-cli --raw HMGET ble status pin-code'));
+    expect(
+      RegExp(r'timeout: const Duration\(seconds: 2\)').allMatches(block).length,
+      2,
+    );
+  });
 }
