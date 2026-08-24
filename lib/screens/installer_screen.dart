@@ -1448,7 +1448,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           ),
           const SizedBox(height: 8),
           if (_downloadState.wantsOfflineMaps)
-            DropdownButtonFormField<Region>(
+            // Answer-width, not measure-width: a one-word answer stretched
+            // across 960px read as a hairline rectangle that ran into
+            // everything around it. Filled and bordered so it reads as a
+            // control on a near-black ground.
+            Align(
+              alignment: Alignment.centerLeft,
+              child: SizedBox(
+                width: 420,
+                child: DropdownButtonFormField<Region>(
               initialValue: _downloadState.selectedRegion,
               // Twenty-odd regions with a header per country make a menu
               // taller than the window: it opened as a slab over the title
@@ -1457,8 +1465,20 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               menuMaxHeight: 360,
               borderRadius: BorderRadius.circular(8),
               decoration: InputDecoration(
-                border: const OutlineInputBorder(),
+                filled: true,
+                fillColor: kBgSidebar,
                 hintText: l10n.selectRegion,
+                prefixIcon: Icon(Icons.place_outlined,
+                    size: 20, color: Colors.grey.shade400),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide:
+                      BorderSide(color: Colors.white.withValues(alpha: 0.22)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: kAccent, width: 2),
+                ),
               ),
               items: _buildRegionDropdownItems(_availableRegions),
               selectedItemBuilder: (context) =>
@@ -1479,6 +1499,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                   _downloadState.selectedRegion = r;
                 });
               },
+                ),
+              ),
             ),
 
           const SizedBox(height: 24),

@@ -58,13 +58,18 @@ class PhaseSidebar extends StatelessWidget {
         children: [
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              // No top padding: the header below sets its own, so the
+              // wordmark can be lined up with the phase title across the
+              // divide rather than sitting a centimetre below it.
+              padding: const EdgeInsets.only(bottom: 16),
               children: [
                 // Wordmark and version centred, with room above them: the
                 // sidebar reads as a masthead over a list rather than as a
                 // stack of left-aligned oddments.
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 22, 16, 10),
+                  // 26 puts the middle of the 26px wordmark on the middle of
+                  // the 24px title in the content area, which starts at 22.
+                  padding: const EdgeInsets.fromLTRB(16, 26, 16, 12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
@@ -182,21 +187,27 @@ class _SidebarFooter extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Container(
-      padding: const EdgeInsets.fromLTRB(8, 6, 12, 8),
+      padding: const EdgeInsets.fromLTRB(10, 10, 12, 12),
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: kSidebarEdge)),
       ),
       child: Row(
         children: [
-          TextButton.icon(
+          // Flexible so a longer translation of either label shortens the
+          // button rather than overflowing the column.
+          Flexible(
+            child: TextButton.icon(
             onPressed: onShowLog,
             icon: const Icon(Icons.article_outlined, size: 16),
-            label: Text(l10n.showLog, style: const TextStyle(fontSize: 12)),
+            label: Text(l10n.showLog,
+                style: const TextStyle(fontSize: 12.5),
+                overflow: TextOverflow.ellipsis),
             style: TextButton.styleFrom(
               foregroundColor: Colors.grey.shade400,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
             ),
           ),
           const Spacer(),
