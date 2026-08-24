@@ -653,6 +653,19 @@ done
   /// _lastPassword survives everything except an explicit disconnect(), so a
   /// client lost to an idle timeout or to invalidateConnection can be rebuilt
   /// without asking the user again.
+  /// The live client, or a failure that says which operation lost it.
+  ///
+  /// The alternative is `_client!`, which reports a null-assertion with no
+  /// indication of what was being attempted. Callers that can reconnect should
+  /// go through [_ensureConnected] first; this is for the point of use.
+  SSHClient _requireClient(String operation) {
+    final client = _client;
+    if (client == null) {
+      throw Exception('SSH session lost during $operation');
+    }
+    return client;
+  }
+
   Future<void> _ensureConnected(String operation) async {
     if (_client != null) return;
     if (_lastPassword == null) {
@@ -690,7 +703,7 @@ done
   }
 
   Future<String> _runCommandOnce(String command, Duration timeout) async {
-    final session = await _client!.execute(command);
+    final session = await _requireClient('command').execute(command);
     final stdout = StringBuffer();
     final stderr = StringBuffer();
 
@@ -749,7 +762,7 @@ done
       await _reconnect();
     }
 
-    final session = await _client!.execute(command);
+    final session = await _requireClient('streaming command').execute(command);
     final stdout = StringBuffer();
     final stderr = StringBuffer();
 
@@ -943,6 +956,10 @@ done
       } catch (e) {
         debugPrint('SSH: SFTP upload failed ($e), falling back to cat');
         _sftpAvailable = false;
+        // The SFTP attempt can spend the whole timeout before failing, which
+        // is long enough for the session to have gone with it. The fallback
+        // needs a client of its own rather than the one checked on entry.
+        await _ensureConnected('upload fallback');
         await _uploadViaCat(content, remotePath).timeout(timeout);
       }
     } else {
@@ -960,7 +977,7 @@ done
     String remotePath,
     void Function(int bytesSent, int totalBytes)? onProgress,
   ) async {
-    final sftp = await _client!.sftp();
+    final sftp = await _requireClient('SFTP upload').sftp();
     try {
       final file = await sftp.open(
         remotePath,
@@ -993,7 +1010,8 @@ done
   }
 
   Future<void> _uploadViaCat(Uint8List content, String remotePath) async {
-    final session = await _client!.execute('cat > $remotePath');
+    final session =
+        await _requireClient('upload').execute('cat > $remotePath');
     session.stdin.add(content);
     await session.stdin.close();
     // Drain stdout/stderr to prevent blocking
@@ -1279,7 +1297,7 @@ done
         'state==1 { state=2; next } '
         'state==2 { sub(/^[0-9]+\\) "/, ""); sub(/"\$/, ""); print; fflush(); state=0; next }'
         "'";
-    final session = await _client!.execute(cmd);
+    final session = await _requireClient('redis subscribe').execute(cmd);
     final controller = StreamController<String>();
     final decoder = const Utf8Decoder(allowMalformed: true);
     var buf = '';
@@ -1643,7 +1661,8 @@ done
     await _ensureConnected('file download');
     SSHSession? session;
     try {
-      session = await _client!.execute('cat ${_shellEscape(remotePath)}');
+      session = await _requireClient('file download')
+          .execute('cat ${_shellEscape(remotePath)}');
       final chunks = <int>[];
       final stdoutDone = () async {
         await for (final data in session!.stdout) {
