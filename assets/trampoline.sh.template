@@ -605,12 +605,22 @@ dbc_ssh() {
   done
   return 1
 }
-dbc_scp() {
-  local tries=0
+# Copying to the DBC goes through the same ssh for the same reason. Dropbear's
+# scp frontend has no equivalent of -y -y (it rejects -y outright), so scp is
+# the one transport here that would still abort on the changed key. `cat` on the
+# far side exits 0 even when the stream was cut short, so the byte count is
+# compared there before the file is moved into place.
+dbc_put() {
+  local src="$1" dst="$2" tries=0 size
+  size=$(wc -c < "$src") || return 1
   while [ $tries -lt 3 ]; do
-    scp "$@" && return 0
+    if ssh -y -y root@$DBC_IP "cat > '$dst.part'" < "$src" &&
+       ssh -y -y root@$DBC_IP "[ \"\$(wc -c < '$dst.part')\" -eq $size ] && mv '$dst.part' '$dst'"; then
+      return 0
+    fi
+    ssh -y -y root@$DBC_IP "rm -f '$dst.part'" >/dev/null 2>&1 || true
     tries=$((tries + 1))
-    log "  scp retry $tries/3..."
+    log "  copy retry $tries/3..."
     sleep 3
   done
   return 1
@@ -1215,8 +1225,8 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
       FWCFG=""
     else
       log "  copying stock DBC fw tools..."
-      dbc_scp "$INSTALLER_DIR/fwtools/stock-dbc/fw_setenv" root@$DBC_IP:/tmp/ || { log "  scp failed"; continue; }
-      dbc_scp "$INSTALLER_DIR/fwtools/stock-dbc/fw_env.config" root@$DBC_IP:/tmp/fw_env.config || { log "  scp failed"; continue; }
+      dbc_put "$INSTALLER_DIR/fwtools/stock-dbc/fw_setenv" /tmp/fw_setenv || { log "  fw_setenv copy failed"; continue; }
+      dbc_put "$INSTALLER_DIR/fwtools/stock-dbc/fw_env.config" /tmp/fw_env.config || { log "  fw_env.config copy failed"; continue; }
       dbc_ssh 'chmod +x /tmp/fw_setenv' || true
       FWCMD="/tmp/fw_setenv"
       FWCFG="-c /tmp/fw_env.config"
@@ -1734,7 +1744,6 @@ log() { echo "$(date '+%H:%M:%S') $1" >> "$LOG"; }
 # Log all errors, always: every command's stderr appends to the log.
 exec 2>>"$LOG"
 dbc_ssh() { local t=0; while [ $t -lt 3 ]; do ssh -y -y root@$DBC_IP "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
-dbc_scp() { local t=0; while [ $t -lt 3 ]; do scp "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
 
 # One field of the `maps` hash, HSET then PUBLISH, matching the convention the
 # rest of the platform uses so a live subscriber hears the change. Best effort:
