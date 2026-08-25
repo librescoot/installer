@@ -1549,7 +1549,19 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get artifactRebootTimeout =>
-      'Das MDB ist nach dem Neustart nicht zurückgekommen.';
+      'Der Roller war nach dem Neustart nicht erreichbar.';
+
+  @override
+  String get artifactRebootTimeoutHint =>
+      'Prüfe, ob das USB-Kabel an beiden Enden fest sitzt und der Roller Strom hat. Ein Roller ohne eingesetzten Fahrakku kann beim Warten auch von allein einschlafen.';
+
+  @override
+  String get artifactRetryDetail =>
+      'Kostet nichts. Versucht es an derselben Stelle noch einmal und behält Einstellungen, Schlüsselkarten und Fahrten.';
+
+  @override
+  String get artifactFullImageDetail =>
+      'Letzter Ausweg. Beschreibt das ganze Board neu und löscht Einstellungen, Schlüsselkarten und Fahrten.';
 
   @override
   String get artifactPreflightNoMender =>

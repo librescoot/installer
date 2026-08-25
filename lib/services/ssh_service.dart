@@ -47,7 +47,13 @@ class SshService {
   static const String dbcHost = '192.168.7.2';
   static const int sshPort = 22;
   static const String sshUser = 'root';
-  static const Duration connectionTimeout = Duration(seconds: 10);
+  /// Short on purpose. An attempt already in flight against an unreachable
+  /// host cannot notice the host arriving, so a long timeout is a window in
+  /// which a board that comes back is missed. On the local USB link a healthy
+  /// connect completes in well under a second, so this only bounds failures,
+  /// and the caller retries: shorter attempts more often cover a transient
+  /// window strictly better than long ones for the same wall clock.
+  static const Duration connectionTimeout = Duration(seconds: 5);
   static const int maxManualPasswordAttempts = 3;
 
   @visibleForTesting

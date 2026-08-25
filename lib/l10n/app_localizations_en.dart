@@ -1534,7 +1534,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get artifactRebootTimeout =>
-      'The MDB did not come back after the reboot.';
+      'Could not reach the scooter after the reboot.';
+
+  @override
+  String get artifactRebootTimeoutHint =>
+      'Check that the USB cable is firmly connected at both ends and that the scooter has power. A scooter with no main battery fitted can also go to sleep on its own while it waits.';
+
+  @override
+  String get artifactRetryDetail =>
+      'Free. Tries again from where this stopped, and keeps your settings, keycards and trips.';
+
+  @override
+  String get artifactFullImageDetail =>
+      'Last resort. Rewrites the whole board and erases settings, keycards and trips.';
 
   @override
   String get artifactPreflightNoMender =>

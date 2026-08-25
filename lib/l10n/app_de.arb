@@ -562,7 +562,10 @@
   "artifactStagingInBackground": "Firmware-Installation wird abgeschlossen...",
   "artifactNoneDownloaded": "Für dieses Board wurde kein Firmware-Artefakt heruntergeladen.",
   "dbcImageMissing": "Das für diesen Plan benötigte DBC-Systemabbild fehlt.",
-  "artifactRebootTimeout": "Das MDB ist nach dem Neustart nicht zurückgekommen.",
+  "artifactRebootTimeout": "Der Roller war nach dem Neustart nicht erreichbar.",
+  "artifactRebootTimeoutHint": "Prüfe, ob das USB-Kabel an beiden Enden fest sitzt und der Roller Strom hat. Ein Roller ohne eingesetzten Fahrakku kann beim Warten auch von allein einschlafen.",
+  "artifactRetryDetail": "Kostet nichts. Versucht es an derselben Stelle noch einmal und behält Einstellungen, Schlüsselkarten und Fahrten.",
+  "artifactFullImageDetail": "Letzter Ausweg. Beschreibt das ganze Board neu und löscht Einstellungen, Schlüsselkarten und Fahrten.",
   "artifactPreflightNoMender": "Dieses Board hat keinen Update-Client und kann daher kein Firmware-Artefakt aufnehmen.",
   "artifactPreflightOtaBusy": "Der Roller führt gerade sein eigenes Update aus ({status}). Warte, bis es fertig ist und der Roller neu gestartet hat, und versuche es dann erneut.",
   "@artifactPreflightOtaBusy": {

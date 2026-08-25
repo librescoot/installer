@@ -5245,14 +5245,35 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           ),
         ],
       ],
-      child: ArtifactProgressPanel(
-        // A blank line for the whole install reads as a screen that has
-        // stopped. Until a step reports in, say what is happening.
-        status: staging
-            ? l10n.artifactStagingInBackground
-            : (_statusMessage.isEmpty ? l10n.artifactStaging : _statusMessage),
-        progress: staging ? _mdbStageProgress : _progress,
-        error: error,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ArtifactProgressPanel(
+            // The run has stopped, so the last live status is not what is
+            // happening any more. Leaving it there had the screen saying it
+            // was reconnecting directly above saying it had given up.
+            status: '',
+            progress: 0,
+            error: error,
+          ),
+          if (error == l10n.artifactRebootTimeout) ...[
+            const SizedBox(height: 12),
+            Text(
+              l10n.artifactRebootTimeoutHint,
+              style: TextStyle(
+                  fontSize: 13, height: 1.4, color: Colors.grey.shade400),
+            ),
+          ],
+          const SizedBox(height: 20),
+          // Both buttons are offered together and one of them erases the
+          // board, so each says what it costs rather than leaving the user to
+          // infer it from the label.
+          _flashNote(Icons.refresh, l10n.artifactRetryDetail),
+          const SizedBox(height: 8),
+          _flashNote(Icons.delete_forever, l10n.artifactFullImageDetail,
+              danger: true),
+        ],
       ),
     );
   }

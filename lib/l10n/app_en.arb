@@ -680,7 +680,10 @@
   "artifactStagingInBackground": "Finishing the firmware install...",
   "artifactNoneDownloaded": "No firmware artifact was downloaded for this board.",
   "dbcImageMissing": "The DBC system image this plan needs is missing.",
-  "artifactRebootTimeout": "The MDB did not come back after the reboot.",
+  "artifactRebootTimeout": "Could not reach the scooter after the reboot.",
+  "artifactRebootTimeoutHint": "Check that the USB cable is firmly connected at both ends and that the scooter has power. A scooter with no main battery fitted can also go to sleep on its own while it waits.",
+  "artifactRetryDetail": "Free. Tries again from where this stopped, and keeps your settings, keycards and trips.",
+  "artifactFullImageDetail": "Last resort. Rewrites the whole board and erases settings, keycards and trips.",
   "artifactPreflightNoMender": "This board has no update client, so it cannot take a firmware artifact.",
   "artifactPreflightOtaBusy": "The scooter is running its own update right now ({status}). Let it finish and reboot, then retry.",
   "@artifactPreflightOtaBusy": {

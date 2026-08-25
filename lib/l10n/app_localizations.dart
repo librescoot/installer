@@ -2729,8 +2729,26 @@ abstract class AppLocalizations {
   /// No description provided for @artifactRebootTimeout.
   ///
   /// In en, this message translates to:
-  /// **'The MDB did not come back after the reboot.'**
+  /// **'Could not reach the scooter after the reboot.'**
   String get artifactRebootTimeout;
+
+  /// No description provided for @artifactRebootTimeoutHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Check that the USB cable is firmly connected at both ends and that the scooter has power. A scooter with no main battery fitted can also go to sleep on its own while it waits.'**
+  String get artifactRebootTimeoutHint;
+
+  /// No description provided for @artifactRetryDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Free. Tries again from where this stopped, and keeps your settings, keycards and trips.'**
+  String get artifactRetryDetail;
+
+  /// No description provided for @artifactFullImageDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Last resort. Rewrites the whole board and erases settings, keycards and trips.'**
+  String get artifactFullImageDetail;
 
   /// No description provided for @artifactPreflightNoMender.
   ///
