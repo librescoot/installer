@@ -1962,10 +1962,27 @@ class AppLocalizationsDe extends AppLocalizations {
   String get keycardReaderScanning => 'Karte an den Leser halten';
 
   @override
-  String get keycardTaughtThisSession => 'Jetzt angelernt';
+  String keycardCardsTaught(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Schlüsselkarten angelernt',
+      one: '1 Schlüsselkarte angelernt',
+      zero: 'Keine Schlüsselkarte angelernt',
+    );
+    return '$_temp0';
+  }
 
   @override
-  String get keycardTaughtAlready => 'Schon auf dem Roller';
+  String keycardMastersRegistered(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Anlernkarten registriert',
+      one: '1 Anlernkarte registriert',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get keycardNeedOneToFinish => 'Eine Karte reicht zum Abschließen.';

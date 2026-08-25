@@ -3410,17 +3410,17 @@ abstract class AppLocalizations {
   /// **'Hold a card to the reader'**
   String get keycardReaderScanning;
 
-  /// No description provided for @keycardTaughtThisSession.
+  /// No description provided for @keycardCardsTaught.
   ///
   /// In en, this message translates to:
-  /// **'Taught in now'**
-  String get keycardTaughtThisSession;
+  /// **'{count, plural, =0{No keycards taught in} =1{1 keycard taught in} other{{count} keycards taught in}}'**
+  String keycardCardsTaught(int count);
 
-  /// No description provided for @keycardTaughtAlready.
+  /// No description provided for @keycardMastersRegistered.
   ///
   /// In en, this message translates to:
-  /// **'Already on the scooter'**
-  String get keycardTaughtAlready;
+  /// **'{count, plural, =1{1 master card registered} other{{count} master cards registered}}'**
+  String keycardMastersRegistered(int count);
 
   /// No description provided for @keycardNeedOneToFinish.
   ///

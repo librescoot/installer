@@ -3264,12 +3264,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   String? _targetVersionLabel(AppLocalizations l10n) {
     final tag = _downloadState.releaseTag;
     if (tag == null || tag.isEmpty) return null;
-    final channel = switch (_downloadState.channel) {
-      DownloadChannel.stable => l10n.channelStable,
-      DownloadChannel.testing => l10n.channelTesting,
-      DownloadChannel.nightly => l10n.channelNightly,
-    };
-    return '${l10n.distroLibrescoot} $channel $tag';
+    // The channel is part of what identifies the artifact, so it stays as it
+    // is written everywhere else: stable, testing, nightly. The localised
+    // labels belong on the cards where the user is choosing between them.
+    return '${l10n.distroLibrescoot} ${_downloadState.channel.name} $tag';
   }
 
   bool get _isLibrescootFirmware {
@@ -8294,23 +8292,19 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       (_, _, true) => (l10n.keycardReaderScanning, Colors.amber),
       _ => (l10n.keycardReaderReady, kAccent),
     };
-    // Taps land as events before the count hash settles, so the session figure
-    // is what moves while a card is held to the reader.
-    final taught = _keycardSessionTapCount;
-    final already = _keycardAuthorizedCountBefore;
+    // Taps arrive as events before the count hash settles, so the running
+    // total leads with what this session has seen and falls back to the hash
+    // where that is higher, which is the case on a board that already had
+    // cards before the installer touched it.
+    final session = _keycardAuthorizedCountBefore + _keycardSessionTapCount;
+    final cards = session > _keycardAuthorizedCount
+        ? session
+        : _keycardAuthorizedCount;
+    final masters = _keycardMasterCount;
 
-    Widget line(String label, String value) => Padding(
+    Widget line(String text) => Padding(
           padding: const EdgeInsets.only(top: 10),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(label,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
-              Text(value,
-                  style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w600)),
-            ],
-          ),
+          child: Text(text, style: const TextStyle(fontSize: 13)),
         );
 
     return Container(
@@ -8342,9 +8336,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               ),
             ],
           ),
-          line(l10n.keycardTaughtThisSession, '$taught'),
-          if (already > 0) line(l10n.keycardTaughtAlready, '$already'),
-          if (taught == 0 && !unreachable) ...[
+          line(l10n.keycardCardsTaught(cards)),
+          // Only when one exists: a scooter with no master card is the
+          // ordinary case and a zero here would read as something missing.
+          if (masters > 0) line(l10n.keycardMastersRegistered(masters)),
+          if (cards == 0 && !unreachable) ...[
             const SizedBox(height: 12),
             Text(
               l10n.keycardNeedOneToFinish,
