@@ -116,6 +116,18 @@ void main() {
       );
     });
 
+    test('the stock arm matches the unit name stock actually ships', () {
+      // Measured on scooterOS v1.15.0: 209 unit files, every service carrying
+      // an unu- prefix, no vehicle-service and no librescoot-. The probe
+      // greppped for vehicle-service alone, so it fell through to `none` and
+      // a healthy stock scooter was offered a recovery re-flash.
+      expect(
+        SshService.stackProbeScript,
+        contains('unu-vehicle'),
+        reason: 'stock v1.15.0 ships unu-vehicle.service',
+      );
+    });
+
     test('a healthy stock board is not a bootstrap image', () {
       // Stock has a working vehicle stack under its own unit names and no
       // mender artifact at all. Reading that as a damaged Librescoot install

@@ -1556,7 +1556,7 @@ done
         // redis-backed step here depends on, and it carries a different name
         // under each stack. Asking for both names is what keeps a healthy
         // stock board distinct from a board with no stack at all.
-        final out = await runCommand(_stackProbeScript);
+        final out = await runCommand(stackProbeScript);
         final answer = parseStackProbe(out);
         if (answer != null) {
           // Logged on the way out, not only when it goes wrong. This decides
@@ -1582,12 +1582,19 @@ done
   /// or so of a boot, and an empty list looks exactly like a list with no
   /// vehicle unit in it. Emitting `unknown` for that keeps a board that has not
   /// finished starting from being reported as a board with no stack.
-  static const _stackProbeScript =
+  ///
+  /// Stock has used more than one naming scheme. Measured on scooterOS v1.15.0:
+  /// the units carry an `unu-` prefix, so the vehicle unit is `unu-vehicle`.
+  /// `vehicle-service` is kept because the rest of this file addresses stock
+  /// units by that form too, and a name that costs one alternation is cheaper
+  /// than a board that reports no stack because it named things differently.
+  @visibleForTesting
+  static const stackProbeScript =
       r'''command -v redis-cli >/dev/null 2>&1 || { echo none; exit 0; }; '''
       r'''u=$(systemctl list-unit-files 2>/dev/null); '''
       r'''[ -z "$u" ] && { echo unknown; exit 0; }; '''
       r'''echo "$u" | grep -q "^librescoot-vehicle" && { echo librescoot; exit 0; }; '''
-      r'''echo "$u" | grep -q "^vehicle-service" && { echo stock; exit 0; }; '''
+      r'''echo "$u" | grep -qE "^(unu-vehicle|vehicle-service)" && { echo stock; exit 0; }; '''
       r'''echo none''';
 
   /// The probe answers with one word. Anything else is not an answer.
@@ -1673,7 +1680,8 @@ done
   /// rejects anything else.
   Future<void> deactivateMainBattery() async {
     await runCommand(
-      'systemctl stop vehicle-service librescoot-vehicle 2>/dev/null; true',
+      'systemctl stop unu-vehicle vehicle-service librescoot-vehicle '
+      '2>/dev/null; true',
     );
     await runCommand(
       "redis-cli hset vehicle seatbox:lock open >/dev/null && "
@@ -1695,7 +1703,8 @@ done
       "redis-cli publish vehicle seatbox:lock >/dev/null; true",
     );
     await runCommand(
-      'systemctl start vehicle-service librescoot-vehicle 2>/dev/null; true',
+      'systemctl start unu-vehicle vehicle-service librescoot-vehicle '
+      '2>/dev/null; true',
     );
   }
 
