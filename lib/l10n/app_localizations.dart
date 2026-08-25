@@ -884,6 +884,24 @@ abstract class AppLocalizations {
   /// **'Connect'**
   String get manualPasswordSubmit;
 
+  /// No description provided for @manualPasswordUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'I don\'t know it'**
+  String get manualPasswordUnknown;
+
+  /// No description provided for @manualPasswordUnknownHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'The scooter wants a password nobody has'**
+  String get manualPasswordUnknownHeading;
+
+  /// No description provided for @manualPasswordUnknownBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Scooters normally answer with a password the installer already carries. This one does not, which usually means it was changed.\n\nIf a workshop has had the scooter, ask them whether they set a root password. That is the most common reason.\n\nOtherwise ask in the Librescoot Discord and mention the firmware version shown above.\n\nNothing on the scooter has been changed and it is safe to close the installer.'**
+  String get manualPasswordUnknownBody;
+
   /// No description provided for @untestedFirmwareHeading.
   ///
   /// In en, this message translates to:

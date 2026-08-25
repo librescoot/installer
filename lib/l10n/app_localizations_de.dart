@@ -450,6 +450,17 @@ class AppLocalizationsDe extends AppLocalizations {
   String get manualPasswordSubmit => 'Verbinden';
 
   @override
+  String get manualPasswordUnknown => 'Ich kenne es nicht';
+
+  @override
+  String get manualPasswordUnknownHeading =>
+      'Der Roller will ein Passwort, das niemand hat';
+
+  @override
+  String get manualPasswordUnknownBody =>
+      'Normalerweise antworten Roller mit einem Passwort, das der Installer schon kennt. Dieser tut das nicht, meistens heißt das, dass es geändert wurde.\n\nWar der Roller in einer Werkstatt, frag dort nach, ob ein Root-Passwort gesetzt wurde. Das ist der häufigste Grund.\n\nSonst frag im Librescoot-Discord und nenne die oben angezeigte Firmware-Version.\n\nAm Roller wurde nichts verändert, du kannst den Installer gefahrlos schließen.';
+
+  @override
   String get untestedFirmwareHeading => 'Ungetestete Firmware-Version';
 
   @override

@@ -318,7 +318,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     required int previousAttempts,
   }) async {
     if (!mounted) return null;
-    return showDialog<String?>(
+    final entered = await showDialog<String?>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => _ManualPasswordDialog(
@@ -327,7 +327,18 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         maxAttempts: SshService.maxManualPasswordAttempts,
       ),
     );
+    if (entered == _ManualPasswordDialog.unknown) {
+      // Not knowing it is the common case and it has an answer, so the run
+      // ends on where to find one rather than on a failed connection.
+      if (mounted) setState(() => _rootPasswordUnknown = true);
+      return null;
+    }
+    return entered;
   }
+
+  /// The user said they do not know the root password, so the connect screen
+  /// explains where to get it instead of reporting a login failure.
+  bool _rootPasswordUnknown = false;
 
   Future<void> _loadAvailableRegions() async {
     final regions = await _downloadService.fetchAvailableRegions();
@@ -2356,6 +2367,33 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // retry has somewhere to live.
     if (_isProcessing) {
       return _waitPhase(title: l10n.connectingToMdb);
+    }
+
+    // Not knowing the password is a dead end for this run, but it is one with
+    // an answer, so the screen carries the answer rather than a login failure.
+    if (_rootPasswordUnknown) {
+      return PhaseLayout(
+        title: l10n.manualPasswordUnknownHeading,
+        actions: [
+          PhaseAction(
+            label: l10n.retryMdbConnect,
+            icon: Icons.refresh,
+            primary: true,
+            onPressed: () {
+              setState(() {
+                _rootPasswordUnknown = false;
+                _mdbConnectStarted = true;
+              });
+              Future.microtask(_autoConnectMdb);
+            },
+          ),
+        ],
+        child: Text(
+          l10n.manualPasswordUnknownBody,
+          style: TextStyle(
+              fontSize: 14, height: 1.5, color: Colors.grey.shade300),
+        ),
+      );
     }
 
     return _waitingPhase(
@@ -9103,6 +9141,10 @@ class _LocalizedInstallException implements Exception {
 }
 
 class _ManualPasswordDialog extends StatefulWidget {
+  /// Returned when the user says they do not know the password, as distinct
+  /// from cancelling. Not a password anyone could set: the field rejects it.
+  static const unknown = '\u0000unknown';
+
   final String? version;
   final int previousAttempts;
   final int maxAttempts;
@@ -9178,6 +9220,14 @@ class _ManualPasswordDialogState extends State<_ManualPasswordDialog> {
         TextButton(
           onPressed: () => Navigator.of(context).pop(null),
           child: Text(l10n.cancelButton),
+        ),
+        // Distinct from Cancel: cancelling is changing your mind, this is not
+        // having the answer, and the two want different next steps. Reported
+        // as its own value so the caller can say where to find it.
+        TextButton(
+          onPressed: () =>
+              Navigator.of(context).pop(_ManualPasswordDialog.unknown),
+          child: Text(l10n.manualPasswordUnknown),
         ),
         FilledButton(
           onPressed: _submit,

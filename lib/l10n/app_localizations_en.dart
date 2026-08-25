@@ -445,6 +445,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get manualPasswordSubmit => 'Connect';
 
   @override
+  String get manualPasswordUnknown => 'I don\'t know it';
+
+  @override
+  String get manualPasswordUnknownHeading =>
+      'The scooter wants a password nobody has';
+
+  @override
+  String get manualPasswordUnknownBody =>
+      'Scooters normally answer with a password the installer already carries. This one does not, which usually means it was changed.\n\nIf a workshop has had the scooter, ask them whether they set a root password. That is the most common reason.\n\nOtherwise ask in the Librescoot Discord and mention the firmware version shown above.\n\nNothing on the scooter has been changed and it is safe to close the installer.';
+
+  @override
   String get untestedFirmwareHeading => 'Untested firmware version';
 
   @override

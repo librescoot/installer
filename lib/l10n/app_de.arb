@@ -145,6 +145,9 @@
   "manualPasswordPromptRetry": "Das Passwort war falsch. Bitte erneut versuchen (noch {remaining} Versuche).",
   "manualPasswordFieldLabel": "Passwort",
   "manualPasswordSubmit": "Verbinden",
+  "manualPasswordUnknown": "Ich kenne es nicht",
+  "manualPasswordUnknownHeading": "Der Roller will ein Passwort, das niemand hat",
+  "manualPasswordUnknownBody": "Normalerweise antworten Roller mit einem Passwort, das der Installer schon kennt. Dieser tut das nicht, meistens heißt das, dass es geändert wurde.\n\nWar der Roller in einer Werkstatt, frag dort nach, ob ein Root-Passwort gesetzt wurde. Das ist der häufigste Grund.\n\nSonst frag im Librescoot-Discord und nenne die oben angezeigte Firmware-Version.\n\nAm Roller wurde nichts verändert, du kannst den Installer gefahrlos schließen.",
   "untestedFirmwareHeading": "Ungetestete Firmware-Version",
   "untestedFirmwareBody": "Die Installation auf Firmware-Versionen älter als 1.12.0 ist nicht getestet (deine: {version}). Der Installer sollte trotzdem funktionieren. Probleme bitte im Librescoot-Discord melden.",
   "@untestedFirmwareBody": {
@@ -593,9 +596,24 @@
   "healthVersionPlan": "Aktuell installierte Version: {current} - Zu installierende Version: {target}",
   "distroStock": "unu scooterOS",
   "distroLibrescoot": "Librescoot",
-  "@healthVersionPlan": { "placeholders": { "current": { "type": "String" }, "target": { "type": "String" } } },
+  "@healthVersionPlan": {
+    "placeholders": {
+      "current": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
   "healthAuxVoltage": "{mv} mV",
-  "@healthAuxVoltage": { "placeholders": { "mv": { "type": "int" } } },
+  "@healthAuxVoltage": {
+    "placeholders": {
+      "mv": {
+        "type": "int"
+      }
+    }
+  },
   "openSeatboxButton": "Sitzbank öffnen",
   "reconnectCbbStep": "CBB wieder anschließen",
   "reconnectCbbStepDesc": "Stecke das CBB-Kabel wieder in den Anschluss im Fußraum. Ohne CBB könnte das MDB während des Flashens herunterfahren.",
@@ -699,15 +717,33 @@
   "keycardFinishCards": "Fertig",
   "substepCheckExisting": "Vorhandene Dateien prüfen",
   "substepVerifying": "{filename} wird geprüft",
-  "@substepVerifying": { "placeholders": { "filename": { "type": "String" } } },
+  "@substepVerifying": {
+    "placeholders": {
+      "filename": {
+        "type": "String"
+      }
+    }
+  },
   "substepUploadFile": "{filename} übertragen",
-  "@substepUploadFile": { "placeholders": { "filename": { "type": "String" } } },
+  "@substepUploadFile": {
+    "placeholders": {
+      "filename": {
+        "type": "String"
+      }
+    }
+  },
   "substepUploadFlasher": "Flash-Werkzeug übertragen",
   "substepUploadFwTools": "DBC-Bootloader-Werkzeuge übertragen",
   "substepUploadScript": "Trampolin-Skript übertragen",
   "waitStepCounter": "Schritt {current} von {total}",
   "waitRemaining": "noch etwa {duration}",
-  "@waitRemaining": { "placeholders": { "duration": { "type": "String" } } },
+  "@waitRemaining": {
+    "placeholders": {
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
   "@waitStepCounter": {
     "placeholders": {
       "current": {
@@ -757,9 +793,21 @@
   "keycardReaderUnreachable": "Kartenleser nicht erreichbar",
   "keycardReaderScanning": "Karte an den Leser halten",
   "keycardCardsTaught": "{count, plural, =0{Keine Schlüsselkarte angelernt} =1{1 Schlüsselkarte angelernt} other{{count} Schlüsselkarten angelernt}}",
-  "@keycardCardsTaught": { "placeholders": { "count": { "type": "int" } } },
+  "@keycardCardsTaught": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "keycardMastersRegistered": "{count, plural, =1{1 Anlernkarte registriert} other{{count} Anlernkarten registriert}}",
-  "@keycardMastersRegistered": { "placeholders": { "count": { "type": "int" } } },
+  "@keycardMastersRegistered": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "keycardNeedOneToFinish": "Eine Karte reicht zum Abschließen.",
   "keycardPreparingReader": "Kartenleser wird vorbereitet...",
   "blePairingDeviceName": "Gerätename",
