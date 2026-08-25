@@ -1548,6 +1548,20 @@ done
   /// os-release both saying otherwise. A board that is up but slow gets a few
   /// tries before this gives up on it.
   Future<ServiceStack?> detectServiceStack({int attempts = 12}) async {
+    // os-release names the distribution outright, cannot be raced, and is
+    // already read on this path. It only settles the stock case: the bootstrap
+    // image carries the Librescoot ID too, so a librescoot ID still has to be
+    // asked whether the stack is actually there.
+    try {
+      final id = (await readOsRelease())['ID'] ?? '';
+      if (id.isNotEmpty && !id.startsWith('librescoot')) {
+        debugPrint('SSH: stack from os-release ID "$id" -> stock');
+        return ServiceStack.stock;
+      }
+    } catch (e) {
+      debugPrint('SSH: os-release unreadable, falling back to units: $e');
+    }
+
     for (var attempt = 1; attempt <= attempts; attempt++) {
       try {
         // redis-cli alone separates nothing: the bootstrap image ships valkey
@@ -1583,18 +1597,15 @@ done
   /// vehicle unit in it. Emitting `unknown` for that keeps a board that has not
   /// finished starting from being reported as a board with no stack.
   ///
-  /// Stock has used more than one naming scheme. Measured on scooterOS v1.15.0:
-  /// the units carry an `unu-` prefix, so the vehicle unit is `unu-vehicle`.
-  /// `vehicle-service` is kept because the rest of this file addresses stock
-  /// units by that form too, and a name that costs one alternation is cheaper
-  /// than a board that reports no stack because it named things differently.
+  /// The vehicle unit is `librescoot-vehicle` or `unu-vehicle`. Never
+  /// `vehicle-service`, whatever else in this file spells it that way.
   @visibleForTesting
   static const stackProbeScript =
       r'''command -v redis-cli >/dev/null 2>&1 || { echo none; exit 0; }; '''
       r'''u=$(systemctl list-unit-files 2>/dev/null); '''
       r'''[ -z "$u" ] && { echo unknown; exit 0; }; '''
       r'''echo "$u" | grep -q "^librescoot-vehicle" && { echo librescoot; exit 0; }; '''
-      r'''echo "$u" | grep -qE "^(unu-vehicle|vehicle-service)" && { echo stock; exit 0; }; '''
+      r'''echo "$u" | grep -q "^unu-vehicle" && { echo stock; exit 0; }; '''
       r'''echo none''';
 
   /// The probe answers with one word. Anything else is not an answer.

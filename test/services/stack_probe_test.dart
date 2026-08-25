@@ -126,6 +126,7 @@ void main() {
         contains('unu-vehicle'),
         reason: 'stock v1.15.0 ships unu-vehicle.service',
       );
+      expect(SshService.stackProbeScript, isNot(contains('vehicle-service')));
     });
 
     test('a healthy stock board is not a bootstrap image', () {
