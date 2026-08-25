@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:librescoot_installer/services/usb_detector.dart';
 
 /// Network interface information
 class NetworkInterface {
@@ -214,70 +215,88 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
     }
   }
 
-  Future<NetworkInterface?> _findMacOSInterface() async {
-    try {
-      // List network services
-      final result = await Process.run('networksetup', ['-listallhardwareports']);
-
-      if (result.exitCode != 0) return null;
-
-      final output = result.stdout.toString();
-      final lines = output.split('\n');
-
-      // Look for USB or RNDIS interface
-      String? currentPort;
-      String? currentDevice;
-
-      for (final line in lines) {
-        if (line.startsWith('Hardware Port:')) {
-          currentPort = line.substring('Hardware Port:'.length).trim();
-        } else if (line.startsWith('Device:')) {
-          currentDevice = line.substring('Device:'.length).trim();
-
-          // Check if this looks like the USB ethernet
-          if (currentPort != null &&
-              (currentPort.toLowerCase().contains('usb') ||
-                  currentPort.toLowerCase().contains('rndis') ||
-                  currentDevice.startsWith('en') && await _isUsbInterface(currentDevice))) {
-            return NetworkInterface(
-              name: currentDevice,
-              displayName: currentPort,
-            );
-          }
-        }
+  /// Find the MDB's interface on macOS.
+  ///
+  /// Identity decides, the same way it does on Linux. The interface has to be
+  /// the one macOS published beneath a USB device carrying our vendor and
+  /// product id. A hardware-port name containing "usb", and "an en that is up
+  /// with no IPv4 of its own", were the previous signals, and both describe a
+  /// dock's gigabit port or a Thunderbolt bridge still waiting on DHCP just as
+  /// well as they describe the MDB. Picking one of those sets it unmanaged and
+  /// gives it our static address, which drops the host off its own network and
+  /// still never reaches the scooter.
+  Future<NetworkInterface?> _findMacOSInterface({
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    // The network stack attaches a moment after enumeration here as it does on
+    // Linux, so a board that is present but has not published an interface yet
+    // is worth waiting for rather than refusing outright.
+    final deadline = DateTime.now().add(timeout);
+    while (true) {
+      final name = await findMacOSGadgetInterface();
+      if (name != null) {
+        return NetworkInterface(
+          name: name,
+          displayName: 'USB Ethernet ($name)',
+        );
       }
+      if (!DateTime.now().isBefore(deadline)) break;
+      await Future.delayed(const Duration(seconds: 1));
+    }
 
-      // Fallback: look for any new interface
-      return _findMacOSNewInterface();
+    // Say what was refused and what the old rule would have taken. On a host
+    // where this returns nothing the difference between "no board attached"
+    // and "board attached, interface not published" is the whole diagnosis,
+    // and the second line is what tells us whether dropping the heuristic
+    // changed the answer on a real Mac.
+    debugPrint('Network: no interface published under USB '
+        '${_hex(UsbDetector.targetVendorId)}:${_hex(UsbDetector.ethernetPid)}');
+    try {
+      final ifconfig = await Process.run('ifconfig', ['-a']);
+      if (ifconfig.exitCode == 0) {
+        final output = ifconfig.stdout.toString();
+        debugPrint(
+          'Network: unconfigured candidates were '
+          '${unconfiguredActiveInterfaces(output)}, the previous rule would '
+          'have taken ${newestUnconfiguredEthernet(output) ?? '(none)'}',
+        );
+      }
     } catch (_) {}
     return null;
   }
 
-  Future<bool> _isUsbInterface(String device) async {
-    try {
-      final result = await Process.run('ifconfig', [device]);
-      if (result.exitCode != 0) return false;
+  static String _hex(int id) =>
+      id.toRadixString(16).toUpperCase().padLeft(4, '0');
 
-      // Check if it's up but has no IP (likely our device)
-      final output = result.stdout.toString();
-      return output.contains('status: active') && !output.contains('inet ');
-    } catch (_) {
-      return false;
+  /// The BSD name macOS gave the interface published beneath our ethernet
+  /// gadget, or null when no such interface exists.
+  @visibleForTesting
+  Future<String?> findMacOSGadgetInterface() async {
+    try {
+      final output = await _runIoreg();
+      if (output == null) return null;
+      return UsbDetector.parseIoregEthernetInterface(output);
+    } catch (e) {
+      debugPrint('Network: ioreg lookup failed: $e');
+      return null;
     }
   }
 
-  Future<NetworkInterface?> _findMacOSNewInterface() async {
-    try {
-      final result = await Process.run('ifconfig', ['-a']);
-      if (result.exitCode != 0) return null;
-
-      final iface = newestUnconfiguredEthernet(result.stdout.toString());
-      if (iface == null) return null;
-      return NetworkInterface(
-        name: iface,
-        displayName: 'USB Ethernet ($iface)',
-      );
-    } catch (_) {}
+  /// The same invocation the USB detector uses to find the gadget's disk. The
+  /// default IOService plane is what matters: `-p IOUSB` shows the USB nubs
+  /// alone, without the driver stack that publishes the interface.
+  Future<String?> _runIoreg() async {
+    for (final command in const ['/usr/sbin/ioreg', 'ioreg']) {
+      try {
+        final result = await Process.run(
+          command,
+          const ['-r', '-c', 'IOUSBHostDevice', '-l', '-w', '0'],
+        );
+        if (result.exitCode == 0) return result.stdout.toString();
+      } catch (_) {
+        continue;
+      }
+    }
     return null;
   }
 
