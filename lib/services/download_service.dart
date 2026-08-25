@@ -66,7 +66,14 @@ class DownloadService {
   ///      (`assets/latest.json.fallback`) as a final fallback so the
   ///      installer can at least show channel choices when offline.
   Future<Map<String, dynamic>> _fetchLatest() async {
-    if (_cachedLatest != null) return _cachedLatest!;
+    // Which source answered, on every path and not only the failing ones. This
+    // runs before the first useful screen and can take a network round trip,
+    // so a launch that sits for a minute needs a log line saying whether it
+    // was memory, disk or the network, and how stale the disk copy was.
+    if (_cachedLatest != null) {
+      debugPrint('latest.json: served from memory');
+      return _cachedLatest!;
+    }
 
     final cacheDir = await getCacheDir();
     final cacheFile = File(p.join(cacheDir.path, 'latest.json'));
@@ -74,11 +81,15 @@ class DownloadService {
     // portal's login page returns HTTP 200 and used to be written here
     // verbatim, after which every retry and every later launch re-threw on the
     // same garbage with no way to clear it from inside the app.
-    final fresh = await _readCachedManifest(cacheFile, maxAge: const Duration(hours: 1));
+    const maxCacheAge = Duration(hours: 1);
+    final fresh = await _readCachedManifest(cacheFile, maxAge: maxCacheAge);
     if (fresh != null) {
+      debugPrint('latest.json: served from disk cache '
+          '(under ${maxCacheAge.inHours}h old)');
       _cachedLatest = fresh;
       return _cachedLatest!;
     }
+    debugPrint('latest.json: no cache under ${maxCacheAge.inHours}h, fetching');
 
     const delays = [Duration.zero, Duration(seconds: 2), Duration(seconds: 5)];
     for (var attempt = 0; attempt < delays.length; attempt++) {
@@ -95,6 +106,8 @@ class DownloadService {
           // it.
           final parsed = jsonDecode(response.body) as Map<String, dynamic>;
           await cacheFile.writeAsString(response.body);
+          debugPrint('latest.json: fetched from network '
+              '(attempt ${attempt + 1}/${delays.length})');
           _cachedLatest = parsed;
           return _cachedLatest!;
         }
