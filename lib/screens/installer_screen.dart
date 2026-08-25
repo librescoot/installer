@@ -8196,9 +8196,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   Widget _buildKeycardSetup(AppLocalizations l10n) {
     return PhaseLayout(
       title: _keycardStageHeading(l10n),
-      actions: _keycardStage == _KeycardStage.cards
-          ? _keycardCardsActions(l10n)
-          : const [],
+      actions: switch (_keycardStage) {
+        _KeycardStage.cards => _keycardCardsActions(l10n),
+        _KeycardStage.alreadyConfigured =>
+          _keycardAlreadyConfiguredActions(l10n),
+        _ => const [],
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -8281,38 +8284,35 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
   }
 
-  Widget _buildKeycardAlreadyConfigured(AppLocalizations l10n) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          l10n.keycardEntryAlreadyConfiguredBody(
-            _keycardMasterCount,
-            _keycardAuthorizedCount,
-          ),
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade300),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 24),
-        FilledButton.icon(
-          onPressed: () => _setPhase(_phaseAfterKeycardSetup),
-          icon: const Icon(Icons.arrow_forward),
-          label: Text(l10n.keycardEntryContinueButton),
-        ),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: _keycardStartOver,
-          icon: const Icon(Icons.refresh, size: 18),
-          label: Text(l10n.keycardStartOverButton),
-        ),
-        const SizedBox(height: 8),
-        TextButton(
+  /// Where a stage's choices live: the action bar, like every other screen.
+  /// Stacked full-width buttons down the middle of the body made this the one
+  /// screen in the flow whose controls were somewhere else.
+  List<PhaseAction> _keycardAlreadyConfiguredActions(AppLocalizations l10n) => [
+        PhaseAction(
+          label: l10n.skipKeycardSetup,
+          side: ActionSide.back,
           onPressed: _skipKeycardSetupEntirely,
-          child: Text(l10n.skipKeycardSetup),
         ),
-      ],
-    );
-  }
+        PhaseAction(
+          label: l10n.keycardStartOverButton,
+          icon: Icons.refresh,
+          onPressed: _keycardStartOver,
+        ),
+        PhaseAction(
+          label: l10n.keycardEntryContinueButton,
+          icon: Icons.arrow_forward,
+          primary: true,
+          onPressed: () => _setPhase(_phaseAfterKeycardSetup),
+        ),
+      ];
+
+  Widget _buildKeycardAlreadyConfigured(AppLocalizations l10n) => Text(
+        l10n.keycardEntryAlreadyConfiguredBody(
+          _keycardMasterCount,
+          _keycardAuthorizedCount,
+        ),
+        style: TextStyle(fontSize: 14, color: Colors.grey.shade300),
+      );
 
   Widget _buildKeycardCardsStage(AppLocalizations l10n) {
     return Column(
