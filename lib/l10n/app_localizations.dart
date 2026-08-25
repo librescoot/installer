@@ -1859,7 +1859,7 @@ abstract class AppLocalizations {
   /// No description provided for @confirmFlashTargetBody.
   ///
   /// In en, this message translates to:
-  /// **'Windows could not confirm this disk is not your system disk. Check the target before flashing.'**
+  /// **'The installer could not confirm this disk is not your system disk. Check the target before flashing.'**
   String get confirmFlashTargetBody;
 
   /// No description provided for @confirmFlashTargetDetected.
@@ -2792,6 +2792,12 @@ abstract class AppLocalizations {
   /// **'The DBC flash can take 10 to 20 minutes.'**
   String get dbcFlashDurationHeadline;
 
+  /// No description provided for @finishHandoverRestoring.
+  ///
+  /// In en, this message translates to:
+  /// **'Restoring settings and services'**
+  String get finishHandoverRestoring;
+
   /// No description provided for @finishHandoverTitle.
   ///
   /// In en, this message translates to:
@@ -3199,6 +3205,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Finish'**
   String get keycardFinishCards;
+
+  /// No description provided for @substepCheckExisting.
+  ///
+  /// In en, this message translates to:
+  /// **'Check existing files'**
+  String get substepCheckExisting;
+
+  /// No description provided for @substepVerifying.
+  ///
+  /// In en, this message translates to:
+  /// **'verifying {filename}'**
+  String substepVerifying(String filename);
+
+  /// No description provided for @substepUploadFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload {filename}'**
+  String substepUploadFile(String filename);
+
+  /// No description provided for @substepUploadFlasher.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload flasher tool'**
+  String get substepUploadFlasher;
+
+  /// No description provided for @substepUploadFwTools.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload DBC bootloader tools'**
+  String get substepUploadFwTools;
+
+  /// No description provided for @substepUploadScript.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload trampoline script'**
+  String get substepUploadScript;
 
   /// No description provided for @waitStepCounter.
   ///

@@ -1004,7 +1004,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get confirmFlashTargetBody =>
-      'Windows could not confirm this disk is not your system disk. Check the target before flashing.';
+      'The installer could not confirm this disk is not your system disk. Check the target before flashing.';
 
   @override
   String get confirmFlashTargetDetected => 'Detected Librescoot device';
@@ -1576,6 +1576,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'The DBC flash can take 10 to 20 minutes.';
 
   @override
+  String get finishHandoverRestoring => 'Restoring settings and services';
+
+  @override
   String get finishHandoverTitle => 'Waiting for the scooter to unlock';
 
   @override
@@ -1812,6 +1815,28 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get keycardFinishCards => 'Finish';
+
+  @override
+  String get substepCheckExisting => 'Check existing files';
+
+  @override
+  String substepVerifying(String filename) {
+    return 'verifying $filename';
+  }
+
+  @override
+  String substepUploadFile(String filename) {
+    return 'Upload $filename';
+  }
+
+  @override
+  String get substepUploadFlasher => 'Upload flasher tool';
+
+  @override
+  String get substepUploadFwTools => 'Upload DBC bootloader tools';
+
+  @override
+  String get substepUploadScript => 'Upload trampoline script';
 
   @override
   String waitStepCounter(int current, int total) {

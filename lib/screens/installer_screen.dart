@@ -833,6 +833,19 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
     if (mounted) setState(() => _awaitingFinishHandover = true);
 
+    // The plan goes up with the screen. Set later, the overlay spends the
+    // restore showing the previous phase's steps and its clock, which is how
+    // a fresh wait came to open at four minutes and "longer than usual".
+    _beginWait([
+      WaitStep(
+          label: handoverL10n.finishHandoverRestoring,
+          typical: const Duration(seconds: 25)),
+      WaitStep(
+          label: handoverL10n.finishHandoverTitle,
+          typical: const Duration(seconds: 20)),
+    ]);
+    _setStatus(handoverL10n.finishHandoverRestoring);
+
     // Kill the green success-blink (and the amber guard) before anything
     // else. The vehicle-service restart below tears down the transient
     // systemd-run units anyway, but if it doesn't fire (or doesn't fire
@@ -916,14 +929,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     //    returns, so the drop is all we get.
     //
     // 60s cap so a stuck handover doesn't trap the user on the wait screen.
-    // The wait is one step with a real deadline, so the overlay can say how
-    // long it has been and whether that is normal, rather than showing a bare
-    // spinner on the last screen of the install.
-    _beginWait([
-      WaitStep(
-          label: handoverL10n.finishHandoverTitle,
-          typical: const Duration(seconds: 20)),
-    ]);
+    // This is the second step of the plan set above, so the overlay can say
+    // how long the unlock has been outstanding and whether that is normal,
+    // rather than showing a bare spinner on the last screen of the install.
     _setStatus(handoverL10n.finishHandoverTitle);
     final deadline = DateTime.now().add(const Duration(seconds: 60));
     while (DateTime.now().isBefore(deadline)) {
@@ -6168,6 +6176,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         onSubsteps: (steps) {
           if (mounted) setState(() => _dbcPrepSubsteps = steps);
         },
+        labels: SubstepLabels(
+          checkExisting: l10n.substepCheckExisting,
+          uploadFlasher: l10n.substepUploadFlasher,
+          uploadFwTools: l10n.substepUploadFwTools,
+          uploadScript: l10n.substepUploadScript,
+          uploadFile: l10n.substepUploadFile,
+          verifying: l10n.substepVerifying,
+        ),
       );
 
       // Upload is done, but DON'T start the trampoline yet. The trampoline's

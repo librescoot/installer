@@ -82,6 +82,32 @@ String serializeInstallRunState({
   ].join('\n');
 }
 
+/// What the upload stage calls its steps.
+///
+/// The service has no localizations, and the screen that shows these does, so
+/// the words come in from there. The defaults are the English ones, which is
+/// what a caller with nothing to say should get.
+class SubstepLabels {
+  const SubstepLabels({
+    this.checkExisting = 'Check existing files',
+    this.uploadFlasher = 'Upload flasher tool',
+    this.uploadFwTools = 'Upload DBC bootloader tools',
+    this.uploadScript = 'Upload trampoline script',
+    this.uploadFile = _defaultUploadFile,
+    this.verifying = _defaultVerifying,
+  });
+
+  final String checkExisting;
+  final String uploadFlasher;
+  final String uploadFwTools;
+  final String uploadScript;
+  final String Function(String filename) uploadFile;
+  final String Function(String filename) verifying;
+
+  static String _defaultUploadFile(String filename) => 'Upload $filename';
+  static String _defaultVerifying(String filename) => 'verifying $filename';
+}
+
 class TrampolineService {
   final SshService _ssh;
   bool _pythonServerStarted = false;
@@ -446,6 +472,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     Region? region,
     void Function(String status, double progress)? onProgress,
     void Function(List<Substep> steps)? onSubsteps,
+    SubstepLabels? labels,
   }) async {
     // ums-service is enabled with Restart=always and takes the OTG UDC away
     // from g_ether whenever it switches to mass-storage mode. That tears down
@@ -501,15 +528,18 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
           MapEntry(valhallaTilesLocalPath, '/data/installer/$valhallaFilename'));
     }
 
+    final l = labels ?? const SubstepLabels();
     final substeps = <Substep>[
-      Substep(id: 'check', label: 'Check existing files'),
+      Substep(id: 'check', label: l.checkExisting),
       for (final e in filesToUpload)
-        Substep(id: 'up:${e.value}', label: 'Upload ${File(e.key).uri.pathSegments.last}'),
+        Substep(
+            id: 'up:${e.value}',
+            label: l.uploadFile(File(e.key).uri.pathSegments.last)),
       if (dbcImageLocalPath != null)
-        Substep(id: 'flasher', label: 'Upload flasher tool'),
+        Substep(id: 'flasher', label: l.uploadFlasher),
       if (dbcImageLocalPath != null)
-        Substep(id: 'fwtools', label: 'Upload DBC bootloader tools'),
-      Substep(id: 'script', label: 'Upload trampoline script'),
+        Substep(id: 'fwtools', label: l.uploadFwTools),
+      Substep(id: 'script', label: l.uploadScript),
     ];
     void setStep(String id, SubstepState state, {String? detail}) {
       final idx = substeps.indexWhere((s) => s.id == id);
@@ -534,7 +564,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       final size = await File(entry.key).length();
       fileSizes.add(size);
       final filename = File(entry.key).uri.pathSegments.last;
-      setStep('check', SubstepState.active, detail: 'verifying $filename');
+      setStep('check', SubstepState.active, detail: l.verifying(filename));
       onProgress?.call('Checking $filename...', 0.0);
       final matches = await _remoteFileMatches(entry.key, entry.value);
       needsUpload.add(!matches);

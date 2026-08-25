@@ -1010,7 +1010,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get confirmFlashTargetBody =>
-      'Windows konnte nicht bestätigen, dass dieses Laufwerk nicht dein Systemlaufwerk ist. Prüfe das Ziel vor dem Flashen.';
+      'Der Installer konnte nicht bestätigen, dass dieses Laufwerk nicht deine Systemplatte ist. Prüfe das Ziel vor dem Flashen.';
 
   @override
   String get confirmFlashTargetDetected => 'Erkanntes Librescoot-Gerät';
@@ -1593,6 +1593,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Das DBC-Flashen kann 10 bis 20 Minuten dauern.';
 
   @override
+  String get finishHandoverRestoring =>
+      'Einstellungen und Dienste werden zurückgesetzt';
+
+  @override
   String get finishHandoverTitle =>
       'Warte darauf, dass der Roller sich entsperrt';
 
@@ -1834,6 +1838,28 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get keycardFinishCards => 'Fertig';
+
+  @override
+  String get substepCheckExisting => 'Vorhandene Dateien prüfen';
+
+  @override
+  String substepVerifying(String filename) {
+    return '$filename wird geprüft';
+  }
+
+  @override
+  String substepUploadFile(String filename) {
+    return '$filename übertragen';
+  }
+
+  @override
+  String get substepUploadFlasher => 'Flash-Werkzeug übertragen';
+
+  @override
+  String get substepUploadFwTools => 'DBC-Bootloader-Werkzeuge übertragen';
+
+  @override
+  String get substepUploadScript => 'Trampolin-Skript übertragen';
 
   @override
   String waitStepCounter(int current, int total) {
