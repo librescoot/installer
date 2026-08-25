@@ -60,9 +60,6 @@ lib/                              # Flutter/Dart GUI
     usb_detector.dart             #   USB device detection
     network_service.dart          #   RNDIS interface config
 
-cli/                              # Go CLI installer (feat/cli-installer)
-  main.go                         #   Headless, for scripted/remote use
-
 assets/
   tools/                          # Platform binaries (flasher, fw_setenv)
     FLASHER_VERSION               #   Pinned librescoot-flasher tag
