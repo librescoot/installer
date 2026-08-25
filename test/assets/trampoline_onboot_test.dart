@@ -150,6 +150,29 @@ void main() {
       if (m != null) defLine.putIfAbsent(m.group(1)!, () => i);
     }
 
+    // Lines inside a function body are deferred: shell resolves a call when
+    // the function runs, not where it is written. install_tiles is defined
+    // near the top so the artifact section can start it as a job, and its
+    // body calls helpers defined much further down, which is legal and works.
+    // Only top-level calls have to follow their definition.
+    final inFunction = List<bool>.filled(lines.length, false);
+    for (var i = 0; i < lines.length; i++) {
+      if (!RegExp(r'^[a-z_][a-z0-9_]*\(\)[ \t]*\{').hasMatch(lines[i])) {
+        continue;
+      }
+      // A one-line definition such as `install_tiles() { :; }` closes on its
+      // own line. Scanning for a bare `}` after it would run to the next
+      // unrelated function's brace and mark everything in between as deferred,
+      // which silently turns the rest of this check off.
+      final opens = '{'.allMatches(lines[i]).length;
+      final closes = '}'.allMatches(lines[i]).length;
+      if (opens <= closes) continue;
+      for (var j = i + 1; j < lines.length; j++) {
+        inFunction[j] = true;
+        if (lines[j] == '}') break;
+      }
+    }
+
     final late = <String>[];
     for (final entry in defLine.entries) {
       final callRe = RegExp(
@@ -157,7 +180,7 @@ void main() {
               RegExp.escape(entry.key) +
               r'(?=[ \t;&|)\n]|$)');
       for (var i = 0; i < lines.length; i++) {
-        if (i == entry.value) continue;
+        if (i == entry.value || inFunction[i]) continue;
         final code = lines[i].split('#').first;
         if (code.trimLeft().startsWith(entry.key) &&
             code.contains('${entry.key}()')) {
@@ -175,6 +198,30 @@ void main() {
 
     expect(late, isEmpty,
         reason: 'called before they are defined: ${late.join(", ")}');
+  });
+
+  test('the tile upload is joined before the dashboard reboots', () {
+    // The upload runs alongside the artifact install to overlap the two, but
+    // a dashboard that restarts mid-upload takes a truncated tile set with it,
+    // so the reboot has to wait for the job.
+    final job = onboot.indexOf(r'TILES_JOB=$!');
+    final join = onboot.indexOf(r'wait "$TILES_JOB"');
+    final reboot = onboot.indexOf('rebooting DBC into the new rootfs');
+    expect(job, isNot(-1), reason: 'the upload should start as a job');
+    expect(join, isNot(-1), reason: 'the job should be waited on');
+    expect(join, lessThan(reboot),
+        reason: 'the wait must come before the reboot, not after');
+    expect(job, lessThan(join));
+  });
+
+  test('the tile error count survives the background job', () {
+    // TILE_ERRORS is set inside a subshell, so the parent cannot read it back
+    // as a variable. Losing it reports a failed tile install as a success.
+    // Escaped, because it is written through an unquoted heredoc: the raw
+    // template carries the backslashes and only the generated script does not.
+    expect(onboot,
+        contains(r'echo "\$TILE_ERRORS" > "\$INSTALLER_DIR/tile-errors"'));
+    expect(onboot, contains(r'TILE_ERRORS=$(cat "$INSTALLER_DIR/tile-errors"'));
   });
 
   test('every substituted value onboot.sh reads is baked into it', () {
@@ -247,6 +294,31 @@ void main() {
     }
   });
 
+  test('run progress survives staging cleanup in per-run state files', () {
+    expect(onboot, contains(r'RUN_HISTORY_DIR="/data/installer-runs"'));
+    expect(onboot, contains(r'RUN_STATE_FILE="/data/installer-run-state"'));
+    expect(onboot, contains('write_run_state()'));
+    expect(onboot, contains(r'echo "run-id: $RUN_ID"'));
+    expect(onboot, contains(r'mv -f "$history_tmp" "$RUN_HISTORY_DIR/$RUN_ID"'));
+  });
+
+  test('completion is atomic and written after the handover actions', () {
+    final finishStart = onboot.indexOf('device_finish()');
+    final finishEnd =
+        onboot.indexOf('\n}\n\nif [ "\$ONBOOT_TRIES"', finishStart);
+    expect(finishStart, greaterThanOrEqualTo(0));
+    expect(finishEnd, greaterThan(finishStart));
+    final finish = onboot.substring(finishStart, finishEnd);
+    final completionCall = finish.indexOf('write_completion_record; then');
+    expect(completionCall, greaterThan(finish.indexOf('systemctl start librescoot-ums')));
+    expect(completionCall, greaterThan(finish.indexOf('lsc set scooter.usb0-policy auto')));
+    expect(completionCall, greaterThan(finish.indexOf('systemctl start librescoot-pm')));
+    expect(completionCall, greaterThan(finish.indexOf('systemctl restart librescoot-vehicle')));
+    expect(completionCall, greaterThan(finish.indexOf('lpush scooter:state unlock')));
+    expect(onboot, contains(r'mv -f "$last_tmp" /data/last-install'));
+    expect(onboot, isNot(contains('} > /data/last-install')));
+  });
+
   test('a board left alone gets its parked settings back', () {
     // The installer parks auto-standby and the alarm at connect time, before
     // any plan exists, so a leave plan has modified settings and a backup to
@@ -297,6 +369,41 @@ void main() {
         reason: 'the mender install needs a ceiling, applied on the MDB');
   });
 
+  test('what was installed is recorded before the upload server goes away', () {
+    // record_tiles reads the artifacts back over the same PUT server the
+    // uploads used. Tearing that down first would leave it with only ssh, and
+    // the metadata upload would fail on every run.
+    final src = File('assets/trampoline.sh.template').readAsStringSync();
+    final record = src.indexOf(RegExp(r'^record_tiles$', multiLine: true));
+    final teardown = src.indexOf('Stop DBC Python upload server');
+    expect(record, greaterThan(-1), reason: 'record_tiles is never called');
+    expect(record, lessThan(teardown),
+        reason: 'record_tiles runs after the upload server is stopped');
+  });
+
+  test('tile metadata is uploaded, not echoed through a remote shell', () {
+    // The dashboard runs the bootstrap image during the tile phase and its
+    // busybox has no base64 applet, so the record has to go over the PUT
+    // server like every other file.
+    final src = File('assets/trampoline.sh.template').readAsStringSync();
+    expect(src, contains('"/maps/metadata.json"'),
+        reason: 'metadata.json is not uploaded to the dashboard');
+    // The word appears in the comment explaining why; what must not appear is
+    // an actual invocation.
+    expect(src, isNot(contains(RegExp(r'base64\s+-d'))),
+        reason: 'base64 is not available on the bootstrap image');
+  });
+
+  test('the region reaches the recorded metadata', () {
+    // Baked in from the region the user picked. Parsing it back out of the
+    // staged filenames on the device would be a second source of truth.
+    final src = File('assets/trampoline.sh.template').readAsStringSync();
+    expect(src, contains('TILES_REGION="{{TILES_REGION}}"'));
+    expect(src, contains('TILES_REGION_NAME="{{TILES_REGION_NAME}}"'));
+    expect(src, contains(r'\\"region\\":\\"$TILES_REGION\\"'),
+        reason: 'the region is not written into metadata.json');
+  });
+
   test('commands sent to the dashboard use binaries it actually has', () {
     // The dashboard spends most of the install running a bootstrap image: a
     // core-image with dropbear, data-server, the mender client and busybox,
@@ -312,21 +419,33 @@ void main() {
       'rm', 'sync', 'test', 'reboot', 'sh', 'true',
       // systemd, in the image
       'systemctl',
+      // busybox applets used to read back what was installed
+      'sha256sum', 'stat', 'cut',
       // shipped explicitly by the bootstrap recipe
       'mender-update',
-      // only ever run after the dashboard reboots onto the full image
+      // also shipped by the bootstrap recipe, for unpacking .tar.zst routing
+      // tiles while the dashboard still runs it
       'zstd',
     };
 
     final source = File('assets/trampoline.sh.template').readAsStringSync();
+    // The command argument may itself contain quotes, escaped or nested, so
+    // the capture cannot stop at the first one. An earlier version did, and
+    // silently checked only the leading word of any command that quoted an
+    // argument, which let three unverified binaries through.
     final re = RegExp(
-        r"""dbc_ssh(?:_bounded)?\s+(?:\d+\s+)?["']([^"']+)["']""");
-    final calls = re.allMatches(source).map((m) => m.group(1)!).toList();
+        r"""dbc_ssh(?:_bounded)?\s+(?:\d+\s+)?(["'])((?:\\.|(?!\1)[\s\S])*)\1""");
+    final calls = re.allMatches(source).map((m) => m.group(2)!).toList();
     expect(calls, isNotEmpty, reason: 'no dashboard commands found to check');
 
     final unknown = <String>{};
     for (final c in calls) {
-      for (final part in c.split(RegExp(r'[;&|]'))) {
+      // A nested single-quoted segment is an argument, not a command list:
+      // fw_setenv stores a whole U-Boot script that way, and its `fuse` and
+      // `ums` are U-Boot builtins that never run as binaries here. Drop those
+      // segments before splitting, or the check reports words it invented.
+      final flat = c.replaceAll(RegExp(r"'[^']*'"), ' ');
+      for (final part in flat.split(RegExp(r'[;&|]'))) {
         final t = part.trim();
         if (t.isEmpty) continue;
         final word = t.split(RegExp(r'\s+')).first;

@@ -34,12 +34,16 @@ void main() {
           isFalse);
     });
 
-    test('the retry ladder outlasts a reboot', () {
-      // Doubling from one second over the full count.
-      final total = List.generate(
-              SshService.maxPreAuthRetries, (i) => 1 << i)
-          .reduce((a, b) => a + b);
-      expect(total, greaterThanOrEqualTo(60));
+    test('the retries outlast a reboot', () {
+      final total = SshService.preAuthRetryDelay * SshService.maxPreAuthRetries;
+      expect(total.inSeconds, greaterThanOrEqualTo(25));
+    });
+
+    test('a board that is ready is not left waiting', () {
+      // The whole point of the constant interval: a pre-auth drop is a booting
+      // board, so the gap between attempts is how long it can sit ready before
+      // anyone asks. The old ladder ended on a 32-second step.
+      expect(SshService.preAuthRetryDelay.inSeconds, lessThanOrEqualTo(5));
     });
   });
 }
