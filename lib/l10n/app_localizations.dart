@@ -1466,6 +1466,18 @@ abstract class AppLocalizations {
   /// **'Preparing DBC Flash'**
   String get preparingDbcFlash;
 
+  /// No description provided for @preparingDbcFlashSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Everything the dashboard needs goes onto the MDB first.'**
+  String get preparingDbcFlashSubtitle;
+
+  /// No description provided for @preparingDbcFlashExplainer.
+  ///
+  /// In en, this message translates to:
+  /// **'The DBC hangs off the MDB, not off your laptop. So the installer copies the image, the firmware and the offline maps onto the MDB, together with a script that takes over from there. The cable swap comes after that: laptop off, DBC cable back onto the MDB. From then on the MDB flashes the dashboard on its own.'**
+  String get preparingDbcFlashExplainer;
+
   /// No description provided for @waitingForDownloads.
   ///
   /// In en, this message translates to:

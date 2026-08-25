@@ -789,6 +789,14 @@ class AppLocalizationsDe extends AppLocalizations {
   String get preparingDbcFlash => 'DBC-Flash wird vorbereitet';
 
   @override
+  String get preparingDbcFlashSubtitle =>
+      'Alles, was das Display braucht, wandert zuerst auf das MDB.';
+
+  @override
+  String get preparingDbcFlashExplainer =>
+      'Das DBC hängt am MDB, nicht am Laptop. Der Installer kopiert deshalb Image, Firmware und Offline-Karten auf das MDB und legt dort ein Skript ab, das den Rest übernimmt. Erst danach kommt der Kabeltausch: Laptop ab, DBC-Kabel wieder ans MDB. Von da an flasht das MDB das Display allein weiter.';
+
+  @override
   String get waitingForDownloads => 'Warte auf Abschluss der Downloads...';
 
   @override

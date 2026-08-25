@@ -782,6 +782,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get preparingDbcFlash => 'Preparing DBC Flash';
 
   @override
+  String get preparingDbcFlashSubtitle =>
+      'Everything the dashboard needs goes onto the MDB first.';
+
+  @override
+  String get preparingDbcFlashExplainer =>
+      'The DBC hangs off the MDB, not off your laptop. So the installer copies the image, the firmware and the offline maps onto the MDB, together with a script that takes over from there. The cable swap comes after that: laptop off, DBC cable back onto the MDB. From then on the MDB flashes the dashboard on its own.';
+
+  @override
   String get waitingForDownloads => 'Waiting for downloads to complete...';
 
   @override

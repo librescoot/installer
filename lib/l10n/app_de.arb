@@ -256,6 +256,8 @@
   "cbbNotDetected": "CBB nicht erkannt. Bitte Verbindung prüfen.",
   "cbbDetectionMayTakeMinutes": "Das kann mehrere Minuten dauern, bitte etwas Geduld.",
   "preparingDbcFlash": "DBC-Flash wird vorbereitet",
+  "preparingDbcFlashSubtitle": "Alles, was das Display braucht, wandert zuerst auf das MDB.",
+  "preparingDbcFlashExplainer": "Das DBC hängt am MDB, nicht am Laptop. Der Installer kopiert deshalb Image, Firmware und Offline-Karten auf das MDB und legt dort ein Skript ab, das den Rest übernimmt. Erst danach kommt der Kabeltausch: Laptop ab, DBC-Kabel wieder ans MDB. Von da an flasht das MDB das Display allein weiter.",
   "waitingForDownloads": "Warte auf Abschluss der Downloads...",
   "startingTrampoline": "Trampoline-Skript wird gestartet...",
   "uploadError": "Upload-Fehler: {error}",
