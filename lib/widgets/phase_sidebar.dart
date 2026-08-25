@@ -198,6 +198,7 @@ class _SidebarFooter extends StatelessWidget {
         // was cutting one of these two labels short.
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          const LanguageSwitcher(),
           TextButton.icon(
             onPressed: onShowLog,
             icon: const Icon(Icons.article_outlined, size: 16),
@@ -209,7 +210,6 @@ class _SidebarFooter extends StatelessWidget {
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ),
-          const LanguageSwitcher(),
         ],
       )
     );
