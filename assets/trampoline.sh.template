@@ -6,6 +6,9 @@ INSTALLER_DIR="/data/installer"
 STATUS_FILE="$INSTALLER_DIR/trampoline-status"
 LOG_FILE="$INSTALLER_DIR/trampoline.log"
 PHASE_FILE="$INSTALLER_DIR/trampoline-phase"
+RUN_ID="$(cat "$INSTALLER_DIR/run-id" 2>/dev/null)"
+RUN_HISTORY_DIR="/data/installer-runs"
+RUN_STATE_FILE="/data/installer-run-state"
 MODE="{{MODE}}"                        # flash = write the stage-0 image first, upgrade = artifact only
 DBC_IMAGE="{{DBC_IMAGE_PATH}}"
 DBC_MENDER="{{DBC_MENDER_PATH}}"       # .mender staged on the MDB, empty when the DBC gets no artifact
@@ -25,6 +28,8 @@ BOOT_AREA_BLOCKS=6
 INSTALL_TILES="{{INSTALL_TILES}}"
 OSM_TILES_FILE="{{OSM_TILES_FILE}}"
 VALHALLA_TILES_FILE="{{VALHALLA_TILES_FILE}}"
+TILES_REGION="{{TILES_REGION}}"
+TILES_REGION_NAME="{{TILES_REGION_NAME}}"
 
 mkdir -p "$INSTALLER_DIR"
 # A previous run's DBC version must not survive into this one's status file:
@@ -33,6 +38,47 @@ mkdir -p "$INSTALLER_DIR"
 rm -f "$INSTALLER_DIR/dbc-version"
 
 log() { echo "$(date '+%H:%M:%S') $1" >> "$LOG_FILE"; }
+
+write_run_state() {
+  local stage="$1"
+  local result="${2:-running}"
+  local finish="${3:-pending}"
+  local history_tmp="$RUN_HISTORY_DIR/.$RUN_ID.tmp"
+  local current_tmp="/data/.installer-run-state.$RUN_ID.tmp"
+  mkdir -p "$RUN_HISTORY_DIR"
+  {
+    echo "run-id: $RUN_ID"
+    echo "actor: trampoline"
+    echo "stage: $stage"
+    echo "result: $result"
+    echo "finish: $finish"
+    echo "updated: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  } > "$history_tmp" &&
+    mv -f "$history_tmp" "$RUN_HISTORY_DIR/$RUN_ID" &&
+    cp "$RUN_HISTORY_DIR/$RUN_ID" "$current_tmp" &&
+    mv -f "$current_tmp" "$RUN_STATE_FILE"
+}
+
+write_status() {
+  local verdict="$1"
+  shift
+  local status_tmp="$STATUS_FILE.$RUN_ID.tmp"
+  local result="running"
+  mkdir -p "$INSTALLER_DIR"
+  case "$verdict" in
+    success*) result="success" ;;
+    error*) result="error" ;;
+  esac
+  {
+    echo "$verdict"
+    echo "run-id: $RUN_ID"
+    echo "finish: pending"
+    [ -n "$STEP_LABEL" ] && echo "stage: $STEP_LABEL"
+    for field in "$@"; do echo "$field"; done
+    cat "$LOG_FILE" 2>/dev/null
+  } > "$status_tmp" && mv -f "$status_tmp" "$STATUS_FILE"
+  write_run_state "${STEP_LABEL:-trampoline}" "$result" pending
+}
 
 # Per-step elapsed-time bookkeeping. SCRIPT_T0 is the wall-clock start;
 # step_begin/step_end log "<label> took Ns" so post-mortem time accounting
@@ -44,6 +90,7 @@ step_begin() {
   STEP_LABEL="$1"
   STEP_T0=$(date +%s)
   log ">>> $STEP_LABEL (T+$((STEP_T0 - SCRIPT_T0))s)"
+  write_run_state "$STEP_LABEL"
 }
 step_end() {
   local now=$(date +%s)
@@ -519,8 +566,7 @@ fail() {
   # session scope, not a service cgroup, so an abandoned failure keeps
   # appending to the journal file until the disk notices.
   [ -n "$JOURNAL_PID" ] && kill $JOURNAL_PID 2>/dev/null
-  echo "error: $1" > "$STATUS_FILE"
-  cat "$LOG_FILE" >> "$STATUS_FILE"
+  write_status "error: $1"
   # Status must survive a rescue reboot, so flush it early. Backgrounded:
   # a wedged USB device can hang a full sync, and the LED signals and
   # gadget restore below must still run regardless.
@@ -559,12 +605,22 @@ dbc_ssh() {
   done
   return 1
 }
-dbc_scp() {
-  local tries=0
+# Copying to the DBC goes through the same ssh for the same reason. Dropbear's
+# scp frontend has no equivalent of -y -y (it rejects -y outright), so scp is
+# the one transport here that would still abort on the changed key. `cat` on the
+# far side exits 0 even when the stream was cut short, so the byte count is
+# compared there before the file is moved into place.
+dbc_put() {
+  local src="$1" dst="$2" tries=0 size
+  size=$(wc -c < "$src") || return 1
   while [ $tries -lt 3 ]; do
-    scp "$@" && return 0
+    if ssh -y -y root@$DBC_IP "cat > '$dst.part'" < "$src" &&
+       ssh -y -y root@$DBC_IP "[ \"\$(wc -c < '$dst.part')\" -eq $size ] && mv '$dst.part' '$dst'"; then
+      return 0
+    fi
+    ssh -y -y root@$DBC_IP "rm -f '$dst.part'" >/dev/null 2>&1 || true
     tries=$((tries + 1))
-    log "  scp retry $tries/3..."
+    log "  copy retry $tries/3..."
     sleep 3
   done
   return 1
@@ -862,6 +918,7 @@ cat > "$INSTALLER_DIR/watchdog-recover.sh" << 'WATCHDOG_RECOVER'
 INSTALLER_DIR="/data/installer"
 LOG="$INSTALLER_DIR/trampoline.log"
 STATUS="$INSTALLER_DIR/trampoline-status"
+RUN_ID="$(cat "$INSTALLER_DIR/run-id" 2>/dev/null)"
 log() { echo "$(date '+%H:%M:%S') watchdog: $1" >> "$LOG"; }
 
 for ROLE_PATH in /sys/kernel/debug/ci_hdrc.0/role \
@@ -871,8 +928,26 @@ for ROLE_PATH in /sys/kernel/debug/ci_hdrc.0/role \
 done
 
 log "trampoline stalled in host mode, attempting recovery"
-echo "error: installation stalled in USB host mode and was recovered by the watchdog. Please retry the install." > "$STATUS"
-cat "$LOG" >> "$STATUS"
+STATUS_TMP="$STATUS.$RUN_ID.tmp"
+{
+  echo "error: installation stalled in USB host mode and was recovered by the watchdog. Please retry the install."
+  echo "run-id: $RUN_ID"
+  echo "finish: pending"
+  echo "stage: host-mode-watchdog"
+  cat "$LOG"
+} > "$STATUS_TMP" && mv -f "$STATUS_TMP" "$STATUS"
+mkdir -p /data/installer-runs
+RUN_TMP="/data/installer-runs/.$RUN_ID.tmp"
+{
+  echo "run-id: $RUN_ID"
+  echo "actor: trampoline"
+  echo "stage: host-mode-watchdog"
+  echo "result: error"
+  echo "finish: pending"
+  echo "updated: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+} > "$RUN_TMP" && mv -f "$RUN_TMP" "/data/installer-runs/$RUN_ID"
+cp "/data/installer-runs/$RUN_ID" "/data/.installer-run-state.$RUN_ID.tmp" &&
+  mv -f "/data/.installer-run-state.$RUN_ID.tmp" /data/installer-run-state
 sync &
 sleep 5
 
@@ -935,13 +1010,7 @@ echo "" > "$LOG_FILE"
 # cut, a watchdog that missed it) leaves the previous run's verdict on disk and
 # the installer reads that as this run's outcome. Writing "running" here means
 # an unfinished run reads as unfinished, which is what it is.
-{
-  echo "running"
-  # The parser takes the verdict off line 1 and reads key: value after it, so
-  # this rides along for free and gives a returning installer something to
-  # compare against when it wants to know whether a verdict is this run's.
-  echo "started: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-} > "$STATUS_FILE"
+write_status "running" "started: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
 log "=========================================="
 log "Trampoline started"
@@ -951,6 +1020,7 @@ log "  DBC_MENDER=$DBC_MENDER"
 log "  INSTALL_TILES=$INSTALL_TILES"
 log "  OSM=$OSM_TILES_FILE"
 log "  VALHALLA=$VALHALLA_TILES_FILE"
+log "  TILES_REGION=$TILES_REGION"
 # The finish config decides whether the device closes the install out itself
 # or hands back to the laptop, and it is invisible in the log otherwise: a
 # run that quietly handed back looks exactly like one that finished.
@@ -1037,6 +1107,10 @@ fi
 # nothing; catching it in onboot.sh costs them an MDB reboot and a cable swap
 # first. onboot.sh checks again because the reboot sits between the two.
 if [ -n "$DBC_MENDER" ]; then
+  CURRENT_STAGE="installing-dbc-artifact"
+  [ "$INSTALL_TILES" = "true" ] &&
+    CURRENT_STAGE="installing-dbc-artifact-and-tiles"
+  write_run_state "$CURRENT_STAGE"
   [ -f "$DBC_MENDER" ] || fail "DBC artifact not found: $DBC_MENDER"
   log "Artifact: $(ls -lh "$DBC_MENDER" | awk '{print $5}')"
 fi
@@ -1151,8 +1225,8 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
       FWCFG=""
     else
       log "  copying stock DBC fw tools..."
-      dbc_scp "$INSTALLER_DIR/fwtools/stock-dbc/fw_setenv" root@$DBC_IP:/tmp/ || { log "  scp failed"; continue; }
-      dbc_scp "$INSTALLER_DIR/fwtools/stock-dbc/fw_env.config" root@$DBC_IP:/tmp/fw_env.config || { log "  scp failed"; continue; }
+      dbc_put "$INSTALLER_DIR/fwtools/stock-dbc/fw_setenv" /tmp/fw_setenv || { log "  fw_setenv copy failed"; continue; }
+      dbc_put "$INSTALLER_DIR/fwtools/stock-dbc/fw_env.config" /tmp/fw_env.config || { log "  fw_env.config copy failed"; continue; }
       dbc_ssh 'chmod +x /tmp/fw_setenv' || true
       FWCMD="/tmp/fw_setenv"
       FWCFG="-c /tmp/fw_env.config"
@@ -1429,7 +1503,71 @@ LOG="$INSTALLER_DIR/trampoline.log"
 DBC_IP="192.168.7.2"
 STATUS_FILE="$INSTALLER_DIR/trampoline-status"
 PHASE_FILE="$INSTALLER_DIR/trampoline-phase"
+RUN_ID="$(cat "$INSTALLER_DIR/run-id" 2>/dev/null)"
+RUN_HISTORY_DIR="/data/installer-runs"
+RUN_STATE_FILE="/data/installer-run-state"
 mkdir -p "$INSTALLER_DIR"
+
+write_run_state() {
+  local stage="$1"
+  local result="${2:-running}"
+  local finish="${3:-pending}"
+  local history_tmp="$RUN_HISTORY_DIR/.$RUN_ID.tmp"
+  local current_tmp="/data/.installer-run-state.$RUN_ID.tmp"
+  mkdir -p "$RUN_HISTORY_DIR"
+  {
+    echo "run-id: $RUN_ID"
+    echo "actor: trampoline"
+    echo "stage: $stage"
+    echo "result: $result"
+    echo "finish: $finish"
+    echo "updated: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  } > "$history_tmp" &&
+    mv -f "$history_tmp" "$RUN_HISTORY_DIR/$RUN_ID" &&
+    cp "$RUN_HISTORY_DIR/$RUN_ID" "$current_tmp" &&
+    mv -f "$current_tmp" "$RUN_STATE_FILE"
+}
+
+write_status() {
+  local verdict="$1"
+  shift
+  local status_tmp="$STATUS_FILE.$RUN_ID.tmp"
+  local result="running"
+  case "$verdict" in
+    success*) result="success" ;;
+    error*) result="error" ;;
+  esac
+  {
+    echo "$verdict"
+    echo "run-id: $RUN_ID"
+    echo "finish: pending"
+    for field in "$@"; do echo "$field"; done
+    cat "$LOG" 2>/dev/null
+  } > "$status_tmp" && mv -f "$status_tmp" "$STATUS_FILE"
+  write_run_state "${CURRENT_STAGE:-post-reboot}" "$result" pending
+}
+
+write_completion_record() {
+  local history_tmp="$RUN_HISTORY_DIR/.$RUN_ID.complete"
+  local last_tmp="/data/.last-install.$RUN_ID.tmp"
+  local current_tmp="/data/.installer-run-state.$RUN_ID.complete"
+  mkdir -p "$RUN_HISTORY_DIR"
+  {
+    echo "result: success"
+    echo "run-id: $RUN_ID"
+    echo "finish: complete"
+    echo "stage: complete"
+    echo "mode: $MODE"
+    echo "finished: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    echo "mdb: $MDB_TARGET"
+    echo "dbc: ${DBC_COMPLETED_VERSION:-}"
+  } > "$history_tmp" || return 1
+  mv -f "$history_tmp" "$RUN_HISTORY_DIR/$RUN_ID" || return 1
+  cp "$RUN_HISTORY_DIR/$RUN_ID" "$last_tmp" &&
+    mv -f "$last_tmp" /data/last-install || return 1
+  cp "$RUN_HISTORY_DIR/$RUN_ID" "$current_tmp" &&
+    mv -f "$current_tmp" "$RUN_STATE_FILE" || return 1
+}
 ONBOOT
 # The heredoc above is quoted, so onboot.sh inherits nothing from us. Close the
 # quoting for these lines to bake the values in, then reopen it so the rest of
@@ -1451,13 +1589,177 @@ START_KEYCARD="$START_KEYCARD"
 MDB_ACTION="$MDB_ACTION"
 MDB_TARGET="$MDB_TARGET"
 ONBOOT_VARS
+# Tiles are installed while the dashboard still runs the stage-0 image, so
+# this is only the definition; the call sits in the artifact section below.
+# Emitted before the main chunk so the function exists by the time that runs.
+if [ "$INSTALL_TILES" = "true" ]; then
+  cat >> /data/onboot.sh << TILES
+# Reads back one installed artifact and echoes "<sha256> <size> <mtime-epoch>",
+# or nothing when the file is not there. The hash is computed on the dashboard
+# rather than over the staged file because for a .tar.zst the installed
+# artifact is the decompressed tar, whose digest this side never sees.
+tile_facts() {
+  dbc_ssh "test -f \$1 && echo \"\\\$(sha256sum \$1 | cut -d' ' -f1) \\\$(stat -c '%s %Y' \$1)\"" 2>/dev/null
+}
+
+# Writes /data/maps/metadata.json on the dashboard and mirrors it into the
+# `maps` hash in Redis. Composes the record fresh rather than merging: this runs
+# during provisioning, and any previous update-check result described tiles that
+# are no longer installed.
+record_tiles() {
+  local d_sha="" d_size="" d_mtime="" r_sha="" r_size="" r_mtime="" facts
+
+  facts=\$(tile_facts /data/maps/map.mbtiles)
+  if [ -n "\$facts" ]; then
+    d_sha=\$(echo "\$facts" | cut -d' ' -f1)
+    d_size=\$(echo "\$facts" | cut -d' ' -f2)
+    d_mtime=\$(echo "\$facts" | cut -d' ' -f3)
+  fi
+  facts=\$(tile_facts /data/valhalla/tiles.tar)
+  if [ -n "\$facts" ]; then
+    r_sha=\$(echo "\$facts" | cut -d' ' -f1)
+    r_size=\$(echo "\$facts" | cut -d' ' -f2)
+    r_mtime=\$(echo "\$facts" | cut -d' ' -f3)
+  fi
+
+  if [ -z "\$d_sha" ] && [ -z "\$r_sha" ]; then
+    log "No installed tiles to record"
+    return 0
+  fi
+
+  # Shape matches scootui-qt's MapMetadata::toJson, keys it omits included, so
+  # the dashboard reads back a record it would have written itself.
+  local json="{\\"region\\":\\"$TILES_REGION\\""
+  [ -n "\$d_sha" ] && json="\$json,\\"displayTiles\\":{\\"digest\\":\\"\$d_sha\\",\\"size\\":\$d_size}"
+  [ -n "\$r_sha" ] && json="\$json,\\"valhallaTiles\\":{\\"digest\\":\\"\$r_sha\\",\\"size\\":\$r_size}"
+  json="\$json}"
+
+  # Written here and uploaded over the PUT server rather than echoed into a
+  # remote shell. The dashboard runs the bootstrap image during this phase and
+  # its busybox has no base64 applet, which is the same trap the missing
+  # timeout applet already sprang once.
+  printf '%s' "\$json" > "\$INSTALLER_DIR/tile-metadata.json"
+  if upload_to_dbc "\$INSTALLER_DIR/tile-metadata.json" "/maps/metadata.json" "tile metadata"; then
+    log "Recorded installed tile metadata (region '$TILES_REGION')"
+  else
+    log "WARNING: could not write tile metadata to the dashboard"
+  fi
+
+  # The MDB's Redis is volatile, so this is not the lasting record; the
+  # dashboard republishes on every boot. It is what lets anything read the
+  # installed region before the dashboard has ever run on this vehicle.
+  [ -n "$TILES_REGION" ] && hset_maps region "$TILES_REGION"
+  [ -n "$TILES_REGION_NAME" ] && hset_maps region-name "$TILES_REGION_NAME"
+  if [ -n "\$d_sha" ]; then
+    hset_maps map:sha256 "\$d_sha"
+    hset_maps map:size "\$d_size"
+    hset_maps map:mtime "\$(epoch_to_iso "\$d_mtime")"
+  fi
+  if [ -n "\$r_sha" ]; then
+    hset_maps routing:sha256 "\$r_sha"
+    hset_maps routing:size "\$r_size"
+    hset_maps routing:mtime "\$(epoch_to_iso "\$r_mtime")"
+  fi
+  hset_maps update-available false
+  hset_maps updated-at "\$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+
+install_tiles() {
+# DBC connection is up — now advance to phase 3 (BL breathing = "maps"). From
+# here a slow BL blinker means the tile copy itself is slow, not a connection
+# problem.
+relight_progress 3
+dbc_ssh "mkdir -p /data/maps /data/valhalla" || log "WARNING: mkdir failed"
+
+TILE_ERRORS=0
+
+# A path here means the user asked for these tiles, so a file that is not
+# there is a staging failure and not "none were wanted". Reporting success
+# without saying so hands back a scooter with no maps and no explanation.
+if [ -n "$OSM_TILES_FILE" ] && [ ! -f "$OSM_TILES_FILE" ]; then
+  log "ERROR: display tiles staged at $OSM_TILES_FILE are missing"
+  TILE_ERRORS=\$((TILE_ERRORS + 1))
+fi
+if [ -n "$VALHALLA_TILES_FILE" ] && [ ! -f "$VALHALLA_TILES_FILE" ]; then
+  log "ERROR: routing tiles staged at $VALHALLA_TILES_FILE are missing"
+  TILE_ERRORS=\$((TILE_ERRORS + 1))
+fi
+
+if [ -f "$OSM_TILES_FILE" ]; then
+  dbc_say "Karten werden übertragen"
+  upload_to_dbc "$OSM_TILES_FILE" "/maps/map.mbtiles" "display tiles" || TILE_ERRORS=\$((TILE_ERRORS + 1))
+fi
+if [ -f "$VALHALLA_TILES_FILE" ]; then
+  case "$VALHALLA_TILES_FILE" in
+    *.zst)
+      # Valhalla mmaps the tar, so it has to land uncompressed. Decompressing on
+      # the DBC keeps the transfer about a third the size; zstd ships in the
+      # DBC image and ums-service already installs routing tiles this way.
+      dbc_say "Routing-Karten werden übertragen"
+      if upload_to_dbc "$VALHALLA_TILES_FILE" "/valhalla/tiles.tar.zst" "routing tiles"; then
+        if dbc_ssh "zstd -d -f -o /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar.zst && mv -f /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar && rm -f /data/valhalla/tiles.tar.zst"; then
+          dbc_ssh "systemctl restart valhalla" 2>/dev/null || true
+        else
+          log "ERROR: routing tile decompression failed"
+          dbc_ssh "rm -f /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar.zst" 2>/dev/null || true
+          TILE_ERRORS=\$((TILE_ERRORS + 1))
+        fi
+      else
+        TILE_ERRORS=\$((TILE_ERRORS + 1))
+      fi
+      ;;
+    *)
+      if upload_to_dbc "$VALHALLA_TILES_FILE" "/valhalla/tiles.tar" "routing tiles"; then
+        dbc_ssh "systemctl restart valhalla" 2>/dev/null || true
+      else
+        TILE_ERRORS=\$((TILE_ERRORS + 1))
+      fi
+      ;;
+  esac
+fi
+
+# Record what landed, so the dashboard does not have to re-derive it and an
+# MDB-side consumer can read it without powering the dashboard up. Failures are
+# logged and ignored: the tiles are installed and working either way.
+record_tiles
+
+# Stop DBC Python upload server if we started one
+if [ "\$DBC_PYTHON_STARTED" = "yes" ]; then
+  dbc_ssh 'kill \$(cat /tmp/upload_srv.pid 2>/dev/null) 2>/dev/null; rm -f /tmp/upload_srv.pid /tmp/upload_srv.py' || true
+fi
+# This runs in a background subshell, so the count cannot be handed back in a
+# variable. The parent reads it after waiting.
+echo "\$TILE_ERRORS" > "\$INSTALLER_DIR/tile-errors"
+}
+TILES
+else
+  cat >> /data/onboot.sh << 'NOTILES'
+install_tiles() { :; }
+NOTILES
+fi
+
 cat >> /data/onboot.sh << 'ONBOOT'
 
 log() { echo "$(date '+%H:%M:%S') $1" >> "$LOG"; }
 # Log all errors, always: every command's stderr appends to the log.
 exec 2>>"$LOG"
 dbc_ssh() { local t=0; while [ $t -lt 3 ]; do ssh -y -y root@$DBC_IP "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
-dbc_scp() { local t=0; while [ $t -lt 3 ]; do scp "$@" && return 0; t=$((t+1)); sleep 3; done; return 1; }
+
+# One field of the `maps` hash, HSET then PUBLISH, matching the convention the
+# rest of the platform uses so a live subscriber hears the change. Best effort:
+# Redis may not be up yet this early, and the dashboard restates all of it on
+# its next boot regardless.
+hset_maps() {
+  redis-cli -h localhost hset maps "$1" "$2" >/dev/null 2>&1 || return 0
+  redis-cli -h localhost publish maps "$1" >/dev/null 2>&1 || true
+}
+
+# busybox date has no -d @epoch, so fall back to the GNU form and then to
+# leaving the field unset rather than writing something unparseable.
+epoch_to_iso() {
+  [ -n "$1" ] || return 0
+  date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r "$1" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true
+}
 
 # dbc_ssh with a ceiling on how long the remote command may take.
 #
@@ -1482,20 +1784,27 @@ dbc_ssh_bounded() {
 # clear the screen and hide the cursor, then write our own lines. getty comes
 # back on its own after a reboot, so this is re-run each time the board boots.
 DBC_CONSOLE=/dev/tty1
+# The dashboard is read at arm's length and often at an angle, so the text is
+# kept clear of the panel edges: a blank line at the top and four columns on
+# the left. Against the bezel, a line starting in column 0 is the first thing
+# to become unreadable.
+DBC_INDENT="    "
+
 dbc_console_init() {
   # Escape sequences rather than setterm: setterm is util-linux and the
   # bootstrap image does not carry it, so it was never the path that ran.
-  # \033[?25l hides the cursor, \033[2J clears, \033[H homes it.
+  # \033%G selects UTF-8 so the umlauts below render, \033[?25l hides the
+  # cursor, \033[2J clears, \033[H homes it.
   dbc_ssh "systemctl stop getty@tty1 2>/dev/null;
-           printf '\033[?25l\033[2J\033[H' > $DBC_CONSOLE 2>/dev/null;
-           printf 'Librescoot wird installiert\n\n' > $DBC_CONSOLE" \
+           printf '\033%%G\033[?25l\033[2J\033[H' > $DBC_CONSOLE 2>/dev/null;
+           printf '\n${DBC_INDENT}Librescoot wird installiert\n\n' > $DBC_CONSOLE" \
     2>/dev/null || log "  (could not claim the dashboard console)"
 }
 
 # $1: the line to show. Best-effort throughout: the console is a courtesy and
 # never a reason to fail an install.
 dbc_say() {
-  dbc_ssh "printf '  %s\n' \"$1\" > $DBC_CONSOLE" 2>/dev/null || true
+  dbc_ssh "printf '${DBC_INDENT}%s\n' \"$1\" > $DBC_CONSOLE" 2>/dev/null || true
 }
 
 # What a failure puts on the dashboard. The laptop is unplugged by now, so
@@ -1506,7 +1815,7 @@ dbc_fail_say() {
   dbc_say "Installation fehlgeschlagen"
   dbc_say "$1"
   dbc_say ""
-  dbc_say "USB-Kabel zurueck auf das MDB stecken und im"
+  dbc_say "USB-Kabel zurück auf das MDB stecken und im"
   dbc_say "Installer auf dem Laptop weitermachen."
 }
 
@@ -1803,6 +2112,9 @@ log "Onboot attempt $ONBOOT_TRIES/3"
 # bottom and the shortcut success below calls this long before the tail of
 # the file is reached.
 device_finish() {
+    CURRENT_STAGE="finishing-on-device"
+    write_run_state "$CURRENT_STAGE"
+    DBC_COMPLETED_VERSION="$(cat "$INSTALLER_DIR/dbc-version" 2>/dev/null)"
     # ---- Autonomous finish ------------------------------------------------
     # Everything here is what the installer's finish phase would otherwise do
     # over the laptop link. Doing it on the device is what lets the user walk
@@ -1860,31 +2172,13 @@ device_finish() {
           log "  WARNING: could not persist the OTA channel"
       }
 
-      # Sweep our staging directory. This is also what stops the next connect
-      # reading the leftovers as an interrupted install. /data/ota is NOT
-      # touched: the artifact there is the delta base for a later OTA.
-      # The result record is what a later connect reads back instead.
-      {
-        echo "result: success"
-        echo "mode: $MODE"
-        echo "finished: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-        echo "mdb: $MDB_TARGET"
-        echo "dbc: $(cat "$INSTALLER_DIR/dbc-version" 2>/dev/null)"
-      } > /data/last-install
-      log "  wrote /data/last-install"
     fi
 
-    # The verdict stays on the first line: the installer keys off that alone.
-    # The fields after it are optional, so an empty dbc-version (no artifact
-    # was staged) just renders as a value-less line the parser ignores.
-    {
-      echo "success"
-      echo "mode: $MODE"
-      echo "mdb: $MDB_TARGET"
-      echo "dbc: $(cat "$INSTALLER_DIR/dbc-version" 2>/dev/null)"
-      [ "$TILES_SKIPPED" = "yes" ] && echo "tiles: skipped, the dashboard did not come back in time"
-    } > "$STATUS_FILE"
-    cat "$LOG" >> "$STATUS_FILE"
+    if [ "$FINISH_ON_DEVICE" != "true" ]; then
+      write_status "success" "mode: $MODE" "mdb: $MDB_TARGET" \
+        "dbc: $DBC_COMPLETED_VERSION" \
+        "tiles: ${TILES_SKIPPED:-no}"
+    fi
     # All MDB<->DBC work is done (image flashed, tiles uploaded, DBC powered
     # off). Now and only now signal the user it's safe to swap the MDB's
     # single USB port back to the laptop.
@@ -1929,9 +2223,10 @@ device_finish() {
     systemctl start librescoot-ums 2>/dev/null || true
 
     if [ "$FINISH_ON_DEVICE" = "true" ]; then
-      # Sweep last, so nothing above depends on what we are deleting, and so a
-      # crash before this point still leaves the log for a returning laptop.
-      # /data/ota is left alone deliberately: its artifact is the delta base.
+      # Sweep after the last staging consumer, so nothing below can mistake
+      # leftover upload data for work still in progress. The completion record
+      # lives outside this directory and is written only after the handover
+      # actions below. /data/ota remains as the later OTA delta base.
       # Retire before the sweep: retire_onboot restores a user's displaced
       # /data/onboot.sh from $INSTALLER_DIR/onboot.sh.bak, and deleting the
       # directory first leaves it nothing to restore from.
@@ -1970,11 +2265,18 @@ device_finish() {
       sleep 5
       if redis-cli -h localhost lpush scooter:state unlock >/dev/null 2>&1; then
         dbc_say ""
-      dbc_say "Fertig. Der Roller entsperrt sich jetzt."
-      log "  unlocked: the install is done and the scooter is usable"
+        dbc_say "Fertig. Der Roller entsperrt sich jetzt."
+        log "  unlocked: the install is done and the scooter is usable"
       else
         log "  WARNING: could not unlock, the owner has to use a keycard"
       fi
+
+      CURRENT_STAGE="complete"
+      if ! write_completion_record; then
+        write_status "error: could not persist the completion record"
+        return 1
+      fi
+      log "  wrote atomic completion record for run $RUN_ID"
     else
       retire_onboot
     fi
@@ -1988,11 +2290,10 @@ if [ "$ONBOOT_TRIES" -gt 3 ]; then
   systemctl start librescoot-bluetooth 2>/dev/null || true
   systemctl unmask librescoot-ums 2>/dev/null || true
   systemctl start librescoot-ums 2>/dev/null || true
-  {
-    echo "error: the post-reboot stage failed $((ONBOOT_TRIES - 1)) times and was abandoned"
-    echo "mode: $MODE"
-  } > "$STATUS_FILE"
-  cat "$LOG" >> "$STATUS_FILE" 2>/dev/null
+  CURRENT_STAGE="post-reboot-retries-exhausted"
+  write_status \
+    "error: the post-reboot stage failed $((ONBOOT_TRIES - 1)) times and was abandoned" \
+    "mode: $MODE"
   dbc_fail_say "Der Teil nach dem Neustart ist mehrfach gescheitert."
   bootled_guard_stop
   bootled_blink_red
@@ -2004,6 +2305,8 @@ fi
 # was just defensive; redis is ready within a few seconds of MDB boot.
 # Poll redis directly so we wait exactly as long as we have to.
 log "  waiting for MDB redis..."
+CURRENT_STAGE="waiting-mdb-redis"
+write_run_state "$CURRENT_STAGE"
 WAITED=0
 while [ $WAITED -lt 30 ]; do
   redis-cli -h localhost ping >/dev/null 2>&1 && break
@@ -2018,6 +2321,8 @@ fi
 
 # Keep trying dbc on-wait until it succeeds — DBC may restart several times
 log "  powering on DBC (may take multiple attempts)..."
+CURRENT_STAGE="powering-dbc"
+write_run_state "$CURRENT_STAGE"
 ATTEMPTS=0
 while [ $ATTEMPTS -lt 5 ]; do
   ATTEMPTS=$((ATTEMPTS + 1))
@@ -2064,6 +2369,8 @@ log "  DBC stable after ${ELAPSED}s (stable_count=$STABLE)"
 # update only fires once, so it comes up and stays up. Poll, not a blind
 # wait: breaks the instant the DBC answers. Skipping tiles = no offline maps.
 log "  waiting for DBC SSH..."
+CURRENT_STAGE="waiting-dbc-ssh"
+write_run_state "$CURRENT_STAGE"
 ELAPSED=0
 while [ $ELAPSED -lt 300 ]; do
   ssh -y -y root@$DBC_IP 'echo ok' >/dev/null && break
@@ -2078,8 +2385,8 @@ done
 if [ $ELAPSED -ge 300 ]; then
   if [ -n "$DBC_MENDER" ]; then
     log "ERROR: DBC not reachable after 300s, artifact not installed"
-    echo "error: DBC not reachable, artifact not installed" > "$STATUS_FILE"
-    cat "$LOG" >> "$STATUS_FILE"
+    CURRENT_STAGE="waiting-dbc-ssh"
+    write_status "error: DBC not reachable, artifact not installed"
     # Power the DBC down like the success branch below does, so a failed
     # install does not leave it drawing on the aux battery indefinitely.
     dbc_fail_say "Das Display hat sich nach dem Flashen nicht gemeldet."
@@ -2096,7 +2403,7 @@ if [ $ELAPSED -ge 300 ]; then
   log "WARNING: DBC not reachable after 300s, skipping tiles"
   TILES_SKIPPED="yes"
   dbc_power_off || true
-  device_finish
+  device_finish || exit 1
   exit 0
 fi
 log "  DBC reachable"
@@ -2196,8 +2503,8 @@ artifact_fail() {
     redis-cli -h localhost lrem scooter:update:dbc 0 "$DBC_UPDATE_CMD" >/dev/null 2>&1 || true
     DBC_UPDATE_CMD=""
   fi
-  echo "$1" > "$STATUS_FILE"
-  cat "$LOG" >> "$STATUS_FILE"
+  CURRENT_STAGE="installing-dbc-artifact"
+  write_status "$1"
   dbc_power_off || true
   bootled_guard_stop
   bootled_blink_red
@@ -2214,6 +2521,20 @@ if [ -n "$DBC_MENDER" ]; then
   # reboot sits between the two. An artifact that was asked for and is not
   # here is an error, never "no artifact was requested".
   [ -f "$DBC_MENDER" ] || artifact_fail "error: DBC artifact missing on the MDB: $DBC_MENDER"
+
+  # Tiles go up while the dashboard still runs the stage-0 image. That image is
+  # pinned, so it is the one place whose contents the installer controls; the
+  # firmware being installed on top may predate any tool the upload needs,
+  # zstd included.
+  #
+  # It runs alongside the artifact install rather than before it: the two touch
+  # different partitions, the artifact write is the long pole at roughly a
+  # minute and a half, and the upload is about twenty seconds of that. Only the
+  # reboot afterwards has to wait, because a dashboard that restarts mid-upload
+  # takes a truncated tile set with it.
+  rm -f "$INSTALLER_DIR/tile-errors"
+  install_tiles &
+  TILES_JOB=$!
 
   relight_progress 3
   DBC_ART_NAME=$(basename "$DBC_MENDER")
@@ -2339,6 +2660,16 @@ if [ -n "$DBC_MENDER" ]; then
   fi
 
   dbc_say "Firmware installiert, Display startet neu"
+  # The upload has to be finished before the dashboard goes down under it.
+  if [ -n "${TILES_JOB:-}" ]; then
+    log "  waiting for the tile upload to finish before rebooting"
+    wait "$TILES_JOB" 2>/dev/null || true
+    TILES_JOB=""
+    TILE_ERRORS=$(cat "$INSTALLER_DIR/tile-errors" 2>/dev/null || echo 0)
+    case "$TILE_ERRORS" in ''|*[!0-9]*) TILE_ERRORS=0 ;; esac
+    log "  tile upload finished with $TILE_ERRORS error(s)"
+  fi
+
   log "  rebooting DBC into the new rootfs"
   dbc_ssh 'sync; reboot &' >> "$LOG" 2>&1 || log "  DBC reboot command failed"
   sleep 20
@@ -2360,10 +2691,12 @@ if [ -n "$DBC_MENDER" ]; then
   # empty it renders as an absent dbc: line and the screen falls back to a
   # bare success message.
   DBC_VER=$(ssh -y -y root@$DBC_IP 'grep ^VERSION_ID= /etc/os-release' 2>/dev/null | cut -d= -f2 | tr -d '"')
+  CURRENT_STAGE="verifying-dbc-artifact"
+  write_run_state "$CURRENT_STAGE"
   DBC_ART_AFTER=$(ssh -y -y root@$DBC_IP 'mender-update show-artifact' 2>/dev/null | head -n 1 | tr -d '\r')
   log "  DBC now runs ${DBC_VER:-unknown} (artifact ${DBC_ART_AFTER:-unknown})"
   dbc_console_init
-  dbc_say "Firmware $DBC_VER laeuft"
+  dbc_say "Firmware $DBC_VER läuft"
   [ -n "$DBC_VER" ] || artifact_fail "error: could not read the DBC version after the artifact install"
   if [ -n "$DBC_TARGET" ]; then
     # Lower-cased and with the tag's optional v prefix dropped, the same
@@ -2392,70 +2725,29 @@ if [ -n "$DBC_MENDER" ]; then
   # block below uploads over the same link, so re-probe now.
   ensure_dbc_upload_server
 fi
+
+# Tiles without an artifact: the dashboard is being left on its current
+# firmware and only the maps are being replaced. Nothing has been started
+# above in that case, so it runs here, in the foreground, with nothing to
+# overlap it.
+if [ -z "${TILES_JOB:-}" ] && [ -z "$DBC_MENDER" ]; then
+  CURRENT_STAGE="installing-tiles"
+  write_run_state "$CURRENT_STAGE"
+  install_tiles
+  TILE_ERRORS=$(cat "$INSTALLER_DIR/tile-errors" 2>/dev/null || echo 0)
+  case "$TILE_ERRORS" in ''|*[!0-9]*) TILE_ERRORS=0 ;; esac
+fi
+
+# A run that started the upload but never reached the reboot that joins it,
+# because the artifact install bailed out down a path that does not exit.
+if [ -n "${TILES_JOB:-}" ]; then
+  wait "$TILES_JOB" 2>/dev/null || true
+  TILE_ERRORS=$(cat "$INSTALLER_DIR/tile-errors" 2>/dev/null || echo 0)
+  case "$TILE_ERRORS" in ''|*[!0-9]*) TILE_ERRORS=0 ;; esac
+fi
 ONBOOT
 
 # Append tile installation commands with actual paths
-if [ "$INSTALL_TILES" = "true" ]; then
-  cat >> /data/onboot.sh << TILES
-# DBC connection is up — now advance to phase 3 (BL breathing = "maps"). From
-# here a slow BL blinker means the tile copy itself is slow, not a connection
-# problem.
-relight_progress 3
-dbc_ssh "mkdir -p /data/maps /data/valhalla" || log "WARNING: mkdir failed"
-
-TILE_ERRORS=0
-
-# A path here means the user asked for these tiles, so a file that is not
-# there is a staging failure and not "none were wanted". Reporting success
-# without saying so hands back a scooter with no maps and no explanation.
-if [ -n "$OSM_TILES_FILE" ] && [ ! -f "$OSM_TILES_FILE" ]; then
-  log "ERROR: display tiles staged at $OSM_TILES_FILE are missing"
-  TILE_ERRORS=\$((TILE_ERRORS + 1))
-fi
-if [ -n "$VALHALLA_TILES_FILE" ] && [ ! -f "$VALHALLA_TILES_FILE" ]; then
-  log "ERROR: routing tiles staged at $VALHALLA_TILES_FILE are missing"
-  TILE_ERRORS=\$((TILE_ERRORS + 1))
-fi
-
-if [ -f "$OSM_TILES_FILE" ]; then
-  dbc_say "Karten werden uebertragen"
-  upload_to_dbc "$OSM_TILES_FILE" "/maps/map.mbtiles" "display tiles" || TILE_ERRORS=\$((TILE_ERRORS + 1))
-fi
-if [ -f "$VALHALLA_TILES_FILE" ]; then
-  case "$VALHALLA_TILES_FILE" in
-    *.zst)
-      # Valhalla mmaps the tar, so it has to land uncompressed. Decompressing on
-      # the DBC keeps the transfer about a third the size; zstd ships in the
-      # DBC image and ums-service already installs routing tiles this way.
-      dbc_say "Routing-Karten werden uebertragen"
-      if upload_to_dbc "$VALHALLA_TILES_FILE" "/valhalla/tiles.tar.zst" "routing tiles"; then
-        if dbc_ssh "zstd -d -f -o /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar.zst && mv -f /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar && rm -f /data/valhalla/tiles.tar.zst"; then
-          dbc_ssh "systemctl restart valhalla" 2>/dev/null || true
-        else
-          log "ERROR: routing tile decompression failed"
-          dbc_ssh "rm -f /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar.zst" 2>/dev/null || true
-          TILE_ERRORS=\$((TILE_ERRORS + 1))
-        fi
-      else
-        TILE_ERRORS=\$((TILE_ERRORS + 1))
-      fi
-      ;;
-    *)
-      if upload_to_dbc "$VALHALLA_TILES_FILE" "/valhalla/tiles.tar" "routing tiles"; then
-        dbc_ssh "systemctl restart valhalla" 2>/dev/null || true
-      else
-        TILE_ERRORS=\$((TILE_ERRORS + 1))
-      fi
-      ;;
-  esac
-fi
-
-# Stop DBC Python upload server if we started one
-if [ "\$DBC_PYTHON_STARTED" = "yes" ]; then
-  dbc_ssh 'kill \$(cat /tmp/upload_srv.pid 2>/dev/null) 2>/dev/null; rm -f /tmp/upload_srv.pid /tmp/upload_srv.py' || true
-fi
-TILES
-fi
 
 cat >> /data/onboot.sh << 'ONBOOT_END'
 # Turn off DBC
@@ -2465,9 +2757,9 @@ if [ "${TILE_ERRORS:-0}" -gt 0 ]; then
   log "=========================================="
   log "Installation FAILED — $TILE_ERRORS tile upload(s) failed"
   log "=========================================="
-  echo "error: $TILE_ERRORS tile upload(s) failed" > "$STATUS_FILE"
+  CURRENT_STAGE="installing-tiles"
+  write_status "error: $TILE_ERRORS tile upload(s) failed"
   dbc_fail_say "$TILE_ERRORS Karten-Uebertragung(en) fehlgeschlagen." 
-  cat "$LOG" >> "$STATUS_FILE"
   # Switch the boot LED from solid amber (set at the top of onboot.sh) to
   # blinking red, and add hazards (capped at 30s so an abandoned error
   # doesn't drain the battery). Both indicators stop on installer reconnect
@@ -2481,7 +2773,7 @@ else
   log "Installation complete - SUCCESS"
   log "=========================================="
 
-  device_finish
+  device_finish || exit 1
 fi
 ONBOOT_END
 chmod +x /data/onboot.sh
@@ -2490,8 +2782,7 @@ log "  onboot.sh written"
 # Mark the job as still running. The dashboard has not been touched yet:
 # onboot.sh below does all of it. A laptop that reads the file at this point
 # must keep waiting, which is why this is not a shade of success.
-echo "running" > "$STATUS_FILE"
-cat "$LOG_FILE" >> "$STATUS_FILE"
+write_status "running"
 
 step_end  # close step 8
 log "Total trampoline wall-clock: $(($(date +%s) - SCRIPT_T0))s"

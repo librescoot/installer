@@ -10,6 +10,38 @@ import '../models/substep.dart';
 import '../models/trampoline_status.dart';
 import 'ssh_service.dart';
 
+typedef ToolAssetLoader = Future<ByteData> Function(String path);
+typedef ToolUploader =
+    Future<void> Function(Uint8List content, String remotePath);
+typedef RemoteCommandRunner = Future<String> Function(String command);
+
+Future<void> stageDbcBootloaderTools({
+  required ToolAssetLoader loadAsset,
+  required ToolUploader uploadFile,
+  required RemoteCommandRunner runCommand,
+}) async {
+  const remoteDir = '/data/installer/fwtools/stock-dbc';
+  const fwSetenvPath = '$remoteDir/fw_setenv';
+  const fwEnvConfigPath = '$remoteDir/fw_env.config';
+
+  await runCommand('mkdir -p $remoteDir');
+
+  final fwSetenv = await loadAsset('assets/tools/fw_setenv-dbc');
+  await uploadFile(fwSetenv.buffer.asUint8List(), fwSetenvPath);
+  await runCommand('chmod 755 $fwSetenvPath');
+
+  final fwEnvConfig = await loadAsset('assets/tools/fw_env-dbc.config');
+  await uploadFile(fwEnvConfig.buffer.asUint8List(), fwEnvConfigPath);
+
+  final verification = await runCommand(
+    'if test -s $fwSetenvPath && test -x $fwSetenvPath && '
+    'test -s $fwEnvConfigPath; then printf ready; else printf missing; fi',
+  );
+  if (verification.trim() != 'ready') {
+    throw StateError('DBC bootloader tools failed remote verification');
+  }
+}
+
 /// Directory component of [remotePath], or null when the path has no `/`
 /// and so nothing to create ahead of an upload (a bare filename lands
 /// wherever the SSH session's own working directory already puts it).
@@ -18,6 +50,62 @@ String? remoteDirOf(String remotePath) {
   if (slash < 0) return null;
   final dir = remotePath.substring(0, slash);
   return dir.isEmpty ? null : dir;
+}
+
+String createInstallRunId({DateTime? now, int? processId}) {
+  final timestamp = (now ?? DateTime.now().toUtc())
+      .microsecondsSinceEpoch
+      .toRadixString(36);
+  final process = (processId ?? pid).toRadixString(36);
+  return 'run-$timestamp-$process';
+}
+
+String serializeInstallRunState({
+  required String runId,
+  required String actor,
+  required String stage,
+  String result = 'running',
+  String finish = 'pending',
+  int? sequence,
+  DateTime? updatedAt,
+}) {
+  final updated = (updatedAt ?? DateTime.now().toUtc()).toIso8601String();
+  return <String>[
+    'run-id: $runId',
+    'actor: $actor',
+    'stage: $stage',
+    'result: $result',
+    'finish: $finish',
+    if (sequence != null) 'sequence: $sequence',
+    'updated: $updated',
+    '',
+  ].join('\n');
+}
+
+/// What the upload stage calls its steps.
+///
+/// The service has no localizations, and the screen that shows these does, so
+/// the words come in from there. The defaults are the English ones, which is
+/// what a caller with nothing to say should get.
+class SubstepLabels {
+  const SubstepLabels({
+    this.checkExisting = 'Check existing files',
+    this.uploadFlasher = 'Upload flasher tool',
+    this.uploadFwTools = 'Upload DBC bootloader tools',
+    this.uploadScript = 'Upload trampoline script',
+    this.uploadFile = _defaultUploadFile,
+    this.verifying = _defaultVerifying,
+  });
+
+  final String checkExisting;
+  final String uploadFlasher;
+  final String uploadFwTools;
+  final String uploadScript;
+  final String Function(String filename) uploadFile;
+  final String Function(String filename) verifying;
+
+  static String _defaultUploadFile(String filename) => 'Upload $filename';
+  static String _defaultVerifying(String filename) => 'verifying $filename';
 }
 
 class TrampolineService {
@@ -78,6 +166,15 @@ class TrampolineService {
           installTiles && region != null
               ? '/data/installer/${valhallaTilesFilename ?? region.valhallaTilesFilename}'
               : '',
+        )
+        // Baked in rather than parsed back out of the filenames on the device:
+        // the region is picked here, and the trampoline records it so the
+        // dashboard does not have to re-identify it from the release manifest,
+        // which needs network the vehicle may not have yet.
+        .replaceAll('{{TILES_REGION}}', installTiles && region != null ? region.slug : '')
+        .replaceAll(
+          '{{TILES_REGION_NAME}}',
+          installTiles && region != null ? region.name : '',
         );
   }
 
@@ -375,6 +472,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     Region? region,
     void Function(String status, double progress)? onProgress,
     void Function(List<Substep> steps)? onSubsteps,
+    SubstepLabels? labels,
   }) async {
     // ums-service is enabled with Restart=always and takes the OTG UDC away
     // from g_ether whenever it switches to mass-storage mode. That tears down
@@ -430,15 +528,18 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
           MapEntry(valhallaTilesLocalPath, '/data/installer/$valhallaFilename'));
     }
 
+    final l = labels ?? const SubstepLabels();
     final substeps = <Substep>[
-      Substep(id: 'check', label: 'Check existing files'),
+      Substep(id: 'check', label: l.checkExisting),
       for (final e in filesToUpload)
-        Substep(id: 'up:${e.value}', label: 'Upload ${File(e.key).uri.pathSegments.last}'),
+        Substep(
+            id: 'up:${e.value}',
+            label: l.uploadFile(File(e.key).uri.pathSegments.last)),
       if (dbcImageLocalPath != null)
-        Substep(id: 'flasher', label: 'Upload flasher tool'),
+        Substep(id: 'flasher', label: l.uploadFlasher),
       if (dbcImageLocalPath != null)
-        Substep(id: 'fwtools', label: 'Upload DBC bootloader tools'),
-      Substep(id: 'script', label: 'Upload trampoline script'),
+        Substep(id: 'fwtools', label: l.uploadFwTools),
+      Substep(id: 'script', label: l.uploadScript),
     ];
     void setStep(String id, SubstepState state, {String? detail}) {
       final idx = substeps.indexWhere((s) => s.id == id);
@@ -463,7 +564,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       final size = await File(entry.key).length();
       fileSizes.add(size);
       final filename = File(entry.key).uri.pathSegments.last;
-      setStep('check', SubstepState.active, detail: 'verifying $filename');
+      setStep('check', SubstepState.active, detail: l.verifying(filename));
       onProgress?.call('Checking $filename...', 0.0);
       final matches = await _remoteFileMatches(entry.key, entry.value);
       needsUpload.add(!matches);
@@ -548,33 +649,28 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
         await _ssh.runCommand('chmod +x /data/installer/librescoot-flasher');
         setStep('flasher', SubstepState.done);
       } catch (e) {
-        debugPrint('Trampoline: failed to upload ARM flasher: $e');
-        setStep('flasher', SubstepState.failed, detail: e.toString());
+        // trampoline.sh falls back to `gunzip | dd oflag=direct` when the
+        // flasher is not executable on the board, so the write still happens
+        // without the bmap fast path.
+        debugPrint('Trampoline: ARM flasher not uploaded ($e), dd fallback');
+        setStep('flasher', SubstepState.degraded, detail: 'dd fallback');
       }
 
       // Upload stock DBC fw_setenv binary + DBC-specific fw_env config
       setStep('fwtools', SubstepState.active);
       onProgress?.call('Uploading DBC tools...', 0.96);
       try {
-        await _ssh.runCommand('mkdir -p /data/installer/fwtools/stock-dbc');
-
-        final stockFwSetenv = await rootBundle.load('assets/tools/fw_setenv-dbc');
-        debugPrint('Trampoline: loaded fw_setenv-dbc (${stockFwSetenv.lengthInBytes} bytes)');
-        await _ssh.uploadFile(
-          stockFwSetenv.buffer.asUint8List(),
-          '/data/installer/fwtools/stock-dbc/fw_setenv',
-        );
-        await _ssh.runCommand('chmod +x /data/installer/fwtools/stock-dbc/fw_setenv');
-
-        final dbcFwEnvConfig = await rootBundle.load('assets/tools/fw_env-dbc.config');
-        await _ssh.uploadFile(
-          dbcFwEnvConfig.buffer.asUint8List(),
-          '/data/installer/fwtools/stock-dbc/fw_env.config',
+        await stageDbcBootloaderTools(
+          loadAsset: rootBundle.load,
+          uploadFile: (content, remotePath) =>
+              _ssh.uploadFile(content, remotePath),
+          runCommand: (command) => _ssh.runCommand(command),
         );
         setStep('fwtools', SubstepState.done);
       } catch (e) {
         debugPrint('Trampoline: failed to upload DBC tools: $e');
         setStep('fwtools', SubstepState.failed, detail: e.toString());
+        rethrow;
       }
     }
 
@@ -620,7 +716,10 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
   }
 
   /// Start the trampoline script on MDB in background.
-  Future<void> start() async {
+  Future<void> start({required String runId}) async {
+    if (!RegExp(r'^[a-zA-Z0-9._-]+$').hasMatch(runId)) {
+      throw ArgumentError.value(runId, 'runId', 'contains unsafe characters');
+    }
     // A leftover trampoline from an abandoned run would race this one over the
     // USB role and the dashboard's power. The pattern is bracketed so pgrep and
     // pkill cannot match their own command line, and the kill is its own
@@ -629,6 +728,21 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     await _ssh.runCommand(
       "pkill -f 'installer/[t]rampoline.sh' 2>/dev/null; true",
     );
+    await _ssh.runCommand(
+      'rm -f /data/last-install; '
+      'mkdir -p /data/installer; '
+      "printf '%s\\n' '$runId' > /data/installer/.run-id.tmp; "
+      'mv -f /data/installer/.run-id.tmp /data/installer/run-id',
+    );
+    await _ssh.writeInstallRunState(
+      runId: runId,
+      content: serializeInstallRunState(
+        runId: runId,
+        actor: 'installer',
+        stage: 'trampoline-armed',
+      ),
+    );
+
     // An old status file reads as this run's verdict if the arming below fails
     // silently, so it goes before anything can be believed.
     await _ssh.runCommand(
@@ -657,7 +771,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
   }
 
   /// Read trampoline status (call after reconnecting to MDB).
-  Future<TrampolineStatus> readStatus() async {
-    return _ssh.readTrampolineStatus();
+  Future<TrampolineStatus> readStatus({String? expectedRunId}) async {
+    return _ssh.readTrampolineStatus(expectedRunId: expectedRunId);
   }
 }

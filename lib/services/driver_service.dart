@@ -93,6 +93,86 @@ class _ForceInstallOutcome {
   _ForceInstallOutcome(this.ok, this.rebootRequired, this.detail);
 }
 
+typedef AutoPlayProcessRunner = Future<ProcessResult> Function(
+  String executable,
+  List<String> arguments,
+);
+
+class AutoPlayServiceLease {
+  AutoPlayServiceLease({
+    bool? isWindows,
+    AutoPlayProcessRunner? runProcess,
+  })  : _isWindows = isWindows ?? Platform.isWindows,
+        _runProcess = runProcess ?? _defaultRunProcess;
+
+  final bool _isWindows;
+  final AutoPlayProcessRunner _runProcess;
+  Future<void> _operations = Future<void>.value();
+  bool _stateCaptured = false;
+  bool _stoppedByInstaller = false;
+
+  Future<void> suppress() => _enqueue(() async {
+        if (!_isWindows || _stateCaptured) return;
+        try {
+          final status = await _runProcess(
+            'powershell.exe',
+            const [
+              '-NoProfile',
+              '-NonInteractive',
+              '-Command',
+              r'[int](Get-Service -Name "ShellHWDetection").Status',
+            ],
+          );
+          if (status.exitCode != 0) return;
+          final state = int.tryParse(status.stdout.toString().trim());
+          if (state == null) return;
+          _stateCaptured = true;
+          if (state != 4) return;
+
+          debugPrint('Driver: stopping ShellHWDetection service');
+          final stopped = await _runProcess(
+            'net',
+            const ['stop', 'ShellHWDetection'],
+          );
+          _stoppedByInstaller = stopped.exitCode == 0;
+        } catch (error) {
+          debugPrint('Driver: failed to suppress AutoPlay: $error');
+        }
+      });
+
+  Future<void> restore() => _enqueue(() async {
+        if (!_isWindows || !_stateCaptured) return;
+        if (_stoppedByInstaller) {
+          try {
+            debugPrint('Driver: starting ShellHWDetection service');
+            final started = await _runProcess(
+              'net',
+              const ['start', 'ShellHWDetection'],
+            );
+            if (started.exitCode != 0) return;
+          } catch (error) {
+            debugPrint('Driver: failed to restore AutoPlay: $error');
+            return;
+          }
+        }
+        _stoppedByInstaller = false;
+        _stateCaptured = false;
+      });
+
+  Future<void> _enqueue(Future<void> Function() operation) {
+    final result = _operations.then((_) => operation());
+    _operations = result.catchError((_) {});
+    return result;
+  }
+
+  static Future<ProcessResult> _defaultRunProcess(
+    String executable,
+    List<String> arguments,
+  ) {
+    return Process.run(executable, arguments);
+  }
+}
+
 /// Service for managing Windows RNDIS driver installation.
 ///
 /// On Windows, the Librescoot MDB uses USB RNDIS (Ethernet over USB).
@@ -106,6 +186,7 @@ class DriverService {
   /// Hardware ID of the Librescoot ethernet device. Used for both PnP
   /// enumeration matching and as the target of forced INF installs.
   static const String _hardwareId = r'USB\VID_0525&PID_A4A2';
+  static final AutoPlayServiceLease _autoPlay = AutoPlayServiceLease();
 
   /// Check if an RNDIS driver is already installed.
   ///
@@ -445,24 +526,12 @@ if ($ok) {
   /// Stop the ShellHWDetection service to prevent "format this disk" popups
   /// when the device enters USB Mass Storage mode.
   static Future<void> suppressAutoPlay() async {
-    if (!Platform.isWindows) return;
-    try {
-      debugPrint('Driver: stopping ShellHWDetection service');
-      await Process.run('net', ['stop', 'ShellHWDetection']);
-    } catch (e) {
-      debugPrint('Driver: failed to stop ShellHWDetection: $e');
-    }
+    await _autoPlay.suppress();
   }
 
-  /// Restart the ShellHWDetection service after flashing is complete.
+  /// Restore the ShellHWDetection state captured before UMS mode.
   static Future<void> restoreAutoPlay() async {
-    if (!Platform.isWindows) return;
-    try {
-      debugPrint('Driver: starting ShellHWDetection service');
-      await Process.run('net', ['start', 'ShellHWDetection']);
-    } catch (e) {
-      debugPrint('Driver: failed to start ShellHWDetection: $e');
-    }
+    await _autoPlay.restore();
   }
 
   /// Run a subprocess and pipe its stdout/stderr line-by-line into

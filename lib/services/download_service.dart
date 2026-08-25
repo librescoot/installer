@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -11,6 +12,25 @@ import '../models/board_state.dart';
 import '../models/download_state.dart';
 import '../models/region.dart';
 
+class DownloadCancelled implements Exception {
+  const DownloadCancelled();
+}
+
+class DownloadCancellationToken {
+  DownloadCancellationToken(this.generation);
+
+  final int generation;
+  bool _isCancelled = false;
+
+  bool get isCancelled => _isCancelled;
+
+  void cancel() => _isCancelled = true;
+
+  void throwIfCancelled() {
+    if (_isCancelled) throw const DownloadCancelled();
+  }
+}
+
 class DownloadService {
   static const _osmTilesRepo = 'librescoot/osm-tiles';
   static const _valhallaTilesRepo = 'librescoot/valhalla-tiles';
@@ -18,9 +38,17 @@ class DownloadService {
   static const _latestManifestUrl = '$_manifestBase/latest.json';
 
   final http.Client _client;
+  final Duration _requestTimeout;
+  final Duration _idleTimeout;
   Map<String, dynamic>? _cachedLatest;
 
-  DownloadService({http.Client? client}) : _client = client ?? http.Client();
+  DownloadService({
+    http.Client? client,
+    Duration requestTimeout = const Duration(seconds: 30),
+    Duration idleTimeout = const Duration(seconds: 60),
+  })  : _client = client ?? http.Client(),
+        _requestTimeout = requestTimeout,
+        _idleTimeout = idleTimeout;
 
   /// Fetch the combined latest-per-channel manifest from
   /// downloads.librescoot.org. One round trip yields the current pointer
@@ -37,8 +65,20 @@ class DownloadService {
   ///   5. Bundled snapshot baked into the app at build time
   ///      (`assets/latest.json.fallback`) as a final fallback so the
   ///      installer can at least show channel choices when offline.
+  /// The release manifest came from the snapshot compiled into the app, not
+  /// from the network or a cache of it, so the versions on offer are as old as
+  /// the build.
+  bool manifestIsBundled = false;
+
   Future<Map<String, dynamic>> _fetchLatest() async {
-    if (_cachedLatest != null) return _cachedLatest!;
+    // Which source answered, on every path and not only the failing ones. This
+    // runs before the first useful screen and can take a network round trip,
+    // so a launch that sits for a minute needs a log line saying whether it
+    // was memory, disk or the network, and how stale the disk copy was.
+    if (_cachedLatest != null) {
+      debugPrint('latest.json: served from memory');
+      return _cachedLatest!;
+    }
 
     final cacheDir = await getCacheDir();
     final cacheFile = File(p.join(cacheDir.path, 'latest.json'));
@@ -46,11 +86,15 @@ class DownloadService {
     // portal's login page returns HTTP 200 and used to be written here
     // verbatim, after which every retry and every later launch re-threw on the
     // same garbage with no way to clear it from inside the app.
-    final fresh = await _readCachedManifest(cacheFile, maxAge: const Duration(hours: 1));
+    const maxCacheAge = Duration(hours: 1);
+    final fresh = await _readCachedManifest(cacheFile, maxAge: maxCacheAge);
     if (fresh != null) {
+      debugPrint('latest.json: served from disk cache '
+          '(under ${maxCacheAge.inHours}h old)');
       _cachedLatest = fresh;
       return _cachedLatest!;
     }
+    debugPrint('latest.json: no cache under ${maxCacheAge.inHours}h, fetching');
 
     const delays = [Duration.zero, Duration(seconds: 2), Duration(seconds: 5)];
     for (var attempt = 0; attempt < delays.length; attempt++) {
@@ -67,6 +111,8 @@ class DownloadService {
           // it.
           final parsed = jsonDecode(response.body) as Map<String, dynamic>;
           await cacheFile.writeAsString(response.body);
+          debugPrint('latest.json: fetched from network '
+              '(attempt ${attempt + 1}/${delays.length})');
           _cachedLatest = parsed;
           return _cachedLatest!;
         }
@@ -87,6 +133,10 @@ class DownloadService {
 
     try {
       debugPrint('latest.json: using bundled fallback snapshot');
+      // The channels and versions the user is about to pick from were baked in
+      // at build time. The welcome screen looks identical either way, so it
+      // has to be told.
+      manifestIsBundled = true;
       final bundled = await rootBundle.loadString('assets/latest.json.fallback');
       _cachedLatest = jsonDecode(bundled) as Map<String, dynamic>;
       return _cachedLatest!;
@@ -97,8 +147,20 @@ class DownloadService {
     throw Exception('No release manifest available');
   }
 
+  /// Cache root the test harness substitutes for the user's own cache.
+  /// `test/flutter_test_config.dart` points this at a temporary directory for
+  /// every suite, so a test run cannot leave its mock manifests where a real
+  /// launch will read them back as the current releases.
+  @visibleForTesting
+  static Directory? cacheDirOverride;
+
   /// Get platform-appropriate cache directory
   static Future<Directory> getCacheDir() async {
+    final override = cacheDirOverride;
+    if (override != null) {
+      if (!await override.exists()) await override.create(recursive: true);
+      return override;
+    }
     final String base;
     if (Platform.isWindows) {
       base = p.join(Platform.environment['LOCALAPPDATA'] ?? '', 'Librescoot', 'Installer', 'cache');
@@ -129,6 +191,61 @@ class DownloadService {
   @visibleForTesting
   static bool isStageZeroForTest(String name) => _isStageZero(name);
 
+  /// Bytes still to fetch for [items], ignoring what is already cached.
+  static int bytesOutstanding(List<DownloadItem> items) => items
+      .where((i) => i.bytesDownloaded < i.expectedSize)
+      .fold(0, (sum, i) => sum + (i.expectedSize - i.bytesDownloaded));
+
+  /// Free bytes on the filesystem holding [dir], or null when it cannot be
+  /// determined. Null is not treated as "full": refusing to download because
+  /// a df call failed would be worse than letting the download try.
+  static Future<int?> freeBytesFor(Directory dir) async {
+    if (Platform.isWindows) {
+      try {
+        final result = await Process.run('powershell', [
+          '-NoProfile',
+          '-Command',
+          '(Get-PSDrive -Name (Split-Path -Qualifier "${dir.path}").TrimEnd(":")).Free',
+        ]);
+        if (result.exitCode != 0) return null;
+        return int.tryParse(result.stdout.toString().trim());
+      } catch (_) {
+        return null;
+      }
+    }
+    try {
+      // POSIX df -k is portable across macOS and Linux; -P keeps one record
+      // per filesystem even when the mount point is long enough to wrap.
+      final result = await Process.run('df', ['-Pk', dir.path]);
+      if (result.exitCode != 0) return null;
+      final lines = const LineSplitter().convert(result.stdout.toString());
+      if (lines.length < 2) return null;
+      final fields = lines[1].trim().split(RegExp(r'\s+'));
+      if (fields.length < 4) return null;
+      final kb = int.tryParse(fields[3]);
+      return kb == null ? null : kb * 1024;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// How much room the queue needs beyond what is free, or null when there is
+  /// enough (or when free space could not be read).
+  ///
+  /// [headroomBytes] keeps the disk from being filled to the last byte: the
+  /// artifacts are unpacked and written on from here, and a cache that exactly
+  /// fits leaves nothing for that.
+  static Future<int?> shortfallFor(
+    List<DownloadItem> items,
+    Directory cacheDir, {
+    int headroomBytes = 512 * 1024 * 1024,
+  }) async {
+    final free = await freeBytesFor(cacheDir);
+    if (free == null) return null;
+    final needed = bytesOutstanding(items) + headroomBytes;
+    return needed > free ? needed - free : null;
+  }
+
   /// Whether an asset is a stage-0 image, which is what the pin replaces.
   /// Artifacts and everything else keep coming from the target release.
   static bool _isStageZero(String name) =>
@@ -138,9 +255,10 @@ class DownloadService {
   /// The pinned stage-0 release, or null when the manifest does not name one.
   ///
   /// The stage-0 image has to carry what the installer needs while it runs:
-  /// redis, bluetooth-service, mender-update. The firmware line a user picks
-  /// may predate any of that, and taking the stage-0 from the target release
-  /// made the installer's own features come and go with the target version.
+  /// redis, bluetooth-service, mender-update, zstd. The firmware line a user
+  /// picks may predate any of that, and taking the stage-0 from the target
+  /// release made the installer's own features come and go with the target
+  /// version.
   /// Artifacts depend on device_type alone, so any stage-0 for this board can
   /// carry any target version.
   ///
@@ -219,6 +337,40 @@ class DownloadService {
     return digest.toString();
   }
 
+  Future<void> _throwIfDownloadCancelled(
+    DownloadCancellationToken? cancellationToken,
+    File partFile,
+  ) async {
+    if (!(cancellationToken?.isCancelled ?? false)) return;
+    if (await partFile.exists()) await partFile.delete();
+    throw const DownloadCancelled();
+  }
+
+  Future<void> _restoreCachedFile(File cached, DownloadItem item) async {
+    if (!await cached.exists()) return;
+
+    if (await cached.length() != item.expectedSize) {
+      await cached.delete();
+      return;
+    }
+
+    final expectedSha256 = item.expectedSha256;
+    if (expectedSha256 != null) {
+      final actualSha256 = await _sha256OfFile(cached);
+      if (actualSha256 != expectedSha256.toLowerCase()) {
+        debugPrint(
+          'Download: deleting cached ${item.filename}: SHA256 mismatch '
+          '(expected $expectedSha256, got $actualSha256)',
+        );
+        await cached.delete();
+        return;
+      }
+    }
+
+    item.localPath = cached.path;
+    item.bytesDownloaded = item.expectedSize;
+  }
+
   /// Resolve tile release assets for a repo, with disk caching.
   Future<List<Map<String, dynamic>>> resolveTileAssets(
     String repo,
@@ -229,31 +381,80 @@ class DownloadService {
     final cacheFile = File(p.join(cacheDir.path, '$cacheKey-latest.json'));
     final manifestUrl = '$_manifestBase/${repo.split('/').last}.json';
 
-    // Try disk cache first
+    // Try disk cache first. A cache we cannot read counts as no cache, even
+    // while it is fresh: the alternative is throwing here, above the fetch,
+    // which leaves every later call doing the same thing until the mtime ages
+    // out and nothing ever replaces the bad file.
     if (await cacheFile.exists()) {
       final age = DateTime.now().difference(await cacheFile.lastModified());
       if (age.inHours < 1) {
-        return _assetsFromCache(await cacheFile.readAsString());
+        final cached = await _readCachedAssets(cacheFile);
+        if (cached != null) return cached;
       }
     }
 
     try {
       final response = await _client.get(Uri.parse(manifestUrl));
       if (response.statusCode != 200) {
-        // Fall back to stale cache
-        if (await cacheFile.exists()) {
-          return _assetsFromCache(await cacheFile.readAsString());
-        }
+        final cached = await _readCachedAssets(cacheFile);
+        if (cached != null) return cached;
         throw Exception('manifest error for $repo: ${response.statusCode}');
       }
-      await cacheFile.writeAsString(response.body);
-      return (jsonDecode(response.body) as List).cast<Map<String, dynamic>>();
+      // Parsed before it is stored, so a body we cannot understand never
+      // becomes tomorrow's unreadable cache.
+      final assets = _assetsFromCache(response.body);
+      await _writeCache(cacheFile, response.body);
+      return assets;
     } catch (e) {
-      // Fall back to stale cache on any network error
-      if (await cacheFile.exists()) {
-        return _assetsFromCache(await cacheFile.readAsString());
-      }
+      // Fall back to stale cache on any network error, but only a cache that
+      // still parses. A broken one here would replace the real failure with a
+      // parse error and hide what actually went wrong.
+      final cached = await _readCachedAssets(cacheFile);
+      if (cached != null) return cached;
       rethrow;
+    }
+  }
+
+  /// Read a cached asset listing, or null when the file is missing or cannot
+  /// be understood.
+  ///
+  /// Catches broadly on purpose. A truncated file throws FormatException, but
+  /// a well-formed document of the wrong shape throws a cast error instead:
+  /// _assetsFromCache does `decoded as Map<String, dynamic>` and then
+  /// `['assets'] as List`, so an object without that key never reaches a
+  /// JSON-specific exception at all.
+  static Future<List<Map<String, dynamic>>?> _readCachedAssets(
+    File cacheFile,
+  ) async {
+    try {
+      if (!await cacheFile.exists()) return null;
+      return _assetsFromCache(await cacheFile.readAsString());
+    } catch (e) {
+      debugPrint('Download: ignoring unreadable manifest cache '
+          '${cacheFile.path}: $e');
+      return null;
+    }
+  }
+
+  /// Replace the cache in one step.
+  ///
+  /// writeAsString truncates first, so a run that dies mid-write leaves a
+  /// short file wearing a fresh timestamp, which is exactly the state that
+  /// used to wedge this for an hour. Writing beside it and renaming means the
+  /// cache is either the old listing or the new one. File.rename removes an
+  /// existing file at the destination, on every platform this ships to.
+  static Future<void> _writeCache(File cacheFile, String body) async {
+    final staging = File('${cacheFile.path}.part');
+    try {
+      await staging.writeAsString(body, flush: true);
+      await staging.rename(cacheFile.path);
+    } catch (e) {
+      debugPrint('Download: could not store manifest cache: $e');
+      if (await staging.exists()) {
+        try {
+          await staging.delete();
+        } catch (_) {}
+      }
     }
   }
 
@@ -403,13 +604,10 @@ class DownloadService {
         // sha256 is provided per-asset by downloads.librescoot.org's
         // generator (filled in from GitHub's server-computed digest).
         // Null on legacy manifests pre-feature → verification skipped.
-        expectedSha256: asset['sha256'] as String?,
+        expectedSha256: _sha256FromAsset(asset),
       );
 
-      if (await cached.exists() && await cached.length() == expectedSize) {
-        item.localPath = cached.path;
-        item.bytesDownloaded = expectedSize;
-      }
+      await _restoreCachedFile(cached, item);
 
       items.add(item);
     }
@@ -430,10 +628,7 @@ class DownloadService {
           expectedSize: expectedSize,
           expectedSha256: _sha256FromAsset(asset),
         );
-        if (await cached.exists() && await cached.length() == expectedSize) {
-          item.localPath = cached.path;
-          item.bytesDownloaded = expectedSize;
-        }
+        await _restoreCachedFile(cached, item);
         items.add(item);
       }
 
@@ -458,10 +653,7 @@ class DownloadService {
           expectedSize: expectedSize,
           expectedSha256: _sha256FromAsset(asset),
         );
-        if (await cached.exists() && await cached.length() == expectedSize) {
-          item.localPath = cached.path;
-          item.bytesDownloaded = expectedSize;
-        }
+        await _restoreCachedFile(cached, item);
         items.add(item);
       }
     }
@@ -476,15 +668,26 @@ class DownloadService {
   Future<void> downloadItem(
     DownloadItem item, {
     void Function(int bytesDownloaded, int totalBytes)? onProgress,
+    DownloadCancellationToken? cancellationToken,
   }) async {
     if (item.isComplete) return;
+    cancellationToken?.throwIfCancelled();
 
     final cacheDir = await getCacheDir();
     final targetFile = File(p.join(cacheDir.path, item.filename));
-    final partFile = File('${targetFile.path}.part');
+    final partFile = File(cancellationToken == null
+        ? '${targetFile.path}.part'
+        : '${targetFile.path}.${cancellationToken.generation}.part');
 
     final request = http.Request('GET', Uri.parse(item.url));
-    final response = await _client.send(request);
+    final response = await _client.send(request).timeout(
+          _requestTimeout,
+          onTimeout: () => throw TimeoutException(
+            'Download request timed out for ${item.filename}',
+            _requestTimeout,
+          ),
+        );
+    cancellationToken?.throwIfCancelled();
 
     if (response.statusCode != 200) {
       throw Exception('Download failed: HTTP ${response.statusCode}');
@@ -492,20 +695,36 @@ class DownloadService {
 
     final sink = partFile.openWrite();
     var downloaded = 0;
+    item.bytesDownloaded = 0;
 
     // The close belongs in a finally: a stream that throws part-way through
     // otherwise leaks the handle, and on Windows keeps the .part file locked
     // against the retry that follows.
     try {
-      await for (final chunk in response.stream) {
-        sink.add(chunk);
-        downloaded += chunk.length;
-        item.bytesDownloaded = downloaded;
-        onProgress?.call(downloaded, item.expectedSize);
+      try {
+        await for (final chunk in response.stream.timeout(
+          _idleTimeout,
+          onTimeout: (sink) => sink.addError(TimeoutException(
+            'Download stalled for ${item.filename}',
+            _idleTimeout,
+          )),
+        )) {
+          cancellationToken?.throwIfCancelled();
+          sink.add(chunk);
+          downloaded += chunk.length;
+          item.bytesDownloaded = downloaded;
+          onProgress?.call(downloaded, item.expectedSize);
+        }
+      } finally {
+        await sink.close();
       }
-    } finally {
-      await sink.close();
+    } catch (_) {
+      item.bytesDownloaded = 0;
+      if (await partFile.exists()) await partFile.delete();
+      rethrow;
     }
+
+    await _throwIfDownloadCancelled(cancellationToken, partFile);
 
     // Verify size
     if (await partFile.length() != item.expectedSize) {
@@ -517,6 +736,7 @@ class DownloadService {
     // Catches transit corruption that the size check would miss.
     if (item.expectedSha256 != null) {
       final actual = await _sha256OfFile(partFile);
+      await _throwIfDownloadCancelled(cancellationToken, partFile);
       if (actual != item.expectedSha256) {
         await partFile.delete();
         throw Exception(
@@ -526,10 +746,13 @@ class DownloadService {
       }
     }
 
+    await _throwIfDownloadCancelled(cancellationToken, partFile);
     await partFile.rename(targetFile.path);
+    await _throwIfDownloadCancelled(cancellationToken, partFile);
     item.localPath = targetFile.path;
 
     // Clean up old versions of the same type in the cache
+    await _throwIfDownloadCancelled(cancellationToken, partFile);
     await _cleanupOldVersions(cacheDir, item);
   }
 
@@ -585,12 +808,14 @@ class DownloadService {
   Future<void> downloadAll(
     List<DownloadItem> items, {
     void Function(DownloadItem item, int bytesDownloaded, int totalBytes)? onProgress,
+    DownloadCancellationToken? cancellationToken,
   }) async {
     for (final item in items) {
+      cancellationToken?.throwIfCancelled();
       if (item.isComplete) continue;
       await downloadItem(item, onProgress: (bytes, total) {
         onProgress?.call(item, bytes, total);
-      });
+      }, cancellationToken: cancellationToken);
     }
   }
 
