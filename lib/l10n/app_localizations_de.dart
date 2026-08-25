@@ -500,7 +500,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get stockFirmwareBody =>
-      'Dieser Roller läuft mit seiner Original-Firmware. Damit ist alles in Ordnung. Einige Werte hier stehen unter anderen Schlüsseln und werden deshalb als unbekannt statt als gemessen angezeigt. Fahre fort, um Librescoot zu installieren.';
+      'Dieser Roller läuft mit seiner Original-Firmware. Damit ist alles in Ordnung. Fahre fort, um Librescoot zu installieren.';
 
   @override
   String get continueButton => 'Weiter';

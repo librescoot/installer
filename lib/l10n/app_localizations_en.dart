@@ -495,7 +495,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get stockFirmwareBody =>
-      'This scooter is running its original firmware. Nothing is wrong with it. Some readings here come from a different set of keys and are shown as unknown rather than measured. Continue to install Librescoot.';
+      'This scooter is running its original firmware. Nothing is wrong with it. Continue to install Librescoot.';
 
   @override
   String get continueButton => 'Continue';

@@ -971,7 +971,7 @@ abstract class AppLocalizations {
   /// No description provided for @stockFirmwareBody.
   ///
   /// In en, this message translates to:
-  /// **'This scooter is running its original firmware. Nothing is wrong with it. Some readings here come from a different set of keys and are shown as unknown rather than measured. Continue to install Librescoot.'**
+  /// **'This scooter is running its original firmware. Nothing is wrong with it. Continue to install Librescoot.'**
   String get stockFirmwareBody;
 
   /// No description provided for @continueButton.

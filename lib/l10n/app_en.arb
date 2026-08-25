@@ -187,7 +187,7 @@
   "reflashToRecover": "Re-flash to recover",
   "stockFirmwareStatus": "Stock firmware detected. Ready to install Librescoot...",
   "stockFirmwareHeading": "Stock firmware",
-  "stockFirmwareBody": "This scooter is running its original firmware. Nothing is wrong with it. Some readings here come from a different set of keys and are shown as unknown rather than measured. Continue to install Librescoot.",
+  "stockFirmwareBody": "This scooter is running its original firmware. Nothing is wrong with it. Continue to install Librescoot.",
   "continueButton": "Continue",
   "retryButton": "Retry",
   "proceedAtOwnRisk": "Proceed at my own risk",
