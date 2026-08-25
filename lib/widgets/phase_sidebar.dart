@@ -15,7 +15,12 @@ class PhaseSidebar extends StatelessWidget {
     required this.completedPhases,
     this.skippedPhases = const {},
     this.upgradingSteps = const {},
+    this.dbcMapsOnly = false,
     this.downloadItems = const [],
+    this.statusMessage,
+    this.isBusy = false,
+    this.progress,
+    this.onShowLog,
   });
 
   final InstallerPhase currentPhase;
@@ -25,70 +30,77 @@ class PhaseSidebar extends StatelessWidget {
   /// Major steps whose board the plan is upgrading rather than flashing.
   /// Only changes the wording; the phases themselves are the same.
   final Set<MajorStep> upgradingSteps;
+
+  /// The plan leaves the dashboard alone but installs maps, so the
+  /// dashboard block copies files and writes no firmware.
+  final bool dbcMapsOnly;
   final List<DownloadItem> downloadItems;
+
+  /// What the installer is doing right now. It used to live in a strip along
+  /// the bottom of the window, which cost every screen 36px of height for one
+  /// line of text; the sidebar has the room and already carries the progress.
+  final String? statusMessage;
+  final bool isBusy;
+  final double? progress;
+
+  /// Opens the log window. Bottom left, with a label: it was an unlabelled
+  /// icon in the corner of that strip.
+  final VoidCallback? onShowLog;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Container(
-      width: 220,
-      color: kBgSidebar,
+      // Wide enough for the longest step title to stay on one line. The 300
+      // it started at came from a width measured in a widget test, where the
+      // font is a fixed-width stand-in and every string comes out half again
+      // too wide.
+      width: 264,
+      decoration: const BoxDecoration(
+        color: kBgSidebar,
+        border: Border(right: BorderSide(color: kSidebarEdge)),
+      ),
       child: Column(
         children: [
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              // No top padding: the header below sets its own, so the
+              // wordmark can be lined up with the phase title across the
+              // divide rather than sitting a centimetre below it.
+              padding: const EdgeInsets.only(bottom: 16),
               children: [
+                // Wordmark and version centred, with room above them: the
+                // sidebar reads as a masthead over a list rather than as a
+                // stack of left-aligned oddments.
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
+                  // 26 puts the middle of the 26px wordmark on the middle of
+                  // the 24px title in the content area, which starts at 22.
+                  padding: const EdgeInsets.fromLTRB(16, 26, 16, 12),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.only(right: 12),
-                        child: SvgPicture.asset(
-                          'assets/logotype.svg',
-                          height: 24,
-                          colorFilter: const ColorFilter.mode(
-                            kAccent,
-                            BlendMode.srcIn,
-                          ),
+                      SvgPicture.asset(
+                        'assets/logotype.svg',
+                        height: 26,
+                        colorFilter: const ColorFilter.mode(
+                          kAccent,
+                          BlendMode.srcIn,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Installer',
-                                style: TextStyle(
-                                  color: kAccent.withValues(alpha: 0.7),
-                                  fontSize: 12,
-                                ),
-                              ),
-                              Text(
-                                appVersion,
-                                style: TextStyle(
-                                  color: kAccent.withValues(alpha: 0.45),
-                                  fontSize: 10,
-                                  fontFeatures: const [FontFeature.tabularFigures()],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(width: 4),
-                          const LanguageSwitcher(),
-                        ],
+                      const SizedBox(height: 6),
+                      Text(
+                        'Installer $appVersion',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: kAccent.withValues(alpha: 0.55),
+                          fontSize: 11,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 14),
                 for (final major in MajorStep.values) ...[
                   _MajorStepItem(
                     step: major,
@@ -96,6 +108,7 @@ class PhaseSidebar extends StatelessWidget {
                     isCompleted: major.isCompleted(currentPhase),
                     isSkipped: major.phases.every((p) => skippedPhases.contains(p)),
                     isUpgrade: upgradingSteps.contains(major),
+                    mapsOnly: dbcMapsOnly,
                     l10n: l10n,
                   ),
                   // Show substeps only for the active major step
@@ -107,17 +120,105 @@ class PhaseSidebar extends StatelessWidget {
                           isCurrent: phase == currentPhase,
                           isCompleted: completedPhases.contains(phase) || phase.index < currentPhase.index,
                           l10n: l10n,
+                          mapsOnly: dbcMapsOnly,
                         ),
                 ],
               ],
             ),
           ),
+          if (statusMessage != null && statusMessage!.trim().isNotEmpty)
+            _StatusLine(
+                message: statusMessage!, busy: isBusy, progress: progress),
           if (downloadItems.isNotEmpty)
             downloadItems.every((i) => i.isComplete)
                 ? const _DownloadsFinished()
                 : _DownloadStatus(items: downloadItems),
+          _SidebarFooter(onShowLog: onShowLog),
         ],
       ),
+    );
+  }
+}
+
+/// The line that used to be the window's bottom strip.
+class _StatusLine extends StatelessWidget {
+  const _StatusLine({required this.message, this.busy = false, this.progress});
+
+  final String message;
+  final bool busy;
+  final double? progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: kSidebarEdge)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (busy) ...[
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                value: progress != null && progress! > 0 ? progress : null,
+                color: kAccent,
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Log and language, at the foot of the column.
+class _SidebarFooter extends StatelessWidget {
+  const _SidebarFooter({this.onShowLog});
+
+  final VoidCallback? onShowLog;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: kSidebarEdge)),
+      ),
+      child: Row(
+        // Spaced, not spaced-by-a-Spacer: a Spacer is a flex child and takes
+        // the free space before a Flexible sibling sees any, which is what
+        // was cutting one of these two labels short.
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const LanguageSwitcher(),
+          TextButton.icon(
+            onPressed: onShowLog,
+            icon: const Icon(Icons.article_outlined, size: 16),
+            label: Text(l10n.showLog, style: const TextStyle(fontSize: 12.5)),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.grey.shade400,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
+      )
     );
   }
 }
@@ -130,6 +231,7 @@ class _MajorStepItem extends StatelessWidget {
     required this.l10n,
     this.isSkipped = false,
     this.isUpgrade = false,
+    this.mapsOnly = false,
   });
 
   final MajorStep step;
@@ -137,6 +239,7 @@ class _MajorStepItem extends StatelessWidget {
   final bool isCompleted;
   final bool isSkipped;
   final bool isUpgrade;
+  final bool mapsOnly;
   final AppLocalizations l10n;
 
   @override
@@ -194,15 +297,29 @@ class _MajorStepItem extends StatelessWidget {
           leading,
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              isSkipped
-                  ? '${step.localizedTitle(l10n, upgrade: isUpgrade)} (${l10n.majorStepSkippedSuffix})'
-                  : step.localizedTitle(l10n, upgrade: isUpgrade),
-              style: TextStyle(
-                color: textColor,
-                fontSize: 14,
-                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  step.localizedTitle(l10n,
+                      upgrade: isUpgrade, mapsOnly: mapsOnly),
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 14,
+                    fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+                // Its own line rather than a suffix in brackets, which pushed
+                // the title into a second, ragged line of its own.
+                if (isSkipped)
+                  Text(
+                    l10n.majorStepSkippedSuffix,
+                    style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic),
+                  ),
+              ],
             ),
           ),
         ],
@@ -217,12 +334,14 @@ class _SubStepItem extends StatelessWidget {
     required this.isCurrent,
     required this.isCompleted,
     required this.l10n,
+    this.mapsOnly = false,
   });
 
   final InstallerPhase phase;
   final bool isCurrent;
   final bool isCompleted;
   final AppLocalizations l10n;
+  final bool mapsOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -248,7 +367,7 @@ class _SubStepItem extends StatelessWidget {
           const SizedBox(width: 6),
           Expanded(
             child: Text(
-              phase.localizedTitle(l10n),
+              phase.localizedTitle(l10n, mapsOnly: mapsOnly),
               style: TextStyle(
                 color: textColor,
                 fontSize: 11,
@@ -301,16 +420,18 @@ class _DownloadStatus extends StatelessWidget {
 
   final List<DownloadItem> items;
 
-  static const _labels = {
-    DownloadItemType.mdbArtifact: 'MDB Artifact',
-    DownloadItemType.dbcArtifact: 'DBC Artifact',
-    DownloadItemType.mdbFirmware: 'MDB',
-    DownloadItemType.mdbBmap: 'Bmap',
-    DownloadItemType.dbcFirmware: 'DBC',
-    DownloadItemType.dbcBmap: 'Bmap',
-    DownloadItemType.osmTiles: 'Maps',
-    DownloadItemType.valhallaTiles: 'Routes',
-  };
+  /// The chips were English in a German window: Artifact, Maps, Routes.
+  static String? _label(DownloadItemType type, AppLocalizations l10n) =>
+      switch (type) {
+        DownloadItemType.mdbArtifact => l10n.assetChipMdbArtifact,
+        DownloadItemType.dbcArtifact => l10n.assetChipDbcArtifact,
+        DownloadItemType.mdbFirmware => l10n.assetChipMdbImage,
+        DownloadItemType.dbcFirmware => l10n.assetChipDbcImage,
+        DownloadItemType.osmTiles => l10n.assetChipMaps,
+        DownloadItemType.valhallaTiles => l10n.assetChipRoutes,
+        // Tiny, and tracked with the firmware they belong to.
+        DownloadItemType.mdbBmap || DownloadItemType.dbcBmap => null,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -345,27 +466,28 @@ class _DownloadStatus extends StatelessWidget {
           LinearProgressIndicator(
             value: overallProgress,
             minHeight: 3,
-            backgroundColor: Colors.grey.shade800,
           ),
           const SizedBox(height: 4),
           Wrap(
             spacing: 8,
             children: [
               for (final item in items)
-                // Skip bmap files: they're tiny and tracked with their firmware
-                if (item.type != DownloadItemType.mdbBmap && item.type != DownloadItemType.dbcBmap)
+                if (_label(item.type, l10n) case final label?)
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        item.isComplete ? Icons.check_circle : Icons.circle_outlined,
+                        item.isComplete
+                            ? Icons.check_circle
+                            : Icons.circle_outlined,
                         size: 10,
                         color: item.isComplete ? kAccent : Colors.grey.shade600,
                       ),
                       const SizedBox(width: 3),
                       Text(
-                        _labels[item.type] ?? '',
-                        style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                        label,
+                        style: TextStyle(
+                            fontSize: 10, color: Colors.grey.shade500),
                       ),
                     ],
                   ),

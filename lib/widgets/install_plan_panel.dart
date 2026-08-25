@@ -14,7 +14,7 @@ class InstallPlanPanel extends StatelessWidget {
     required this.dbcState,
     required this.targetVersion,
     required this.onChanged,
-    required this.onContinue,
+    this.tilesAvailable = true,
   });
 
   final InstallPlan plan;
@@ -22,83 +22,63 @@ class InstallPlanPanel extends StatelessWidget {
   final BoardState dbcState;
   final String targetVersion;
   final ValueChanged<InstallPlan> onChanged;
-  final VoidCallback onContinue;
+
+  /// The tiles were fetched, so installing them is a choice that can be made
+  /// here. Skipping the download on the first screen takes it away.
+  final bool tilesAvailable;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 640),
-        // Heading and the Continue button stay pinned outside the scroll
-        // region; only the board cards and warnings scroll. Continue is the
-        // one control that confirms an irreversible action, so it must never
-        // be scrolled off the bottom where a short or unmaximised window
-        // could hide it with no cue. `mainAxisSize.min` on the outer Column
-        // plus `Flexible` (loose fit) on the inner scroll view means the
-        // panel still hugs its content and stays visually centered when
-        // everything fits (SingleChildScrollView reports its child's own
-        // size when that fits the available space), and only grows to fill
-        // the available height, with the middle section scrolling, when it
-        // does not: the button never ends up floating far below short
-        // content.
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(l10n.installPlanHeading,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 24, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(l10n.installPlanIntro(targetVersion),
-                textAlign: TextAlign.center),
-            const SizedBox(height: 24),
-            Flexible(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _boardCard(context, l10n, l10n.boardMdb, mdbState,
-                        plan.mdb, (p) => onChanged(plan.withMdb(p))),
-                    const SizedBox(height: 12),
-                    _boardCard(context, l10n, l10n.boardDbc, dbcState,
-                        plan.dbc, (p) => onChanged(plan.withDbc(p))),
-                    if (plan.installTiles && !plan.needsDbcWork)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16),
-                        child: Text(l10n.planTilesNeedDbcHandoff,
-                            style: Theme.of(context).textTheme.bodySmall),
-                      ),
-                    if (plan.dbcWorkStrandedOn(mdbState))
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16),
-                        child: Text(l10n.planDbcNeedsLibrescootMdb,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: Colors.orange.shade300)),
-                      ),
-                    if (plan.isNoOp)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16),
-                        child: Text(l10n.planNothingToDo,
-                            style: Theme.of(context).textTheme.bodySmall),
-                      ),
-                  ],
-                ),
-              ),
+    // Only the board cards and warnings live here now. The heading and the
+    // Continue button are the enclosing PhaseLayout's job, which is where
+    // every other phase keeps them too; this panel used to pin them itself
+    // because it was the only screen that needed to.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _boardCard(context, l10n, l10n.boardMdb, mdbState, plan.mdb,
+            (p) => onChanged(plan.withMdb(p))),
+        const SizedBox(height: 12),
+        _boardCard(context, l10n, l10n.boardDbc, dbcState, plan.dbc,
+            (p) => onChanged(plan.withDbc(p))),
+        const SizedBox(height: 12),
+        // The maps used to be decided on the welcome screen, where the control
+        // reads as a download-size choice, and this screen only stated the
+        // consequence without offering a way to act on it. Every other part of
+        // what this run will do is chosen here, so the maps are too.
+        Card(
+          child: CheckboxListTile(
+            value: tilesAvailable && plan.installTiles,
+            onChanged: tilesAvailable
+                ? (v) => onChanged(plan.withTiles(v ?? false))
+                : null,
+            title: Text(l10n.planInstallTiles),
+            subtitle: Text(
+              tilesAvailable
+                  ? l10n.planInstallTilesDetail
+                  : l10n.planTilesNotDownloaded,
             ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: plan.isNoOp || plan.dbcWorkStrandedOn(mdbState)
-                  ? null
-                  : onContinue,
-              child: Text(l10n.continueButton),
-            ),
-          ],
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+            controlAffinity: ListTileControlAffinity.leading,
+          ),
         ),
-      ),
+        if (plan.dbcWorkStrandedOn(mdbState))
+          Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: Text(l10n.planDbcNeedsLibrescootMdb,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Colors.orange.shade300)),
+          ),
+        if (plan.isNoOp)
+          Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: Text(l10n.planNothingToDo,
+                style: Theme.of(context).textTheme.bodySmall),
+          ),
+      ],
     );
   }
 
@@ -200,12 +180,17 @@ class InstallPlanPanel extends StatelessWidget {
         _ => null,
       };
 
+  /// The board's version with the distribution it belongs to, since the two
+  /// use overlapping numbering and a bare number says nothing about which.
   String _versionLabel(AppLocalizations l10n, BoardState state) {
     final version = state.version;
     if (version == null || version.isEmpty) return l10n.boardVersionUnknown;
+    final named =
+        '${state.isLibrescoot ? l10n.distroLibrescoot : l10n.distroStock} '
+        '$version';
     return state.provenance == StateProvenance.lastSeen
-        ? l10n.boardVersionLastSeen(version)
-        : l10n.boardVersionCurrent(version);
+        ? l10n.boardVersionLastSeen(named)
+        : l10n.boardVersionCurrent(named);
   }
 
   String _actionLabel(AppLocalizations l10n, BoardAction action) =>
@@ -219,14 +204,17 @@ class InstallPlanPanel extends StatelessWidget {
   /// What each action costs, per board. Settings, keycards and trips all live
   /// on the main board; the dashboard's own storage holds the offline maps and
   /// nothing else, so wiping it loses only those, and only until the maps are
-  /// written back.
+  /// written back. Whether they are written back is this plan's own answer, so
+  /// the wording follows it rather than naming a loss the same run undoes.
   String _actionDetail(
           AppLocalizations l10n, BoardAction action, Board board) =>
       switch ((action, board)) {
         (BoardAction.upgrade, Board.dbc) => l10n.actionUpgradeDetailDbc,
         (BoardAction.cleanInstall, Board.dbc) ||
         (BoardAction.fullImage, Board.dbc) =>
-          l10n.actionCleanInstallDetailDbc,
+          plan.installTiles
+              ? l10n.actionCleanInstallDetailDbcTiles
+              : l10n.actionCleanInstallDetailDbc,
         (BoardAction.upgrade, _) => l10n.actionUpgradeDetail,
         (BoardAction.cleanInstall, _) || (BoardAction.fullImage, _) =>
           l10n.actionCleanInstallDetail,

@@ -13,6 +13,8 @@ class InstructionStep extends StatelessWidget {
     this.imagePlaceholder,
     this.imageAsset,
     this.beforeImageAsset,
+    this.expanded = true,
+    this.onTap,
   });
 
   final int number;
@@ -23,8 +25,26 @@ class InstructionStep extends StatelessWidget {
   final String? imageAsset;
   final String? beforeImageAsset;
 
+  /// Collapsed steps keep their number and title and drop the rest. A screen
+  /// with three photo pairs is nearly two windows tall; one pair at a time is
+  /// what the person with the screwdriver actually needs.
+  final bool expanded;
+
+  /// Makes the step a target for opening it. Null leaves it inert.
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
+    final body = _body(context);
+    if (onTap == null) return body;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: body,
+    );
+  }
+
+  Widget _body(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -50,7 +70,12 @@ class InstructionStep extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                Text(title,
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: expanded ? null : Colors.grey.shade500)),
+                if (expanded) ...[
                 const SizedBox(height: 4),
                 Text(description, style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
                 if (beforeImageAsset != null && imageAsset != null) ...[
@@ -106,6 +131,7 @@ class InstructionStep extends StatelessWidget {
                           style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
                     ),
                   ),
+                ],
                 ],
               ],
             ),
