@@ -1126,14 +1126,61 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
   /// refuses to pick a target rather than guess.
   @visibleForTesting
   int? parseIoregDiskNumber(String output) {
+    final disk = ioregBsdNameUnder(
+      output,
+      productId: massStoragePid,
+      // Whole disks only: matches "disk8", never the "disk8s1" slice.
+      bsdRe: RegExp(r'"BSD Name"\s*=\s*"disk(\d+)"', caseSensitive: false),
+    );
+    return disk == null ? null : int.tryParse(disk);
+  }
+
+  /// Parse the same `ioreg -r -c IOUSBHostDevice -l` output for the network
+  /// interface macOS published beneath the ethernet gadget (PID 0xA4A2),
+  /// e.g. `en12`.
+  ///
+  /// Same walk as the disk lookup because it is the same tree: a different
+  /// driver stack hangs off the device, but the interface it publishes sits
+  /// under that device's node exactly as an IOMedia does, and the indent
+  /// tracking below is what attributes it to the right device.
+  static String? parseIoregEthernetInterface(String output) => ioregBsdNameUnder(
+        output,
+        productId: ethernetPid,
+        bsdRe: RegExp(r'"BSD Name"\s*=\s*"(en\d+)"', caseSensitive: false),
+      );
+
+  /// Find a "BSD Name" published somewhere beneath the USB device carrying our
+  /// vendor id and [productId], and return the text [bsdRe] captures.
+  ///
+  /// ioreg prints each node's properties followed, depth-first, by its
+  /// children, and indents every node by its depth in the tree. A device's
+  /// "BSD Name" therefore appears after that device's own idVendor/idProduct
+  /// lines and at a deeper indent, so a node can be attributed to the device
+  /// that owns it even with other USB devices attached.
+  ///
+  /// The identity is dropped as soon as a node appears at or above the indent
+  /// of the node that published it, which is where that device's subtree ends.
+  /// Without that, a device publishing no descriptor properties of its own
+  /// would inherit the gadget's identity and hand the caller something that
+  /// belongs to someone else. An identity that cannot be established stays
+  /// unresolved, and the caller refuses rather than guessing.
+  ///
+  /// Depth-agnostic on purpose: it takes the first match at any depth in the
+  /// subtree rather than expecting a particular chain of intermediate driver
+  /// nubs, which differ between the storage and network stacks and between
+  /// macOS releases.
+  @visibleForTesting
+  static String? ioregBsdNameUnder(
+    String output, {
+    required int productId,
+    required RegExp bsdRe,
+  }) {
     // ioreg prints these in decimal, but accept the hex form too: the rest of
     // this file does, and misreading an id here costs a flash target.
     final vendorRe =
         RegExp(r'"idVendor"\s*=\s*(0x[0-9a-f]+|\d+)', caseSensitive: false);
     final productRe =
         RegExp(r'"idProduct"\s*=\s*(0x[0-9a-f]+|\d+)', caseSensitive: false);
-    // Whole disks only: matches "disk8", never the "disk8s1" slice.
-    final bsdRe = RegExp(r'"BSD Name"\s*=\s*"disk(\d+)"', caseSensitive: false);
 
     int? lastVendor;
     int? lastProduct;
@@ -1166,8 +1213,8 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
       final bsd = bsdRe.firstMatch(line);
       if (bsd != null &&
           lastVendor == targetVendorId &&
-          lastProduct == massStoragePid) {
-        return int.tryParse(bsd.group(1)!);
+          lastProduct == productId) {
+        return bsd.group(1);
       }
     }
     return null;
