@@ -102,7 +102,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// Which physical-prep step is open. Three photo pairs at once made that
   /// screen nearly two windows tall; one at a time is what someone with a
   /// screwdriver in hand is actually working on.
-  int _prepStepOpen = 0;
   bool _healthCheckStarted = false;
   final PhaseAttempt _mdbToUmsAttempt = PhaseAttempt();
   bool _mdbFlashStarted = false;
@@ -2345,8 +2344,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               description: step.description,
               beforeImageAsset: step.before,
               imageAsset: step.after,
-              expanded: i == _prepStepOpen,
-              onTap: () => setState(() => _prepStepOpen = i),
+              // All open. As an accordion the closed steps were grey text
+              // with no affordance, so nobody read them as openable and the
+              // instructions for two of the three were simply invisible. The
+              // frame scrolls, which is what the accordion was buying.
+              expanded: true,
             ),
         ],
       ),
