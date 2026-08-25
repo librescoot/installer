@@ -95,6 +95,10 @@ class SubstepLabels {
     this.uploadScript = 'Upload trampoline script',
     this.uploadFile = _defaultUploadFile,
     this.verifying = _defaultVerifying,
+    this.starting = 'Starting upload...',
+    this.complete = 'Upload complete',
+    this.nothingToDo = 'All files are already on the scooter',
+    this.remaining = _defaultRemaining,
   });
 
   final String checkExisting;
@@ -103,9 +107,15 @@ class SubstepLabels {
   final String uploadScript;
   final String Function(String filename) uploadFile;
   final String Function(String filename) verifying;
+  final String starting;
+  final String complete;
+  final String nothingToDo;
+  final String Function(int mins, int secs) remaining;
 
   static String _defaultUploadFile(String filename) => 'Upload $filename';
   static String _defaultVerifying(String filename) => 'verifying $filename';
+  static String _defaultRemaining(int mins, int secs) =>
+      '${mins}m ${secs}s remaining';
 }
 
 class TrampolineService {
@@ -551,12 +561,12 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     onSubsteps?.call(List.unmodifiable(substeps));
 
     // Start HTTP upload server early: MDB may be busy creating UMS disk image on first boot
-    onProgress?.call('Starting upload server...', 0.0);
+    onProgress?.call(l.starting, 0.0);
     await _startUploadServer();
 
     // Check which files need uploading (server starts in background while we check)
     setStep('check', SubstepState.active);
-    onProgress?.call('Checking existing files...', 0.0);
+    onProgress?.call(l.checkExisting, 0.0);
     final needsUpload = <bool>[];
     final fileSizes = <int>[];
     var totalBytes = 0;
@@ -565,7 +575,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       fileSizes.add(size);
       final filename = File(entry.key).uri.pathSegments.last;
       setStep('check', SubstepState.active, detail: l.verifying(filename));
-      onProgress?.call('Checking $filename...', 0.0);
+      onProgress?.call(l.verifying(filename), 0.0);
       final matches = await _remoteFileMatches(entry.key, entry.value);
       needsUpload.add(!matches);
       if (!matches) totalBytes += size;
@@ -573,7 +583,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     setStep('check', SubstepState.done);
 
     if (totalBytes == 0) {
-      onProgress?.call('All files already on device', 0.95);
+      onProgress?.call(l.nothingToDo, 0.95);
       for (final e in filesToUpload) {
         setStep('up:${e.value}', SubstepState.done, detail: 'already on device');
       }
@@ -598,7 +608,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
           }
 
           setStep(stepId, SubstepState.active);
-          onProgress?.call('Uploading $filename...', bytesSoFar / totalBytes);
+          onProgress?.call(l.uploadFile(filename), bytesSoFar / totalBytes);
           final baseBytes = bytesSoFar;
           await _uploadViaHttp(
             entry.key,
@@ -613,13 +623,13 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
                 final remaining = (elapsed / overall) * (1.0 - overall);
                 final mins = remaining ~/ 60;
                 final secs = (remaining % 60).floor();
-                eta = ', ${mins}m ${secs}s remaining';
+                eta = ', ${l.remaining(mins, secs)}';
               }
               final detail =
                   '${mb.toStringAsFixed(0)} / ${totalMb.toStringAsFixed(0)} MB$eta';
               setStep(stepId, SubstepState.active, detail: detail);
               onProgress?.call(
-                'Uploading $filename... $detail',
+                '${l.uploadFile(filename)} - $detail',
                 overall,
               );
             },
@@ -638,7 +648,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     if (dbcImageLocalPath != null) {
       // Upload ARM flasher binary for DBC flash (has bmap + progress support)
       setStep('flasher', SubstepState.active);
-      onProgress?.call('Uploading flasher...', 0.94);
+      onProgress?.call(l.uploadFlasher, 0.94);
       try {
         final flasherAsset = await rootBundle.load('assets/tools/librescoot-flasher-linux-arm');
         debugPrint('Trampoline: loaded flasher-linux-arm (${flasherAsset.lengthInBytes} bytes)');
@@ -658,7 +668,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
 
       // Upload stock DBC fw_setenv binary + DBC-specific fw_env config
       setStep('fwtools', SubstepState.active);
-      onProgress?.call('Uploading DBC tools...', 0.96);
+      onProgress?.call(l.uploadFwTools, 0.96);
       try {
         await stageDbcBootloaderTools(
           loadAsset: rootBundle.load,
@@ -677,7 +687,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     // Always regenerate the trampoline script (small, config may have changed)
     setStep('script', SubstepState.active);
     debugPrint('Trampoline: generating and uploading trampoline script...');
-    onProgress?.call('Uploading trampoline script...', 0.98);
+    onProgress?.call(l.uploadScript, 0.98);
     // A stage-0 image means this is a flash job; no image means upgrade,
     // where the artifact goes straight through the on-device update queue.
     final upgradeMode = dbcImageLocalPath == null;
@@ -711,7 +721,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     debugPrint('Trampoline: script uploaded');
     setStep('script', SubstepState.done);
 
-    onProgress?.call('Upload complete', 1.0);
+    onProgress?.call(l.complete, 1.0);
     debugPrint('Trampoline: uploadAll complete');
   }
 

@@ -26,6 +26,8 @@ class WaitOverlay extends StatefulWidget {
     this.warning,
     this.logTail = const [],
     this.actions = const [],
+    this.backgroundLabel,
+    this.backgroundProgress,
     this.now,
   });
 
@@ -51,6 +53,16 @@ class WaitOverlay extends StatefulWidget {
 
   /// Last lines of whatever the phase is doing, behind a disclosure.
   final List<String> logTail;
+
+  /// Work running beside the steps, on its own line with its own bar.
+  ///
+  /// The dashboard files upload behind the MDB install, so the phase's step
+  /// list and the transfer are two different things happening at once. One
+  /// bar between them showed the step and left the sidebar to mention the
+  /// transfer, which is how "Firmware wird installiert" came to sit above
+  /// "uploading valhalla tiles".
+  final String? backgroundLabel;
+  final double? backgroundProgress;
 
   /// Anything the user can do while this runs. Usually empty.
   final List<Widget> actions;
@@ -171,6 +183,30 @@ class _WaitOverlayState extends State<WaitOverlay> {
             ),
           ],
         ),
+        if (widget.backgroundLabel != null) ...[
+          const SizedBox(height: 14),
+          Divider(height: 1, color: kOutlineQuiet),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Icon(Icons.cloud_upload_outlined, size: 14, color: kTextMuted),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  widget.backgroundLabel!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12.5, color: kTextMuted),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          LinearProgressIndicator(
+            value: widget.backgroundProgress,
+            minHeight: 3,
+          ),
+        ],
         if (widget.warning != null) ...[
           const SizedBox(height: 12),
           Row(

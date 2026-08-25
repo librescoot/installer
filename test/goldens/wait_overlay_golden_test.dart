@@ -91,6 +91,45 @@ void main() {
     );
   });
 
+  testWidgets('the wait, with a transfer running behind it', (tester) async {
+    tester.view.physicalSize = const Size(982, 610);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(app(WaitScaffold(
+      backdrop: backdrop(),
+      overlay: WaitOverlay(
+        title: 'MDB-Update',
+        steps: const [
+          WaitStep(
+              label: 'Artefakt wird übertragen',
+              typical: Duration(seconds: 60)),
+          WaitStep(
+              label: 'Firmware wird installiert', typical: Duration(minutes: 2)),
+          WaitStep(
+              label: 'Warte auf das Ende der Display-Übertragung...',
+              typical: Duration(minutes: 3)),
+        ],
+        currentStep: 2,
+        startedAt: start,
+        stepStartedAt: start.add(const Duration(minutes: 3)),
+        warning: 'USB und Strom nicht trennen.',
+        // The dashboard's map tiles, going up behind the MDB install.
+        backgroundLabel:
+            'valhalla_tiles_berlin.tar.zst übertragen - 210 / 512 MB, '
+            'noch 1 Min. 40 Sek.',
+        backgroundProgress: 0.41,
+        now: () => start.add(const Duration(minutes: 3, seconds: 40)),
+      ),
+    )));
+
+    await expectLater(
+      find.byType(WaitScaffold),
+      matchesGoldenFile('wait_overlay_background.png'),
+    );
+  });
+
   testWidgets('the wait, running long', (tester) async {
     tester.view.physicalSize = const Size(982, 610);
     tester.view.devicePixelRatio = 1.0;

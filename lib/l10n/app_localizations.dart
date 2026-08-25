@@ -3362,6 +3362,30 @@ abstract class AppLocalizations {
   /// **'Upload {filename}'**
   String substepUploadFile(String filename);
 
+  /// No description provided for @substepUploadStarting.
+  ///
+  /// In en, this message translates to:
+  /// **'Starting upload...'**
+  String get substepUploadStarting;
+
+  /// No description provided for @substepUploadComplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload complete'**
+  String get substepUploadComplete;
+
+  /// No description provided for @substepUploadNothingToDo.
+  ///
+  /// In en, this message translates to:
+  /// **'All files are already on the scooter'**
+  String get substepUploadNothingToDo;
+
+  /// No description provided for @substepRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'{mins}m {secs}s remaining'**
+  String substepRemaining(int mins, int secs);
+
   /// No description provided for @substepUploadFlasher.
   ///
   /// In en, this message translates to:

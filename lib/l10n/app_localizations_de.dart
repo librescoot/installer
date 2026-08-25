@@ -1934,6 +1934,21 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get substepUploadStarting => 'Übertragung wird vorbereitet...';
+
+  @override
+  String get substepUploadComplete => 'Übertragung abgeschlossen';
+
+  @override
+  String get substepUploadNothingToDo =>
+      'Alle Dateien sind schon auf dem Roller';
+
+  @override
+  String substepRemaining(int mins, int secs) {
+    return 'noch $mins Min. $secs Sek.';
+  }
+
+  @override
   String get substepUploadFlasher => 'Flash-Werkzeug übertragen';
 
   @override

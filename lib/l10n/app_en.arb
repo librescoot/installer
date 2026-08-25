@@ -883,6 +883,11 @@
       }
     }
   },
+  "substepUploadStarting": "Starting upload...",
+  "substepUploadComplete": "Upload complete",
+  "substepUploadNothingToDo": "All files are already on the scooter",
+  "substepRemaining": "{mins}m {secs}s remaining",
+  "@substepRemaining": { "placeholders": { "mins": { "type": "int" }, "secs": { "type": "int" } } },
   "substepUploadFlasher": "Upload flasher tool",
   "substepUploadFwTools": "Upload DBC bootloader tools",
   "substepUploadScript": "Upload trampoline script",

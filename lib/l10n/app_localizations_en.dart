@@ -1911,6 +1911,20 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get substepUploadStarting => 'Starting upload...';
+
+  @override
+  String get substepUploadComplete => 'Upload complete';
+
+  @override
+  String get substepUploadNothingToDo => 'All files are already on the scooter';
+
+  @override
+  String substepRemaining(int mins, int secs) {
+    return '${mins}m ${secs}s remaining';
+  }
+
+  @override
   String get substepUploadFlasher => 'Upload flasher tool';
 
   @override

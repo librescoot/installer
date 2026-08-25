@@ -124,6 +124,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// phase. It stands in for [_isProcessing] there, which other phases read to
   /// decide whether to start their own work.
   bool _dbcStageInFlight = false;
+
+  /// The transfer running behind another phase's steps, and how far it is.
+  /// Kept apart from [_statusMessage] so the phase's own status is not
+  /// overwritten by work the user is not waiting on yet.
+  String? _bgTaskLabel;
+  double? _bgTaskProgress;
   bool _reconnectStarted = false;
   final bool _showElevatedHandoff = false;
   bool _dbcFlashSimulateError = false;
@@ -987,6 +993,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
   }
 
+  /// Progress for the transfer running beside the current phase. It gets the
+  /// overlay's second line rather than the status the phase is reporting.
+  void _setBackgroundStatus(String? message, {double? progress}) {
+    if (!mounted) return;
+    setState(() {
+      _bgTaskLabel = message;
+      _bgTaskProgress = progress;
+    });
+  }
+
   void _setStatus(String message, {double? progress}) {
     if (message.isNotEmpty) appendLog(message);
     // A wait's steps are its status messages, so a phase advances itself just
@@ -1367,6 +1383,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         warning: warning,
         logTail: _waitLog,
         actions: actions,
+        backgroundLabel: _bgTaskLabel,
+        backgroundProgress: _bgTaskProgress,
       ),
     );
   }
@@ -5142,7 +5160,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (_dbcPrepStarted) return;
     _dbcPrepStarted = true;
     _dbcStageInFlight = true;
-    unawaited(_uploadDbcFiles());
+    // The line goes away with the transfer, however it ends.
+    unawaited(_uploadDbcFiles(background: true)
+        .whenComplete(() => _setBackgroundStatus(null)));
   }
 
   Future<bool> _pingMdb() async {
@@ -5520,6 +5540,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         matchPrefix: installing,
         typical: const Duration(minutes: 2),
       ),
+      // The dashboard transfer runs behind this phase and the reboot waits on
+      // it, so it is a step of this wait, not something happening elsewhere.
+      WaitStep(
+          label: l10n.waitingForDbcUpload,
+          typical: const Duration(minutes: 3)),
       WaitStep(
           label: l10n.waitingForMdbRestart,
           typical: const Duration(minutes: 2)),
@@ -6215,7 +6240,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     );
   }
 
-  Future<void> _uploadDbcFiles() async {
+  /// [background] when this runs behind another phase's screen: its progress
+  /// then belongs on the overlay's second line, not in the status the phase
+  /// is reporting for itself.
+  Future<void> _uploadDbcFiles({bool background = false}) async {
     final l10n = AppLocalizations.of(context)!;
     if (!_dbcStageInFlight) setState(() => _isProcessing = true);
     final criticalOperation = _acquireCriticalOperation();
@@ -6318,7 +6346,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         region: installTiles ? _downloadState.selectedRegion : null,
         finish: _buildDeviceFinish(),
         onProgress: (status, progress) {
-          _setStatus(status, progress: progress);
+          if (background) {
+            _setBackgroundStatus(status, progress: progress);
+          } else {
+            _setStatus(status, progress: progress);
+          }
         },
         onSubsteps: (steps) {
           if (mounted) setState(() => _dbcPrepSubsteps = steps);
@@ -6330,6 +6362,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           uploadScript: l10n.substepUploadScript,
           uploadFile: l10n.substepUploadFile,
           verifying: l10n.substepVerifying,
+          starting: l10n.substepUploadStarting,
+          complete: l10n.substepUploadComplete,
+          nothingToDo: l10n.substepUploadNothingToDo,
+          remaining: l10n.substepRemaining,
         ),
       );
 
@@ -8207,8 +8243,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         children: [
           // What the screen is for and how it goes, on every stage: it used
           // to open as an NFC icon over a spinner and say nothing at all
-          // until the reader was ready.
-          if (_keycardStage != _KeycardStage.alreadyConfigured) ...[
+          // until the reader was ready. A scooter that already has cards gets
+          // the same screen, with its count in the panel on the right, rather
+          // than a page of its own that happens to say the same thing.
+          ...[
             Text(l10n.keycardWhy,
                 style: TextStyle(fontSize: 14, color: Colors.grey.shade300)),
             const SizedBox(height: 20),

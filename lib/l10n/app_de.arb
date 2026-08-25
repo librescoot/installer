@@ -737,6 +737,11 @@
       }
     }
   },
+  "substepUploadStarting": "Übertragung wird vorbereitet...",
+  "substepUploadComplete": "Übertragung abgeschlossen",
+  "substepUploadNothingToDo": "Alle Dateien sind schon auf dem Roller",
+  "substepRemaining": "noch {mins} Min. {secs} Sek.",
+  "@substepRemaining": { "placeholders": { "mins": { "type": "int" }, "secs": { "type": "int" } } },
   "substepUploadFlasher": "Flash-Werkzeug übertragen",
   "substepUploadFwTools": "DBC-Bootloader-Werkzeuge übertragen",
   "substepUploadScript": "Trampolin-Skript übertragen",
