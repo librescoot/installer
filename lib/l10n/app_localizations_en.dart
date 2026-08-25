@@ -600,6 +600,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Two-phase write: partitions first, boot sector last.';
 
   @override
+  String get flashAwaitingAuthorisation =>
+      'macOS will ask for your password or Touch ID before the write can start. Look for a system dialog, it may be behind this window. Nothing is being written until you approve it.';
+
+  @override
   String get waitingForMdbFirmware => 'Waiting for MDB firmware download...';
 
   @override

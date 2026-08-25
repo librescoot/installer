@@ -219,6 +219,7 @@
   "beginFlashing": "Begin flashing",
   "flashingMdb": "Flashing MDB",
   "flashingMdbSubheading": "Two-phase write: partitions first, boot sector last.",
+  "flashAwaitingAuthorisation": "macOS will ask for your password or Touch ID before the write can start. Look for a system dialog, it may be behind this window. Nothing is being written until you approve it.",
   "waitingForMdbFirmware": "Waiting for MDB firmware download...",
   "mdbFlashComplete": "MDB flash complete",
   "flashProgressMb": "{mb} MB written",

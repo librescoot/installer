@@ -198,6 +198,7 @@
   "beginFlashing": "Flashen starten",
   "flashingMdb": "MDB wird geflasht",
   "flashingMdbSubheading": "Zweiphasiges Schreiben: erst Partitionen, dann Bootsektor.",
+  "flashAwaitingAuthorisation": "macOS fragt vor dem Schreiben nach deinem Passwort oder Touch ID. Achte auf einen Systemdialog, er kann hinter diesem Fenster liegen. Solange du nicht bestätigst, wird nichts geschrieben.",
   "waitingForMdbFirmware": "Warte auf MDB-Firmware-Download...",
   "mdbFlashComplete": "MDB-Flash abgeschlossen",
   "flashProgressMb": "{mb} MB geschrieben",

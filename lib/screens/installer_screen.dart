@@ -4167,9 +4167,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // others: the overlay while it runs, the whole frame back on a failure,
     // where the log and the retry live.
     if (!_mdbFlashBlocked) {
+      // The writer asks macOS for privilege and blocks on a modal until a
+      // human answers it, so before the first byte the true state is "waiting
+      // for you", not "writing". Telling someone not to disconnect while
+      // nothing is happening is how a stalled dialog becomes a pulled cable.
+      final awaitingAuth = Platform.isMacOS && _progress <= 0;
       return _waitPhase(
         title: l10n.flashingMdb,
-        warning: l10n.dbcFlashDoNotDisconnect,
+        warning: awaitingAuth
+            ? l10n.flashAwaitingAuthorisation
+            : l10n.dbcFlashDoNotDisconnect,
         progress: _progress > 0 ? _progress : null,
       );
     }

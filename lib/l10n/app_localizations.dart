@@ -1160,6 +1160,12 @@ abstract class AppLocalizations {
   /// **'Two-phase write: partitions first, boot sector last.'**
   String get flashingMdbSubheading;
 
+  /// No description provided for @flashAwaitingAuthorisation.
+  ///
+  /// In en, this message translates to:
+  /// **'macOS will ask for your password or Touch ID before the write can start. Look for a system dialog, it may be behind this window. Nothing is being written until you approve it.'**
+  String get flashAwaitingAuthorisation;
+
   /// No description provided for @waitingForMdbFirmware.
   ///
   /// In en, this message translates to:

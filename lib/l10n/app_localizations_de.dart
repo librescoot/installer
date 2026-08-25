@@ -607,6 +607,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Zweiphasiges Schreiben: erst Partitionen, dann Bootsektor.';
 
   @override
+  String get flashAwaitingAuthorisation =>
+      'macOS fragt vor dem Schreiben nach deinem Passwort oder Touch ID. Achte auf einen Systemdialog, er kann hinter diesem Fenster liegen. Solange du nicht bestätigst, wird nichts geschrieben.';
+
+  @override
   String get waitingForMdbFirmware => 'Warte auf MDB-Firmware-Download...';
 
   @override
