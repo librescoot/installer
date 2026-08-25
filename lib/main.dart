@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:window_manager/window_manager.dart';
 import 'l10n/app_localizations.dart';
 import 'screens/installer_screen.dart';
 import 'services/log_service.dart';
@@ -180,6 +181,10 @@ const String appVersion = String.fromEnvironment('APP_VERSION', defaultValue: 'd
 void main(List<String> args) async {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+    if (Platform.isLinux || Platform.isMacOS || Platform.isWindows) {
+      await windowManager.ensureInitialized();
+      await windowManager.setPreventClose(true);
+    }
 
     // Flutter framework errors (build/layout/paint exceptions). Without this,
     // a release build can end up in an unrecoverable state.
@@ -270,21 +275,7 @@ class LibrescootInstaller extends StatelessWidget {
         locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: kAccent,
-            brightness: Brightness.dark,
-          ).copyWith(
-            primary: kAccent,
-            onPrimary: kOnAccent,
-            secondary: kAccent,
-            onSecondary: kOnAccent,
-            surface: kBgPrimary,
-            onSurface: kTextPrimary,
-          ),
-          scaffoldBackgroundColor: kBgPrimary,
-          useMaterial3: true,
-        ),
+        theme: librescootTheme(),
         home: const InstallerScreen(),
       ),
     );

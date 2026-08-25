@@ -5,28 +5,47 @@ import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../main.dart'
-    show appendLog, appendLogRaw, installerLog, launchArgs, showElevationRequiredDialog;
+    show
+        appendLog,
+        appendLogRaw,
+        installerLog,
+        launchArgs,
+        showElevationRequiredDialog;
 import '../l10n/app_localizations.dart';
 import '../models/board_state.dart';
 import '../models/download_state.dart';
 import '../models/install_plan.dart';
+import '../l10n/phase_l10n.dart';
 import '../models/installer_phase.dart';
+import '../models/keycard_capability.dart';
+import '../models/phase_attempt.dart';
+import '../models/resume_state.dart';
+import '../models/wait_plan.dart';
 import '../models/mdb_boot_action.dart';
 import '../models/region.dart';
 import '../models/scooter_health.dart';
 import '../models/substep.dart';
 import '../models/trampoline_status.dart';
 import '../services/artifact_service.dart';
+import '../services/critical_operation_coordinator.dart';
+import '../services/data_partition_service.dart';
+import '../services/serial_polling_loop.dart';
 import '../services/services.dart';
+import '../services/window_close_coordinator.dart';
 import '../widgets/artifact_progress_panel.dart';
 import '../widgets/health_check_panel.dart';
 import '../widgets/brake_gesture.dart';
 import '../widgets/install_plan_panel.dart';
 import '../widgets/instruction_step.dart';
+import '../widgets/phase_layout.dart';
 import '../widgets/phase_sidebar.dart';
 import '../widgets/substep_list.dart';
+import '../widgets/wait_overlay.dart';
+import '../widgets/action_overlay.dart';
+import '../widgets/wait_scaffold.dart';
 import '../theme.dart';
 
 class InstallerScreen extends StatefulWidget {
@@ -36,7 +55,7 @@ class InstallerScreen extends StatefulWidget {
   State<InstallerScreen> createState() => _InstallerScreenState();
 }
 
-class _InstallerScreenState extends State<InstallerScreen> {
+class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   InstallerPhase _currentPhase = InstallerPhase.welcome;
   final Set<InstallerPhase> _completedPhases = {};
   final Set<InstallerPhase> _skippedPhases = {};
@@ -66,14 +85,32 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   // Phase guard flags (prevent auto-start methods from re-firing on rebuild)
   bool _mdbConnectStarted = false;
+
+  /// The last screen that had content, kept so a wait can dim it instead of
+  /// replacing it with an empty frame. It is the built widget, not a rebuild:
+  /// the phase builders start work as a side effect, and none of that may run
+  /// again just because something is waiting in front of it.
+  Widget? _frozenBackdrop;
+
+  /// The steps of the wait currently running, and where it has got to.
+  List<WaitStep> _waitSteps = const [];
+  int _waitStep = 0;
+  DateTime? _waitStartedAt;
+  DateTime? _waitStepStartedAt;
+  final List<String> _waitLog = [];
+
+  /// Which physical-prep step is open. Three photo pairs at once made that
+  /// screen nearly two windows tall; one at a time is what someone with a
+  /// screwdriver in hand is actually working on.
   bool _healthCheckStarted = false;
-  bool _mdbToUmsStarted = false;
+  final PhaseAttempt _mdbToUmsAttempt = PhaseAttempt();
   bool _mdbFlashStarted = false;
+
   /// Set when the flash stopped for a reason retrying on its own cannot clear
   /// (failed safety check, no device path, retries exhausted). It keeps the
   /// build from auto-starting the flash again and shows the manual controls.
   bool _mdbFlashBlocked = false;
-  bool _mdbBootStarted = false;
+  final PhaseAttempt _mdbBootAttempt = PhaseAttempt();
   bool _dbcPrepStarted = false;
   bool _dbcUploadReady = false; // upload done, waiting for "Begin flashing DBC"
 
@@ -119,6 +156,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// reboot: on the happy path it is not even connected, and after a
   /// reconnect the device has already done all three.
   bool _deviceFinishArmed = false;
+  final String _installRunId = createInstallRunId();
+  Future<void> _installStateWriteQueue = Future.value();
+  int _installStateSequence = 0;
   DeviceInfo? _mdbInfo;
 
   /// What the user chose on the install-plan screen. Null until the health
@@ -152,9 +192,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   InstallPlan? _plan;
   BoardState _mdbState = const BoardState(
-      board: Board.mdb, isLibrescoot: false, provenance: StateProvenance.unknown);
+    board: Board.mdb,
+    isLibrescoot: false,
+    provenance: StateProvenance.unknown,
+  );
   BoardState _dbcState = const BoardState(
-      board: Board.dbc, isLibrescoot: false, provenance: StateProvenance.unknown);
+    board: Board.dbc,
+    isLibrescoot: false,
+    provenance: StateProvenance.unknown,
+  );
 
   /// True between a stage-0 write and the artifact's reboot. Without it the
   /// no-redis check in _autoConnectMdb would read the bootstrap image we just
@@ -181,7 +227,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// window opened is the closest the vehicle gets to reporting a pairing.
   int _blePairedCount = 0;
   String? _bleMac;
-  Timer? _blePinPollTimer;
+  final SerialPollingLoop _blePinPolling = SerialPollingLoop();
 
   /// Re-arms the open pairing window. The nRF advertises in bounded cycles and
   /// puts the whitelist back when one ends, so a single command gives the user
@@ -189,9 +235,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// through their phone's Bluetooth settings, and it fails silently when they
   /// do. Re-sending well inside the cycle keeps the window open for as long as
   /// the panel is.
-  Timer? _bleAdvRearmTimer;
+  final SerialPollingLoop _bleAdvRearming = SerialPollingLoop();
   final ScrollController _phaseScrollController = ScrollController();
   bool _keycardLearning = false;
+  bool _keycardMasterLearning = false;
+  String? _keycardMasterStartError;
   int _keycardAuthorizedCountBefore = 0; // captured at Start, compared at Done
   int _keycardSessionTapCount = 0; // driven by card-learned events
   // Substage of the keycardSetup phase. The phase is rendered as a small
@@ -209,20 +257,46 @@ class _InstallerScreenState extends State<InstallerScreen> {
   String? _keycardToastMessage;
   Color _keycardToastColor = Colors.green;
   Timer? _keycardToastTimer;
-  String? _awaitingUnlockState; // null when not awaiting; current vehicle state otherwise
-  String? _resumePreviousError; // first error line from a leftover trampoline-status, if any
-  bool _mdbStackMissing = false; // MDB answered SSH but has no redis (minimal/broken image) -> recover by re-flashing
+  String?
+  _awaitingUnlockState; // null when not awaiting; current vehicle state otherwise
+  String?
+  _resumePreviousError; // first error line from a leftover trampoline-status, if any
+  String? _resumeCleanupError;
+  String? _resumeStage; // stage the previous run reached, from the run state
+  String? _resumeActor; // who wrote that state last: installer or trampoline
+  String _resumeLogTail = ''; // last lines of the previous run's own log
+  bool _resumeStillRunning = false; // the board is mid-run, leave it alone
+  // MDB answered SSH but has no Librescoot stack -> recover by re-flashing.
+  // Stock boards also lack it and are healthy, so the routing reads
+  // _mdbLacksLibrescootStack and only the rendering reads this.
+  bool _mdbStackMissing = false;
+  ServiceStack? _mdbStack;
+
+  /// No Librescoot units under any name: stock and minimal both. Every
+  /// redis-backed step here is written against Librescoot's schema, so both
+  /// route around them.
+  bool get _mdbLacksLibrescootStack =>
+      _mdbStackMissing || _mdbStack == ServiceStack.stock;
   Completer<bool>? _unlockCompleter;
   bool _keepCache = false;
-  bool _isCriticalOperation = false; // prevent quit during flash/upload
+  late final CriticalOperationCoordinator _criticalOperations;
+  bool get _isCriticalOperation => _criticalOperations.isCritical;
+  bool _windowClosing = false;
   bool _awaitingFinishHandover = false;
   Process? _caffeinateProcess; // macOS sleep prevention
+  int _caffeinateGeneration = 0;
+  final WindowCloseCoordinator _windowCloseCoordinator =
+      WindowCloseCoordinator();
 
   StreamSubscription<UsbDevice?>? _deviceSub;
 
   @override
   void initState() {
     super.initState();
+    windowManager.addListener(this);
+    _criticalOperations = CriticalOperationCoordinator(
+      onChanged: _criticalOperationChanged,
+    );
     _usbDetector = UsbDetector();
     _downloadService = DownloadService();
     _deviceSub = _usbDetector.deviceStream.listen((device) {
@@ -243,7 +317,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     required int previousAttempts,
   }) async {
     if (!mounted) return null;
-    return showDialog<String?>(
+    final entered = await showDialog<String?>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => _ManualPasswordDialog(
@@ -252,7 +326,18 @@ class _InstallerScreenState extends State<InstallerScreen> {
         maxAttempts: SshService.maxManualPasswordAttempts,
       ),
     );
+    if (entered == _ManualPasswordDialog.unknown) {
+      // Not knowing it is the common case and it has an answer, so the run
+      // ends on where to find one rather than on a failed connection.
+      if (mounted) setState(() => _rootPasswordUnknown = true);
+      return null;
+    }
+    return entered;
   }
+
+  /// The user said they do not know the root password, so the connect screen
+  /// explains where to get it instead of reporting a login failure.
+  bool _rootPasswordUnknown = false;
 
   Future<void> _loadAvailableRegions() async {
     final regions = await _downloadService.fetchAvailableRegions();
@@ -264,8 +349,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // lines up. Equality is by slug, so this is a no-op when slugs match.
       final selected = _downloadState.selectedRegion;
       if (selected != null) {
-        _downloadState.selectedRegion =
-            regions.where((r) => r.slug == selected.slug).firstOrNull;
+        _downloadState.selectedRegion = regions
+            .where((r) => r.slug == selected.slug)
+            .firstOrNull;
       }
     });
   }
@@ -275,40 +361,52 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// Build dropdown items grouped by country: a disabled bold header per
   /// country, followed by its (indented) regions. Relies on [_availableRegions]
   /// already being ordered so each country's regions are contiguous.
-  List<DropdownMenuItem<Region>> _buildRegionDropdownItems(
-      List<Region> regions) {
-    final items = <DropdownMenuItem<Region>>[];
+  /// Countries as disabled headers, their regions indented under them. The
+  /// grouping is the only thing that says there is more here than one
+  /// country's worth of states.
+  List<DropdownMenuEntry<Region>> _regionMenuEntries(List<Region> regions) {
+    final entries = <DropdownMenuEntry<Region>>[];
     String? currentCountry;
     for (final region in regions) {
       if (region.country != currentCountry) {
         currentCountry = region.country;
-        items.add(DropdownMenuItem<Region>(
-          enabled: false,
-          value: Region(
+        entries.add(
+          DropdownMenuEntry<Region>(
+            value: Region(
               name: region.country,
-              slug: '$_regionHeaderPrefix${region.country}'),
-          child: Text(
-            region.country,
-            style: TextStyle(
-                fontSize: 12,
+              slug: '$_regionHeaderPrefix${region.country}',
+            ),
+            label: region.country.toUpperCase(),
+            enabled: false,
+            style: MenuItemButton.styleFrom(
+              foregroundColor: kAccent.withValues(alpha: 0.75),
+              textStyle: const TextStyle(
+                fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey.shade600),
+                letterSpacing: 1.2,
+                height: 2.0,
+              ),
+            ),
           ),
-        ));
+        );
       }
-      items.add(DropdownMenuItem<Region>(
-        value: region,
-        child: Padding(
-          padding: const EdgeInsets.only(left: 12),
-          child: Text(region.name),
+      entries.add(
+        DropdownMenuEntry<Region>(
+          value: region,
+          label: region.name,
+          style: MenuItemButton.styleFrom(
+            padding: const EdgeInsets.only(left: 28, right: 16),
+          ),
         ),
-      ));
+      );
     }
-    return items;
+    return entries;
   }
 
   Future<void> _detectRegionFromIp() async {
-    if (_downloadState.selectedRegion != null) return; // already set (e.g. from launch args)
+    if (_downloadState.selectedRegion != null) {
+      return; // already set (e.g. from launch args)
+    }
     final slug = await Region.detectSlugFromIp();
     if (slug == null || !mounted || _downloadState.selectedRegion != null) {
       return;
@@ -323,7 +421,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
   void _applyLaunchArgs() {
     final args = launchArgs;
     if (args.channel != null) {
-      final ch = DownloadChannel.values.where((c) => c.name == args.channel).firstOrNull;
+      final ch = DownloadChannel.values
+          .where((c) => c.name == args.channel)
+          .firstOrNull;
       if (ch != null) _downloadState.channel = ch;
     }
     if (args.region != null) {
@@ -361,10 +461,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   @override
   void dispose() {
+    windowManager.removeListener(this);
+    _downloadCancellationToken?.cancel();
     _deviceSub?.cancel();
     _usbDetector.stopMonitoring();
-    _blePinPollTimer?.cancel();
-    _bleAdvRearmTimer?.cancel();
+    unawaited(_blePinPolling.stop());
+    unawaited(_bleAdvRearming.stop());
     _keycardToastTimer?.cancel();
     final stop = _keycardEventsStop;
     if (stop != null) {
@@ -382,9 +484,54 @@ class _InstallerScreenState extends State<InstallerScreen> {
     super.dispose();
   }
 
+  @override
+  void onWindowClose() {
+    unawaited(_handleWindowClose());
+  }
+
+  Future<void> _handleWindowClose() async {
+    final isCritical = _isCriticalOperation;
+    if (!isCritical) _windowClosing = true;
+    final closed = await _windowCloseCoordinator.requestClose(
+      isCritical: isCritical,
+      cleanup: _cleanupBeforeClose,
+      closeWindow: windowManager.destroy,
+    );
+    if (!closed && mounted) {
+      _windowClosing = false;
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.cannotQuitWhileFlashing),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _cleanupBeforeClose() async {
+    await runBoundedCleanupActions([
+      DriverService.restoreAutoPlay,
+      if (_btPairingActive ||
+          _bleWhitelistDisabled ||
+          _pairingVehicleStateChanged)
+        () => _stopBluetoothPairing(advance: false),
+      if (_keycardLearning || _keycardMasterLearning) _stopActiveKeycardModes,
+    ]);
+    await _keycardTearDown().timeout(
+      const Duration(seconds: 2),
+      onTimeout: () {},
+    );
+    _allowSleep();
+  }
+
   /// Returns true if the operation should be retried, false if max retries exceeded.
   /// Handles backoff delay and retry counting.
-  Future<bool> _shouldRetry(String key, {int maxRetries = 5, int delaySecs = 5}) async {
+  Future<bool> _shouldRetry(
+    String key, {
+    int maxRetries = 5,
+    int delaySecs = 5,
+  }) async {
     _retryCounts[key] = (_retryCounts[key] ?? 0) + 1;
     final count = _retryCounts[key]!;
     if (count >= maxRetries) {
@@ -430,15 +577,31 @@ class _InstallerScreenState extends State<InstallerScreen> {
   void _setPhase(InstallerPhase phase) {
     final leaving = _currentPhase;
     setState(() {
+      if (phase == InstallerPhase.mdbToUms && leaving != phase) {
+        _mdbToUmsAttempt.reset();
+      }
+      if (phase == InstallerPhase.mdbBoot && leaving != phase) {
+        _mdbBootAttempt.reset();
+      }
       _completedPhases.add(_currentPhase);
       _currentPhase = phase;
       _statusMessage = '';
       _progress = 0.0;
       _isProcessing = false;
     });
+    _queueInstallPhaseRecord(phase);
     if (leaving == InstallerPhase.keycardSetup &&
         phase != InstallerPhase.keycardSetup) {
-      _keycardTearDown();
+      unawaited(_cleanupKeycardPhase());
+    }
+    if (leaving == InstallerPhase.bluetoothPairing &&
+        phase != InstallerPhase.bluetoothPairing &&
+        (_blePinPolling.isRunning ||
+            _bleAdvRearming.isRunning ||
+            _btPairingActive ||
+            _bleWhitelistDisabled ||
+            _pairingVehicleStateChanged)) {
+      unawaited(_stopBluetoothPairing(advance: false));
     }
     if (phase == InstallerPhase.cbbReconnect) {
       _cbbPollAbandoned = false;
@@ -458,6 +621,36 @@ class _InstallerScreenState extends State<InstallerScreen> {
     if (phase == InstallerPhase.bluetoothPairing) {
       _fetchBleMac();
     }
+    if (phase == InstallerPhase.mdbToUms && leaving != phase) {
+      Future.microtask(_startMdbToUms);
+    }
+    if (phase == InstallerPhase.mdbBoot && leaving != phase) {
+      Future.microtask(_startMdbBoot);
+    }
+  }
+
+  void _queueInstallPhaseRecord(InstallerPhase phase) {
+    if (_isDryRun || _deviceFinishArmed || !_sshService.isConnected) return;
+    final sequence = ++_installStateSequence;
+    final content = serializeInstallRunState(
+      runId: _installRunId,
+      actor: 'installer',
+      stage: phase.name,
+      sequence: sequence,
+    );
+    _installStateWriteQueue = _installStateWriteQueue
+        .then((_) async {
+          if (_deviceFinishArmed || !_sshService.isConnected) return;
+          await _sshService.writeInstallRunState(
+            runId: _installRunId,
+            content: content,
+          );
+        })
+        .catchError((Object error) {
+          debugPrint(
+            'UI: could not record installer phase ${phase.name}: $error',
+          );
+        });
   }
 
   /// Read the scooter's BLE MAC from the MDB so the user can match it against
@@ -465,10 +658,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _fetchBleMac() async {
     if (_isDryRun || !_sshService.isConnected) return;
     try {
-      final out = (await _sshService
-              .runCommand('redis-cli hget ble mac-address')
-              .timeout(const Duration(seconds: 5)))
-          .trim();
+      final out =
+          (await _sshService
+                  .runCommand('redis-cli hget ble mac-address')
+                  .timeout(const Duration(seconds: 5)))
+              .trim();
       if (mounted && out.isNotEmpty) {
         setState(() => _bleMac = out.toUpperCase());
       }
@@ -490,7 +684,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
       await _sshService.runCommand('lsc set scooter.auto-standby-seconds 0');
       debugPrint('UI: scooter.auto-standby-seconds=0 ($label)');
     } catch (e) {
-      debugPrint('UI: failed to set scooter.auto-standby-seconds=0 at $label (ok): $e');
+      debugPrint(
+        'UI: failed to set scooter.auto-standby-seconds=0 at $label (ok): $e',
+      );
     }
     try {
       await _sshService.runCommand('lsc set alarm.enabled false');
@@ -569,7 +765,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     // No plan means the legacy full-image route, which wipes /data anyway.
     final action = _plan?.mdb.action;
-    final dataWasErased = action == BoardAction.cleanInstall ||
+    final dataWasErased =
+        action == BoardAction.cleanInstall ||
         action == BoardAction.fullImage ||
         action == null;
 
@@ -579,7 +776,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
           'rm -f /data/settings.toml $_settingsBackupPath && '
           'systemctl restart librescoot-settings',
         );
-        debugPrint('UI: wiped /data/settings.toml + restarted librescoot-settings');
+        debugPrint(
+          'UI: wiped /data/settings.toml + restarted librescoot-settings',
+        );
       } else {
         // With no backup, the write-once snapshot is the next best source:
         // the board's settings as the first installer run found them. With
@@ -597,7 +796,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
           'fi; '
           'systemctl restart librescoot-settings',
         );
-        debugPrint('UI: restored pre-install settings + restarted librescoot-settings');
+        debugPrint(
+          'UI: restored pre-install settings + restarted librescoot-settings',
+        );
       }
       // Give settings-service a moment to come back and re-publish defaults
       // before we HSET into the settings hash again.
@@ -615,6 +816,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // Read before the first await: reaching for the context after one is how
     // a disposed widget turns a best-effort settings write into a crash.
     final lang = Localizations.localeOf(context).languageCode;
+    final handoverL10n = AppLocalizations.of(context)!;
 
     if (_isDryRun || !_sshService.isConnected) {
       // Dry-run / no SSH: nothing to hand over, render the success screen
@@ -632,12 +834,27 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // an armed trampoline that failed never writes one, and that run does
     // still need the laptop-side finish.
     if (_deviceFinishArmed && await _deviceReportedFinished()) {
-      debugPrint('UI: device finished the install itself, skipping finish work');
+      debugPrint(
+        'UI: device finished the install itself, skipping finish work',
+      );
       if (mounted) setState(() => _awaitingFinishHandover = false);
       return;
     }
 
     if (mounted) setState(() => _awaitingFinishHandover = true);
+
+    // The plan goes up with the screen. Set later, the overlay spends the
+    // restore showing the previous phase's steps and its clock, which is how
+    // a fresh wait came to open at four minutes and "longer than usual".
+    _beginWait([
+      WaitStep(
+          label: handoverL10n.finishHandoverRestoring,
+          typical: const Duration(seconds: 25)),
+      WaitStep(
+          label: handoverL10n.finishHandoverTitle,
+          typical: const Duration(seconds: 20)),
+    ]);
+    _setStatus(handoverL10n.finishHandoverRestoring);
 
     // Kill the green success-blink (and the amber guard) before anything
     // else. The vehicle-service restart below tears down the transient
@@ -722,6 +939,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
     //    returns, so the drop is all we get.
     //
     // 60s cap so a stuck handover doesn't trap the user on the wait screen.
+    // This is the second step of the plan set above, so the overlay can say
+    // how long the unlock has been outstanding and whether that is normal,
+    // rather than showing a bare spinner on the last screen of the install.
+    _setStatus(handoverL10n.finishHandoverTitle);
     final deadline = DateTime.now().add(const Duration(seconds: 60));
     while (DateTime.now().isBefore(deadline)) {
       await Future.delayed(const Duration(seconds: 1));
@@ -753,17 +974,40 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<bool> _deviceReportedFinished() async {
     try {
       final out = await _sshService
-          .runCommand('test -f /data/last-install && echo yes || echo no')
+          .runCommand('cat /data/last-install 2>/dev/null; true')
           .timeout(const Duration(seconds: 10));
-      return out.trim() == 'yes';
+      return TrampolineStatus.parseCompletionRecord(
+        out,
+      ).completedFor(_installRunId);
     } catch (e) {
-      debugPrint('UI: could not read the completion record ($e), finishing here');
+      debugPrint(
+        'UI: could not read the completion record ($e), finishing here',
+      );
       return false;
     }
   }
 
   void _setStatus(String message, {double? progress}) {
     if (message.isNotEmpty) appendLog(message);
+    // A wait's steps are its status messages, so a phase advances itself just
+    // by saying what it is doing. No second set of call sites to keep in step
+    // with the first.
+    if (message.isNotEmpty && _waitSteps.isNotEmpty) {
+      final now = DateTime.now();
+      _waitLog.add('${now.hour.toString().padLeft(2, '0')}:'
+          '${now.minute.toString().padLeft(2, '0')}:'
+          '${now.second.toString().padLeft(2, '0')} $message');
+      if (_waitLog.length > 60) _waitLog.removeAt(0);
+      final at = _waitSteps.indexWhere((step) => step.matches(message));
+      if (at > _waitStep) {
+        _waitStep = at;
+        _waitStepStartedAt = now;
+        // The bar belongs to the step that reported it. Carrying it into the
+        // next one shows a figure that describes work already finished. Zero
+        // reads as indeterminate at every consumer.
+        if (progress == null) _progress = 0.0;
+      }
+    }
     setState(() {
       _statusMessage = message;
       if (progress != null) _progress = progress;
@@ -774,130 +1018,150 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   void _showLogDialog() {
     final l10n = AppLocalizations.of(context)!;
+    var debugShellOpen = false;
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Text(l10n.logDebugShell),
-          content: SizedBox(
-            width: 700,
-            height: 500,
-            child: Column(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    reverse: true,
-                    child: SelectableText(
-                      installerLog.join('\n'),
-                      style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+        builder: (ctx, setDialogState) {
+          Future<void> runDebugCommand() async {
+            final cmd = _debugController.text;
+            if (cmd.trim().isEmpty) return;
+            appendLogRaw('> $cmd');
+            setDialogState(() {});
+            try {
+              final result = await Process.run('/bin/sh', ['-c', cmd]);
+              final out = result.stdout.toString().trim();
+              final err = result.stderr.toString().trim();
+              if (out.isNotEmpty) appendLogRaw(out);
+              if (err.isNotEmpty) appendLogRaw('stderr: $err');
+              appendLogRaw('exit: ${result.exitCode}');
+            } catch (e) {
+              appendLogRaw('error: $e');
+            }
+            _debugController.clear();
+            setDialogState(() {});
+          }
+
+          return AlertDialog(
+            title: Text(l10n.logDebugShell),
+            content: SizedBox(
+              width: 700,
+              height: 500,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      reverse: true,
+                      child: SelectableText(
+                        installerLog.join('\n'),
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 11,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-                if (LogService.filePath != null)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SelectableText(
-                          l10n.logFilePath(LogService.filePath!),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: kTextPrimary.withValues(alpha: 0.6),
+                  if (LogService.filePath != null)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: SelectableText(
+                        l10n.logFilePath(LogService.filePath!),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: kTextPrimary.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ),
+                  const Divider(),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () =>
+                          setDialogState(() => debugShellOpen = !debugShellOpen),
+                      icon: Icon(
+                        debugShellOpen
+                            ? Icons.expand_less
+                            : Icons.expand_more,
+                        size: 18,
+                      ),
+                      label: Text(l10n.debugShell),
+                    ),
+                  ),
+                  if (debugShellOpen)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _debugController,
+                            autofocus: true,
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 12,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: l10n.debugCommandHint,
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 8,
+                              ),
+                            ),
+                            onSubmitted: (_) => runDebugCommand(),
                           ),
                         ),
-                      ),
-                      TextButton.icon(
-                        onPressed: () => LogService.revealInFileManager(),
-                        icon: const Icon(Icons.folder_open, size: 16),
-                        label: Text(l10n.revealLogFile),
-                      ),
-                    ],
-                  ),
-                const Divider(),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _debugController,
-                        style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-                        decoration: InputDecoration(
-                          hintText: l10n.debugCommandHint,
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        IconButton(
+                          icon: const Icon(Icons.play_arrow),
+                          onPressed: runDebugCommand,
                         ),
-                        onSubmitted: (cmd) async {
-                          if (cmd.trim().isEmpty) return;
-                          appendLogRaw('> $cmd');
-                          setDialogState(() {});
-                          try {
-                            final result = await Process.run('/bin/sh', ['-c', cmd]);
-                            final out = result.stdout.toString().trim();
-                            final err = result.stderr.toString().trim();
-                            if (out.isNotEmpty) appendLogRaw(out);
-                            if (err.isNotEmpty) appendLogRaw('stderr: $err');
-                            appendLogRaw('exit: ${result.exitCode}');
-                          } catch (e) {
-                            appendLogRaw('error: $e');
-                          }
-                          _debugController.clear();
-                          setDialogState(() {});
-                        },
-                      ),
+                      ],
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.play_arrow),
-                      onPressed: () async {
-                        final cmd = _debugController.text;
-                        if (cmd.trim().isEmpty) return;
-                        appendLogRaw('> $cmd');
-                        setDialogState(() {});
-                        try {
-                          final result = await Process.run('/bin/sh', ['-c', cmd]);
-                          final out = result.stdout.toString().trim();
-                          final err = result.stderr.toString().trim();
-                          if (out.isNotEmpty) appendLogRaw(out);
-                          if (err.isNotEmpty) appendLogRaw('stderr: $err');
-                          appendLogRaw('exit: ${result.exitCode}');
-                        } catch (e) {
-                          appendLogRaw('error: $e');
-                        }
-                        _debugController.clear();
-                        setDialogState(() {});
-                      },
-                    ),
-                  ],
+                ],
+              ),
+            ),
+            actions: [
+              if (LogService.filePath != null)
+                TextButton.icon(
+                  onPressed: () => LogService.revealInFileManager(),
+                  icon: const Icon(Icons.folder_open, size: 16),
+                  label: Text(l10n.revealLogFile),
                 ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                final text = installerLog.join('\n');
-                if (Platform.isMacOS) {
-                  final uid = (await Process.run('stat', ['-f', '%u', '/dev/console'])).stdout.toString().trim();
-                  final proc = await Process.start('launchctl', ['asuser', uid, 'pbcopy']);
-                  proc.stdin.write(text);
-                  await proc.stdin.close();
-                } else {
-                  await Clipboard.setData(ClipboardData(text: text));
-                }
-                if (ctx.mounted) Navigator.pop(ctx);
-              },
-              child: Text(l10n.copyToClipboard),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(l10n.closeButton),
-            ),
-          ],
-        ),
+              TextButton(
+                onPressed: () async {
+                  final text = installerLog.join('\n');
+                  if (Platform.isMacOS) {
+                    final uid = (await Process.run('stat', [
+                      '-f',
+                      '%u',
+                      '/dev/console',
+                    ])).stdout.toString().trim();
+                    final proc = await Process.start('launchctl', [
+                      'asuser',
+                      uid,
+                      'pbcopy',
+                    ]);
+                    proc.stdin.write(text);
+                    await proc.stdin.close();
+                  } else {
+                    await Clipboard.setData(ClipboardData(text: text));
+                  }
+                  if (ctx.mounted) Navigator.pop(ctx);
+                },
+                child: Text(l10n.copyToClipboard),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(l10n.closeButton),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  void _setCritical(bool critical) {
-    if (_isCriticalOperation == critical) return;
-    setState(() => _isCriticalOperation = critical);
+  void _criticalOperationChanged(bool critical) {
+    if (!mounted) return;
+    setState(() {});
     if (critical) {
       _usbDetector.stopMonitoring();
       debugPrint('USB detector: paused during critical operation');
@@ -909,17 +1173,31 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
   }
 
+  CriticalOperationLease _acquireCriticalOperation() =>
+      _criticalOperations.acquire();
+
   void _preventSleep() {
     if (Platform.isMacOS) {
+      final generation = ++_caffeinateGeneration;
       _caffeinateProcess?.kill();
-      Process.start('caffeinate', ['-s']).then((p) {
-        _caffeinateProcess = p;
-        debugPrint('UI: sleep prevention started (caffeinate pid ${p.pid})');
-      }).catchError((_) {});
+      _caffeinateProcess = null;
+      Process.start('caffeinate', ['-s'])
+          .then((p) {
+            if (generation != _caffeinateGeneration || !_isCriticalOperation) {
+              p.kill();
+              return;
+            }
+            _caffeinateProcess = p;
+            debugPrint(
+              'UI: sleep prevention started (caffeinate pid ${p.pid})',
+            );
+          })
+          .catchError((_) {});
     }
   }
 
   void _allowSleep() {
+    _caffeinateGeneration++;
     if (_caffeinateProcess != null) {
       debugPrint('UI: sleep prevention stopped');
       _caffeinateProcess!.kill();
@@ -943,111 +1221,75 @@ class _InstallerScreenState extends State<InstallerScreen> {
         }
       },
       child: Scaffold(
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              // Elevation is handled at flash time via pkexec/sudo, no warning needed
-              Expanded(
-                child: Row(
-                  children: [
-                    PhaseSidebar(
-                      currentPhase: _currentPhase,
-                      completedPhases: _completedPhases,
-                      skippedPhases: _skippedPhases,
-                      upgradingSteps: _upgradingSteps,
-                      downloadItems: _downloadState.items,
-                    ),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                // The plan screen scrolls its own board list
-                                // and pins Continue below it, which only
-                                // works against a bounded height. Inside the
-                                // outer scroll view it would grow to fit its
-                                // content instead and the button would
-                                // scroll off the bottom again.
-                                if (_currentPhase == InstallerPhase.installPlan) {
-                                  return Padding(
-                                    padding: const EdgeInsets.all(32),
-                                    child: _buildPhaseContent(l10n),
-                                  );
-                                }
-                                return Scrollbar(
-                                  controller: _phaseScrollController,
-                                  thumbVisibility: true,
-                                  child: SingleChildScrollView(
+        body: Stack(
+          children: [
+            Column(
+              children: [
+                // Elevation is handled at flash time via pkexec/sudo, no warning needed
+                Expanded(
+                  child: Row(
+                    children: [
+                      PhaseSidebar(
+                        currentPhase: _currentPhase,
+                        completedPhases: _completedPhases,
+                        skippedPhases: _skippedPhases,
+                        upgradingSteps: _upgradingSteps,
+                        dbcMapsOnly: _dbcMapsOnly,
+                        downloadItems: _downloadState.items,
+                        // The last thing the run said is not what is happening
+                        // once the run is over. The finish screen is not a
+                        // wait, so the footer has nothing to report; only the
+                        // handover before it does.
+                        statusMessage: _currentPhase == InstallerPhase.finish &&
+                                !_awaitingFinishHandover
+                            ? null
+                            : _statusMessage,
+                        isBusy: _isProcessing,
+                        progress: _progress,
+                        onShowLog: _showLogDialog,),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  // A PhaseLayout owns its own title, scrolling
+                                  // and action bar, so it needs the height
+                                  // rather than a scroll view around it. Phases
+                                  // not yet moved over keep the old behaviour:
+                                  // one scroll for the whole screen.
+                                  final content = _buildPhaseContent(l10n);
+                                  if (content is PhaseLayout ||
+                                      content is WaitScaffold) {
+                                    return content;
+                                  }
+                                  return Scrollbar(
                                     controller: _phaseScrollController,
-                                    padding: const EdgeInsets.all(32),
-                                    child: ConstrainedBox(
-                                      constraints: BoxConstraints(minHeight: constraints.maxHeight - 64),
-                                      child: Center(child: _buildPhaseContent(l10n)),
+                                    thumbVisibility: true,
+                                    child: SingleChildScrollView(
+                                      controller: _phaseScrollController,
+                                      padding: const EdgeInsets.all(32),
+                                      child: ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          minHeight: constraints.maxHeight - 64,
+                                        ),
+                                        child: Center(child: content),
+                                      ),
                                     ),
-                                  ),
-                                );
-                              },
+                                  );
+                                },
+                              ),
                             ),
-                          ),
-                          _buildStatusBar(l10n),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    ),
-    );
-  }
-
-  Widget _buildStatusBar(AppLocalizations l10n) {
-    return Container(
-      height: 36,
-      color: kBgSidebar,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          if (_isProcessing)
-            SizedBox(
-              width: 12,
-              height: 12,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                value: _progress > 0 ? _progress : null,
-                color: kAccent,
-              ),
+              ],
             ),
-          if (_isProcessing) const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              _statusMessage,
-              style: TextStyle(
-                color: Colors.grey.shade400,
-                fontSize: 12,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (_progress > 0 && _isProcessing)
-            Text(
-              '${(_progress * 100).toStringAsFixed(0)}%',
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
-            ),
-          if (installerLog.isNotEmpty)
-            IconButton(
-              onPressed: _showLogDialog,
-              icon: Icon(Icons.article_outlined, size: 16, color: Colors.grey.shade600),
-              tooltip: l10n.showLogTooltip,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1060,15 +1302,27 @@ class _InstallerScreenState extends State<InstallerScreen> {
           children: [
             const Icon(Icons.open_in_new, size: 48, color: kAccent),
             const SizedBox(height: 16),
-            Text(l10n.installationContinuesInNewWindow,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(
+              l10n.installationContinuesInNewWindow,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
-            Text(l10n.youCanCloseThisWindow,
-                style: TextStyle(color: Colors.grey.shade400)),
+            Text(
+              l10n.youCanCloseThisWindow,
+              style: TextStyle(color: Colors.grey.shade400),
+            ),
           ],
         ),
       );
     }
+    final content = _phaseContent(l10n);
+    // Waits draw over the screen the user just left, so only screens with
+    // something to show get remembered.
+    if (!_currentPhase.isWait) _frozenBackdrop = content;
+    return content;
+  }
+
+  Widget _phaseContent(AppLocalizations l10n) {
     return switch (_currentPhase) {
       InstallerPhase.welcome => _buildWelcome(l10n),
       InstallerPhase.notices => _buildNotices(l10n),
@@ -1092,6 +1346,42 @@ class _InstallerScreenState extends State<InstallerScreen> {
     };
   }
 
+  /// A wait: the previous screen, dimmed and inert, with the overlay over it.
+  /// The sidebar sits outside this and stays lit, so the step list keeps
+  /// running while the card explains what the board is doing.
+  Widget _waitPhase({
+    required String title,
+    String? warning,
+    double? progress,
+    List<Widget> actions = const [],
+  }) {
+    return WaitScaffold(
+      backdrop: _frozenBackdrop,
+      overlay: WaitOverlay(
+        title: title,
+        steps: _waitSteps,
+        currentStep: _waitStep,
+        startedAt: _waitStartedAt ?? DateTime.now(),
+        stepStartedAt: _waitStepStartedAt,
+        progress: progress,
+        warning: warning,
+        logTail: _waitLog,
+        actions: actions,
+      ),
+    );
+  }
+
+  /// Start a wait at its first step. Called where the work begins, not where
+  /// the screen is built, so a rebuild cannot restart the clock.
+  void _beginWait(List<WaitStep> steps) {
+    final now = DateTime.now();
+    _waitSteps = steps;
+    _waitStep = 0;
+    _waitStartedAt = now;
+    _waitStepStartedAt = now;
+    _waitLog.clear();
+  }
+
   Widget _buildWelcome(AppLocalizations l10n) {
     final prerequisites = [
       l10n.prerequisiteScrewdriverPH2,
@@ -1100,147 +1390,203 @@ class _InstallerScreenState extends State<InstallerScreen> {
       l10n.prerequisiteTime,
     ];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(l10n.welcomeHeading,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Text(l10n.welcomeSubheading,
-            style: TextStyle(color: Colors.grey.shade400)),
-        const SizedBox(height: 24),
-
-        // Prerequisites: items size to their content; a long item gets a row
-        // to itself, short items pack onto a single line.
-        Text(l10n.whatYouNeed, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 24,
-          runSpacing: 4,
-          children: [
-            for (int i = 0; i < prerequisites.length; i++)
-              _prerequisite(prerequisites[i], i),
-          ],
+    return PhaseLayout(
+      title: l10n.welcomeHeading,
+      subtitle: l10n.welcomeSubheading,
+      actions: [
+        PhaseAction(
+          label: l10n.startInstallation,
+          icon: Icons.arrow_forward,
+          primary: true,
+          onPressed:
+              _isProcessing ||
+                  _channelsLoading ||
+                  (_availableChannels?.isEmpty ?? true) ||
+                  (_downloadState.wantsOfflineMaps &&
+                      _downloadState.selectedRegion == null)
+              ? null
+              : _startClickedAdvanceToNotices,
         ),
-        const SizedBox(height: 24),
-
-        // Channel selection
-        Text(l10n.firmwareChannel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        const SizedBox(height: 8),
-        if (_channelsLoading)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Row(
-              children: [
-                const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                const SizedBox(width: 12),
-                Text(l10n.loadingChannels, style: TextStyle(color: Colors.grey.shade400)),
-              ],
-            ),
-          )
-        else
-          _buildChannelSelector(l10n),
-        const SizedBox(height: 24),
-
-        // Region selection with skip checkbox inline
-        Row(
-          children: [
-            Text(l10n.region, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const Spacer(),
-            InkWell(
-              onTap: () => setState(() {
-                _downloadState.wantsOfflineMaps = !_downloadState.wantsOfflineMaps;
-              }),
-              borderRadius: BorderRadius.circular(4),
-              child: Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Checkbox(
-                      value: !_downloadState.wantsOfflineMaps,
-                      onChanged: (v) => setState(() {
-                        _downloadState.wantsOfflineMaps = !(v ?? false);
-                      }),
-                    ),
-                    Text(l10n.skipOfflineMaps,
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(l10n.regionHint,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
-        const SizedBox(height: 8),
-        if (_downloadState.wantsOfflineMaps)
-          DropdownButtonFormField<Region>(
-            initialValue: _downloadState.selectedRegion,
-            decoration: InputDecoration(
-              border: const OutlineInputBorder(),
-              hintText: l10n.selectRegion,
-            ),
-            items: _buildRegionDropdownItems(_availableRegions),
-            selectedItemBuilder: (context) =>
-                _buildRegionDropdownItems(_availableRegions).map((item) {
-              final r = item.value!;
-              final isHeader = r.slug.startsWith(_regionHeaderPrefix);
-              return Align(
-                alignment: Alignment.centerLeft,
-                child: Text(isHeader ? '' : r.name),
-              );
-            }).toList(),
-            onChanged: (r) {
-              // Country headers are disabled, so onChanged only fires for real
-              // regions, but guard against the header sentinel just in case.
-              if (r == null || r.slug.startsWith(_regionHeaderPrefix)) return;
-              setState(() => _downloadState.selectedRegion = r);
-            },
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // One per line. Packed onto shared rows they read as a paragraph of
+          // fragments, and the window has the height to spare now that the
+          // status strip is gone.
+          Text(
+            l10n.whatYouNeed,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
-
-        const SizedBox(height: 24),
-
-        // Heads-up that clicking Start will trigger the UAC prompt.
-        // Windows-only — macOS uses per-call authopen during the flash itself.
-        if (!_isElevated && Platform.isWindows) ...[
-          Row(
+          const SizedBox(height: 8),
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.shield_outlined,
-                  size: 18, color: Colors.grey.shade400),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(l10n.elevationNoticeWelcome,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+              for (int i = 0; i < prerequisites.length; i++)
+                _prerequisite(prerequisites[i], i),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Channel selection
+          Text(
+            l10n.firmwareChannel,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          if (_channelsLoading)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    l10n.loadingChannels,
+                    style: TextStyle(color: Colors.grey.shade400),
+                  ),
+                ],
+              ),
+            )
+          else
+            _buildChannelSelector(l10n),
+          // The cards look the same whether the list came from the network or
+          // from the snapshot compiled into the app, so say which.
+          if (_downloadService.manifestIsBundled) ...[
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.cloud_off, size: 15, color: Colors.amber.shade300),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    l10n.manifestBundledNotice,
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.amber.shade200),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 24),
+
+          // Region selection with skip checkbox inline
+          Row(
+            children: [
+              Text(
+                l10n.region,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const Spacer(),
+              InkWell(
+                onTap: () => _updateDownloadSelection(() {
+                  _downloadState.wantsOfflineMaps =
+                      !_downloadState.wantsOfflineMaps;
+                }),
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Checkbox(
+                        value: !_downloadState.wantsOfflineMaps,
+                        onChanged: (v) => _updateDownloadSelection(() {
+                          _downloadState.wantsOfflineMaps = !(v ?? false);
+                        }),
+                      ),
+                      Text(
+                        l10n.skipOfflineMaps,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade400,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-        ],
-
-        // Start button: fires the UAC / sudo elevation prompt on
-        // Windows / macOS, then advances to Notices. We elevate here
-        // (not at app startup) so the user can browse the welcome form
-        // first, but BEFORE Notices so the prompt is the cost of the
-        // big "I'm starting" click rather than buried inside Notices'
-        // Continue. If the user declines elevation, they stay on this
-        // page with the explanatory dialog and can try again.
-        Align(
-          alignment: Alignment.centerRight,
-          child: FilledButton.icon(
-            onPressed: _isProcessing ||
-                    _channelsLoading ||
-                    (_availableChannels?.isEmpty ?? true) ||
-                    (_downloadState.wantsOfflineMaps && _downloadState.selectedRegion == null)
-                ? null
-                : _startClickedAdvanceToNotices,
-            icon: const Icon(Icons.arrow_forward),
-            label: Text(l10n.startInstallation),
+          const SizedBox(height: 4),
+          Text(
+            l10n.regionHint,
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
           ),
-        ),
-      ],
+          const SizedBox(height: 8),
+          if (_downloadState.wantsOfflineMaps)
+            // Answer-width, not measure-width: a one-word answer stretched
+            // across 960px read as a hairline rectangle. The menu is an M3
+            // one because the older dropdown paints its list on the theme's
+            // canvas colour, which on this ground is the page colour: no
+            // edge, no surface, nothing to say where the list ends. Its
+            // surface and border come from the theme.
+            Align(
+              alignment: Alignment.centerLeft,
+              child: DropdownMenu<Region>(
+                width: 420,
+                menuHeight: 400,
+                initialSelection: _downloadState.selectedRegion,
+                hintText: l10n.selectRegion,
+                enableFilter: false,
+                requestFocusOnTap: false,
+                leadingIcon: Icon(Icons.place_outlined,
+                    size: 20, color: Colors.grey.shade400),
+                dropdownMenuEntries: _regionMenuEntries(_availableRegions),
+                onSelected: (r) {
+                  if (r == null || r.slug.startsWith(_regionHeaderPrefix)) {
+                    return;
+                  }
+                  if (_downloadState.selectedRegion == r) return;
+                  _updateDownloadSelection(() {
+                    _downloadState.selectedRegion = r;
+                  });
+                },
+              ),
+            ),
+
+          const SizedBox(height: 24),
+
+          // Heads-up that clicking Start will trigger the UAC prompt.
+          // Windows-only — macOS uses per-call authopen during the flash itself.
+          if (!_isElevated && Platform.isWindows) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.shield_outlined,
+                  size: 18,
+                  color: Colors.grey.shade400,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    l10n.elevationNoticeWelcome,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          // Start button: fires the UAC / sudo elevation prompt on
+          // Windows / macOS, then advances to Notices. We elevate here
+          // (not at app startup) so the user can browse the welcome form
+          // first, but BEFORE Notices so the prompt is the cost of the
+          // big "I'm starting" click rather than buried inside Notices'
+          // Continue. If the user declines elevation, they stay on this
+          // page with the explanatory dialog and can try again.
+        ],
+      ),
     );
   }
 
@@ -1249,11 +1595,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // shows progress while they read the warnings, and the Continue
     // button can gate on _downloadState.allReady. Microtask so we don't
     // mutate state during build.
-    if (!_downloadsKicked && _downloadsFailed == null && !launchArgs.hasLocalImages) {
+    if (!_downloadsKicked &&
+        _downloadsFailed == null &&
+        !launchArgs.hasLocalImages) {
       Future.microtask(_kickoffDownloads);
     }
     final missingAssets = _downloadState.missingRequiredTypes;
-    final downloadsReady = _downloadState.allReady && _downloadState.items.isNotEmpty;
+    final downloadsReady =
+        _downloadState.allReady && _downloadState.items.isNotEmpty;
     final hasItems = _downloadState.items.isNotEmpty;
     final waitingOnDownloads =
         !downloadsReady && hasItems && missingAssets.isEmpty;
@@ -1264,171 +1613,169 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // after a successful resolve, so on the exception path it is empty and
     // missingAssets passes.
     final nothingResolved = !hasItems && !launchArgs.hasLocalImages;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(l10n.noticesHeading,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Text(l10n.noticesSubheading,
-            style: TextStyle(color: Colors.grey.shade400)),
-        const SizedBox(height: 24),
-
-        if (_downloadsFailed != null) ...[
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.orange.shade900.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.orange.shade700),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.cloud_off, color: Colors.orange),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(l10n.downloadsFailedHeading,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 15)),
-                      const SizedBox(height: 4),
-                      Text(l10n.downloadsFailedBody,
-                          style: TextStyle(
-                              fontSize: 13, color: Colors.grey.shade300)),
-                      const SizedBox(height: 6),
-                      SelectableText(_downloadsFailed!,
-                          style: TextStyle(
-                              fontSize: 11,
-                              fontFamily: 'monospace',
-                              color: Colors.grey.shade400)),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton.icon(
-                  onPressed: () => setState(() {
-                    _downloadsFailed = null;
-                    _downloadsKicked = false;
-                  }),
-                  icon: const Icon(Icons.refresh),
-                  label: Text(l10n.downloadsRetry),
-                ),
-              ],
-            ),
+    return PhaseLayout(
+      title: l10n.noticesHeading,
+      subtitle: l10n.noticesSubheading,
+      onBack: _isProcessing ? null : () => _setPhase(InstallerPhase.welcome),
+      backLabel: l10n.backButton,
+      actions: [
+        // Offered only while the queue is still running: the user says they
+        // will be online later and takes the install without the files.
+        if (waitingOnDownloads)
+          PhaseAction(
+            label: l10n.noticesContinueOfflineAnyway,
+            onPressed: _isProcessing
+                ? null
+                : () => _setPhase(InstallerPhase.physicalPrep),
           ),
-          const SizedBox(height: 16),
-        ],
-
-        // Critical no-power-cycle warning: users keep yanking power
-        // when they think things are stuck, which is what actually
-        // bricks scooters. Loud, red, with a direct Discord link.
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.red.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.red.shade400, width: 2),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.dangerous, color: Colors.red.shade300, size: 28),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.noPowerCycleWarningTitle,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red.shade300,
-                          fontSize: 15,
-                        )),
-                    const SizedBox(height: 6),
-                    Text(l10n.noPowerCycleWarningBody,
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade200)),
-                    const SizedBox(height: 8),
-                    TextButton.icon(
-                      onPressed: () => _openExternalUrl('https://discord.gg/BmY2P2T9j3'),
-                      icon: Icon(Icons.chat_bubble_outline, size: 16, color: Colors.red.shade200),
-                      label: Text(l10n.openLibrescootDiscord,
-                          style: TextStyle(color: Colors.red.shade200)),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
+        // Custom: the label and the icon both change while downloads run, and
+        // the icon becomes a spinner.
+        PhaseAction.custom(
+          primary: true,
+          child: FilledButton.icon(
+            onPressed:
+                _isProcessing ||
+                    waitingOnDownloads ||
+                    nothingResolved ||
+                    missingAssets.isNotEmpty
+                ? null
+                : _startDownloadsAndContinue,
+            icon: waitingOnDownloads || nothingResolved
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
                     ),
-                  ],
-                ),
-              ),
-            ],
+                  )
+                : const Icon(Icons.arrow_forward),
+            label: Text(
+              waitingOnDownloads || nothingResolved
+                  ? l10n.noticesWaitingForDownloads
+                  : l10n.noticesAcknowledgeButton,
+            ),
           ),
         ),
-        const SizedBox(height: 12),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_downloadsFailed != null) ...[
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade900.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade700),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.cloud_off, color: Colors.orange),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.downloadsFailedHeading,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          l10n.downloadsFailedBody,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade300,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        SelectableText(
+                          _downloadsFailed!,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontFamily: 'monospace',
+                            color: Colors.grey.shade400,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton.icon(
+                    onPressed: () => setState(() {
+                      _downloadsFailed = null;
+                      _downloadsKicked = false;
+                    }),
+                    icon: const Icon(Icons.refresh),
+                    label: Text(l10n.downloadsRetry),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
 
-        // Reliability warning: flash failures are dominated by USB drops
-        // and laptop sleep.
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.amber.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.warning_amber, color: Colors.amber),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.reliabilityWarningTitle,
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber)),
-                    const SizedBox(height: 4),
-                    Text(l10n.reliabilityWarningBody,
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (missingAssets.isNotEmpty) ...[
-          const SizedBox(height: 16),
+          // Critical no-power-cycle warning: users keep yanking power
+          // when they think things are stuck, which is what actually
+          // bricks scooters. Loud, red, with a direct Discord link.
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: Colors.red.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.red.shade400),
+              border: Border.all(color: Colors.red.shade400, width: 2),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.report_problem, color: Colors.red.shade300, size: 24),
+                Icon(Icons.dangerous, color: Colors.red.shade300, size: 28),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(l10n.releaseMissingAssetsTitle,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.red.shade300,
-                          )),
+                      Text(
+                        l10n.noPowerCycleWarningTitle,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red.shade300,
+                          fontSize: 15,
+                        ),
+                      ),
                       const SizedBox(height: 6),
                       Text(
-                        l10n.releaseMissingAssetsBody(
-                          _downloadState.releaseTag ?? '',
-                          missingAssets.map((t) => _assetLabel(l10n, t)).join(', '),
+                        l10n.noPowerCycleWarningBody,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade200,
                         ),
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade200),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        onPressed: () =>
+                            _openExternalUrl('https://discord.gg/BmY2P2T9j3'),
+                        icon: Icon(
+                          Icons.chat_bubble_outline,
+                          size: 16,
+                          color: Colors.red.shade200,
+                        ),
+                        label: Text(
+                          l10n.openLibrescootDiscord,
+                          style: TextStyle(color: Colors.red.shade200),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
                       ),
                     ],
                   ),
@@ -1436,61 +1783,99 @@ class _InstallerScreenState extends State<InstallerScreen> {
               ],
             ),
           ),
-        ],
-        const SizedBox(height: 16),
+          const SizedBox(height: 12),
 
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            TextButton.icon(
-              onPressed: _isProcessing
-                  ? null
-                  : () => _setPhase(InstallerPhase.welcome),
-              icon: const Icon(Icons.arrow_back, size: 18),
-              label: Text(l10n.backButton),
+          // Reliability warning: flash failures are dominated by USB drops
+          // and laptop sleep.
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.amber.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
             ),
-            // While downloads are in flight, the primary Continue is
-            // disabled and we show a small "I'll have internet later"
-            // override link next to it. Once downloads are ready,
-            // Continue becomes a normal active button.
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (waitingOnDownloads) ...[
-                  TextButton(
-                    onPressed: _isProcessing
-                        ? null
-                        : () => _setPhase(InstallerPhase.physicalPrep),
-                    child: Text(l10n.noticesContinueOfflineAnyway,
-                        style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+                const Icon(Icons.warning_amber, color: Colors.amber),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.reliabilityWarningTitle,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.amber,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        l10n.reliabilityWarningBody,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade300,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                ],
-                FilledButton.icon(
-                  onPressed: _isProcessing ||
-                          waitingOnDownloads ||
-                          nothingResolved ||
-                          missingAssets.isNotEmpty
-                      ? null
-                      : _startDownloadsAndContinue,
-                  icon: waitingOnDownloads || nothingResolved
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.arrow_forward),
-                  label: Text(waitingOnDownloads || nothingResolved
-                      ? l10n.noticesWaitingForDownloads
-                      : l10n.noticesAcknowledgeButton),
                 ),
               ],
             ),
+          ),
+          if (missingAssets.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade400),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.report_problem,
+                    color: Colors.red.shade300,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.releaseMissingAssetsTitle,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red.shade300,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          l10n.releaseMissingAssetsBody(
+                            _downloadState.releaseTag ?? '',
+                            missingAssets
+                                .map((t) => _assetLabel(l10n, t))
+                                .join(', '),
+                          ),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade200,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
-        ),
-      ],
+          const SizedBox(height: 16),
+        ],
+      ),
     );
   }
 
@@ -1505,9 +1890,18 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   Widget _buildChannelSelector(AppLocalizations l10n) {
     final channelInfo = <DownloadChannel, ({String name, String desc})>{
-      DownloadChannel.stable: (name: l10n.channelStable, desc: l10n.channelStableDesc),
-      DownloadChannel.testing: (name: l10n.channelTesting, desc: l10n.channelTestingDesc),
-      DownloadChannel.nightly: (name: l10n.channelNightly, desc: l10n.channelNightlyDesc),
+      DownloadChannel.stable: (
+        name: l10n.channelStable,
+        desc: l10n.channelStableDesc,
+      ),
+      DownloadChannel.testing: (
+        name: l10n.channelTesting,
+        desc: l10n.channelTestingDesc,
+      ),
+      DownloadChannel.nightly: (
+        name: l10n.channelNightly,
+        desc: l10n.channelNightlyDesc,
+      ),
     };
 
     return IntrinsicHeight(
@@ -1546,32 +1940,34 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }) {
     return GestureDetector(
       onTap: available
-          ? () => setState(() {
-                if (_downloadState.channel == channel) return;
+          ? () {
+              if (_downloadState.channel == channel) return;
+              _updateDownloadSelection(() {
                 _downloadState.channel = channel;
-                // The queue is built once, on entering Notices. Without
-                // this, coming back here to change channel would carry the
-                // old release's queue forward, and changing channel is the
-                // only way out of a release that is missing an asset the
-                // install needs.
-                _downloadsKicked = false;
-                _downloadsFailed = null;
-              })
+              });
+            }
           : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
+        // A border grows inward from the box edge, so widening it on selection
+        // shrinks the content box and reflows everything below the card for
+        // the length of the animation. The border stays one width and the
+        // selected state is carried by colour; the padding absorbs the second
+        // pixel so the card's own size never changes.
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
+          // Same radius and same border colour as the Cards elsewhere, so a
+          // card the user picks and a card that only groups things read as
+          // two states of one idiom.
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: selected ? kAccent : Colors.grey.shade700,
-            width: selected ? 2 : 1,
+            color: selected ? kAccent : kOutline,
           ),
           color: selected
               ? kAccent.withValues(alpha: 0.08)
               : available
-                  ? Colors.transparent
-                  : Colors.grey.shade900.withValues(alpha: 0.4),
+              ? Colors.transparent
+              : kSurfaceLow,
         ),
         child: Opacity(
           opacity: available ? 1.0 : 0.4,
@@ -1579,15 +1975,19 @@ class _InstallerScreenState extends State<InstallerScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(name,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                    color: selected ? kAccent : null,
-                  )),
+              Text(
+                name,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: selected ? kAccent : null,
+                ),
+              ),
               const SizedBox(height: 4),
-              Text(description,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+              Text(
+                description,
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+              ),
               const SizedBox(height: 8),
               if (releaseTag != null) ...[
                 Text(
@@ -1618,20 +2018,29 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   Widget _prerequisite(String text, int index) {
     return InkWell(
-      onTap: () => setState(() => _prerequisiteChecks[index] = !_prerequisiteChecks[index]),
+      onTap: () => setState(
+        () => _prerequisiteChecks[index] = !_prerequisiteChecks[index],
+      ),
       borderRadius: BorderRadius.circular(4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            _prerequisiteChecks[index] ? Icons.check_box : Icons.check_box_outline_blank,
+            _prerequisiteChecks[index]
+                ? Icons.check_box
+                : Icons.check_box_outline_blank,
             size: 18,
             color: _prerequisiteChecks[index] ? kAccent : Colors.grey,
           ),
           const SizedBox(width: 8),
-          Text(text, style: TextStyle(
-            color: _prerequisiteChecks[index] ? Colors.grey.shade200 : Colors.grey.shade400,
-          )),
+          Text(
+            text,
+            style: TextStyle(
+              color: _prerequisiteChecks[index]
+                  ? Colors.grey.shade200
+                  : Colors.grey.shade400,
+            ),
+          ),
         ],
       ),
     );
@@ -1645,7 +2054,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// on pkexec for the individual privileged calls; no UAC dance here.
   Future<void> _startClickedAdvanceToNotices() async {
     final l10n = AppLocalizations.of(context)!;
-    if (_downloadState.wantsOfflineMaps && _downloadState.selectedRegion == null && !launchArgs.hasLocalImages) {
+    if (_downloadState.wantsOfflineMaps &&
+        _downloadState.selectedRegion == null &&
+        !launchArgs.hasLocalImages) {
       _setStatus(l10n.selectRegionError);
       return;
     }
@@ -1688,6 +2099,32 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   bool _downloadsKicked = false;
+  int _downloadGeneration = 0;
+  DownloadCancellationToken? _downloadCancellationToken;
+
+  void _updateDownloadSelection(void Function() update) {
+    setState(() {
+      update();
+      _downloadGeneration++;
+      _downloadCancellationToken?.cancel();
+      _downloadCancellationToken = null;
+      _downloadsKicked = false;
+      _downloadsFailed = null;
+      _downloadState.releaseTag = null;
+      _downloadState.requiredTypes = const {};
+      _downloadState.items = [];
+      _downloadState.error = null;
+    });
+  }
+
+  bool _ownsDownloadGeneration(
+    int generation,
+    DownloadCancellationToken cancellationToken,
+  ) =>
+      mounted &&
+      generation == _downloadGeneration &&
+      identical(cancellationToken, _downloadCancellationToken) &&
+      !cancellationToken.isCancelled;
 
   /// Why the last kick failed, or null. Holding the reason here is what stops
   /// the retry: the kick is scheduled from build(), so re-arming
@@ -1702,9 +2139,20 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// Notices then waits on _downloadState.allReady (or the override).
   Future<void> _kickoffDownloads() async {
     if (_downloadsKicked) return;
+    if (!mounted) return;
     _downloadsKicked = true;
+    final generation = ++_downloadGeneration;
+    _downloadCancellationToken?.cancel();
+    final cancellationToken = DownloadCancellationToken(generation);
+    _downloadCancellationToken = cancellationToken;
+    final channel = _downloadState.channel;
+    final region = _downloadState.selectedRegion;
+    final wantsOfflineMaps = _downloadState.wantsOfflineMaps;
     final l10n = AppLocalizations.of(context)!;
-    setState(() => _isProcessing = true);
+    setState(() {
+      _isProcessing = true;
+      _downloadState.error = null;
+    });
     try {
       if (launchArgs.hasLocalImages) {
         _setStatus(l10n.usingLocalFirmwareImages);
@@ -1717,35 +2165,44 @@ class _InstallerScreenState extends State<InstallerScreen> {
           if (launchArgs.dbcImage != null) DownloadItemType.dbcFirmware,
         };
         if (launchArgs.mdbImage != null) {
-          items.add(DownloadItem(
-            type: DownloadItemType.mdbFirmware,
-            url: '',
-            filename: File(launchArgs.mdbImage!).uri.pathSegments.last,
-            expectedSize: await File(launchArgs.mdbImage!).length(),
-          )..localPath = launchArgs.mdbImage
-           ..bytesDownloaded = await File(launchArgs.mdbImage!).length());
+          items.add(
+            DownloadItem(
+                type: DownloadItemType.mdbFirmware,
+                url: '',
+                filename: File(launchArgs.mdbImage!).uri.pathSegments.last,
+                expectedSize: await File(launchArgs.mdbImage!).length(),
+              )
+              ..localPath = launchArgs.mdbImage
+              ..bytesDownloaded = await File(launchArgs.mdbImage!).length(),
+          );
         }
         if (launchArgs.dbcImage != null) {
-          items.add(DownloadItem(
-            type: DownloadItemType.dbcFirmware,
-            url: '',
-            filename: File(launchArgs.dbcImage!).uri.pathSegments.last,
-            expectedSize: await File(launchArgs.dbcImage!).length(),
-          )..localPath = launchArgs.dbcImage
-           ..bytesDownloaded = await File(launchArgs.dbcImage!).length());
+          items.add(
+            DownloadItem(
+                type: DownloadItemType.dbcFirmware,
+                url: '',
+                filename: File(launchArgs.dbcImage!).uri.pathSegments.last,
+                expectedSize: await File(launchArgs.dbcImage!).length(),
+              )
+              ..localPath = launchArgs.dbcImage
+              ..bytesDownloaded = await File(launchArgs.dbcImage!).length(),
+          );
         }
+        if (!_ownsDownloadGeneration(generation, cancellationToken)) return;
         setState(() => _downloadState.items = items);
       } else {
         _setStatus(l10n.resolvingReleases);
         // The tag is the target version every later check compares a board
         // against, so it has to be recorded, not just used to pick assets.
         // Reads the same in-memory manifest the queue build does.
-        final release = await _downloadService.resolveRelease(_downloadState.channel);
+        final release = await _downloadService.resolveRelease(channel);
+        if (!_ownsDownloadGeneration(generation, cancellationToken)) return;
         final items = await _downloadService.buildDownloadQueue(
-          channel: _downloadState.channel,
-          region: _downloadState.selectedRegion,
-          wantsOfflineMaps: _downloadState.wantsOfflineMaps,
+          channel: channel,
+          region: region,
+          wantsOfflineMaps: wantsOfflineMaps,
         );
+        if (!_ownsDownloadGeneration(generation, cancellationToken)) return;
         setState(() {
           _downloadState.releaseTag = release.tag;
           _downloadState.requiredTypes = DownloadState.defaultRequiredTypes;
@@ -1755,18 +2212,43 @@ class _InstallerScreenState extends State<InstallerScreen> {
         // here, on a screen with a Back button and a channel picker behind
         // it, not at the artifact install or halfway through the DBC.
         if (_downloadState.missingRequiredTypes.isNotEmpty) {
-          debugPrint('Downloads: release ${release.tag} is missing '
-              '${_downloadState.missingRequiredTypes}');
+          debugPrint(
+            'Downloads: release ${release.tag} is missing '
+            '${_downloadState.missingRequiredTypes}',
+          );
           return;
         }
-        _downloadInBackground();
+        // Check the disk before starting rather than filling it and failing
+        // partway through several hundred MB, which leaves the cache full of
+        // half-written files and the user with no idea why.
+        final cacheDir = await DownloadService.getCacheDir();
+        final shortfall = await DownloadService.shortfallFor(
+          _downloadState.items,
+          cacheDir,
+        );
+        if (!_ownsDownloadGeneration(generation, cancellationToken)) return;
+        if (shortfall != null) {
+          final mb = (shortfall / (1024 * 1024)).ceil();
+          debugPrint('Downloads: $mb MB short on ${cacheDir.path}');
+          if (mounted) {
+            setState(
+              () => _downloadsFailed = l10n.notEnoughDiskSpace('$mb MB'),
+            );
+          }
+          return;
+        }
+        _downloadInBackground(items, generation, cancellationToken);
       }
+    } on DownloadCancelled {
+      return;
     } catch (e) {
       // Deliberately NOT re-arming _downloadsKicked: the retry is the user's
       // to ask for, via the button this failure puts on screen.
-      if (mounted) setState(() => _downloadsFailed = e.toString());
+      if (_ownsDownloadGeneration(generation, cancellationToken)) {
+        setState(() => _downloadsFailed = e.toString());
+      }
     } finally {
-      if (mounted) {
+      if (_ownsDownloadGeneration(generation, cancellationToken)) {
         // Leave a failure on screen. Clearing unconditionally was why the
         // error only ever flickered: the catch set it and the finally wiped
         // it on the next frame, so the user got a strobing status line and no
@@ -1788,62 +2270,114 @@ class _InstallerScreenState extends State<InstallerScreen> {
     if (mounted) _setPhase(InstallerPhase.physicalPrep);
   }
 
-  void _downloadInBackground() async {
+  void _downloadInBackground(
+    List<DownloadItem> items,
+    int generation,
+    DownloadCancellationToken cancellationToken,
+  ) async {
     try {
       await _downloadService.downloadAll(
-        _downloadState.items,
+        items,
+        cancellationToken: cancellationToken,
         onProgress: (item, bytes, total) {
-          if (mounted) setState(() {}); // Trigger rebuild to update progress
+          if (_ownsDownloadGeneration(generation, cancellationToken)) {
+            setState(() {});
+          }
         },
       );
       // The last onProgress fires before localPath is set on the final item,
       // so the UI is stuck in "almost-but-not-done" without this final rebuild.
-      if (mounted) setState(() {});
+      if (_ownsDownloadGeneration(generation, cancellationToken)) {
+        setState(() {});
+      }
+    } on DownloadCancelled {
+      return;
     } catch (e) {
-      if (mounted) {
-        setState(() => _downloadState.error = e.toString());
+      if (_ownsDownloadGeneration(generation, cancellationToken)) {
+        final message = e.toString();
+        setState(() {
+          _downloadState.error = message;
+          _downloadsFailed = message;
+        });
       }
     }
   }
+
+  void _restartFailedDownloads() {
+    if (_downloadState.error == null) return;
+    var cancellationToken = _downloadCancellationToken;
+    if (cancellationToken == null || cancellationToken.isCancelled) {
+      final generation = ++_downloadGeneration;
+      cancellationToken = DownloadCancellationToken(generation);
+      _downloadCancellationToken = cancellationToken;
+    }
+    setState(() {
+      _downloadState.error = null;
+      _downloadsFailed = null;
+    });
+    _downloadInBackground(
+      _downloadState.items,
+      _downloadGeneration,
+      cancellationToken,
+    );
+  }
+
   Widget _buildPhysicalPrep(AppLocalizations l10n) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(l10n.physicalPrepHeading,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Text(l10n.physicalPrepSubheading,
-            style: TextStyle(color: Colors.grey.shade400)),
-        const SizedBox(height: 24),
-        InstructionStep(
-          number: 1,
-          title: l10n.removeFootwellCover,
-          description: l10n.removeFootwellCoverDesc,
-          beforeImageAsset: 'assets/images/lsi-unu_scooter_footwell_closed.jpg',
-          imageAsset: 'assets/images/lsi-unu_scooter_footwell_open.jpg',
-        ),
-        InstructionStep(
-          number: 2,
-          title: l10n.unscrewUsbCable,
-          description: l10n.unscrewUsbCableDesc,
-          beforeImageAsset: 'assets/images/lsi-mdb_usb_connected.jpg',
-          imageAsset: 'assets/images/lsi-mdb_usb_disconnected.jpg',
-        ),
-        InstructionStep(
-          number: 3,
-          title: l10n.connectLaptopUsb,
-          description: l10n.connectLaptopUsbDesc,
-        ),
-        const SizedBox(height: 24),
-        Align(
-          alignment: Alignment.centerRight,
-          child: FilledButton.icon(
-            onPressed: () => _setPhase(InstallerPhase.mdbConnect),
-            icon: const Icon(Icons.arrow_forward),
-            label: Text(l10n.doneDetectDevice),
-          ),
+    return PhaseLayout(
+      title: l10n.physicalPrepHeading,
+      subtitle: l10n.physicalPrepSubheading,
+      onBack: () => _setPhase(InstallerPhase.notices),
+      backLabel: l10n.backButton,
+      actions: [
+        PhaseAction(
+          label: l10n.doneDetectDevice,
+          icon: Icons.arrow_forward,
+          primary: true,
+          onPressed: () => _setPhase(InstallerPhase.mdbConnect),
         ),
       ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final (i, step) in <({
+            String title,
+            String description,
+            String? before,
+            String? after
+          })>[
+            (
+              title: l10n.removeFootwellCover,
+              description: l10n.removeFootwellCoverDesc,
+              before: 'assets/images/lsi-unu_scooter_footwell_closed.jpg',
+              after: 'assets/images/lsi-unu_scooter_footwell_open.jpg',
+            ),
+            (
+              title: l10n.unscrewUsbCable,
+              description: l10n.unscrewUsbCableDesc,
+              before: 'assets/images/lsi-mdb_usb_connected.jpg',
+              after: 'assets/images/lsi-mdb_usb_disconnected.jpg',
+            ),
+            (
+              title: l10n.connectLaptopUsb,
+              description: l10n.connectLaptopUsbDesc,
+              before: null,
+              after: null,
+            ),
+          ].indexed)
+            InstructionStep(
+              number: i + 1,
+              title: step.title,
+              description: step.description,
+              beforeImageAsset: step.before,
+              imageAsset: step.after,
+              // All open. As an accordion the closed steps were grey text
+              // with no affordance, so nobody read them as openable and the
+              // instructions for two of the three were simply invisible. The
+              // frame scrolls, which is what the accordion was buying.
+              expanded: true,
+            ),
+        ],
+      ),
     );
   }
 
@@ -1857,74 +2391,92 @@ class _InstallerScreenState extends State<InstallerScreen> {
       return _buildAwaitingUnlock(l10n);
     }
 
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(l10n.connectingToMdb,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          if (_isProcessing) ...[
-            const SizedBox(width: 48, height: 48, child: CircularProgressIndicator()),
-            const SizedBox(height: 16),
-          ],
-          Text(_statusMessage.isEmpty ? l10n.waitingForUsbDevice : _statusMessage,
-              style: TextStyle(color: Colors.grey.shade400)),
-          if (!_isProcessing) ...[
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () {
-                setState(() => _mdbConnectStarted = true);
-                Future.microtask(_autoConnectMdb);
-              },
-              icon: const Icon(Icons.refresh),
-              label: Text(l10n.retryMdbConnect),
-            ),
-          ],
+    // While it is running it is a wait; a stall gets the frame back so the
+    // retry has somewhere to live.
+    if (_isProcessing) {
+      return _waitPhase(title: l10n.connectingToMdb);
+    }
+
+    // Not knowing the password is a dead end for this run, but it is one with
+    // an answer, so the screen carries the answer rather than a login failure.
+    if (_rootPasswordUnknown) {
+      return PhaseLayout(
+        title: l10n.manualPasswordUnknownHeading,
+        actions: [
+          PhaseAction(
+            label: l10n.retryMdbConnect,
+            icon: Icons.refresh,
+            primary: true,
+            onPressed: () {
+              setState(() {
+                _rootPasswordUnknown = false;
+                _mdbConnectStarted = true;
+              });
+              Future.microtask(_autoConnectMdb);
+            },
+          ),
         ],
-      ),
+        child: Text(
+          l10n.manualPasswordUnknownBody,
+          style: TextStyle(
+              fontSize: 14, height: 1.5, color: Colors.grey.shade300),
+        ),
+      );
+    }
+
+    return _waitingPhase(
+      title: l10n.connectingToMdb,
+      status: _statusMessage.isEmpty
+          ? l10n.waitingForUsbDevice
+          : _statusMessage,
+      actions: [
+        if (!_isProcessing)
+          PhaseAction(
+            label: l10n.retryMdbConnect,
+            icon: Icons.refresh,
+            primary: true,
+            onPressed: () {
+              setState(() => _mdbConnectStarted = true);
+              Future.microtask(_autoConnectMdb);
+            },
+          ),
+      ],
     );
   }
 
+  /// Waiting on the rider, not on the board.
+  ///
+  /// An overlay, like the waits on the machine, but its own card: steps and
+  /// typical durations say nothing about something that ends when a person
+  /// acts. What this one carries is the ask, the ways to do it, and the way
+  /// out. The screen behind it stays visible, which is where the scooter the
+  /// user has to walk over to was last described.
   Widget _buildAwaitingUnlock(AppLocalizations l10n) {
     final isRtd = _awaitingUnlockState == 'ready-to-drive';
-    return Center(
-      child: SizedBox(
-        width: 520,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Icon(isRtd ? Icons.local_parking : Icons.lock_open,
-                size: 72, color: Colors.amber),
-            const SizedBox(height: 16),
-            Text(isRtd ? l10n.awaitingParkHeading : l10n.awaitingUnlockHeading,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.amber)),
-            const SizedBox(height: 12),
-            Text(isRtd ? l10n.awaitingParkDetail : l10n.awaitingUnlockDetail,
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade300)),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (isRtd) ...[
-                  FilledButton.icon(
-                    onPressed: _userOverrideRtd,
-                    icon: const Icon(Icons.arrow_forward),
-                    label: Text(l10n.awaitingParkContinueAnyway),
-                  ),
-                  const SizedBox(width: 12),
-                ],
-                TextButton(
-                  onPressed: _userCancelUnlockWait,
-                  child: Text(l10n.cancelButton),
-                ),
-              ],
+    return WaitScaffold(
+      backdrop: _frozenBackdrop,
+      overlay: ActionOverlay(
+        title: isRtd ? l10n.awaitingParkHeading : l10n.awaitingUnlockHeading,
+        instruction: isRtd ? l10n.awaitingParkDetail : l10n.awaitingUnlockDetail,
+        icon: isRtd ? Icons.local_parking : Icons.lock_open,
+        hints: isRtd
+            ? const []
+            : [l10n.awaitingUnlockHintKeycard, l10n.awaitingUnlockHintPhone],
+        watching: isRtd ? l10n.awaitingParkWatching : l10n.awaitingUnlockWatching,
+        actions: [
+          TextButton(
+            onPressed: _userCancelUnlockWait,
+            child: Text(l10n.cancelButton),
+          ),
+          // Only the ready-to-drive case has an override: a scooter that is
+          // simply locked has nothing to go on with.
+          if (isRtd)
+            FilledButton.icon(
+              onPressed: _userOverrideRtd,
+              icon: const Icon(Icons.arrow_forward, size: 18),
+              label: Text(l10n.awaitingParkContinueAnyway),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -1966,7 +2518,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   void _userOverrideRtd() {
     if (_awaitingUnlockState == 'ready-to-drive' &&
-        _unlockCompleter != null && !_unlockCompleter!.isCompleted) {
+        _unlockCompleter != null &&
+        !_unlockCompleter!.isCompleted) {
       debugPrint('UI: user override accepted ready-to-drive as parked');
       _unlockCompleter!.complete(true);
     }
@@ -1987,7 +2540,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _setStatus('[DRY RUN] Loading auth assets...');
       try {
         await _sshService.loadDeviceConfig('assets');
-        _setStatus('[DRY RUN] Auth loaded, simulating MDB v1.15.0 connection...');
+        _setStatus(
+          '[DRY RUN] Auth loaded, simulating MDB v1.15.0 connection...',
+        );
       } catch (e) {
         _setStatus('[DRY RUN] Auth load failed: $e: continuing anyway');
       }
@@ -2061,7 +2616,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
       await _sshService.loadDeviceConfig('assets');
       final info = await _sshService.connectToMdb();
       setState(() => _mdbInfo = info);
-      debugPrint('SSH: firmware=${info.firmwareVersion}, serial=${info.serialNumber ?? "unknown"}');
+      debugPrint(
+        'SSH: firmware=${info.firmwareVersion}, serial=${info.serialNumber ?? "unknown"}',
+      );
 
       // A scooter accidentally flashed with a minimal/bootstrap image answers
       // SSH but has no redis: the resume screen's Continue, the parked-state
@@ -2069,11 +2626,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // wedging the installer. Detect that here and route straight to the
       // health screen (which shows a recovery banner) and on to re-flashing
       // the full firmware, bypassing every redis-backed step.
-      if (!await _sshService.hasRedisStack()) {
-        debugPrint('SSH: MDB has no redis stack (bootstrap or incomplete image)');
+      final stack = await _sshService.detectServiceStack();
+      if (stack != null && stack != ServiceStack.librescoot) {
+        debugPrint('SSH: MDB has no Librescoot stack (${stack.name})');
         if (!mounted) return;
         setState(() {
-          _mdbStackMissing = true;
+          _mdbStack = stack;
+          _mdbStackMissing = stack == ServiceStack.none;
           _isProcessing = false;
         });
         if (_expectMinimalMdb) {
@@ -2082,7 +2641,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
           _setPhase(_beginMdbInstall());
           return;
         }
-        _setStatus(l10n.incompleteImageStatus);
+        _setStatus(
+          stack == ServiceStack.stock
+              ? l10n.stockFirmwareStatus
+              : l10n.incompleteImageStatus,
+        );
         _setPhase(InstallerPhase.healthCheck);
         return;
       }
@@ -2103,38 +2666,72 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // failing one, is unfinished. A completion record is proof of the
       // opposite and is reported rather than treated as damage.
       var resumingUnfinished = false;
+      var stillRunning = false;
       String? previousRun;
       try {
         final leftover = await _sshService.runCommand(
           'ls /data/installer/trampoline-status /data/installer/trampoline.sh 2>/dev/null; true',
         );
-        if (leftover.trim().isNotEmpty) {
+        final leftoversPresent = leftover.trim().isNotEmpty;
+        var written = TrampolineResult.unknown;
+        if (leftoversPresent) {
           // The first line is the verdict; anything else is detail.
           final verdict = (await _sshService.runCommand(
             'head -n 1 /data/installer/trampoline-status 2>/dev/null; true',
-          ))
-              .trim()
-              .toLowerCase();
-          resumingUnfinished = verdict != 'success';
-          debugPrint('SSH: leftovers found, verdict "$verdict", '
-              'resuming=$resumingUnfinished');
+          )).trim().toLowerCase();
+          written = verdict == 'success'
+              ? TrampolineResult.success
+              : verdict.startsWith('error')
+              ? TrampolineResult.error
+              : TrampolineResult.running;
+        }
+        // Ask the board what it is doing before acting on what it wrote. A
+        // run that is still going owns the masked services and the error
+        // signals this screen would otherwise clear out from under it.
+        final verdict = resumeVerdict(
+          leftoversPresent: leftoversPresent,
+          result: written,
+          trampolineAlive:
+              leftoversPresent && await _sshService.trampolineAlive(),
+        );
+        resumingUnfinished = verdict == ResumeVerdict.unfinished;
+        stillRunning = verdict == ResumeVerdict.running;
+        if (leftoversPresent) {
+          debugPrint(
+            'SSH: leftovers found, wrote "$written", '
+            'verdict=${verdict.name}',
+          );
         }
         // Written by a finish that ran on the device, where nobody was here to
         // read the outcome. Surfacing it is the whole point of writing it.
         final record = (await _sshService.runCommand(
           'cat /data/last-install 2>/dev/null; true',
-        ))
-            .trim();
+        )).trim();
         if (record.isNotEmpty) {
           previousRun = record;
-          debugPrint('SSH: previous run completed on the device: '
-              '${record.replaceAll('\n', ', ')}');
+          debugPrint(
+            'SSH: previous run completed on the device: '
+            '${record.replaceAll('\n', ', ')}',
+          );
         }
       } catch (e) {
         debugPrint('SSH: unfinished-install check failed (ok): $e');
       }
       if (mounted && previousRun != null) {
         setState(() => _previousRunRecord = previousRun);
+      }
+
+      if (stillRunning) {
+        debugPrint('SSH: a trampoline is running, leaving the board alone');
+        await _loadResumeEvidence();
+        if (!mounted) return;
+        setState(() {
+          _resumeStillRunning = true;
+          _isProcessing = false;
+        });
+        _setPhase(InstallerPhase.resumeDetected);
+        _watchRunningTrampoline();
+        return;
       }
 
       if (resumingUnfinished) {
@@ -2155,7 +2752,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         // after disengaging auto-master-learn).
         try {
           await _sshService.runCommand(
-            'systemctl unmask librescoot-keycard keycard-service '
+            'systemctl unmask librescoot-keycard '
             'librescoot-bluetooth librescoot-ums 2>/dev/null; '
             'systemctl start librescoot-bluetooth librescoot-ums 2>/dev/null; true',
           );
@@ -2174,9 +2771,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
             prevError = trimmed.substring('error:'.length).trim();
           }
         } catch (_) {}
+        await _loadResumeEvidence();
         if (!mounted) return;
         setState(() {
           _resumePreviousError = prevError;
+          _resumeStillRunning = false;
           _isProcessing = false;
         });
         _setPhase(InstallerPhase.resumeDetected);
@@ -2190,7 +2789,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
       if (!ok) {
         // User cancelled, or widget went away.
         if (mounted) {
-          setState(() { _isProcessing = false; _mdbConnectStarted = false; });
+          setState(() {
+            _isProcessing = false;
+            _mdbConnectStarted = false;
+          });
         }
         return;
       }
@@ -2211,7 +2813,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// flow) or after the user confirms the resume screen. Pins the USB
   /// gadget, disables alarm/auto-standby, locks the scooter, and moves on
   /// to the health check.
-  Future<void> _completeConnectionSetup(AppLocalizations l10n) async {
+  Future<void> _completeConnectionSetup(
+    AppLocalizations l10n, {
+    bool servicesRecovered = false,
+  }) async {
     // A run that died between masking these and its own cleanup leaves them
     // masked, and the consequence is not subtle: with bluetooth-service masked
     // the main processor never reports boot to the nRF, whose watchdog then
@@ -2220,11 +2825,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // unconfigured interface, and every symptom points at the network rather
     // than at a service that was never restarted. Clearing them costs nothing
     // when they were already fine.
-    try {
-      await _sshService.reviveInstallerServices();
-      debugPrint('UI: cleared any leftover service masks');
-    } catch (e) {
-      debugPrint('UI: could not clear service masks (ok): $e');
+    if (!servicesRecovered) {
+      try {
+        await _sshService.reviveInstallerServices();
+        debugPrint('UI: cleared any leftover service masks');
+      } catch (e) {
+        debugPrint('UI: could not clear service masks (ok): $e');
+      }
     }
 
     // Before the first `lsc set` below, so the copy is the user's own
@@ -2252,7 +2859,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
     _setStatus(l10n.lockingScooter);
     try {
       await _sshService.redisLpush('scooter:state', 'lock');
-      final locked = await _sshService.waitForVehicleState('stand-by', timeout: const Duration(seconds: 30));
+      final locked = await _sshService.waitForVehicleState(
+        'stand-by',
+        timeout: const Duration(seconds: 30),
+      );
       if (!locked) {
         debugPrint('SSH: lock did not reach stand-by, continuing anyway');
       }
@@ -2269,80 +2879,329 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// Continue button on the resume screen.
   Future<void> _continueFromResume() async {
     final l10n = AppLocalizations.of(context)!;
-    setState(() => _isProcessing = true);
+    setState(() {
+      _isProcessing = true;
+      _resumeCleanupError = null;
+    });
     try {
       // The screen promises the leftovers are dealt with, so deal with them:
       // an abandoned trampoline is still armed for the next MDB reboot, and
       // the services it masked are still masked.
       _setStatus(l10n.resumeClearingLeftovers);
-      try {
-        await _sshService.disarmTrampolineOnboot();
-        await _sshService.reviveInstallerServices();
-        debugPrint('UI: disarmed the previous trampoline and revived services');
-      } catch (e) {
-        debugPrint('UI: could not clear the previous run (ok): $e');
+      await _sshService.disarmTrampolineOnboot();
+      await _sshService.reviveInstallerServices();
+      debugPrint('UI: disarmed the previous trampoline and revived services');
+    } catch (e) {
+      final message = l10n.resumeCleanupFailed(e.toString());
+      debugPrint('UI: could not safely clear the previous run: $e');
+      _setStatus(message);
+      if (mounted) {
+        setState(() {
+          _resumeCleanupError = e.toString();
+          _isProcessing = false;
+        });
       }
-      await _completeConnectionSetup(l10n);
+      return;
+    }
+    try {
+      await _completeConnectionSetup(l10n, servicesRecovered: true);
     } catch (e) {
       _setStatus(l10n.sshConnectionFailed(e.toString()));
       if (mounted) setState(() => _isProcessing = false);
     }
   }
 
+  /// What the previous run got as far as, for the screen that reports it.
+  /// Best-effort: a board that cannot answer still gets a usable screen.
+  Future<void> _loadResumeEvidence() async {
+    final state = await _sshService.readInstallRunState();
+    final tail = await _sshService.readTrampolineLogTail();
+    // The log goes into this session's own log file as well. That file is
+    // what the user sends when they ask what went wrong, and the screen it
+    // is shown on is gone by then.
+    if (tail.isNotEmpty) {
+      appendLogRaw('--- previous run, last lines of its log ---');
+      appendLogRaw(tail);
+      appendLogRaw('--- end previous run log ---');
+    }
+    if (!mounted) return;
+    setState(() {
+      _resumeStage = state?.stage;
+      _resumeActor = state?.actor;
+      _resumeLogTail = tail;
+    });
+  }
+
+  /// Follow a run that is still going, and re-read the board once it stops
+  /// rather than acting on what it said minutes ago.
+  Future<void> _watchRunningTrampoline() async {
+    while (mounted &&
+        _resumeStillRunning &&
+        _currentPhase == InstallerPhase.resumeDetected) {
+      await Future.delayed(const Duration(seconds: 5));
+      if (!mounted || _currentPhase != InstallerPhase.resumeDetected) return;
+      if (!_sshService.isConnected) return;
+      if (await _sshService.trampolineAlive()) {
+        await _loadResumeEvidence();
+        continue;
+      }
+      if (!mounted) return;
+      setState(() {
+        _resumeStillRunning = false;
+        _mdbConnectStarted = false;
+      });
+      _setPhase(InstallerPhase.mdbConnect);
+      return;
+    }
+  }
+
+  /// The phase name the previous run wrote down, in the user's language.
+  ///
+  /// Both sides record the stage as the enum's own name, so the stored value
+  /// is an identifier like `dbcPrep`. The sidebar already has a title for
+  /// every phase; this is the same title. An unrecognised value is shown as
+  /// stored rather than dropped, because a stage nobody can name is still the
+  /// one fact about where the run stopped.
+  String _localizedStage(String stage, AppLocalizations l10n) {
+    for (final phase in InstallerPhase.values) {
+      if (phase.name == stage) return phase.localizedTitle(l10n);
+    }
+    return stage;
+  }
+
   Widget _buildResumeDetected(AppLocalizations l10n) {
-    return Center(
-      child: SizedBox(
-        width: 520,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const Icon(Icons.history, size: 72, color: Colors.amber),
-            const SizedBox(height: 16),
-            Text(l10n.resumeFoundHeading,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.amber)),
-            const SizedBox(height: 12),
-            Text(l10n.resumeFoundBody,
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade300)),
-            if (_resumePreviousError != null) ...[
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+    final running = _resumeStillRunning;
+    final actor = switch (_resumeActor) {
+      'trampoline' => l10n.resumeActorScooter,
+      'installer' => l10n.resumeActorInstaller,
+      _ => null,
+    };
+    return PhaseLayout(
+      title: running ? l10n.resumeRunningHeading : l10n.resumeFoundHeading,
+      subtitle: running ? l10n.resumeRunningBody : l10n.resumeFoundBody,
+      actions: [
+        // A run that is still going has nothing for the user to decide: the
+        // only honest control is none, until it stops.
+        if (!running)
+          PhaseAction(
+            label: _resumeCleanupError == null
+                ? l10n.continueButton
+                : l10n.retryButton,
+            icon: Icons.arrow_forward,
+            primary: true,
+            onPressed: _isProcessing ? null : _continueFromResume,
+          ),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_isProcessing && !running) ...[
+            Row(
+              children: [
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 ),
-                child: Column(
+                const SizedBox(width: 12),
+                Expanded(child: Text(l10n.resumeClearingLeftovers)),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+          if (_resumeCleanupError != null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+              ),
+              child: SelectableText(
+                l10n.resumeCleanupFailed(_resumeCleanupError!),
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  color: Colors.redAccent,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+          if (running) ...[
+            Row(
+              children: [
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    l10n.resumeRunningWait,
+                    style: TextStyle(color: Colors.grey.shade300),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+          // Without an error or a trampoline log this screen had a paragraph
+          // and one line on an otherwise empty frame, while being one of the
+          // more alarming ones to land on. The paragraph said what the
+          // installer would do internally; this says what it means for the
+          // scooter, which is what someone in this state is actually asking.
+          if (!running) ...[
+            Text(
+              l10n.resumeWhatHappensHeading,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (final line in [
+              l10n.resumeWhatHappensCleanup,
+              l10n.resumeWhatHappensRestart,
+              l10n.resumeWhatHappensKeep,
+              l10n.resumeTakesAsLong,
+            ])
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(l10n.resumeFoundLastError,
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent)),
-                    const SizedBox(height: 4),
-                    SelectableText(_resumePreviousError!,
-                        style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+                    Icon(
+                      Icons.check_circle_outline,
+                      size: 16,
+                      color: Colors.grey.shade500,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        line,
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.4,
+                          color: Colors.grey.shade300,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
-            ],
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _isProcessing ? null : _continueFromResume,
-              icon: const Icon(Icons.arrow_forward),
-              label: Text(l10n.continueButton),
+            const SizedBox(height: 8),
+          ],
+          // Which step it reached is the first thing anyone asks, and it is
+          // the one fact both sides of the install write down.
+          if (_resumeStage != null)
+            Row(
+              children: [
+                Icon(
+                  Icons.flag_outlined,
+                  size: 18,
+                  color: Colors.grey.shade400,
+                ),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    l10n.resumeStageLabel(
+                      _localizedStage(_resumeStage!, l10n),
+                    ),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+                if (actor != null) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    actor,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  ),
+                ],
+              ],
+            ),
+          if (_resumePreviousError != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.resumeFoundLastError,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.redAccent,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  SelectableText(
+                    _resumePreviousError!,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
-        ),
+          // The trampoline runs with nobody watching, so its log is the only
+          // account of the part of the install this installer did not see.
+          if (_resumeLogTail.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              l10n.resumeLogHeading,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade400,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              height: 220,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF111111),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              child: SingleChildScrollView(
+                reverse: true,
+                child: SelectableText(
+                  _resumeLogTail,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 11.5,
+                    height: 1.35,
+                    color: Colors.grey.shade300,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
 
   bool get _isDryRun => launchArgs.dryRun;
 
-  Future<bool> _waitForDevice(DeviceMode mode, {Duration timeout = const Duration(seconds: 120)}) async {
+  Future<bool> _waitForDevice(
+    DeviceMode mode, {
+    Duration timeout = const Duration(seconds: 120),
+  }) async {
     if (_isDryRun) {
       await Future.delayed(const Duration(seconds: 1));
       return true;
@@ -2405,10 +3264,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
         // empty snapshot rather than showing the user a blank panel.
         snapshot = '';
         for (final dataType in const ['SPUSBHostDataType', 'SPUSBDataType']) {
-          final r = await Process.run(
-            '/usr/sbin/system_profiler',
-            [dataType],
-          ).timeout(const Duration(seconds: 8));
+          final r = await Process.run('/usr/sbin/system_profiler', [
+            dataType,
+          ]).timeout(const Duration(seconds: 8));
           if (r.exitCode == 0 && r.stdout.toString().trim().isNotEmpty) {
             snapshot = r.stdout.toString();
             break;
@@ -2418,29 +3276,36 @@ class _InstallerScreenState extends State<InstallerScreen> {
         // no longer exposes on macOS 26. Append it so the panel stays useful
         // for diagnosing target-selection failures.
         try {
-          final io = await Process.run(
-            '/usr/sbin/ioreg',
-            ['-r', '-c', 'IOUSBHostDevice', '-l', '-w', '0'],
-          ).timeout(const Duration(seconds: 8));
+          final io = await Process.run('/usr/sbin/ioreg', [
+            '-r',
+            '-c',
+            'IOUSBHostDevice',
+            '-l',
+            '-w',
+            '0',
+          ]).timeout(const Duration(seconds: 8));
           if (io.exitCode == 0) {
-            final bsd = RegExp(r'"BSD Name"\s*=\s*"(disk\d+)"')
-                .allMatches(io.stdout.toString())
-                .map((m) => m.group(1)!)
-                .toSet();
+            final bsd = RegExp(
+              r'"BSD Name"\s*=\s*"(disk\d+)"',
+            ).allMatches(io.stdout.toString()).map((m) => m.group(1)!).toSet();
             if (bsd.isNotEmpty) {
-              snapshot = '$snapshot\n\nUSB block devices (ioreg): ${bsd.join(", ")}';
+              snapshot =
+                  '$snapshot\n\nUSB block devices (ioreg): ${bsd.join(", ")}';
             }
           }
         } catch (_) {}
       } else if (Platform.isLinux) {
-        final r = await Process.run('lsusb', []).timeout(const Duration(seconds: 5));
+        final r = await Process.run(
+          'lsusb',
+          [],
+        ).timeout(const Duration(seconds: 5));
         snapshot = r.stdout.toString();
       } else if (Platform.isWindows) {
-        final r = await Process.run(
-          'powershell',
-          ['-NoProfile', '-Command',
-           "Get-PnpDevice -PresentOnly | Where-Object { \$_.InstanceId -like '*VID_0525*' -or \$_.InstanceId -like '*VID_15A2*' } | Format-List Name,Status,Class,InstanceId"],
-        ).timeout(const Duration(seconds: 8));
+        final r = await Process.run('powershell', [
+          '-NoProfile',
+          '-Command',
+          "Get-PnpDevice -PresentOnly | Where-Object { \$_.InstanceId -like '*VID_0525*' -or \$_.InstanceId -like '*VID_15A2*' } | Format-List Name,Status,Class,InstanceId",
+        ]).timeout(const Duration(seconds: 8));
         snapshot = r.stdout.toString();
       } else {
         snapshot = l10n.usbInfoUnsupportedPlatform;
@@ -2452,6 +3317,26 @@ class _InstallerScreenState extends State<InstallerScreen> {
     setState(() => _reconnectDiagnostics = snapshot.trim());
   }
 
+  /// What is on the board, named. A bare version number does not say which
+  /// distribution it belongs to, and the two use overlapping numbering.
+  String _installedVersionLabel(AppLocalizations l10n) {
+    final version = _mdbInfo?.firmwareVersion ?? '';
+    final distro =
+        _isLibrescootFirmware ? l10n.distroLibrescoot : l10n.distroStock;
+    return version.isEmpty ? distro : '$distro $version';
+  }
+
+  /// What the run intends to put there, with the channel it came from, since
+  /// stable and nightly of the same version are different artifacts.
+  String? _targetVersionLabel(AppLocalizations l10n) {
+    final tag = _downloadState.releaseTag;
+    if (tag == null || tag.isEmpty) return null;
+    // The channel is part of what identifies the artifact, so it stays as it
+    // is written everywhere else: stable, testing, nightly. The localised
+    // labels belong on the cards where the user is choosing between them.
+    return '${l10n.distroLibrescoot} ${_downloadState.channel.name} $tag';
+  }
+
   bool get _isLibrescootFirmware {
     // /etc/os-release ID= is the authoritative discriminator. Stable
     // Librescoot ships VERSION_ID=1.0.1, indistinguishable from stock by
@@ -2460,8 +3345,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
     final id = _mdbInfo?.osId ?? '';
     if (id.startsWith('librescoot')) return true;
     final v = _mdbInfo?.firmwareVersion ?? '';
-    return v.contains('librescoot') || v.contains('nightly') ||
-        v.contains('testing') || v.contains('stable');
+    return v.contains('librescoot') ||
+        v.contains('nightly') ||
+        v.contains('testing') ||
+        v.contains('stable');
   }
 
   /// Read what the MDB is running. `mender-update show-artifact` is what
@@ -2477,8 +3364,17 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // artifact's reboot that field still holds the answer the stage-0 board
     // gave before the install, which would make every clean install look as
     // if it had never left the bootstrap image.
-    final hasStack = await _sshService.hasRedisStack();
-    final minimal = (artifact ?? '').contains('minimal') || !hasStack;
+    final stack = await _sshService.detectServiceStack();
+    final minimal = looksLikeBootstrapImage(
+      artifactName: artifact,
+      serviceStack: stack,
+    );
+    // The inputs to the verdict, in the log, next to the verdict. Without them
+    // a false "still on the bootstrap image" is undiagnosable from a report.
+    debugPrint(
+      'State: mdb artifact=${artifact ?? "none"} stack=${stack?.name ?? "unanswered"} '
+      'version=${version ?? "unknown"} -> minimal=$minimal',
+    );
 
     return BoardState(
       board: Board.mdb,
@@ -2503,7 +3399,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
       final hash = await _sshService.redisHgetall('version:dbc');
       version = hash['version_id'];
       final id = hash['id'] ?? '';
-      if (version != null && version.isNotEmpty && id.startsWith('librescoot')) {
+      if (version != null &&
+          version.isNotEmpty &&
+          id.startsWith('librescoot')) {
         return BoardState(
           board: Board.dbc,
           isLibrescoot: true,
@@ -2538,6 +3436,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       final patch = p.length > 2 ? int.tryParse(p[2]) ?? 0 : 0;
       return major * 1000000 + minor * 1000 + patch;
     }
+
     return n(a) < n(b);
   }
 
@@ -2588,55 +3487,116 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _setPhase(InstallerPhase.installPlan);
     }
 
-    return Center(
+    final health = _scooterHealth;
+    Widget warning(IconData icon, Widget content) => Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.amber.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: Colors.amber),
+          const SizedBox(width: 12),
+          Expanded(child: content),
+        ],
+      ),
+    );
+
+    return PhaseLayout(
+      title: l10n.healthCheckHeading,
+      subtitle: l10n.verifyingReadiness,
+      actions: [
+        if (_mdbStackMissing)
+          PhaseAction(
+            label: l10n.reflashToRecover,
+            icon: Icons.build,
+            primary: true,
+            onPressed: _isProcessing ? null : () => proceed(),
+          )
+        else if (health != null && health.allOk)
+          PhaseAction(
+            label: l10n.continueButton,
+            icon: Icons.arrow_forward,
+            primary: true,
+            onPressed: _isProcessing ? null : () => proceed(),
+          )
+        else if (health != null) ...[
+          // Going on despite a failed check still goes forward, so it sits
+          // with the primary rather than opposite it. Retrying is the one
+          // worth pressing, so it gets the weight.
+          PhaseAction(
+            label: l10n.proceedAtOwnRisk,
+            danger: true,
+            onPressed: _isProcessing ? null : () => proceed(),
+          ),
+          PhaseAction(
+            label: l10n.retryButton,
+            icon: Icons.refresh,
+            primary: true,
+            onPressed: () {
+              setState(() {
+                _scooterHealth = null;
+                _healthCheckStarted = false;
+              });
+            },
+          ),
+        ],
+      ],
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(l10n.healthCheckHeading,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
+          // The current version alone does not say whether this run is an
+          // upgrade, a reinstall or a downgrade, which is the question someone
+          // reads this screen to answer. Both sides name their distribution,
+          // since a bare version number does not say which one it belongs to.
           if (_mdbInfo != null)
-            Text(l10n.firmwareVersionDisplay(_mdbInfo!.firmwareVersion),
-                style: TextStyle(color: Colors.grey.shade400)),
+            Text(
+              _downloadState.releaseTag == null
+                  ? l10n.firmwareVersionDisplay(_installedVersionLabel(l10n))
+                  : l10n.healthVersionPlan(
+                      _installedVersionLabel(l10n),
+                      _targetVersionLabel(l10n) ?? _downloadState.releaseTag!,
+                    ),
+              style: TextStyle(color: Colors.grey.shade400),
+            ),
           // A run that finished on the device had nobody watching it. This is
           // the only place its outcome reaches a human.
           if (_previousRun != null) ...[
             const SizedBox(height: 4),
             Text(
               l10n.previousRunSummary(
-                  _previousRun!.when, _previousRun!.version),
+                _previousRun!.when,
+                _previousRun!.version,
+              ),
               style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
             ),
           ],
-          const SizedBox(height: 8),
-          Text(l10n.verifyingReadiness,
-              style: TextStyle(color: Colors.grey.shade400)),
-          if (_mdbStackMissing) ...[
+          if (_mdbLacksLibrescootStack) ...[
             const SizedBox(height: 16),
-            Container(
-              width: 400,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
-              ),
-              child: Row(
+            warning(
+              _mdbStackMissing ? Icons.healing : Icons.info_outline,
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.healing, color: Colors.amber),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(l10n.incompleteImageHeading,
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber)),
-                        const SizedBox(height: 4),
-                        Text(l10n.incompleteImageBody,
-                            style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
-                      ],
+                  Text(
+                    _mdbStackMissing
+                        ? l10n.incompleteImageHeading
+                        : l10n.stockFirmwareHeading,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.amber,
                     ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _mdbStackMissing
+                        ? l10n.incompleteImageBody
+                        : l10n.stockFirmwareBody,
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade300),
                   ),
                 ],
               ),
@@ -2644,99 +3604,72 @@ class _InstallerScreenState extends State<InstallerScreen> {
           ],
           if (_isUntestedStockFirmware) ...[
             const SizedBox(height: 16),
-            Container(
-              width: 400,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
-              ),
-              child: Row(
+            warning(
+              Icons.warning_amber,
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.warning_amber, color: Colors.amber),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(l10n.untestedFirmwareHeading,
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber)),
-                        const SizedBox(height: 4),
-                        Text(l10n.untestedFirmwareBody(_mdbInfo?.firmwareVersion ?? ''),
-                            style: TextStyle(fontSize: 13, color: Colors.grey.shade300)),
-                        const SizedBox(height: 8),
-                        TextButton.icon(
-                          onPressed: () => _openExternalUrl('https://discord.gg/BmY2P2T9j3'),
-                          icon: const Icon(Icons.chat_bubble_outline, size: 16, color: Colors.amber),
-                          label: Text(l10n.openLibrescootDiscord,
-                              style: const TextStyle(color: Colors.amber)),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                        ),
-                      ],
+                  Text(
+                    l10n.untestedFirmwareHeading,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.amber,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    l10n.untestedFirmwareBody(_mdbInfo?.firmwareVersion ?? ''),
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade300),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () =>
+                        _openExternalUrl('https://discord.gg/BmY2P2T9j3'),
+                    icon: const Icon(
+                      Icons.chat_bubble_outline,
+                      size: 16,
+                      color: Colors.amber,
+                    ),
+                    label: Text(
+                      l10n.openLibrescootDiscord,
+                      style: const TextStyle(color: Colors.amber),
+                    ),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                   ),
                 ],
               ),
             ),
           ],
-          const SizedBox(height: 24),
-          if (_scooterHealth != null)
-            SizedBox(width: 400, child: HealthCheckPanel(health: _scooterHealth!)),
-
-          // Config backup status
-          if (_scooterHealth != null && _radioGagaBackupPath != null)
+          if (health != null) ...[
+            const SizedBox(height: 24),
+            HealthCheckPanel(health: health),
+          ],
+          if (health != null && _radioGagaBackupPath != null)
             Padding(
               padding: const EdgeInsets.only(top: 12),
-              child: SizedBox(
-                width: 400,
-                child: Row(
-                  children: [
-                    const Icon(Icons.check_circle, color: Colors.green, size: 16),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(l10n.configBackedUp,
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade400))),
-                  ],
-                ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      l10n.configBackedUp,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade400,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-
-          const SizedBox(height: 24),
-          if (_mdbStackMissing)
-            FilledButton.icon(
-              onPressed: _isProcessing ? null : () => proceed(),
-              icon: const Icon(Icons.build),
-              label: Text(l10n.reflashToRecover),
-            ),
-          if (!_mdbStackMissing && _scooterHealth != null && _scooterHealth!.allOk)
-            FilledButton.icon(
-              onPressed: _isProcessing ? null : () => proceed(),
-              icon: const Icon(Icons.arrow_forward),
-              label: Text(l10n.continueButton),
-            ),
-          if (!_mdbStackMissing && _scooterHealth != null && !_scooterHealth!.allOk) ...[
-            OutlinedButton.icon(
-              onPressed: () {
-                setState(() {
-                  _scooterHealth = null;
-                  _healthCheckStarted = false;
-                });
-              },
-              icon: const Icon(Icons.refresh),
-              label: Text(l10n.retryButton),
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: _isProcessing ? null : () => proceed(),
-              child: Text(l10n.proceedAtOwnRisk,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-            ),
-          ],
         ],
       ),
     );
@@ -2746,23 +3679,35 @@ class _InstallerScreenState extends State<InstallerScreen> {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isProcessing = true);
     if (_isDryRun) {
-      setState(() => _scooterHealth = ScooterHealth()
-        ..auxCharge = 75
-        ..cbbStateOfHealth = 100
-        ..cbbCharge = 92
-        ..batteryPresent = true);
+      setState(
+        () => _scooterHealth = ScooterHealth()
+          ..auxCharge = 75
+          ..cbbStateOfHealth = 100
+          ..cbbCharge = 92
+          ..batteryPresent = true,
+      );
       setState(() => _isProcessing = false);
       return;
     }
     if (_mdbStackMissing) {
-      // No redis on this image: battery telemetry can't be read and there's
-      // nothing to back up. Render the verdict as all-unknown; the health
-      // screen shows the recovery banner and a Continue button that leads
-      // into the re-flash.
-      setState(() {
-        _scooterHealth = ScooterHealth();
-        _isProcessing = false;
-      });
+      // The bootstrap image has no vehicle stack, but it does run valkey and
+      // bluetooth-service, and bluetooth-service is what writes aux-battery
+      // and cb-battery from the nRF52. So AUX and the CBB read here; only the
+      // main pack does not, since battery-service is not on this image.
+      //
+      // Read once rather than polling: nothing is warming up that would make a
+      // second look different, and a board that answers nothing should not
+      // cost the user the full battery-data wait on the way to a re-flash.
+      try {
+        final health = await _sshService.queryHealth();
+        if (!mounted) return;
+        setState(() => _scooterHealth = health);
+      } catch (e) {
+        debugPrint('Health: bootstrap image answered nothing: $e');
+        if (!mounted) return;
+        setState(() => _scooterHealth = ScooterHealth());
+      }
+      if (mounted) setState(() => _isProcessing = false);
       return;
     }
     try {
@@ -2775,10 +3720,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // disconnected CBB/AUX should still surface as a failure).
       var health = await _sshService.queryHealth();
       final deadline = DateTime.now().add(const Duration(seconds: 90));
-      while ((health.auxCharge == null ||
-              health.cbbCharge == null ||
-              health.cbbStateOfHealth == null) &&
-          DateTime.now().isBefore(deadline)) {
+      // A CBB that reports itself absent has nothing to wait for; its charge
+      // and state-of-health never arrive.
+      bool stillWaiting(ScooterHealth h) =>
+          h.auxCharge == null ||
+          (h.cbbPresent != false &&
+              (h.cbbCharge == null || h.cbbStateOfHealth == null));
+      while (stillWaiting(health) && DateTime.now().isBefore(deadline)) {
         _setStatus(l10n.waitingForBatteryData);
         await Future.delayed(const Duration(seconds: 3));
         if (!mounted) return;
@@ -2802,15 +3750,28 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
   }
 
-
   Widget _buildInstallPlan(AppLocalizations l10n) {
-    return InstallPlanPanel(
-      plan: _plan!,
-      mdbState: _mdbState,
-      dbcState: _dbcState,
-      targetVersion: _downloadState.releaseTag ?? '',
-      onChanged: (p) => setState(() => _plan = p),
-      onContinue: _startPlan,
+    final blocked = _plan!.isNoOp || _plan!.dbcWorkStrandedOn(_mdbState);
+    return PhaseLayout(
+      title: l10n.installPlanHeading,
+      subtitle: l10n.installPlanIntro(_downloadState.releaseTag ?? ''),
+      onBack: () => _setPhase(InstallerPhase.healthCheck),
+      backLabel: l10n.backButton,
+      actions: [
+        PhaseAction(
+          label: l10n.continueButton,
+          primary: true,
+          onPressed: blocked ? null : _startPlan,
+        ),
+      ],
+      child: InstallPlanPanel(
+        plan: _plan!,
+        mdbState: _mdbState,
+        dbcState: _dbcState,
+        targetVersion: _downloadState.releaseTag ?? '',
+        tilesAvailable: _downloadState.wantsOfflineMaps,
+        onChanged: (p) => setState(() => _plan = p),
+      ),
     );
   }
 
@@ -2875,47 +3836,73 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _setPhase(InstallerPhase.bluetoothPairing);
     }
   }
-  Widget _buildMdbToUms(AppLocalizations l10n) {
-    if (!_mdbToUmsStarted && !_isProcessing) {
-      _mdbToUmsStarted = true;
-      Future.microtask(_configureMdbUms);
-    }
-    return Center(
+
+  /// A phase with nothing for the user to do but watch: one line of status
+  /// under a spinner, and whatever they can reach for if it stalls.
+  Widget _waitingPhase({
+    required String title,
+    String? subtitle,
+    required String status,
+    List<PhaseAction> actions = const [],
+    List<Widget> extra = const [],
+  }) {
+    return PhaseLayout(
+      title: title,
+      subtitle: subtitle,
+      actions: actions,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(l10n.configuringMdbBootloader,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
           if (_isProcessing)
-            const SizedBox(width: 48, height: 48, child: CircularProgressIndicator()),
-          const SizedBox(height: 16),
-          Text(_statusMessage.isEmpty ? l10n.preparing : _statusMessage,
-              style: TextStyle(color: Colors.grey.shade400)),
-          if (!_isProcessing && !_mdbToUmsStarted) ...[
-            const SizedBox(height: 24),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FilledButton.icon(
-                  onPressed: () {
-                    _mdbToUmsStarted = true;
-                    _configureMdbUms();
-                  },
-                  icon: const Icon(Icons.refresh),
-                  label: Text(l10n.retryMdbToUms),
-                ),
-                const SizedBox(width: 16),
-                OutlinedButton.icon(
-                  onPressed: _showLogDialog,
-                  icon: const Icon(Icons.article_outlined),
-                  label: Text(l10n.showLog),
-                ),
-              ],
+            const SizedBox(
+              width: 48,
+              height: 48,
+              child: CircularProgressIndicator(),
             ),
-          ],
+          const SizedBox(height: 20),
+          Text(
+            status,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey.shade400),
+          ),
+          ...extra,
         ],
       ),
+    );
+  }
+
+  Widget _buildMdbToUms(AppLocalizations l10n) {
+    final stalled = _mdbToUmsAttempt.isFailed;
+    // While it is going, it is a wait: the overlay over the screen the user
+    // just left. A failure gets the whole frame back, because that is where
+    // the log and the retry live.
+    if (!stalled) {
+      return _waitPhase(
+        title: l10n.configuringMdbBootloader,
+        warning: l10n.dbcFlashDoNotDisconnect,
+      );
+    }
+    return _waitingPhase(
+      title: l10n.configuringMdbBootloader,
+      status: _statusMessage.isEmpty ? l10n.preparing : _statusMessage,
+      actions: [
+        if (stalled) ...[
+          // Reading the log is neither going on nor going back, so it sits
+          // away from the action that moves the install.
+          PhaseAction(
+            label: l10n.showLog,
+            icon: Icons.article_outlined,
+            side: ActionSide.back,
+            onPressed: _showLogDialog,
+          ),
+          PhaseAction(
+            label: l10n.retryMdbToUms,
+            icon: Icons.refresh,
+            primary: true,
+            onPressed: _startMdbToUms,
+          ),
+        ],
+      ],
     );
   }
 
@@ -2923,6 +3910,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// so a board that will not answer is not a reason to stop the install.
   Future<void> _deactivateMainBattery() async {
     if (_isDryRun) return;
+    // A minimal image has no redis, so every call here fails. Catching that
+    // is not enough: a failure inside executeWithReplayPolicy can invalidate
+    // the connection, and the mandatory step after this one needs it.
+    if (_mdbLacksLibrescootStack) {
+      debugPrint('Battery: no Librescoot stack, skipping main-pack deactivation');
+      return;
+    }
     try {
       await _sshService.deactivateMainBattery();
       final deadline = DateTime.now().add(const Duration(seconds: 30));
@@ -2940,16 +3934,69 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
   }
 
-  Future<void> _configureMdbUms() async {
-    final l10n = AppLocalizations.of(context)!;
+  void _startMdbToUms() {
+    if (!mounted || _currentPhase != InstallerPhase.mdbToUms) return;
+    final generation = _mdbToUmsAttempt.begin();
+    if (generation == null) return;
     setState(() => _isProcessing = true);
+    unawaited(_configureMdbUms(generation));
+  }
+
+  bool _ownsMdbToUmsAttempt(int generation) {
+    return mounted &&
+        _currentPhase == InstallerPhase.mdbToUms &&
+        _mdbToUmsAttempt.isCurrent(generation);
+  }
+
+  Future<void> _configureMdbUms(int generation) async {
+    final l10n = AppLocalizations.of(context)!;
+    // reboot() disconnects on purpose and clears the stored credential with
+    // it, so nothing can reconnect on its own. A retry therefore arrives here
+    // with no session and has to rebuild one before the first SSH step.
+    final resuming = !_isDryRun && !_sshService.isConnected;
+    // Timings from real runs on a healthy board; the reboot is the long pole.
+    _beginWait([
+      if (resuming)
+        WaitStep(
+            label: l10n.waitingForMdb, typical: const Duration(seconds: 45)),
+      WaitStep(
+          label: l10n.deactivatingMainBattery,
+          typical: const Duration(seconds: 15)),
+      WaitStep(
+          label: l10n.uploadingBootloaderTools,
+          typical: const Duration(seconds: 20)),
+      WaitStep(
+          label: l10n.rebootingMdbUms, typical: const Duration(seconds: 60)),
+      WaitStep(
+          label: l10n.waitingForUmsDevice,
+          typical: const Duration(seconds: 25)),
+    ]);
     if (_isDryRun) {
       _setStatus('[DRY RUN] Simulating UMS mode...');
       await Future.delayed(const Duration(seconds: 1));
+      if (!_ownsMdbToUmsAttempt(generation)) return;
+      _mdbToUmsAttempt.complete(generation);
       _setPhase(InstallerPhase.mdbFlash);
       return;
     }
+    var autoPlayHandedToFlash = false;
+    String? failureStatus;
     try {
+      if (resuming) {
+        // The board rebooted out from under the previous attempt. Either it
+        // came back in ethernet mode, or it is not coming back at all.
+        _setStatus(l10n.waitingForMdb);
+        if (!await _waitForDevice(
+          DeviceMode.ethernet,
+          timeout: const Duration(seconds: 90),
+        )) {
+          throw _LocalizedInstallException(l10n.umsNotDetectedTimeout);
+        }
+        if (!_ownsMdbToUmsAttempt(generation)) return;
+        _setStatus(l10n.reconnectingSsh);
+        await _sshService.connectToMdb();
+      }
+
       // Turn the main pack off before the board goes away. The UMS reboot
       // deactivates it either way, but only by the pack noticing the MDB has
       // stopped talking and timing out, which takes as long as it takes and
@@ -2968,55 +4015,152 @@ class _InstallerScreenState extends State<InstallerScreen> {
       try {
         await _sshService.runCommand('ln -sf /tmp/fw_setenv /tmp/fw_printenv');
         final bootcmd = await _sshService.runCommand(
-          'fw_printenv bootcmd 2>/dev/null || /tmp/fw_printenv -c /tmp/fw_env.config bootcmd'
+          'fw_printenv bootcmd 2>/dev/null || /tmp/fw_printenv -c /tmp/fw_env.config bootcmd',
         );
         debugPrint('SSH: verified bootcmd = $bootcmd');
         if (!bootcmd.contains('ums')) {
-          _setStatus('fw_setenv failed: bootcmd is still: ${bootcmd.trim()}');
-          setState(() { _isProcessing = false; _mdbToUmsStarted = false; });
-          return;
+          failureStatus =
+              'fw_setenv failed: bootcmd is still: ${bootcmd.trim()}';
         }
       } catch (e) {
         debugPrint('SSH: bootcmd verification failed ($e), proceeding');
       }
 
-      // Suppress Windows "format this disk" popup before UMS mode
-      await DriverService.suppressAutoPlay();
+      if (failureStatus == null) {
+        // Suppress Windows "format this disk" popup before UMS mode
+        if (_windowClosing) return;
+        await DriverService.suppressAutoPlay();
+        if (_windowClosing) return;
 
-      _setStatus(l10n.rebootingMdbUms);
-      await _sshService.reboot();
-      _setStatus(l10n.waitingForUmsDevice);
-      final found = await _waitForDevice(DeviceMode.massStorage, timeout: const Duration(seconds: 60));
-      if (found) {
-        _setPhase(InstallerPhase.mdbFlash);
-        return;
+        _setStatus(l10n.rebootingMdbUms);
+        await _sshService.reboot();
+        _setStatus(l10n.waitingForUmsDevice);
+        final found = await _waitForDevice(
+          DeviceMode.massStorage,
+          timeout: const Duration(seconds: 60),
+        );
+        if (found) {
+          if (!_ownsMdbToUmsAttempt(generation)) return;
+          autoPlayHandedToFlash = true;
+          _mdbToUmsAttempt.complete(generation);
+          _setPhase(InstallerPhase.mdbFlash);
+          return;
+        }
+
+        failureStatus = l10n.umsNotDetectedTimeout;
       }
-
-      // UMS didn't appear: show retry/log buttons
-      _setStatus(l10n.umsNotDetectedTimeout);
     } catch (e) {
-      _setStatus('Error: $e');
+      failureStatus = 'Error: $e';
+    } finally {
+      if (!autoPlayHandedToFlash) {
+        await DriverService.restoreAutoPlay();
+      }
     }
-    setState(() { _isProcessing = false; _mdbToUmsStarted = false; });
+    if (!_ownsMdbToUmsAttempt(generation)) return;
+    _setStatus(failureStatus);
+    setState(() {
+      _isProcessing = false;
+      _mdbToUmsAttempt.fail(generation, failureStatus);
+    });
+  }
+
+  /// One labelled fact about the write, with an optional second line for the
+  /// thing worth being able to select and paste, such as the device path.
+  Widget _flashFact(String label, String value,
+      {String? detail, required IconData icon}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: Colors.grey.shade500),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+              ),
+              const SizedBox(height: 2),
+              Text(value, style: const TextStyle(fontSize: 14)),
+              if (detail != null) ...[
+                const SizedBox(height: 2),
+                SelectableText(
+                  detail,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _flashNote(IconData icon, String text, {bool danger = false}) {
+    final color = danger ? Colors.orange : Colors.grey.shade400;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(fontSize: 13, height: 1.4, color: color),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildMdbFlash(AppLocalizations l10n) {
     if (!_flashConfirmed) {
-      return Center(
+      final target = _device;
+      final image = _downloadState.itemOfType(DownloadItemType.mdbFirmware);
+      // The last screen before a destructive write says what is about to be
+      // written and where. The confirmation dialog shows the same facts, but
+      // only when the system-disk probe came back unknown, so a healthy host
+      // was told less about the target than a host whose probe failed.
+      return PhaseLayout(
+        title: l10n.readyToFlash,
+        subtitle: l10n.readyToFlashHint,
+        actions: [
+          PhaseAction(
+            label: l10n.beginFlashing,
+            icon: Icons.flash_on,
+            primary: true,
+            onPressed: () {
+              _resetRetries('mdbFlash');
+              setState(() => _flashConfirmed = true);
+            },
+          ),
+        ],
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(l10n.readyToFlash,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(l10n.readyToFlashHint,
-                style: TextStyle(color: Colors.grey.shade400)),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: () { _resetRetries('mdbFlash'); setState(() => _flashConfirmed = true); },
-              icon: const Icon(Icons.flash_on),
-              label: Text(l10n.beginFlashing),
+            _flashFact(
+              l10n.readyToFlashTargetLabel,
+              target == null
+                  ? l10n.readyToFlashNoTarget
+                  : '${target.name}  ${target.sizeFormatted}',
+              detail: (target?.path.isNotEmpty ?? false) ? target!.path : null,
+              icon: Icons.storage,
             ),
+            if (image != null) ...[
+              const SizedBox(height: 12),
+              _flashFact(
+                l10n.readyToFlashImageLabel,
+                image.filename,
+                icon: Icons.system_update_alt,
+              ),
+            ],
+            const SizedBox(height: 16),
+            _flashNote(Icons.delete_forever, l10n.readyToFlashErases,
+                danger: true),
+            const SizedBox(height: 8),
+            _flashNote(Icons.schedule, l10n.readyToFlashDuration),
           ],
         ),
       );
@@ -3026,52 +4170,61 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _mdbFlashStarted = true;
       Future.microtask(_flashMdb);
     }
-    return Center(
+    // The longest wait in the install, so it follows the same rule as the
+    // others: the overlay while it runs, the whole frame back on a failure,
+    // where the log and the retry live.
+    if (!_mdbFlashBlocked) {
+      // The writer asks macOS for privilege and blocks on a modal until a
+      // human answers it, so before the first byte the true state is "waiting
+      // for you", not "writing". Telling someone not to disconnect while
+      // nothing is happening is how a stalled dialog becomes a pulled cable.
+      final awaitingAuth = Platform.isMacOS && _progress <= 0;
+      return _waitPhase(
+        title: l10n.flashingMdb,
+        warning: awaitingAuth
+            ? l10n.flashAwaitingAuthorisation
+            : l10n.dbcFlashDoNotDisconnect,
+        progress: _progress > 0 ? _progress : null,
+      );
+    }
+    return PhaseLayout(
+      title: l10n.flashingMdb,
+      subtitle: l10n.flashingMdbSubheading,
+      actions: [
+        if (_mdbFlashBlocked) ...[
+          PhaseAction(
+            label: l10n.showLog,
+            icon: Icons.article_outlined,
+            side: ActionSide.back,
+            onPressed: _showLogDialog,
+          ),
+          PhaseAction(
+            label: l10n.retryMdbFlash,
+            icon: Icons.refresh,
+            primary: true,
+            onPressed: () {
+              _resetRetries('mdbFlash');
+              _restartFailedDownloads();
+              setState(() {
+                _mdbFlashBlocked = false;
+                _mdbFlashStarted = true;
+              });
+              Future.microtask(_flashMdb);
+            },
+          ),
+        ],
+      ],
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(l10n.flashingMdb,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          LinearProgressIndicator(value: _progress, minHeight: 8),
           const SizedBox(height: 8),
-          Text(l10n.flashingMdbSubheading,
-              style: TextStyle(color: Colors.grey.shade400)),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: 400,
-            child: Column(
-              children: [
-                LinearProgressIndicator(value: _progress, minHeight: 8),
-                const SizedBox(height: 8),
-                Text(_statusMessage, style: TextStyle(color: Colors.grey.shade400)),
-              ],
-            ),
+          Text(
+            _statusMessage,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey.shade400),
           ),
-          if (_mdbFlashBlocked) ...[
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                FilledButton.icon(
-                  onPressed: () {
-                    _resetRetries('mdbFlash');
-                    setState(() {
-                      _mdbFlashBlocked = false;
-                      _mdbFlashStarted = true;
-                    });
-                    Future.microtask(_flashMdb);
-                  },
-                  icon: const Icon(Icons.refresh),
-                  label: Text(l10n.retryMdbFlash),
-                ),
-                const SizedBox(width: 16),
-                OutlinedButton.icon(
-                  onPressed: _showLogDialog,
-                  icon: const Icon(Icons.article_outlined),
-                  label: Text(l10n.showLog),
-                ),
-              ],
-            ),
-          ],
         ],
       ),
     );
@@ -3085,9 +4238,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// out entirely so nothing they could mistake for their own drive appears.
   Future<bool> _confirmFlashTarget(UsbDevice target, String devicePath) async {
     final l10n = AppLocalizations.of(context)!;
-    final others = (await _usbDetector.listUsbDisks(detectedPath: devicePath))
-        .where((disk) => !disk.isDetectedTarget)
-        .toList();
+    final others = (await _usbDetector.listUsbDisks(
+      detectedPath: devicePath,
+    )).where((disk) => !disk.isDetectedTarget).toList();
     if (!mounted) return false;
 
     final confirmed = await showDialog<bool>(
@@ -3137,7 +4290,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
                   const SizedBox(height: 16),
                   Text(
                     l10n.confirmFlashTargetOthers,
-                    style: TextStyle(color: kTextPrimary.withValues(alpha: 0.7)),
+                    style: TextStyle(
+                      color: kTextPrimary.withValues(alpha: 0.7),
+                    ),
                   ),
                   const SizedBox(height: 4),
                   for (final disk in others)
@@ -3195,38 +4350,58 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Future<void> _flashMdb() async {
+    if (_windowClosing || !mounted) return;
     final l10n = AppLocalizations.of(context)!;
+    // Timings from real runs: the path resolves in seconds, the bmap write of
+    // a stage-0 image takes about a minute and a half. The flasher's own
+    // per-phase messages carry the detail and land in the log tail.
+    _beginWait([
+      WaitStep(
+          label: l10n.waitingForDevicePath,
+          typical: const Duration(seconds: 15)),
+      WaitStep(
+          label: l10n.flashingMdb, typical: const Duration(seconds: 90)),
+    ]);
     setState(() => _isProcessing = true);
-    _setCritical(true);
+    final criticalOperation = _acquireCriticalOperation();
 
     if (_isDryRun) {
-      for (var i = 0; i <= 10; i++) {
-        _setStatus('[DRY RUN] Simulating flash... ${i * 10}%', progress: i / 10);
-        await Future.delayed(const Duration(milliseconds: 200));
-        if (!mounted) return;
-      }
-      _setPhase(InstallerPhase.scooterPrep);
-      return;
-    }
-
-    var mdbItem = _downloadState.itemOfType(DownloadItemType.mdbFirmware);
-    // Bmap is optional (older releases may not ship one), but if it was
-    // queued we must wait for it: flashing the .gz sequentially when a
-    // bmap was meant to be used skips the sparse-write fast path.
-    var mdbBmapItem = _downloadState.itemOfType(DownloadItemType.mdbBmap);
-    if (mdbItem == null || !mdbItem.isComplete ||
-        (mdbBmapItem != null && !mdbBmapItem.isComplete)) {
-      _setStatus(l10n.waitingForMdbFirmware);
-      while (mdbItem == null || !mdbItem.isComplete ||
-          (mdbBmapItem != null && !mdbBmapItem.isComplete)) {
-        await Future.delayed(const Duration(seconds: 1));
-        if (!mounted) return;
-        mdbItem = _downloadState.itemOfType(DownloadItemType.mdbFirmware);
-        mdbBmapItem = _downloadState.itemOfType(DownloadItemType.mdbBmap);
+      try {
+        for (var i = 0; i <= 10; i++) {
+          _setStatus(
+            '[DRY RUN] Simulating flash... ${i * 10}%',
+            progress: i / 10,
+          );
+          await Future.delayed(const Duration(milliseconds: 200));
+          if (!mounted) return;
+        }
+        _setPhase(InstallerPhase.scooterPrep);
+        return;
+      } finally {
+        criticalOperation.release();
       }
     }
 
+    await DriverService.suppressAutoPlay();
     try {
+      bool mdbDownloadsReady() {
+        final image = _downloadState.itemOfType(DownloadItemType.mdbFirmware);
+        final bmap = _downloadState.itemOfType(DownloadItemType.mdbBmap);
+        return image != null &&
+            image.isComplete &&
+            (bmap == null || bmap.isComplete);
+      }
+
+      if (!mdbDownloadsReady()) {
+        _setStatus(l10n.waitingForMdbFirmware);
+        await waitForDownloads(
+          isReady: mdbDownloadsReady,
+          currentError: () => _downloadState.error,
+          isCancelled: () => !mounted,
+        );
+      }
+      final mdbItem = _downloadState.itemOfType(DownloadItemType.mdbFirmware)!;
+
       // Resolve the block device path (macOS needs diskutil lookup)
       _setStatus(l10n.waitingForDevicePath);
       String? devicePath;
@@ -3239,7 +4414,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         if (!mounted) return;
       }
       if (devicePath == null || devicePath.isEmpty) {
-        _setCritical(false);
+        criticalOperation.release();
         _setStatus(l10n.noDevicePathFound);
         _blockMdbFlash();
         return;
@@ -3259,13 +4434,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // Windows could not say whether this disk carries boot or system. The
       // detector already matched it by vendor and product, so put that to the
       // user rather than guessing in either direction.
+      // Only a mass-storage target is worth confirming; anything else is
+      // refused by the product-ID guard regardless of the answer.
       if (target != null &&
+          target.mode == DeviceMode.massStorage &&
           target.systemDiskVerdict == SystemDiskVerdict.unknown) {
         final confirmed = await _confirmFlashTarget(target, devicePath);
         if (!mounted) return;
         if (!confirmed) {
           debugPrint('Flash: user did not confirm $devicePath as the target');
-          _setCritical(false);
+          criticalOperation.release();
           _setStatus(l10n.flashTargetNotConfirmed);
           _blockMdbFlash();
           return;
@@ -3280,8 +4458,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
           ? await _usbDetector.linuxSystemDiskVerdict(devicePath)
           : null;
       if (linuxVerdict != null) {
-        debugPrint('Flash: linux system-disk verdict for $devicePath: '
-            '${linuxVerdict.name}');
+        debugPrint(
+          'Flash: linux system-disk verdict for $devicePath: '
+          '${linuxVerdict.name}',
+        );
       }
       final safetyCheck = flashService.validateDevice(
         devicePath: devicePath,
@@ -3290,17 +4470,26 @@ class _InstallerScreenState extends State<InstallerScreen> {
         isSystemDisk: target?.isSystemDisk ?? false,
         vendorId: target?.vendorId ?? 0,
         productId: target?.productId ?? 0,
-        systemDiskVerdict: linuxVerdict ?? SystemDiskVerdict.unknown,
+        // Inert in validateDevice off Linux, but passed so a rule added
+        // there later reads the real verdict rather than a constant unknown.
+        systemDiskVerdict:
+            linuxVerdict ?? target?.systemDiskVerdict ?? SystemDiskVerdict.unknown,
+        detectedPath: target?.path,
       );
       if (!safetyCheck.passed) {
-        debugPrint('Flash: safety check failed: ${safetyCheck.errors.join('; ')}');
-        _setCritical(false);
-        _setStatus('${l10n.safetyCheckFailed}: ${l10n.cannotFlashSafety}\n${safetyCheck.errors.join('\n')}');
+        debugPrint(
+          'Flash: safety check failed: ${safetyCheck.errors.join('; ')}',
+        );
+        criticalOperation.release();
+        _setStatus(
+          '${l10n.safetyCheckFailed}: ${l10n.cannotFlashSafety}\n${safetyCheck.errors.join('\n')}',
+        );
         _blockMdbFlash();
         return;
       }
 
       final bmapPath = _downloadState.bmapPathFor(DownloadItemType.mdbFirmware);
+      _setStatus(l10n.flashingMdb);
       await flashService.writeTwoPhase(
         mdbItem.localPath!,
         devicePath,
@@ -3310,38 +4499,46 @@ class _InstallerScreenState extends State<InstallerScreen> {
         },
       );
 
-      _setCritical(false);
-      // Restore Windows AutoPlay after flashing
-      await DriverService.restoreAutoPlay();
+      criticalOperation.release();
       _setStatus(l10n.mdbFlashComplete);
       await Future.delayed(const Duration(seconds: 1));
       _setPhase(InstallerPhase.scooterPrep);
+    } on DownloadWaitCancelled {
+      return;
     } catch (e, stackTrace) {
       debugPrint('Flash ERROR: $e');
       debugPrint('Flash STACKTRACE: $stackTrace');
-      _setCritical(false);
-      await DriverService.restoreAutoPlay();
+      criticalOperation.release();
 
       final errText = e.toString();
+      final downloadFailure = e is DownloadWaitFailure;
       final midWrite = RegExp(r'write at offset (\d+)').firstMatch(errText);
-      final pathGone = errText.contains('No such file or directory') ||
+      final pathGone =
+          errText.contains('No such file or directory') ||
           errText.contains('authopen') ||
           errText.contains('device not configured');
 
       String diagnosis = errText;
-      if (midWrite != null) {
+      if (downloadFailure) {
+        diagnosis = errText;
+      } else if (midWrite != null) {
         final offset = int.tryParse(midWrite.group(1)!);
-        final mb = offset == null ? '?' : (offset / (1024 * 1024)).toStringAsFixed(1);
-        diagnosis += '\n\nDevice stopped responding mid-write at $mb MB. '
+        final mb = offset == null
+            ? '?'
+            : (offset / (1024 * 1024)).toStringAsFixed(1);
+        diagnosis +=
+            '\n\nDevice stopped responding mid-write at $mb MB. '
             'This is almost always the USB cable or port. '
             'Unplug and replug the USB cable (try a different cable or port), then retry. '
             'Only power-cycle the MDB if the device does not reappear.';
       } else if (pathGone || _device == null) {
-        diagnosis += '\n\nDevice is no longer present. '
+        diagnosis +=
+            '\n\nDevice is no longer present. '
             'Unplug and replug the USB cable, then retry. '
             'Only power-cycle the MDB if the device does not reappear.';
       } else if (_device!.mode != DeviceMode.massStorage) {
-        diagnosis += '\n\nDevice is in ${_device!.mode.name} mode, not mass storage. '
+        diagnosis +=
+            '\n\nDevice is in ${_device!.mode.name} mode, not mass storage. '
             'Power-cycle the board so u-boot re-enters UMS mode.';
       } else {
         diagnosis += '\n\nDevice is still visible: you can retry.';
@@ -3356,31 +4553,44 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
       // Wait for the device to come back before re-running the flash —
       // otherwise we burn retries against a stale path that can't be
-      // opened. Detector was resumed by _setCritical(false) above.
+      // opened. Detector was resumed by releasing our lease above.
       _setStatus('$diagnosis\n\nWaiting for the device to be re-detected...');
-      final back = await _waitForMassStorageDevice(timeout: const Duration(seconds: 60));
+      final back = await _waitForMassStorageDevice(
+        timeout: const Duration(seconds: 60),
+      );
 
       // A board that comes back as a network device booted the image, which
       // means the write that "failed" had already finished. Retrying then
       // waits forever for a mass-storage device that is never coming, and the
       // user is stuck in front of a flash screen for a flash that is done.
+      //
+      // _mdbFlashStarted stays set, as on the success path above. Clearing it
+      // satisfies the build path's start conditions again and launches a
+      // second flash before the phase change lands.
       if (!back && _device?.mode == DeviceMode.ethernet) {
         debugPrint('Flash: board booted the image, treating the flash as done');
         _setStatus(l10n.mdbFlashComplete);
-        setState(() => _mdbFlashStarted = false);
         await Future.delayed(const Duration(seconds: 1));
         _setPhase(InstallerPhase.scooterPrep);
         return;
       }
 
       if (!back) {
-        _setStatus('$diagnosis\n\nDevice did not come back within 60s. '
-            'Replug the USB (or, as a last resort, power-cycle the MDB) '
-            'and use the manual retry button.');
+        _setStatus(
+          '$diagnosis\n\nDevice did not come back within 60s. '
+          'Replug the USB (or, as a last resort, power-cycle the MDB) '
+          'and use the manual retry button.',
+        );
         _blockMdbFlash();
         return;
       }
       setState(() => _mdbFlashStarted = false);
+    } finally {
+      try {
+        await DriverService.restoreAutoPlay();
+      } finally {
+        criticalOperation.release();
+      }
     }
   }
 
@@ -3403,55 +4613,80 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Widget _buildScooterPrep(AppLocalizations l10n) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(l10n.scooterPrepHeading,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Text(l10n.scooterPrepSubheading,
-            style: TextStyle(color: Colors.grey.shade400)),
-        const SizedBox(height: 24),
-
-        // The brake gesture is the primary route because it reaches the same
-        // outcome without the seatbox: no main battery to lift out, no CBB to
-        // unplug, no pole to unbolt, and so none of the ways those go wrong.
-        // The nRF52 sees the brake line directly, which is why it still works
-        // with the main processor parked in the bootloader.
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.cyan.shade900.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.cyan.shade800),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(l10n.brakeResetHeading,
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 6),
-              Text(l10n.brakeResetIntro,
-                  style: TextStyle(color: Colors.grey.shade300, height: 1.4)),
-              const SizedBox(height: 18),
-              const BrakeGesturePacer(),
-              const SizedBox(height: 14),
-              Text(l10n.brakeResetAfterNote,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-            ],
-          ),
+    return PhaseLayout(
+      title: l10n.scooterPrepHeading,
+      subtitle: l10n.scooterPrepSubheading,
+      actions: [
+        PhaseAction(
+          // The two routes leave the scooter in different states. Only the
+          // brake gesture restarts it; the manual route ends with AUX off and
+          // the next screen asking for it back.
+          label: _manualPowerCut
+              ? l10n.doneAuxDisconnected
+              : l10n.doneCbbAuxDisconnected,
+          icon: Icons.arrow_forward,
+          primary: true,
+          onPressed: () => _setPhase(InstallerPhase.mdbBoot),
         ),
-        const SizedBox(height: 16),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // The brake gesture is the primary route because it reaches the same
+          // outcome without the seatbox: no main battery to lift out, no CBB to
+          // unplug, no pole to unbolt, and so none of the ways those go wrong.
+          // The nRF52 sees the brake line directly, which is why it still works
+          // with the main processor parked in the bootloader.
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.cyan.shade900.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.cyan.shade800),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.brakeResetHeading,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  l10n.brakeResetIntro,
+                  style: TextStyle(color: Colors.grey.shade300, height: 1.4),
+                ),
+                const SizedBox(height: 18),
+                const BrakeGesturePacer(),
+                const SizedBox(height: 14),
+                Text(
+                  l10n.brakeResetAfterNote,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
 
-        // Kept, not replaced: a scooter whose levers are already apart for
-        // other work, or one where the gesture does not take, still needs the
-        // route that always works.
-        Theme(
-          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-          child: ExpansionTile(
-            title: Text(l10n.scooterPrepManualFallback,
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade400)),
+          // Kept, not replaced: a scooter whose levers are already apart for
+          // other work, or one where the gesture does not take, still needs the
+          // route that always works.
+          ExpansionTile(
+            // Grey caption text read as a label, and opening this is what
+            // tells the rest of the flow the user took the manual route, so
+            // it has to look like the control it is.
+            leading: const Icon(Icons.build_outlined, size: 20, color: kAccent),
+            title: Text(
+              l10n.scooterPrepManualFallback,
+              style: const TextStyle(
+                fontSize: 14,
+                color: kAccent,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             // Opening it is the signal. A false positive costs a step the user
             // can ignore; a false negative hides the one instruction they
             // needed, so err toward remembering.
@@ -3460,123 +4695,157 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 setState(() => _manualPowerCut = true);
               }
             },
-            tilePadding: EdgeInsets.zero,
-            childrenPadding: EdgeInsets.zero,
             expandedCrossAxisAlignment: CrossAxisAlignment.start,
             children: [
-        InstructionStep(
-          number: 1,
-          title: l10n.disconnectCbb,
-          description: l10n.disconnectCbbDesc,
-          isWarning: true,
-          beforeImageAsset: 'assets/images/lsi-unu_scooter_cbb_connected.jpg',
-          imageAsset: 'assets/images/lsi-unu_scooter_cbb_disconnected.jpg',
-        ),
-        InstructionStep(
-          number: 2,
-          title: l10n.disconnectAuxPole,
-          description: l10n.disconnectAuxPoleDesc,
-          isWarning: true,
-          beforeImageAsset: 'assets/images/lsi-unu_scooter_aux_connected.jpg',
-          imageAsset: 'assets/images/lsi-unu_scooter_aux_pos_disconnected.jpg',
-        ),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.orange.shade900.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.orange.shade700),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.warning, color: Colors.orange),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  l10n.auxDisconnectWarning,
-                  style: const TextStyle(color: Colors.orange, fontSize: 13),
+              InstructionStep(
+                number: 1,
+                title: l10n.disconnectCbb,
+                description: l10n.disconnectCbbDesc,
+                isWarning: true,
+                beforeImageAsset:
+                    'assets/images/lsi-unu_scooter_cbb_connected.jpg',
+                imageAsset:
+                    'assets/images/lsi-unu_scooter_cbb_disconnected.jpg',
+              ),
+              InstructionStep(
+                number: 2,
+                title: l10n.disconnectAuxPole,
+                description: l10n.disconnectAuxPoleDesc,
+                isWarning: true,
+                beforeImageAsset:
+                    'assets/images/lsi-unu_scooter_aux_connected.jpg',
+                imageAsset:
+                    'assets/images/lsi-unu_scooter_aux_pos_disconnected.jpg',
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade900.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade700),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning, color: Colors.orange),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        l10n.auxDisconnectWarning,
+                        style: const TextStyle(
+                          color: Colors.orange,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-        ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        Align(
-          alignment: Alignment.centerRight,
-          child: FilledButton.icon(
-            onPressed: () => _setPhase(InstallerPhase.mdbBoot),
-            icon: const Icon(Icons.arrow_forward),
-            label: Text(l10n.doneCbbAuxDisconnected),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMdbBoot(AppLocalizations l10n) {
-    if (!_mdbBootStarted && !_isProcessing) {
-      _mdbBootStarted = true;
-      Future.microtask(_waitForMdbBoot);
-    }
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(l10n.waitingForMdbBoot,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          // Only the manual route unplugs anything, and the installer cannot
-          // tell the two restarts apart from outside, so this follows what the
-          // user actually chose. Asking for an AUX pole back from someone who
-          // used the brake gesture sends them looking for a screw they never
-          // undid.
-          if (_manualPowerCut)
-            InstructionStep(
-              number: 1,
-              title: l10n.reconnectAuxPole,
-              description: l10n.reconnectAuxPoleDesc,
-              imageAsset: 'assets/images/lsi-unu_scooter_aux_connected.jpg',
-            )
-          else
-            Text(l10n.mdbBootRestartingNote,
-                style: TextStyle(color: Colors.grey.shade400),
-                textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          Text(l10n.dbcLedHint,
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
-          const SizedBox(height: 16),
-          if (_isProcessing)
-            const SizedBox(width: 48, height: 48, child: CircularProgressIndicator()),
-          const SizedBox(height: 8),
-          Text(_statusMessage.isEmpty ? l10n.waitingForUsbDevice : _statusMessage,
-              style: TextStyle(color: Colors.grey.shade400)),
-          if (!_isProcessing && !_mdbBootStarted) ...[
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () {
-                setState(() => _mdbBootStarted = true);
-                Future.microtask(_waitForMdbBoot);
-              },
-              icon: const Icon(Icons.refresh),
-              label: Text(l10n.retryMdbBoot),
-            ),
-          ],
         ],
       ),
     );
   }
 
-  Future<void> _waitForMdbBoot() async {
-    final l10n = AppLocalizations.of(context)!;
+  Widget _buildMdbBoot(AppLocalizations l10n) {
+    // The manual route has something to do on this screen - the AUX pole goes
+    // back on - so it keeps the whole frame. The brake-gesture route is pure
+    // waiting, and a failure gets the frame back for the retry.
+    if (!_manualPowerCut && !_mdbBootAttempt.isFailed) {
+      return _waitPhase(
+        title: l10n.waitingForMdbBoot,
+        warning: l10n.dbcFlashDoNotDisconnect,
+      );
+    }
+    return _waitingPhase(
+      title: l10n.waitingForMdbBoot,
+      status: _statusMessage.isEmpty
+          ? l10n.waitingForUsbDevice
+          : _statusMessage,
+      actions: [
+        if (_mdbBootAttempt.isFailed)
+          PhaseAction(
+            label: l10n.retryMdbBoot,
+            icon: Icons.refresh,
+            primary: true,
+            onPressed: _startMdbBoot,
+          ),
+      ],
+      extra: [
+        const SizedBox(height: 20),
+        // Only the manual route unplugs anything, and the installer cannot
+        // tell the two restarts apart from outside, so this follows what the
+        // user actually chose. Asking for an AUX pole back from someone who
+        // used the brake gesture sends them looking for a screw they never
+        // undid.
+        if (_manualPowerCut)
+          InstructionStep(
+            number: 1,
+            title: l10n.reconnectAuxPole,
+            description: l10n.reconnectAuxPoleDesc,
+            imageAsset: 'assets/images/lsi-unu_scooter_aux_connected.jpg',
+          )
+        else
+          Text(
+            l10n.mdbBootRestartingNote,
+            style: TextStyle(color: Colors.grey.shade400),
+            textAlign: TextAlign.center,
+          ),
+        const SizedBox(height: 16),
+        Text(
+          l10n.dbcLedHint,
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+        ),
+      ],
+    );
+  }
+
+  void _startMdbBoot() {
+    if (!mounted || _currentPhase != InstallerPhase.mdbBoot) return;
+    final generation = _mdbBootAttempt.begin();
+    if (generation == null) return;
     setState(() => _isProcessing = true);
+    unawaited(_waitForMdbBoot(generation));
+  }
+
+  bool _ownsMdbBootAttempt(int generation) {
+    return mounted &&
+        _currentPhase == InstallerPhase.mdbBoot &&
+        _mdbBootAttempt.isCurrent(generation);
+  }
+
+  void _failMdbBoot(int generation, String message) {
+    if (!_ownsMdbBootAttempt(generation)) return;
+    _setStatus(message);
+    setState(() {
+      _isProcessing = false;
+      _mdbBootAttempt.fail(generation, message);
+    });
+  }
+
+  Future<void> _waitForMdbBoot(int generation) async {
+    final l10n = AppLocalizations.of(context)!;
+    // The board is off for most of this; two minutes is normal, and saying so
+    // is the difference between waiting and reaching for the cable. Measured
+    // on a healthy board: gadget back on the bus at +10s, network up at
+    // ~+114s, ten stable pings at ~+132s. A typical under that marks every
+    // good boot as running long, which is how an overdue mark stops meaning
+    // anything.
+    _beginWait([
+      WaitStep(
+          label: l10n.waitingStableConnection,
+          typical: const Duration(seconds: 135)),
+      WaitStep(
+          label: l10n.reconnectingSsh, typical: const Duration(seconds: 25)),
+    ]);
 
     if (_isDryRun) {
       _setStatus('[DRY RUN] Simulating MDB boot...');
       await Future.delayed(const Duration(seconds: 2));
+      if (!_ownsMdbBootAttempt(generation)) return;
+      _mdbBootAttempt.complete(generation);
       _setPhase(_beginMdbInstall());
       return;
     }
@@ -3593,23 +4862,28 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // for something that is already done.
     var sawRestart = false;
     while (true) {
-      final action =
-          mdbBootActionFor(mode: _device?.mode, sawRestart: sawRestart);
+      final action = mdbBootActionFor(
+        mode: _device?.mode,
+        sawRestart: sawRestart,
+      );
       if (action == MdbBootAction.proceed || action == MdbBootAction.reflash) {
         break;
       }
-      _setStatus(action == MdbBootAction.waitForRestart
-          ? l10n.waitingForMdbRestart
-          : l10n.waitingForUsbDevice);
+      _setStatus(
+        action == MdbBootAction.waitForRestart
+            ? l10n.waitingForMdbRestart
+            : l10n.waitingForUsbDevice,
+      );
       // Leaving mass storage, or leaving the bus at all, is the restart.
       if (_device?.mode != DeviceMode.massStorage) sawRestart = true;
       await Future.delayed(const Duration(seconds: 1));
-      if (!mounted) return;
-      if (_currentPhase != InstallerPhase.mdbBoot) return;
+      if (!_ownsMdbBootAttempt(generation)) return;
     }
 
     if (mdbBootActionFor(mode: _device?.mode, sawRestart: sawRestart) ==
         MdbBootAction.reflash) {
+      if (!_ownsMdbBootAttempt(generation)) return;
+      _mdbBootAttempt.complete(generation);
       _setStatus(l10n.mdbStillUms);
       setState(() {
         _isProcessing = false;
@@ -3629,52 +4903,75 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // no-ops if the MDB is already reachable.
     final networkService = NetworkService();
     final iface = await networkService.findLibrescootInterface();
+    if (!_ownsMdbBootAttempt(generation)) return;
     if (iface != null) {
       try {
         await networkService.configureInterface(iface);
       } on NetworkPrivilegeException catch (e) {
-        _setStatus(l10n.errorPrefix(e.toString()));
-        setState(() { _isProcessing = false; _mdbBootStarted = false; });
+        _failMdbBoot(generation, l10n.errorPrefix(e.toString()));
         return;
       }
+      if (!_ownsMdbBootAttempt(generation)) return;
     }
 
+    // A board that has just been written boots stage 0 from scratch, which
+    // takes a couple of minutes. Until that is up, pings failing is what a
+    // healthy install looks like, so the hint about the host's network stack
+    // has to stay off the screen for longer than the boot takes. It used to
+    // count loop iterations rather than seconds, and each iteration is a ping
+    // plus a delay, so "15" arrived after about 27 seconds and accused
+    // NetworkManager while the scooter was still starting up.
+    const stallHintAfter = Duration(seconds: 90);
     var stableCount = 0;
-    var failedSeconds = 0;
+    DateTime? failingSince;
     var diagnosticsLogged = false;
     while (stableCount < 10) {
       final reachable = await _pingMdb();
+      if (!_ownsMdbBootAttempt(generation)) return;
       if (reachable) {
         stableCount++;
-        failedSeconds = 0;
+        failingSince = null;
         _setStatus(l10n.pingStable(stableCount));
       } else {
         stableCount = 0;
-        failedSeconds++;
-        if (failedSeconds >= 15 && !diagnosticsLogged && Platform.isLinux && iface != null) {
+        failingSince ??= DateTime.now();
+        final failedFor = DateTime.now().difference(failingSince);
+        if (failedFor >= stallHintAfter &&
+            !diagnosticsLogged &&
+            Platform.isLinux &&
+            iface != null) {
           diagnosticsLogged = true;
           final diag = await networkService.gatherLinuxDiagnostics(iface.name);
-          debugPrint('Network: stable-ping stalled ${failedSeconds}s on ${iface.name}.\n$diag');
+          if (!_ownsMdbBootAttempt(generation)) return;
+          debugPrint(
+            'Network: stable-ping stalled ${failedFor.inSeconds}s '
+            'on ${iface.name}.\n$diag',
+          );
           _setStatus(l10n.stableConnectionStallHint);
         } else if (!diagnosticsLogged) {
           _setStatus(l10n.waitingStableConnection);
         }
       }
       await Future.delayed(const Duration(seconds: 1));
-      if (!mounted) return;
+      if (!_ownsMdbBootAttempt(generation)) return;
     }
 
     _setStatus(l10n.reconnectingSsh);
     try {
       await _sshService.connectToMdb();
+      if (!_ownsMdbBootAttempt(generation)) return;
 
       // Disable keycard-service for the rest of the install. A freshly flashed
       // MDB boots into auto-master-learn mode; any tap before the explicit
       // keycard-setup phase would silently teach in a master card. We re-start
       // the service on entry to that phase, after disengaging master mode.
       try {
-        await _sshService.runCommand('systemctl stop librescoot-keycard 2>/dev/null; true');
-        debugPrint('SSH: stopped librescoot-keycard to prevent accidental master teach-in');
+        await _sshService.runCommand(
+          'systemctl stop librescoot-keycard 2>/dev/null; true',
+        );
+        debugPrint(
+          'SSH: stopped librescoot-keycard to prevent accidental master teach-in',
+        );
       } catch (_) {}
 
       // Reapply the install-time scooter config on the freshly-flashed image:
@@ -3696,7 +4993,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
           await _sshService.runCommand('lsc set scooter.usb0-policy always-on');
           debugPrint('UI: scooter.usb0-policy=always-on (mdb-boot)');
         } catch (e) {
-          debugPrint('UI: failed to set scooter.usb0-policy=always-on at mdb-boot (ok): $e');
+          debugPrint(
+            'UI: failed to set scooter.usb0-policy=always-on at mdb-boot (ok): $e',
+          );
         }
         await _disableInstallerHazards(label: 'mdb-boot');
       }
@@ -3708,19 +5007,24 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // success. Wait for the mount first.
       if (_radioGagaBackupPath != null) {
         _setStatus(l10n.restoringConfig);
-        await _waitForDataPartition();
-        if (!mounted) return;
-        final restored = await _sshService.restoreRadioGagaConfig(_radioGagaBackupPath!);
+        if (!await _waitForDataPartition()) return;
+        if (!_ownsMdbBootAttempt(generation)) return;
+        final restored = await _sshService.restoreRadioGagaConfig(
+          _radioGagaBackupPath!,
+        );
         if (restored) {
           debugPrint('UI: radio-gaga config restored to /data/radio-gaga/');
         }
       }
 
+      if (!_ownsMdbBootAttempt(generation)) return;
+      _mdbBootAttempt.complete(generation);
       _setPhase(_beginMdbInstall());
+    } on DataPartitionWaitException catch (e) {
+      _failMdbBoot(generation, l10n.errorPrefix(e.toString()));
     } catch (e) {
-      _setStatus(l10n.sshReconnectionFailed(e.toString()));
+      _failMdbBoot(generation, l10n.sshReconnectionFailed(e.toString()));
     }
-    setState(() { _isProcessing = false; _mdbBootStarted = false; });
   }
 
   /// What the trampoline needs to close the install out without the laptop.
@@ -3739,8 +5043,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
       mdbTargetVersion: artifact == null
           ? ''
           : _downloadState.releaseTag ??
-              _versionFromArtifactFilename(artifact.filename) ??
-              '',
+                _versionFromArtifactFilename(artifact.filename) ??
+                '',
       // Anything outside the two the dashboard ships would be a settings key
       // it cannot honour, so leave it unset and let the default stand.
       language: (lang == 'en' || lang == 'de') ? lang : '',
@@ -3789,7 +5093,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
   InstallerPhase get _phaseAfterKeycardSetup {
     // The gate first, whenever there is artifact work to collect. It is where
     // the background install is waited on and the single reboot happens.
-    if (_mdbArtifactPending || _mdbStageStarted) return InstallerPhase.mdbArtifact;
+    if (_mdbArtifactPending || _mdbStageStarted) {
+      return InstallerPhase.mdbArtifact;
+    }
     return _phaseBeforeDbcWork;
   }
 
@@ -3842,7 +5148,17 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<bool> _pingMdb() async {
     try {
       final result = await Process.run('ping', [
-        if (Platform.isWindows) ...['-n', '1', '-w', '1000'] else ...['-c', '1', '-W', '1'],
+        if (Platform.isWindows) ...[
+          '-n',
+          '1',
+          '-w',
+          '1000',
+        ] else ...[
+          '-c',
+          '1',
+          '-W',
+          '1',
+        ],
         '192.168.7.1',
       ]);
       return result.exitCode == 0;
@@ -3870,6 +5186,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       debugPrint('SSH: stopped boot LED blink');
     } catch (_) {}
   }
+
   bool _cbbAutoCheckStarted = false;
   bool _cbbDetected = false;
   bool _batteryDetected = false;
@@ -3923,18 +5240,76 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
     // While the background work is still going this panel is the only thing
     // the user is waiting on, so show its progress rather than an idle bar.
-    final staging = _mdbStageStarted && !_mdbStageDone && _mdbStageError == null;
-    return ArtifactProgressPanel(
-      status: staging ? l10n.artifactStagingInBackground : _statusMessage,
-      progress: staging ? _mdbStageProgress : _progress,
-      error: _artifactError ?? _mdbStageError,
-      onRetry: () {
-        setState(() {
-          _artifactError = null;
-          _artifactStarted = false;
-        });
-      },
-      onFallBackToFullImage: _fallBackToFullImage,
+    final staging =
+        _mdbStageStarted && !_mdbStageDone && _mdbStageError == null;
+    final error = _artifactError ?? _mdbStageError;
+    if (error == null) {
+      return _waitPhase(
+        title: l10n.phaseMdbArtifactTitle,
+        progress: staging
+            ? (_mdbStageProgress > 0 ? _mdbStageProgress : null)
+            : (_progress > 0 ? _progress : null),
+        warning: l10n.dbcFlashDoNotDisconnect,
+      );
+    }
+    // Only the failed case reaches here; the running one is an overlay.
+    return PhaseLayout(
+      title: l10n.phaseMdbArtifactTitle,
+      actions: [
+        ...[
+          // Writing the whole image instead is a different install, not a
+          // second go at this one, so it is kept apart from the retry.
+          PhaseAction(
+            label: l10n.artifactFallBackToFullImage,
+            side: ActionSide.back,
+            onPressed: _fallBackToFullImage,
+          ),
+          PhaseAction(
+            label: l10n.artifactRetry,
+            primary: true,
+            onPressed: () {
+              setState(() {
+                _artifactError = null;
+                _artifactStarted = false;
+                _mdbStageError = null;
+                _mdbStageStarted = false;
+                _mdbStageDone = false;
+                _mdbStageProgress = 0;
+              });
+            },
+          ),
+        ],
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ArtifactProgressPanel(
+            // The run has stopped, so the last live status is not what is
+            // happening any more. Leaving it there had the screen saying it
+            // was reconnecting directly above saying it had given up.
+            status: '',
+            progress: 0,
+            error: error,
+          ),
+          if (error == l10n.artifactRebootTimeout) ...[
+            const SizedBox(height: 12),
+            Text(
+              l10n.artifactRebootTimeoutHint,
+              style: TextStyle(
+                  fontSize: 13, height: 1.4, color: Colors.grey.shade400),
+            ),
+          ],
+          const SizedBox(height: 20),
+          // Both buttons are offered together and one of them erases the
+          // board, so each says what it costs rather than leaving the user to
+          // infer it from the label.
+          _flashNote(Icons.refresh, l10n.artifactRetryDetail),
+          const SizedBox(height: 8),
+          _flashNote(Icons.delete_forever, l10n.artifactFullImageDetail,
+              danger: true),
+        ],
+      ),
     );
   }
 
@@ -3942,19 +5317,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// stage-0 image resizes its data partition on first boot, and until
   /// data.mount has run, `df /data` answers for the root filesystem instead,
   /// which would make the free-space preflight meaningless.
-  Future<void> _waitForDataPartition() async {
-    for (var i = 0; i < 60; i++) {
-      try {
-        final out = await _sshService.runCommand(
-            'grep -q " /data " /proc/mounts && echo mounted; true');
-        if (out.trim() == 'mounted') return;
-      } catch (e) {
-        debugPrint('SSH: /data mount probe failed: $e');
-      }
-      await Future.delayed(const Duration(seconds: 5));
-      if (!mounted) return;
-    }
-    debugPrint('SSH: /data still not mounted after 5 minutes, continuing anyway');
+  Future<bool> _waitForDataPartition() async {
+    final result = await waitForMdbDataPartition(
+      runCommand: (command) => _sshService.runCommand(command),
+      isCancelled: () => !mounted,
+    );
+    return result == DataPartitionWaitResult.ready;
   }
 
   /// Wait for the board to come back after a reboot we issued, and
@@ -4023,7 +5391,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
       await Future.delayed(const Duration(seconds: 5));
     }
     if (privilegeError != null) {
-      throw _LocalizedInstallException(l10n.errorPrefix(privilegeError.toString()));
+      throw _LocalizedInstallException(
+        l10n.errorPrefix(privilegeError.toString()),
+      );
     }
     throw _LocalizedInstallException(l10n.artifactRebootTimeout);
   }
@@ -4034,10 +5404,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// this is what a board has to report once the artifact is actually
   /// running. Only a fallback: the release tag says the same thing and is
   /// what the rest of the flow compares against.
-  static String? _versionFromArtifactFilename(String filename) =>
-      RegExp(r'^librescoot-unu-(?:mdb|dbc)-(.+)\.mender$')
-          .firstMatch(filename)
-          ?.group(1);
+  static String? _versionFromArtifactFilename(String filename) => RegExp(
+    r'^librescoot-unu-(?:mdb|dbc)-(.+)\.mender$',
+  ).firstMatch(filename)?.group(1);
 
   /// Upload the artifact and run mender, without rebooting. Kicked off as soon
   /// as the board is up and left to run while the user pairs a phone and
@@ -4079,8 +5448,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
         }
       }
 
-      final artifacts = ArtifactService(_sshService, TrampolineService(_sshService));
-      await _waitForDataPartition();
+      final artifacts = ArtifactService(
+        _sshService,
+        TrampolineService(_sshService),
+      );
+      if (!await _waitForDataPartition()) return;
       if (!mounted) return;
 
       final preflight = await artifacts.preflight(
@@ -4108,10 +5480,17 @@ class _InstallerScreenState extends State<InstallerScreen> {
         board: Board.mdb,
         assetName: item.filename,
         onProgress: (pct) {
-          if (mounted) setState(() => _mdbStageProgress = 0.5 + (pct / 100) * 0.5);
+          if (mounted) {
+            setState(() => _mdbStageProgress = 0.5 + (pct / 100) * 0.5);
+          }
         },
       );
-      if (mounted) setState(() { _mdbStageDone = true; _mdbStageProgress = 1; });
+      if (mounted) {
+        setState(() {
+          _mdbStageDone = true;
+          _mdbStageProgress = 1;
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => _mdbStageError = e.toString());
     }
@@ -4119,11 +5498,45 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
   Future<void> _runMdbArtifactInstall() async {
     final l10n = AppLocalizations.of(context)!;
+    // Staging is a minute of upload, the install about two, and the reboot
+    // and the version check together about two more.
+    // The status line carries a live percentage. The step NAME must not, or
+    // the list shows the figure it was built with for the whole install.
+    final installing = l10n.artifactInstalling(0).split('(').first.trimRight();
+    // A retry arrives here with the session gone, and the first SSH call
+    // reconnects lazily inside the upload. Without a step for that, the
+    // transfer was shown as active and its clock running while there was no
+    // connection to transfer over, so the elapsed figure measured the wait for
+    // a reconnect and the estimate derived from it meant nothing.
+    final reconnecting = !_isDryRun && !_sshService.isConnected;
+    _beginWait([
+      if (reconnecting)
+        WaitStep(
+            label: l10n.reconnectingSsh, typical: const Duration(seconds: 20)),
+      WaitStep(
+          label: l10n.artifactStaging, typical: const Duration(seconds: 60)),
+      WaitStep(
+        label: installing,
+        matchPrefix: installing,
+        typical: const Duration(minutes: 2),
+      ),
+      WaitStep(
+          label: l10n.waitingForMdbRestart,
+          typical: const Duration(minutes: 2)),
+      WaitStep(
+          label: l10n.artifactVerifying, typical: const Duration(minutes: 2)),
+    ]);
 
     if (_isDryRun) {
-      setState(() { _isProcessing = true; _artifactError = null; });
+      setState(() {
+        _isProcessing = true;
+        _artifactError = null;
+      });
       for (var pct = 0; pct <= 100; pct += 10) {
-        _setStatus('[DRY RUN] ${l10n.artifactInstalling(pct)}', progress: pct / 100);
+        _setStatus(
+          '[DRY RUN] ${l10n.artifactInstalling(pct)}',
+          progress: pct / 100,
+        );
         await Future.delayed(const Duration(milliseconds: 150));
         if (!mounted) return;
       }
@@ -4145,14 +5558,32 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _isProcessing = true;
       _artifactError = null;
     });
+    CriticalOperationLease? criticalOperation;
     try {
       // Collect the work that has been running behind the pairing screens.
       // Nothing on the vehicle is written after this point except the reboot,
       // so this is the last moment where waiting costs the user anything.
       var alreadyInstalled = false;
       if (_mdbStageStarted) {
-        _setCritical(true);
+        criticalOperation ??= _acquireCriticalOperation();
+        // The background job reports through _mdbStageProgress and emits no
+        // status, so the wait plan has nothing to match and would sit on its
+        // first step for the whole install. Mirror the job into the same
+        // messages the foreground path uses, only when the text changes: this
+        // loop runs for minutes and _setStatus appends to the log each time.
+        String? shown;
         while (!_mdbStageDone && _mdbStageError == null) {
+          // The job spends the first half staging and the second installing.
+          final done = _mdbStageProgress;
+          final staging = done < 0.5;
+          final stepDone = staging ? done * 2 : (done - 0.5) * 2;
+          final message = staging
+              ? l10n.artifactStaging
+              : l10n.artifactInstalling((stepDone * 100).round());
+          if (message != shown) {
+            shown = message;
+            _setStatus(message, progress: stepDone);
+          }
           await Future.delayed(const Duration(milliseconds: 500));
           if (!mounted) return;
         }
@@ -4181,7 +5612,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // close or a laptop sleep in the middle leaves a vehicle with no
       // service stack. The download wait above is deliberately outside this:
       // nothing on the vehicle is being written yet.
-      _setCritical(true);
+      criticalOperation ??= _acquireCriticalOperation();
 
       // Everything from here to the reboot is what the background job has
       // already done. Repeating it is not merely wasteful: mender refuses an
@@ -4189,9 +5620,12 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // update that has never booted, which is the one thing an A/B scheme
       // exists to prevent.
       if (!alreadyInstalled) {
-        final artifacts = ArtifactService(_sshService, TrampolineService(_sshService));
+        final artifacts = ArtifactService(
+          _sshService,
+          TrampolineService(_sshService),
+        );
 
-        await _waitForDataPartition();
+        if (!await _waitForDataPartition()) return;
         if (!mounted) return;
 
         // preflight takes assetName so it can discount an artifact already at
@@ -4203,14 +5637,23 @@ class _InstallerScreenState extends State<InstallerScreen> {
           artifactBytes: item.expectedSize,
           assetName: item.filename,
         );
-        if (!preflight.ok) throw _LocalizedInstallException(_preflightMessage(l10n, preflight));
+        if (!preflight.ok) {
+          throw _LocalizedInstallException(_preflightMessage(l10n, preflight));
+        }
 
+        if (reconnecting) {
+          // Explicitly, so the step is active while it actually happens.
+          _setStatus(l10n.reconnectingSsh);
+          await _sshService.ensureConnected('artifact retry');
+        }
         _setStatus(l10n.artifactStaging, progress: 0);
         await artifacts.stage(
           board: Board.mdb,
           localPath: item.localPath!,
-          onProgress: (sent, total) => _setStatus(l10n.artifactStaging,
-              progress: total > 0 ? sent / total : 0),
+          onProgress: (sent, total) => _setStatus(
+            l10n.artifactStaging,
+            progress: total > 0 ? sent / total : 0,
+          ),
         );
 
         await artifacts.install(
@@ -4238,6 +5681,22 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // The reboot is ours: a rootfs that comes back and answers SSH has
       // proven itself, u-boot has already rolled back if it did not, and any
       // DBC work should run from the version the user asked for.
+      _setStatus(l10n.waitingForMdbRestart);
+      // The breadcrumb write is queued and the reboot below tears the session
+      // down on purpose, so an unflushed write races a closing channel and the
+      // record of where this run reached is the thing lost. It is also the
+      // breadcrumb most worth having: it marks the moment before a reboot,
+      // which is when a run is most likely to be interrupted.
+      //
+      // Bounded, because the write is queued rather than awaited so that a
+      // slow one cannot stall the install, and draining it without a limit
+      // would hand that back. A few hundred bytes over a local link needs far
+      // less than this.
+      try {
+        await _installStateWriteQueue.timeout(const Duration(seconds: 3));
+      } catch (e) {
+        debugPrint('UI: install state write did not settle before reboot: $e');
+      }
       await _sshService.reboot();
       _expectMinimalMdb = false;
       await _reconnectAfterReboot(l10n);
@@ -4249,6 +5708,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
       setState(() {
         _mdbState = after;
         _mdbStackMissing = after.isMinimalImage;
+        if (after.isMinimalImage) _mdbStack = ServiceStack.none;
       });
 
       // A board that answers SSH has not proven anything on its own: u-boot
@@ -4262,14 +5722,17 @@ class _InstallerScreenState extends State<InstallerScreen> {
         throw _LocalizedInstallException(l10n.artifactStillMinimal);
       }
       final target =
-          _downloadState.releaseTag ?? _versionFromArtifactFilename(item.filename);
+          _downloadState.releaseTag ??
+          _versionFromArtifactFilename(item.filename);
       if (!InstallPlan.versionsMatch(after.version, target)) {
-        throw _LocalizedInstallException(l10n.artifactVersionMismatch(
-          after.version?.trim().isNotEmpty == true
-              ? after.version!.trim()
-              : l10n.unknown,
-          target ?? l10n.unknown,
-        ));
+        throw _LocalizedInstallException(
+          l10n.artifactVersionMismatch(
+            after.version?.trim().isNotEmpty == true
+                ? after.version!.trim()
+                : l10n.unknown,
+            target ?? l10n.unknown,
+          ),
+        );
       }
 
       // Only now: on a stage-0 image there was no redis for these to reach.
@@ -4277,31 +5740,38 @@ class _InstallerScreenState extends State<InstallerScreen> {
         await _sshService.runCommand('lsc set scooter.usb0-policy always-on');
         debugPrint('UI: scooter.usb0-policy=always-on (post-artifact)');
       } catch (e) {
-        debugPrint('UI: failed to set scooter.usb0-policy=always-on at post-artifact (ok): $e');
+        debugPrint(
+          'UI: failed to set scooter.usb0-policy=always-on at post-artifact (ok): $e',
+        );
       }
       await _disableInstallerHazards(label: 'post-artifact');
 
-      _setCritical(false);
       _setPhase(_phaseAfterMdbInstall);
     } catch (e) {
-      _setCritical(false);
       if (!mounted) return;
       setState(() {
         _artifactError = e.toString();
         _isProcessing = false;
       });
+    } finally {
+      criticalOperation?.release();
     }
   }
 
-  String _preflightMessage(AppLocalizations l10n, ArtifactPreflight preflight) =>
-      switch (preflight.problem) {
-        ArtifactPreflightProblem.noMender => l10n.artifactPreflightNoMender,
-        ArtifactPreflightProblem.notEnoughSpace =>
-          l10n.artifactPreflightNoSpace(preflight.freeMiB, preflight.neededMiB),
-        ArtifactPreflightProblem.otaInProgress =>
-          l10n.artifactPreflightOtaBusy(preflight.otaStatus ?? ''),
-        null => '',
-      };
+  String _preflightMessage(
+    AppLocalizations l10n,
+    ArtifactPreflight preflight,
+  ) => switch (preflight.problem) {
+    ArtifactPreflightProblem.noMender => l10n.artifactPreflightNoMender,
+    ArtifactPreflightProblem.notEnoughSpace => l10n.artifactPreflightNoSpace(
+      preflight.freeMiB,
+      preflight.neededMiB,
+    ),
+    ArtifactPreflightProblem.otaInProgress => l10n.artifactPreflightOtaBusy(
+      preflight.otaStatus ?? '',
+    ),
+    null => '',
+  };
 
   /// The one action that needs a download the plan did not queue. Offered
   /// only after a failure.
@@ -4345,7 +5815,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // we know: without it _phaseAfterMdbFlash would not see the fullImage
     // action, route back into the artifact phase, and loop through the same
     // failure forever.
-    final plan = _plan ??
+    final plan =
+        _plan ??
         InstallPlan.defaults(
           mdb: _mdbState,
           dbc: _dbcState,
@@ -4441,7 +5912,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
             try {
               await _sshService.reactivateMainBattery();
             } catch (e) {
-              debugPrint('Battery: could not reactivate the main pack (ok): $e');
+              debugPrint(
+                'Battery: could not reactivate the main pack (ok): $e',
+              );
             }
           }
           if (mounted) {
@@ -4456,14 +5929,88 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // plug it back in. The battery step then carries whichever number is left.
     final showCbbStep = _manualPowerCut && _mainPackOffForCbb;
 
-    return Center(
+    final verifyCbb = PhaseAction(
+      label: l10n.verifyCbbConnection,
+      primary: true,
+      onPressed: () async {
+        setState(() => _isProcessing = true);
+        _setStatus(l10n.checkingCbb);
+        final detected = await _pollForCbb(l10n);
+        if (!mounted || _cbbPollAbandoned) return;
+        if (detected) {
+          setState(() {
+            _cbbDetected = true;
+            _isProcessing = false;
+          });
+          _setStatus('');
+        } else {
+          _setStatus(l10n.cbbNotDetected);
+          setState(() {
+            _isProcessing = false;
+            _cbbDetected = false;
+          });
+        }
+      },
+    );
+
+    final verifyBattery = PhaseAction(
+      label: l10n.verifyBatteryPresence,
+      primary: true,
+      onPressed: () async {
+        setState(() => _isProcessing = true);
+        _setStatus(l10n.checkingCbbAndBattery);
+        final bat = _isDryRun ? true : await _sshService.isBatteryPresent();
+        if (bat) {
+          debugPrint('Battery: insert detected on battery:0 (manual verify)');
+          await _sshService.logScooterStats('cbb-and-battery-reconnected');
+          setState(() {
+            _batteryDetected = true;
+            _isProcessing = false;
+          });
+          await Future.delayed(const Duration(seconds: 1));
+          if (mounted) _setPhase(_phaseAfterCbbReconnect);
+        } else {
+          _setStatus(l10n.cbbNotDetected);
+          setState(() => _isProcessing = false);
+        }
+      },
+    );
+
+    // Going on without the CBB is still going on, so it keeps the company of
+    // the check rather than sitting where an abort would.
+    final proceedAnyway = PhaseAction(
+      label: l10n.proceedWithoutCbb,
+      danger: true,
+      onPressed: _cbbDetected
+          ? () => _setPhase(_phaseAfterCbbReconnect)
+          : () => setState(() => _cbbDetected = true),
+    );
+
+    Widget detected(String text) => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.check_circle, size: 16, color: kAccent),
+        const SizedBox(width: 8),
+        Text(text, style: const TextStyle(color: kAccent, fontSize: 13)),
+      ],
+    );
+
+    return PhaseLayout(
+      title: _manualPowerCut
+          ? l10n.reconnectCbbHeading
+          : l10n.checkingCbbAndBattery,
+      actions: [
+        if (!_isProcessing) ...[
+          proceedAnyway,
+          if (!_cbbDetected)
+            verifyCbb
+          else if (!_batteryDetected)
+            verifyBattery,
+        ],
+      ],
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(_manualPowerCut ? l10n.reconnectCbbHeading : l10n.checkingCbbAndBattery,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 24),
-
           // The check below runs either way: a CBB missing for some other
           // reason still matters before the dashboard flash.
           if (showCbbStep)
@@ -4474,58 +6021,26 @@ class _InstallerScreenState extends State<InstallerScreen> {
               imageAsset: 'assets/images/lsi-unu_scooter_cbb_connected.jpg',
             ),
           if (_cbbDetected)
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.check_circle, size: 16, color: kAccent),
-                const SizedBox(width: 8),
-                Text(l10n.cbbDetected, style: const TextStyle(color: kAccent, fontSize: 13)),
-              ],
-            )
-          else ...[
-            if (_cbbWaitNoticeShown)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 4),
-                child: Text(
-                  l10n.cbbDetectionMayTakeMinutes,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey.shade400, fontSize: 12, fontStyle: FontStyle.italic),
+            detected(l10n.cbbDetected)
+          else if (_cbbWaitNoticeShown)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 4),
+              child: Text(
+                l10n.cbbDetectionMayTakeMinutes,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.grey.shade400,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
                 ),
               ),
-            if (!_isProcessing)
-              FilledButton(
-                onPressed: () async {
-                  setState(() => _isProcessing = true);
-                  _setStatus(l10n.checkingCbb);
-                  final detected = await _pollForCbb(l10n);
-                  if (!mounted || _cbbPollAbandoned) return;
-                  if (detected) {
-                    setState(() { _cbbDetected = true; _isProcessing = false; });
-                    _setStatus('');
-                  } else {
-                    _setStatus(l10n.cbbNotDetected);
-                    setState(() { _isProcessing = false; _cbbDetected = false; });
-                  }
-                },
-                child: Text(l10n.verifyCbbConnection),
-              ),
-          ],
-
+            ),
           const SizedBox(height: 16),
-
           // Nothing in this install takes the main pack out, so there is no
           // step to give here. The pack is only reported, and only spoken
           // about when it is missing, which does block the dashboard flash.
           if (_cbbDetected && _batteryDetected)
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.check_circle, size: 16, color: kAccent),
-                const SizedBox(width: 8),
-                Text(l10n.batteryDetected,
-                    style: const TextStyle(color: kAccent, fontSize: 13)),
-              ],
-            )
+            detected(l10n.batteryDetected)
           else if (_cbbDetected)
             Container(
               width: 400,
@@ -4533,24 +6048,32 @@ class _InstallerScreenState extends State<InstallerScreen> {
               decoration: BoxDecoration(
                 color: Colors.orangeAccent.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
-                border:
-                    Border.all(color: Colors.orangeAccent.withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: Colors.orangeAccent.withValues(alpha: 0.3),
+                ),
               ),
               child: Column(
                 children: [
-                  const Icon(Icons.battery_alert,
-                      size: 28, color: Colors.orangeAccent),
+                  const Icon(
+                    Icons.battery_alert,
+                    size: 28,
+                    color: Colors.orangeAccent,
+                  ),
                   const SizedBox(height: 10),
-                  Text(l10n.mainBatteryMissingHeading,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.orangeAccent)),
+                  Text(
+                    l10n.mainBatteryMissingHeading,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orangeAccent,
+                    ),
+                  ),
                   const SizedBox(height: 6),
-                  Text(l10n.mainBatteryMissingHint,
-                      textAlign: TextAlign.center,
-                      style:
-                          TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+                  Text(
+                    l10n.mainBatteryMissingHint,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+                  ),
                   const SizedBox(height: 10),
                   OutlinedButton.icon(
                     onPressed: _sshService.isConnected
@@ -4566,44 +6089,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 ],
               ),
             ),
-
-          const SizedBox(height: 16),
           if (_isProcessing) ...[
+            const SizedBox(height: 20),
             const CircularProgressIndicator(),
             const SizedBox(height: 8),
-            Text(_statusMessage, style: TextStyle(color: Colors.grey.shade400)),
-          ] else if (_cbbDetected) ...[
-            FilledButton(
-              onPressed: () async {
-                setState(() => _isProcessing = true);
-                _setStatus(l10n.checkingCbbAndBattery);
-                final bat = _isDryRun ? true : await _sshService.isBatteryPresent();
-                if (bat) {
-                  debugPrint('Battery: insert detected on battery:0 (manual verify)');
-                  await _sshService.logScooterStats('cbb-and-battery-reconnected');
-                  setState(() { _batteryDetected = true; _isProcessing = false; });
-                  await Future.delayed(const Duration(seconds: 1));
-                  if (mounted) _setPhase(_phaseAfterCbbReconnect);
-                } else {
-                  _setStatus(l10n.cbbNotDetected);
-                  setState(() => _isProcessing = false);
-                }
-              },
-              child: Text(l10n.verifyBatteryPresence),
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => _setPhase(_phaseAfterCbbReconnect),
-              child: Text(l10n.proceedWithoutCbb,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-            ),
-          ] else ...[
-            TextButton(
-              onPressed: () {
-                setState(() => _cbbDetected = true);
-              },
-              child: Text(l10n.proceedWithoutCbb,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+            Text(
+              _statusMessage,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade400),
             ),
           ],
         ],
@@ -4617,84 +6110,107 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // The upload usually started while the user was pairing, so this phase
     // mostly displays work already in flight rather than kicking it off.
     final busy = _isProcessing || _dbcStageInFlight;
+    // needsHandoff is true for tiles alone, so this step runs for a plan that
+    // leaves the dashboard untouched. What it does then is copy maps, and a
+    // screen titled for a firmware flash promises something else entirely.
+    final mapsOnly = !(_plan?.needsDbcWork ?? true);
     if (!_dbcPrepStarted && !busy) {
       _dbcPrepStarted = true;
       Future.microtask(_uploadDbcFiles);
     }
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(l10n.preparingDbcFlash,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            LinearProgressIndicator(value: _progress, minHeight: 6),
-            const SizedBox(height: 16),
-            if (_dbcPrepSubsteps.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A1A1A),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade800),
-                ),
-                child: SubstepList(substeps: _dbcPrepSubsteps),
-              )
-            else
-              Text(_statusMessage,
-                  style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-                  textAlign: TextAlign.center),
-            if (_dbcUploadReady) ...[
-              const SizedBox(height: 20),
-              Center(
-                child: FilledButton.icon(
-                  onPressed: busy ? null : _startTrampoline,
-                  icon: const Icon(Icons.bolt),
-                  label: Text(l10n.dbcReadyButton),
-                ),
+    return PhaseLayout(
+      title: mapsOnly ? l10n.preparingMapTransfer : l10n.preparingDbcFlash,
+      subtitle: mapsOnly
+          ? l10n.preparingMapTransferSubtitle
+          : l10n.preparingDbcFlashSubtitle,
+      actions: [
+        if (_dbcUploadReady) ...[
+          // The plan decided there was dashboard work, and nothing between
+          // there and here re-examines it: the laptop occupies the MDB's only
+          // OTG port, so the dashboard cannot be probed and its presence is
+          // assumed the whole way. On a board that turns out not to have one,
+          // starting the trampoline arms a run that fails an hour later with a
+          // red LED, so leaving has to be an option here and not only after a
+          // failure.
+          PhaseAction(
+            // Skipping a firmware write is an escape hatch and should read
+            // like one. Skipping a map copy costs stale offline maps, which
+            // is recoverable and repeatable, so it reads as an ordinary
+            // choice.
+            label: mapsOnly ? l10n.skipMapTransfer : l10n.skipToFinish,
+            side: ActionSide.back,
+            onPressed: busy ? null : () => _setPhase(InstallerPhase.finish),
+          ),
+          PhaseAction(
+            label: mapsOnly ? l10n.dbcReadyButtonMaps : l10n.dbcReadyButton,
+            icon: Icons.bolt,
+            primary: true,
+            onPressed: busy ? null : _startTrampoline,
+          ),
+        ]
+        else if (!busy) ...[
+          if (_dbcPrepBlocked)
+            PhaseAction(
+              label: l10n.skipToFinish,
+              onPressed: () {
+                setState(() => _dbcPrepBlocked = false);
+                _setPhase(InstallerPhase.finish);
+              },
+            ),
+          PhaseAction(
+            label: l10n.retryDbcPrep,
+            icon: Icons.refresh,
+            primary: true,
+            onPressed: () {
+              _restartFailedDownloads();
+              setState(() {
+                _dbcPrepStarted = false;
+                _dbcStageInFlight = false;
+                _dbcPrepBlocked = false;
+                _dbcPrepSubsteps = const [];
+              });
+              Future.microtask(() {
+                setState(() => _dbcPrepStarted = true);
+                _uploadDbcFiles();
+              });
+            },
+          ),
+        ],
+      ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // A long stage with a progress bar and nothing else looks like the
+          // installer talking to itself. What it is doing, and why the DBC is
+          // not on the other end of the cable, belongs on the screen.
+          Text(
+            mapsOnly
+                ? l10n.preparingMapTransferExplainer
+                : l10n.preparingDbcFlashExplainer,
+            style: TextStyle(
+                fontSize: 14, height: 1.5, color: Colors.grey.shade300),
+          ),
+          const SizedBox(height: 20),
+          LinearProgressIndicator(value: _progress, minHeight: 6),
+          const SizedBox(height: 16),
+          if (_dbcPrepSubsteps.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade800),
               ),
-            ] else if (!busy) ...[
-              const SizedBox(height: 16),
-              Center(
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    FilledButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _dbcPrepStarted = false;
-                          _dbcStageInFlight = false;
-                          _dbcPrepBlocked = false;
-                          _dbcPrepSubsteps = const [];
-                        });
-                        Future.microtask(() {
-                          setState(() => _dbcPrepStarted = true);
-                          _uploadDbcFiles();
-                        });
-                      },
-                      icon: const Icon(Icons.refresh),
-                      label: Text(l10n.retryDbcPrep),
-                    ),
-                    if (_dbcPrepBlocked)
-                      TextButton(
-                        onPressed: () {
-                          setState(() => _dbcPrepBlocked = false);
-                          _setPhase(InstallerPhase.finish);
-                        },
-                        child: Text(l10n.skipToFinish),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
+              child: SubstepList(substeps: _dbcPrepSubsteps),
+            )
+          else
+            Text(
+              _statusMessage,
+              style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+        ],
       ),
     );
   }
@@ -4702,7 +6218,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _uploadDbcFiles() async {
     final l10n = AppLocalizations.of(context)!;
     if (!_dbcStageInFlight) setState(() => _isProcessing = true);
-    _setCritical(true);
+    final criticalOperation = _acquireCriticalOperation();
 
     setState(() {
       _dbcUploadReady = false;
@@ -4712,7 +6228,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     if (_isDryRun) {
       _setStatus('[DRY RUN] Simulating DBC upload...');
       await Future.delayed(const Duration(seconds: 1));
-      _setCritical(false);
+      criticalOperation.release();
       setState(() {
         _isProcessing = false;
         _dbcStageInFlight = false;
@@ -4721,21 +6237,25 @@ class _InstallerScreenState extends State<InstallerScreen> {
       return;
     }
 
-    if (!_downloadState.allReady) {
-      _setStatus(l10n.waitingForDownloads);
-      while (!_downloadState.allReady) {
-        await Future.delayed(const Duration(seconds: 1));
-        if (mounted) setState(() {});
-        if (!mounted) return;
-      }
-    }
-
     try {
+      if (!_downloadState.allReady) {
+        _setStatus(l10n.waitingForDownloads);
+        await waitForDownloads(
+          isReady: () => _downloadState.allReady,
+          currentError: () => _downloadState.error,
+          isCancelled: () => !mounted,
+        );
+      }
+
       final trampolineService = TrampolineService(_sshService);
       final dbcImage = _downloadState.imageFor(Board.dbc);
       final dbcArtifact = _downloadState.artifactFor(Board.dbc);
       final osmItem = _downloadState.itemOfType(DownloadItemType.osmTiles);
-      final valhallaItem = _downloadState.itemOfType(DownloadItemType.valhallaTiles);
+      final valhallaItem = _downloadState.itemOfType(
+        DownloadItemType.valhallaTiles,
+      );
+      final installTiles =
+          _plan?.installTiles ?? _downloadState.wantsOfflineMaps;
 
       final dbcBmapItem = _downloadState.itemOfType(DownloadItemType.dbcBmap);
 
@@ -4746,7 +6266,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // A full sdimg already carries its firmware, so that one action wants
       // no artifact on top. Upgrade and clean install both do.
       final dbcAction = _plan?.dbc.action;
-      final needsDbcArtifact = dbcAction == null ||
+      final needsDbcArtifact =
+          dbcAction == null ||
           dbcAction == BoardAction.upgrade ||
           dbcAction == BoardAction.cleanInstall;
 
@@ -4764,10 +6285,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
       final missing = needsDbcStage0 && dbcImagePath == null
           ? l10n.dbcImageMissing
           : needsDbcArtifact && dbcArtifactPath == null
-              ? l10n.artifactNoneDownloaded
-              : null;
+          ? l10n.artifactNoneDownloaded
+          : null;
       if (missing != null) {
-        _setCritical(false);
+        criticalOperation.release();
         _setStatus(missing);
         // Retry re-runs the same check against the same queue, so on its own
         // it is a loop. The main board is already done by this point, so
@@ -4791,10 +6312,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
         dbcTargetVersion: dbcArtifact == null
             ? null
             : _downloadState.releaseTag ??
-                _versionFromArtifactFilename(dbcArtifact.filename),
-        osmTilesLocalPath: osmItem?.localPath,
-        valhallaTilesLocalPath: valhallaItem?.localPath,
-        region: _downloadState.selectedRegion,
+                  _versionFromArtifactFilename(dbcArtifact.filename),
+        osmTilesLocalPath: installTiles ? osmItem?.localPath : null,
+        valhallaTilesLocalPath: installTiles ? valhallaItem?.localPath : null,
+        region: installTiles ? _downloadState.selectedRegion : null,
         finish: _buildDeviceFinish(),
         onProgress: (status, progress) {
           _setStatus(status, progress: progress);
@@ -4802,6 +6323,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
         onSubsteps: (steps) {
           if (mounted) setState(() => _dbcPrepSubsteps = steps);
         },
+        labels: SubstepLabels(
+          checkExisting: l10n.substepCheckExisting,
+          uploadFlasher: l10n.substepUploadFlasher,
+          uploadFwTools: l10n.substepUploadFwTools,
+          uploadScript: l10n.substepUploadScript,
+          uploadFile: l10n.substepUploadFile,
+          verifying: l10n.substepVerifying,
+        ),
       );
 
       // Upload is done, but DON'T start the trampoline yet. The trampoline's
@@ -4811,14 +6340,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // explicitly confirms before that point of no return. The cable-swap
       // instructions only appear on the next screen, after the trampoline
       // has started, so nobody can swap the cable before start() runs.
-      _setCritical(false);
+      criticalOperation.release();
       setState(() {
         _isProcessing = false;
         _dbcStageInFlight = false;
         _dbcUploadReady = true;
       });
+    } on DownloadWaitCancelled {
+      return;
     } catch (e) {
-      _setCritical(false);
+      criticalOperation.release();
       _setStatus(l10n.uploadError(e.toString()));
       debugPrint('DBC prep error: $e');
       setState(() {
@@ -4826,6 +6357,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
         _dbcStageInFlight = false;
       });
       // Don't reset _dbcPrepStarted: retry button handles that
+    } finally {
+      criticalOperation.release();
     }
   }
 
@@ -4835,13 +6368,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// the cable.
   Future<void> _startTrampoline() async {
     final l10n = AppLocalizations.of(context)!;
-    setState(() { _isProcessing = true; _dbcUploadReady = false; });
-    _setCritical(true);
+    setState(() {
+      _isProcessing = true;
+      _dbcUploadReady = false;
+    });
+    final criticalOperation = _acquireCriticalOperation();
 
     if (_isDryRun) {
       _setStatus('[DRY RUN] Simulating trampoline start...');
       await Future.delayed(const Duration(seconds: 1));
-      _setCritical(false);
+      criticalOperation.release();
       setState(() => _isProcessing = false);
       _setPhase(InstallerPhase.dbcFlash);
       return;
@@ -4849,19 +6385,25 @@ class _InstallerScreenState extends State<InstallerScreen> {
 
     try {
       _setStatus(l10n.startingTrampoline);
-      await TrampolineService(_sshService).start();
+      await _installStateWriteQueue;
+      await TrampolineService(_sshService).start(runId: _installRunId);
       _deviceFinishArmed = true;
-      _setCritical(false);
+      criticalOperation.release();
       setState(() => _isProcessing = false);
       await Future.delayed(const Duration(seconds: 1));
       _setPhase(InstallerPhase.dbcFlash);
     } catch (e) {
-      _setCritical(false);
+      criticalOperation.release();
       _setStatus(l10n.uploadError(e.toString()));
       debugPrint('Trampoline start error: $e');
       // The upload is still intact; re-offer the begin button instead of
       // demoting the user to a full prep retry over a transient SSH error.
-      setState(() { _isProcessing = false; _dbcUploadReady = true; });
+      setState(() {
+        _isProcessing = false;
+        _dbcUploadReady = true;
+      });
+    } finally {
+      criticalOperation.release();
     }
   }
 
@@ -4871,6 +6413,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   List<Substep> _reconnectSubsteps = const [];
   DateTime? _reconnectRndisWaitStart;
   DateTime? _reconnectStatusWaitStart;
+
   /// How long the reconnect phase waits for a verdict before saying it does
   /// not have one. The slowest thing on the far side is a dashboard first
   /// boot resizing its filesystem, which is minutes, not tens of them.
@@ -4890,77 +6433,72 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // Step 1: waiting for user to swap cables. The trampoline is already
       // running and waiting for the laptop to disconnect, so this is the
       // first place we tell the user to touch the cable.
-      return Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(l10n.dbcFlashSwapCablesTitle,
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center),
-              const SizedBox(height: 8),
-              // The scooter is already counting. It waits a few minutes for
-              // the dashboard to answer on the cable the user is about to
-              // plug in, and then gives up: worth saying, because the screen
-              // otherwise reads as untimed and the plug is a screw-lock
-              // mini-B in a footwell.
-              Text(l10n.dbcFlashSwapCablesDeadline,
-                  style: TextStyle(fontSize: 13, color: Colors.orange.shade200),
-                  textAlign: TextAlign.center),
-              const SizedBox(height: 20),
-              // Move the same MDB USB plug from the laptop cable to the DBC
-              // cable. Photos are self-labelled ("Laptop"/"DBC"), so the
-              // arrow between them carries the meaning without extra captions.
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: Image.asset('assets/images/lsi-mdb_usb_laptop.jpg',
-                            fit: BoxFit.cover),
+      return PhaseLayout(
+        title: l10n.dbcFlashSwapCablesTitle,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // The scooter is already counting. It waits a few minutes for
+            // the dashboard to answer on the cable the user is about to
+            // plug in, and then gives up: worth saying, because the screen
+            // otherwise reads as untimed and the plug is a screw-lock
+            // mini-B in a footwell.
+            Text(
+              l10n.dbcFlashSwapCablesDeadline,
+              style: TextStyle(fontSize: 13, color: Colors.orange.shade200),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            // Move the same MDB USB plug from the laptop cable to the DBC
+            // cable. Photos are self-labelled ("Laptop"/"DBC"), so the
+            // arrow between them carries the meaning without extra captions.
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: Image.asset(
+                        'assets/images/lsi-mdb_usb_laptop.jpg',
+                        fit: BoxFit.cover,
                       ),
                     ),
                   ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 10),
-                    child: Icon(Icons.arrow_forward, color: kAccent, size: 28),
-                  ),
-                  Expanded(
-                    child: AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: Image.asset('assets/images/lsi-mdb_usb_dbc.jpg',
-                            fit: BoxFit.cover),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10),
+                  child: Icon(Icons.arrow_forward, color: kAccent, size: 28),
+                ),
+                Expanded(
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: Image.asset(
+                        'assets/images/lsi-mdb_usb_dbc.jpg',
+                        fit: BoxFit.cover,
                       ),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              InstructionStep(
-                number: 1,
-                title: l10n.disconnectUsbFromLaptop,
-                description: l10n.disconnectUsbFromLaptopDesc,
-              ),
-              InstructionStep(
-                number: 2,
-                title: l10n.reconnectDbcUsbToMdb,
-                description: l10n.reconnectDbcUsbToMdbDesc,
-              ),
-              const SizedBox(height: 16),
-              Text(l10n.waitingForUsbDisconnect,
-                  style: TextStyle(color: Colors.grey.shade400),
-                  textAlign: TextAlign.center),
-              const SizedBox(height: 8),
-              const Center(child: CircularProgressIndicator()),
-            ],
-          ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            // No numbered steps under the photos: they repeated what the
+            // photos already show, and the pair is captioned Laptop and DBC
+            // with an arrow between them.
+            const SizedBox(height: 16),
+            Text(
+              l10n.waitingForUsbDisconnect,
+              style: TextStyle(color: Colors.grey.shade400),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            const Center(child: CircularProgressIndicator()),
+          ],
         ),
       );
     }
@@ -4972,98 +6510,115 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // it tells the user what's happening on the scooter lights and
     // gives them a "I see X" button to advance when the boot LED
     // settles on green or red.
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 620),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(l10n.dbcFlashInProgress,
-                style: const TextStyle(
-                    fontSize: 24, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center),
-            const SizedBox(height: 8),
-            Text(l10n.dbcFlashDurationHeadline,
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade400),
-                textAlign: TextAlign.center),
-            const SizedBox(height: 20),
-
-            // One instruction, then the two things that can end it. The LED
-            // legend and the blinker diagram that used to sit here said the
-            // same things a third time, and the dashboard now shows its own
-            // progress, so the only thing left worth saying is what to wait
-            // for and what each outcome looks like.
-            Text(l10n.dbcFlashSequence,
-                style: TextStyle(
-                    fontSize: 14, color: Colors.grey.shade300, height: 1.45)),
-            const SizedBox(height: 18),
-
-            // A key for reading the scooter, not a status display: the
-            // laptop is unplugged and knows nothing about the blinkers. It
-            // stays because the blinkers are the one progress indicator still
-            // visible while the dashboard reboots and its own screen is dark,
-            // and the user needs to know what the four of them mean.
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade800),
-              ),
-              child: _blinkerPhases(l10n),
-            ),
-            const SizedBox(height: 18),
-            _outcomeRow(
-              icon: Icons.lock_open,
-              colour: Colors.greenAccent,
-              text: l10n.dbcFlashDoneSignal,
-            ),
-            const SizedBox(height: 12),
-            _outcomeRow(
-              icon: Icons.warning_amber_rounded,
-              colour: Colors.redAccent,
-              text: l10n.dbcFlashFailSignal,
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Icon(Icons.power_off, size: 18, color: Colors.orange.shade300),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(l10n.dbcFlashDoNotDisconnect,
-                      style: TextStyle(
-                          fontSize: 13, color: Colors.orange.shade200)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            const SizedBox(height: 16),
-            Center(
-              child: FilledButton.icon(
-                onPressed: () {
-                  _dbcFlashSimulateError = false;
-                  _setPhase(InstallerPhase.finish);
-                },
-                icon: const Icon(Icons.arrow_forward),
-                label: Text(l10n.dbcFlashAllDone),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Center(
-              child: TextButton(
-                onPressed: () {
-                  _dbcFlashSimulateError = true;
-                  _setPhase(InstallerPhase.reconnect);
-                },
-                child: Text(l10n.dbcFlashSomethingWrong,
-                    style:
-                        TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-              ),
-            ),
-          ],
+    return PhaseLayout(
+      title: l10n.dbcFlashInProgress,
+      subtitle: l10n.dbcFlashDurationHeadline,
+      actions: [
+        // Both lead onwards: one to the last step, one to the diagnosis. The
+        // failing branch is still the way out of this screen, so it sits with
+        // the other rather than where an abort would.
+        PhaseAction(
+          label: l10n.dbcFlashSomethingWrong,
+          danger: true,
+          onPressed: () {
+            _dbcFlashSimulateError = true;
+            _setPhase(InstallerPhase.reconnect);
+          },
         ),
+        PhaseAction(
+          label: l10n.dbcFlashAllDone,
+          icon: Icons.arrow_forward,
+          primary: true,
+          onPressed: () {
+            _dbcFlashSimulateError = false;
+            _setPhase(InstallerPhase.finish);
+          },
+        ),
+      ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // One instruction, then the two things that can end it. The LED
+          // legend and the blinker diagram that used to sit here said the
+          // same things a third time, and the dashboard now shows its own
+          // progress, so the only thing left worth saying is what to wait
+          // for and what each outcome looks like.
+          Text(
+            l10n.dbcFlashSequence,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade300,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          // A key for reading the scooter, not a status display: the
+          // laptop is unplugged and knows nothing about the blinkers. It
+          // stays because the blinkers are the one progress indicator still
+          // visible while the dashboard reboots and its own screen is dark,
+          // and the user needs to know what the four of them mean.
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A1A),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade800),
+            ),
+            child: _blinkerPhases(l10n),
+          ),
+          const SizedBox(height: 18),
+          // Once the laptop is unplugged the dashboard LED is the only
+          // thing that can report a failure, so name it above the outcomes
+          // instead of leaving it buried in one of them.
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.lightbulb_outline,
+                size: 20,
+                color: Colors.grey.shade400,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  l10n.dbcFlashLedIsTheSignal,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade300,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _outcomeRow(
+            icon: Icons.lock_open,
+            colour: Colors.greenAccent,
+            text: l10n.dbcFlashDoneSignal,
+          ),
+          const SizedBox(height: 12),
+          _outcomeRow(
+            icon: Icons.warning_amber_rounded,
+            colour: Colors.redAccent,
+            text: l10n.dbcFlashFailSignal,
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Icon(Icons.power_off, size: 18, color: Colors.orange.shade300),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  l10n.dbcFlashDoNotDisconnect,
+                  style: TextStyle(fontSize: 13, color: Colors.orange.shade200),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -5079,7 +6634,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
     // Wait for the device to be present first (10s grace), then wait for
     // it to actually go away.
     final presentDeadline = DateTime.now().add(const Duration(seconds: 10));
-    while (mounted && _device == null && DateTime.now().isBefore(presentDeadline)) {
+    while (mounted &&
+        _device == null &&
+        DateTime.now().isBefore(presentDeadline)) {
       await Future.delayed(const Duration(milliseconds: 500));
     }
     while (mounted && _device != null) {
@@ -5118,8 +6675,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
         Icon(icon, size: 20, color: colour),
         const SizedBox(width: 12),
         Expanded(
-          child: Text(text,
-              style: TextStyle(fontSize: 14, color: colour, height: 1.4)),
+          child: Text(
+            text,
+            style: TextStyle(fontSize: 14, color: colour, height: 1.4),
+          ),
         ),
       ],
     );
@@ -5137,18 +6696,28 @@ class _InstallerScreenState extends State<InstallerScreen> {
           children: [
             SizedBox(
               width: 14,
-              child: Text('$n',
-                  style: const TextStyle(
-                      fontSize: 12, color: kAccent, fontWeight: FontWeight.w600)),
+              child: Text(
+                '$n',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: kAccent,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
             const SizedBox(width: 8),
             Expanded(
               flex: 2,
-              child: Text(pos,
-                  style: TextStyle(fontSize: 12.5, color: Colors.grey.shade500)),
+              child: Text(
+                pos,
+                style: TextStyle(fontSize: 12.5, color: Colors.grey.shade500),
+              ),
             ),
             const SizedBox(width: 8),
-            Expanded(flex: 3, child: Text(step, style: const TextStyle(fontSize: 12.5))),
+            Expanded(
+              flex: 3,
+              child: Text(step, style: const TextStyle(fontSize: 12.5)),
+            ),
           ],
         ),
       );
@@ -5171,8 +6740,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                    child: Text(l10n.ledBlinkerProgress,
-                        style: const TextStyle(fontSize: 13))),
+                  child: Text(
+                    l10n.ledBlinkerProgress,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
               ],
             ),
           ),
@@ -5190,87 +6762,80 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _reconnectStarted = true;
       Future.microtask(_verifyDbcFlash);
     }
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 620),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(l10n.verifyingDbcInstallation,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center),
+    return PhaseLayout(
+      title: l10n.verifyingDbcInstallation,
+      actions: [
+        if (!_isProcessing) ...[
+          // Redoing the dashboard install means going back through the prep
+          // phase, so it belongs on the leaving side; the checks and the way
+          // out of this screen stay on the right.
+          PhaseAction(
+            label: l10n.retryDbcFlash,
+            icon: Icons.replay,
+            side: ActionSide.back,
+            onPressed: () => _returnToDbcPrep(),
+          ),
+          // The DBC's version is a last-seen guess, so a plan that said
+          // Upgrade can meet a board with no mender layout. Retrying the
+          // flash renders the same upgrade-mode trampoline and fails the same
+          // way; the way out is stage 0, which the queue already holds.
+          // Offered only where it is a change: a plan that already says clean
+          // install has nothing to switch to.
+          if (_plan?.dbc.action == BoardAction.upgrade)
+            PhaseAction(
+              label: l10n.dbcCleanInstallButton,
+              icon: Icons.restart_alt,
+              side: ActionSide.back,
+              onPressed: () => _cleanInstallDbcAfterFailure(l10n),
+            ),
+          PhaseAction(
+            label: l10n.skipToFinish,
+            onPressed: () => _setPhase(InstallerPhase.finish),
+          ),
+          PhaseAction(
+            label: l10n.retryVerification,
+            icon: Icons.refresh,
+            primary: true,
+            onPressed: () {
+              setState(() {
+                _reconnectStarted = true;
+                _reconnectShowDiagnostics = false;
+                _reconnectDiagnostics = null;
+              });
+              Future.microtask(_verifyDbcFlash);
+            },
+          ),
+        ],
+      ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_reconnectSubsteps.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade800),
+              ),
+              child: SubstepList(substeps: _reconnectSubsteps),
+            )
+          else
+            Center(
+              child: Text(
+                _statusMessage.isEmpty
+                    ? l10n.reconnectUsbToLaptop
+                    : _statusMessage,
+                style: TextStyle(color: Colors.grey.shade400),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          if (_reconnectShowDiagnostics) ...[
             const SizedBox(height: 16),
-            if (_reconnectSubsteps.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A1A1A),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade800),
-                ),
-                child: SubstepList(substeps: _reconnectSubsteps),
-              )
-            else
-              Center(
-                child: Text(
-                  _statusMessage.isEmpty ? l10n.reconnectUsbToLaptop : _statusMessage,
-                  style: TextStyle(color: Colors.grey.shade400),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            if (_reconnectShowDiagnostics) ...[
-              const SizedBox(height: 16),
-              _buildReconnectDiagnosticsPanel(l10n),
-            ],
-            if (!_isProcessing) ...[
-              const SizedBox(height: 16),
-              Center(
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    FilledButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _reconnectStarted = true;
-                          _reconnectShowDiagnostics = false;
-                          _reconnectDiagnostics = null;
-                        });
-                        Future.microtask(_verifyDbcFlash);
-                      },
-                      icon: const Icon(Icons.refresh),
-                      label: Text(l10n.retryVerification),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () => _returnToDbcPrep(),
-                      icon: const Icon(Icons.replay),
-                      label: Text(l10n.retryDbcFlash),
-                    ),
-                    // The DBC's version is a last-seen guess, so a plan that
-                    // said Upgrade can meet a board with no mender layout.
-                    // Retrying the flash renders the same upgrade-mode
-                    // trampoline and fails the same way; the way out is stage
-                    // 0, which the queue already holds. Offered only where it
-                    // is a change: a plan that already says clean install has
-                    // nothing to switch to.
-                    if (_plan?.dbc.action == BoardAction.upgrade)
-                      OutlinedButton.icon(
-                        onPressed: () => _cleanInstallDbcAfterFailure(l10n),
-                        icon: const Icon(Icons.restart_alt),
-                        label: Text(l10n.dbcCleanInstallButton),
-                      ),
-                    TextButton(
-                      onPressed: () => _setPhase(InstallerPhase.finish),
-                      child: Text(l10n.skipToFinish),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            _buildReconnectDiagnosticsPanel(l10n),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -5282,10 +6847,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// The MDB's step is mdbInstall, not mdbFlash: mdbFlash prepares the board
   /// for a raw write and is the step an upgrade skips, so it keeps its own
   /// name. mdbInstall is where the upgrade happens.
+  /// needsHandoff is true for tiles by themselves, so the dashboard block runs
+  /// for a plan that leaves the dashboard untouched. What it does then is copy
+  /// maps, and every label on it otherwise says flash.
+  bool get _dbcMapsOnly =>
+      !(_plan?.needsDbcWork ?? true) && (_plan?.installTiles ?? false);
+
   Set<MajorStep> get _upgradingSteps => {
-        if (_plan?.mdb.action == BoardAction.upgrade) MajorStep.mdbInstall,
-        if (_plan?.dbc.action == BoardAction.upgrade) MajorStep.dbcFlash,
-      };
+    if (_plan?.mdb.action == BoardAction.upgrade) MajorStep.mdbInstall,
+    if (_plan?.dbc.action == BoardAction.upgrade) MajorStep.dbcFlash,
+  };
 
   /// Go back to the prep phase and re-stage everything for another
   /// trampoline run, whatever the plan now says.
@@ -5330,8 +6901,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    setState(() =>
-        _plan = plan.withDbc(plan.dbc.withAction(BoardAction.cleanInstall)));
+    setState(
+      () => _plan = plan.withDbc(plan.dbc.withAction(BoardAction.cleanInstall)),
+    );
     _returnToDbcPrep();
   }
 
@@ -5339,8 +6911,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
     final waitedSecs = _reconnectRndisWaitStart != null
         ? DateTime.now().difference(_reconnectRndisWaitStart!).inSeconds
         : (_reconnectStatusWaitStart != null
-            ? DateTime.now().difference(_reconnectStatusWaitStart!).inSeconds
-            : 0);
+              ? DateTime.now().difference(_reconnectStatusWaitStart!).inSeconds
+              : 0);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -5353,19 +6925,27 @@ class _InstallerScreenState extends State<InstallerScreen> {
         children: [
           Row(
             children: [
-              Icon(Icons.warning_amber, color: Colors.orange.shade300, size: 22),
+              Icon(
+                Icons.warning_amber,
+                color: Colors.orange.shade300,
+                size: 22,
+              ),
               const SizedBox(width: 8),
-              Text(l10n.reconnectTimeoutHeading,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.orange.shade100,
-                    fontSize: 15,
-                  )),
+              Text(
+                l10n.reconnectTimeoutHeading,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange.shade100,
+                  fontSize: 15,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 6),
-          Text(l10n.reconnectTimeoutBody(waitedSecs ~/ 60),
-              style: TextStyle(color: Colors.orange.shade100, fontSize: 13)),
+          Text(
+            l10n.reconnectTimeoutBody(waitedSecs ~/ 60),
+            style: TextStyle(color: Colors.orange.shade100, fontSize: 13),
+          ),
           const SizedBox(height: 10),
           Text(
             '${l10n.usbDeviceCurrentlyDetected}: '
@@ -5384,10 +6964,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
               child: SingleChildScrollView(
                 child: SelectableText(
                   _reconnectDiagnostics!,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 11,
-                  ),
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
                 ),
               ),
             ),
@@ -5418,8 +6995,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
         if (idx < 0) return;
         _reconnectSubsteps = [
           for (var i = 0; i < _reconnectSubsteps.length; i++)
-            if (i == idx) _reconnectSubsteps[i].copyWith(state: state, detail: detail)
-            else _reconnectSubsteps[i],
+            if (i == idx)
+              _reconnectSubsteps[i].copyWith(state: state, detail: detail)
+            else
+              _reconnectSubsteps[i],
         ];
       });
     }
@@ -5450,7 +7029,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.closeButton)),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(l10n.closeButton),
+                ),
               ],
             ),
           );
@@ -5486,7 +7068,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
       } on NetworkPrivilegeException catch (e) {
         setStep('net', SubstepState.failed, detail: e.toString());
         _setStatus(l10n.errorPrefix(e.toString()));
-        setState(() { _isProcessing = false; _reconnectStarted = false; });
+        setState(() {
+          _isProcessing = false;
+          _reconnectStarted = false;
+        });
         return;
       }
     }
@@ -5499,7 +7084,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
     } catch (e) {
       setStep('ssh', SubstepState.failed, detail: e.toString());
       _setStatus(l10n.sshConnectionFailed(e.toString()));
-      setState(() { _isProcessing = false; _reconnectStarted = false; });
+      setState(() {
+        _isProcessing = false;
+        _reconnectStarted = false;
+      });
       return;
     }
     setStep('ssh', SubstepState.done);
@@ -5524,7 +7112,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
     TrampolineStatus status;
     final pollStart = DateTime.now();
     while (true) {
-      status = await _sshService.readTrampolineStatus();
+      status = await _sshService.readTrampolineStatus(
+        expectedRunId: _installRunId,
+      );
       // `running` is as much a reason to keep polling as an absent file: the
       // trampoline writes it before the reboot that starts the dashboard
       // work, so it means "not finished", not "finished well".
@@ -5533,10 +7123,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
         break;
       }
       final elapsed = DateTime.now().difference(pollStart).inSeconds;
-      debugPrint('Trampoline: status still unknown after ${elapsed}s, waiting...');
+      debugPrint(
+        'Trampoline: status still unknown after ${elapsed}s, waiting...',
+      );
       _setStatus(l10n.readingTrampolineStatusElapsed(elapsed));
-      setStep('status', SubstepState.active,
-          detail: l10n.readingTrampolineStatusElapsed(elapsed));
+      setStep(
+        'status',
+        SubstepState.active,
+        detail: l10n.readingTrampolineStatusElapsed(elapsed),
+      );
       if (elapsed >= 300 && !_reconnectShowDiagnostics) {
         await _surfaceReconnectDiagnostics(l10n);
       }
@@ -5575,9 +7170,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // It is absent on a tiles-only job and on any status file written
       // before the field existed, so the bare verdict stays the fallback.
       final landedVersion = status.dbcVersion;
-      _setStatus(landedVersion == null
-          ? l10n.dbcFlashSuccessful
-          : l10n.dbcInstallSuccessfulVersion(landedVersion));
+      _setStatus(
+        landedVersion == null
+            ? l10n.dbcFlashSuccessful
+            : l10n.dbcInstallSuccessfulVersion(landedVersion),
+      );
       await Future.delayed(const Duration(seconds: 2));
       _setPhase(InstallerPhase.finish);
     } else if (status.result == TrampolineResult.error) {
@@ -5603,11 +7200,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
           builder: (ctx) => AlertDialog(
             title: Text(l10n.dbcFlashError),
             content: SingleChildScrollView(
-              child: SelectableText(status.errorLog!,
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+              child: SelectableText(
+                status.errorLog!,
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+              ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.closeButton)),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(l10n.closeButton),
+              ),
             ],
           ),
         );
@@ -5650,195 +7252,220 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
   }
 
+  /// What the nRF advertises itself as, which is what a phone's Bluetooth
+  /// list shows. Nothing publishes it at runtime (the `ble` hash carries the
+  /// address, the link state and the firmware status, but no name), so it is
+  /// written here and checked against the hardware.
+  static const _advertisedBleName = 'unu Scooter';
+
   Widget _buildBluetoothPairing(AppLocalizations l10n) {
     // Poll from the moment the panel opens, not from Start: the state that
     // matters most (someone already holds the link) is true before the user
     // touches anything.
-    if (_blePinPollTimer == null) _startBlePinPolling();
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.bluetooth, size: 48, color: Colors.blueAccent),
-          const SizedBox(height: 16),
-          Text(l10n.bluetoothPairingHeading,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text(l10n.bluetoothPairingHint,
-              style: TextStyle(color: Colors.grey.shade400)),
-          if (_bleMac != null) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.blueAccent.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.25)),
-              ),
-              child: Row(
+    if (!_blePinPolling.isRunning) _startBlePinPolling();
+
+    final (String state, Color colour) = switch ((
+      _btPairingActive,
+      _bleConnected,
+      _blePairedCount > 0,
+    )) {
+      (_, true, true) => (l10n.blePairedHeading, Colors.green),
+      (_, true, false) => (l10n.bleLinkHeldHeading, Colors.orangeAccent),
+      (true, false, _) => (l10n.blePairingStateVisible, Colors.blueAccent),
+      (false, false, _) => (l10n.blePairingStateIdle, Colors.grey),
+    };
+
+    Widget field(String label, String value) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label,
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+            const SizedBox(height: 4),
+            SelectableText(value,
+                style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'monospace')),
+          ],
+        );
+
+    // Steps on the left, what the scooter is doing on the right. The state
+    // moves while the steps stay put, and the PIN is not here: it gets the
+    // whole screen when it arrives, and saying it twice was confusing.
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(l10n.blePairingWhy,
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade300)),
+        const SizedBox(height: 20),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 3,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('${l10n.bleMacLabel}: ',
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
-                  SelectableText(_bleMac!,
-                      style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          fontFamily: 'monospace')),
+                  InstructionStep(
+                    number: 1,
+                    title: l10n.blePairingStep1,
+                    description: l10n.blePairingStep1Desc,
+                  ),
+                  InstructionStep(
+                    number: 2,
+                    title: l10n.blePairingStep2,
+                    description: l10n.blePairingStep2DescCompare,
+                  ),
+                  InstructionStep(
+                    number: 3,
+                    title: l10n.blePairingStep3,
+                    description: l10n.blePairingStep3DescOverlay,
+                  ),
                 ],
               ),
             ),
-          ],
-          const SizedBox(height: 24),
-
-          if (!_btPairingActive) ...[
-            // A phone that is already bonded reconnects by itself, and the
-            // radio takes one central at a time, so the user can arrive here
-            // with the link already spoken for. Pressing Start would then look
-            // like it did nothing at all.
-            if (_bleConnected) ...[
-              Container(
-                width: 400,
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 16),
+            const SizedBox(width: 24),
+            Expanded(
+              flex: 2,
+              child: Container(
+                padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: Colors.orangeAccent.withValues(alpha: 0.1),
+                  color: colour.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: Colors.orangeAccent.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline,
-                        size: 20, color: Colors.orangeAccent),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(l10n.bleLinkHeldHint,
-                          style: TextStyle(
-                              fontSize: 13, color: Colors.grey.shade400)),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            FilledButton.icon(
-              onPressed: _startBluetoothPairing,
-              icon: const Icon(Icons.bluetooth_searching),
-              label: Text(l10n.startPairing),
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => _setPhase(InstallerPhase.keycardSetup),
-              child: Text(l10n.skipPairing),
-            ),
-          ],
-
-          if (_btPairingActive) ...[
-            const SizedBox(height: 16),
-            if (_btAdvertisingSettling)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    const SizedBox(width: 10),
-                    Flexible(
-                      child: Text(l10n.blePreparingRadio,
-                          style: TextStyle(
-                              fontSize: 13, color: Colors.grey.shade400)),
-                    ),
-                  ],
-                ),
-              ),
-            if (_bleConnected)
-              // One link, two meanings: an edge since the window opened is a
-              // device that just paired, a link that was already taken is the
-              // reason nothing else can.
-              Builder(builder: (_) {
-                final paired = _blePairedCount > 0;
-                final colour = paired ? Colors.green : Colors.orangeAccent;
-                return Container(
-                  width: 400,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: colour.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: colour.withValues(alpha: 0.3)),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(paired ? Icons.bluetooth_connected : Icons.info_outline,
-                          size: 32, color: colour),
-                      const SizedBox(height: 12),
-                      Text(paired ? l10n.blePairedHeading : l10n.bleLinkHeldHeading,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, color: colour)),
-                      const SizedBox(height: 8),
-                      Text(paired ? l10n.blePairedHint : l10n.bleLinkHeldHint,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              fontSize: 13, color: Colors.grey.shade400)),
-                    ],
-                  ),
-                );
-              })
-            else
-              Container(
-                width: 400,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.blueAccent.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
+                  border: Border.all(color: colour.withValues(alpha: 0.3)),
                 ),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.bluetooth_searching, size: 32, color: Colors.blueAccent),
-                    const SizedBox(height: 12),
-                    Text(l10n.pairingActive,
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    Text(l10n.pairingActiveHint,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+                    Row(
+                      children: [
+                        Container(
+                          width: 9,
+                          height: 9,
+                          decoration: BoxDecoration(
+                              shape: BoxShape.circle, color: colour),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(state,
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: colour,
+                                  fontSize: 14)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    field(l10n.blePairingDeviceName, _advertisedBleName),
+                    const SizedBox(height: 14),
+                    if (_bleMac != null) field(l10n.bleMacLabel, _bleMac!),
+                    if (_btAdvertisingSettling) ...[
+                      const SizedBox(height: 14),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(l10n.blePreparingRadio,
+                                style: TextStyle(
+                                    fontSize: 12, color: Colors.grey.shade400)),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
-            if (_blePinCode != null) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                decoration: BoxDecoration(
-                  color: Colors.blueAccent.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.4)),
-                ),
-                child: Text(_blePinCode!,
-                    style: const TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 8,
-                      fontFamily: 'monospace',
-                    )),
-              ),
-              const SizedBox(height: 8),
-              Text(l10n.blePinHint,
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
-            ],
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _stopBluetoothPairing,
-              icon: const Icon(Icons.check),
-              label: Text(l10n.pairingDone),
             ),
           ],
-        ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.link_off, size: 15, color: Colors.grey.shade500),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(l10n.blePairingOneAtATime,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    final screen = PhaseLayout(
+      title: l10n.bluetoothPairingHeading,
+      subtitle: l10n.bluetoothPairingHint,
+      actions: [
+        // Both choices carry on: one pairs a phone first, the other does not.
+        // The window is open or it is not, so each state gets one way to end
+        // it rather than a Start that turns into a Start over.
+        if (!_btPairingActive) ...[
+          PhaseAction(
+            label: l10n.skipPairing,
+            onPressed: () => _setPhase(InstallerPhase.keycardSetup),
+          ),
+          PhaseAction(
+            label: l10n.startPairing,
+            icon: Icons.bluetooth_searching,
+            primary: true,
+            onPressed: _startBluetoothPairing,
+          ),
+        ] else
+          PhaseAction(
+            label: l10n.pairingDone,
+            icon: Icons.check,
+            primary: true,
+            onPressed: _stopBluetoothPairing,
+          ),
+      ],
+      child: body,
+    );
+
+    final pin = _blePinCode;
+    if (pin == null || pin.isEmpty) return screen;
+
+    // The one moment in the flow that wants the whole screen: the phone is
+    // asking, and the number has to be compared and confirmed there.
+    return WaitScaffold(
+      backdrop: screen,
+      overlay: Container(
+        constraints: const BoxConstraints(maxWidth: 460),
+        padding: const EdgeInsets.fromLTRB(28, 26, 28, 22),
+        decoration: BoxDecoration(
+          color: kBgSidebar,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(l10n.blePinConfirmTitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.bold, color: kAccent)),
+            const SizedBox(height: 20),
+            SelectableText(pin,
+                style: const TextStyle(
+                    fontSize: 46,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 10,
+                    fontFamily: 'monospace')),
+            const SizedBox(height: 18),
+            Text(l10n.blePinConfirmHint,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+          ],
+        ),
       ),
     );
   }
@@ -5851,6 +7478,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// Vehicle state as it stood before the pairing window forced `parked`,
   /// restored when the window closes.
   String? _stateBeforePairing;
+  bool _pairingVehicleStateChanged = false;
+  bool _bleWhitelistDisabled = false;
 
   Future<void> _startBluetoothPairing() async {
     try {
@@ -5858,13 +7487,16 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // parked; in stand-by it leaves the request unanswered and the peer
       // manager refuses. The install runs with the scooter locked, so the
       // window is opened here and closed again in _stopBluetoothPairing.
-      if (!_isDryRun) {
+      if (!_isDryRun && !_pairingVehicleStateChanged) {
         try {
           _stateBeforePairing = await _sshService.getVehicleState();
           if (_stateBeforePairing != 'parked') {
             await _sshService.forceVehicleState('parked');
-            debugPrint('UI: vehicle state -> parked for the pairing window '
-                '(was $_stateBeforePairing)');
+            _pairingVehicleStateChanged = true;
+            debugPrint(
+              'UI: vehicle state -> parked for the pairing window '
+              '(was $_stateBeforePairing)',
+            );
           }
         } catch (e) {
           debugPrint('UI: could not open the pairing state gate (ok): $e');
@@ -5877,7 +7509,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
       // no-whitelisting restart overrides the unlock gate instead, so a locked
       // scooter pairs and its state is never touched.
       await _sshService.redisLpush(
-          'scooter:bluetooth', 'advertising-restart-no-whitelisting');
+        'scooter:bluetooth',
+        'advertising-restart-no-whitelisting',
+      );
+      _bleWhitelistDisabled = true;
       debugPrint('UI: BLE advertising restarted without whitelisting');
       _startBleAdvRearm();
       setState(() {
@@ -5901,86 +7536,118 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// open. Harmless to repeat: the firmware ignores it outright once something
   /// is connected, which is exactly when we no longer need it.
   void _startBleAdvRearm() {
-    _bleAdvRearmTimer?.cancel();
-    _bleAdvRearmTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
-      if (!mounted || !_btPairingActive) return;
-      try {
-        await _sshService.redisLpush(
-            'scooter:bluetooth', 'advertising-restart-no-whitelisting');
-        debugPrint('UI: re-armed the BLE pairing window');
-      } catch (e) {
-        debugPrint('UI: failed to re-arm the BLE pairing window (ok): $e');
-      }
-    });
+    _bleAdvRearming.start(
+      interval: const Duration(seconds: 30),
+      poll: (generation) async {
+        if (!generation.isCurrent || !mounted || !_btPairingActive) return;
+        try {
+          await _sshService.redisLpush(
+            'scooter:bluetooth',
+            'advertising-restart-no-whitelisting',
+            timeout: const Duration(seconds: 2),
+          );
+          if (!generation.isCurrent) return;
+          debugPrint('UI: re-armed the BLE pairing window');
+        } catch (e) {
+          debugPrint('UI: failed to re-arm the BLE pairing window (ok): $e');
+        }
+      },
+    );
   }
 
   void _startBlePinPolling() {
-    _blePinPollTimer?.cancel();
-    _blePinPollTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
-      if (!mounted) {
-        _blePinPollTimer?.cancel();
-        return;
-      }
-      try {
-        // bluetooth-service writes `status` (connected/disconnected) from
-        // the nRF's own link state.
-        final status = await _sshService.redisHget('ble', 'status');
-        final isConnected = status == 'connected';
-        if (isConnected != _bleConnected) {
-          setState(() {
-            if (isConnected && !_bleConnected && _btPairingActive) {
-              _blePairedCount++;
-            }
-            _bleConnected = isConnected;
-          });
+    _blePinPolling.start(
+      interval: const Duration(seconds: 1),
+      poll: (generation) async {
+        if (!generation.isCurrent ||
+            !mounted ||
+            _currentPhase != InstallerPhase.bluetoothPairing) {
+          return;
         }
-
-        final pin = await _sshService.redisHget('ble', 'pin-code');
-        if (pin != null && pin.isNotEmpty) {
-          if (_blePinCode != pin) {
-            setState(() => _blePinCode = pin);
+        try {
+          // bluetooth-service writes `status` (connected/disconnected) from
+          // the nRF's own link state.
+          final output = await _sshService.runCommand(
+            'redis-cli --raw HMGET ble status pin-code',
+            timeout: const Duration(seconds: 2),
+            replayOnDisconnect: true,
+          );
+          if (!generation.isCurrent ||
+              !mounted ||
+              _currentPhase != InstallerPhase.bluetoothPairing) {
+            return;
           }
-        } else if (_blePinCode != null) {
-          // PIN cleared: pairing completed for this device
-          setState(() => _blePinCode = null);
-        }
-      } catch (_) {}
-    });
+          final values = output.split('\n');
+          final status = values.isEmpty ? null : values[0].trim();
+          final rawPin = values.length < 2 ? null : values[1].trim();
+          final pin = rawPin == null || rawPin.isEmpty ? null : rawPin;
+          final isConnected = status == 'connected';
+          if (isConnected != _bleConnected || pin != _blePinCode) {
+            setState(() {
+              if (isConnected && !_bleConnected && _btPairingActive) {
+                _blePairedCount++;
+              }
+              _bleConnected = isConnected;
+              _blePinCode = pin;
+            });
+          }
+        } catch (_) {}
+      },
+    );
   }
 
-  Future<void> _stopBluetoothPairing() async {
-    _blePinPollTimer?.cancel();
-    _blePinPollTimer = null;
-    _bleAdvRearmTimer?.cancel();
-    _bleAdvRearmTimer = null;
+  Future<void> _restoreBluetoothWhitelist() async {
+    if (!_bleWhitelistDisabled) return;
     try {
-      // Put the whitelist back. Leaving the radio open to anything is not a
-      // state to hand a vehicle back in, and the device just bonded is on the
-      // whitelist, so it keeps working.
       await _sshService.redisLpush(
-          'scooter:bluetooth', 'advertising-start-with-whitelisting');
+        'scooter:bluetooth',
+        'advertising-start-with-whitelisting',
+      );
+      _bleWhitelistDisabled = false;
       debugPrint('UI: BLE advertising restored to whitelisting');
     } catch (e) {
       debugPrint('UI: failed to restore BLE whitelisting: $e');
+      rethrow;
     }
-    // Hand the key back to vehicle-service.
+  }
+
+  Future<void> _restorePairingVehicleState() async {
+    if (!_pairingVehicleStateChanged || _isDryRun) return;
     final before = _stateBeforePairing;
-    _stateBeforePairing = null;
-    if (before != null && before != 'parked' && !_isDryRun) {
-      try {
-        await _sshService.forceVehicleState(before);
-        debugPrint('UI: vehicle state restored to $before after pairing');
-      } catch (e) {
-        debugPrint('UI: could not restore vehicle state (ok): $e');
-      }
+    if (before == null || before == 'parked') {
+      _pairingVehicleStateChanged = false;
+      _stateBeforePairing = null;
+      return;
     }
+    try {
+      await _sshService.forceVehicleState(before);
+      _pairingVehicleStateChanged = false;
+      _stateBeforePairing = null;
+      debugPrint('UI: vehicle state restored to $before after pairing');
+    } catch (e) {
+      debugPrint('UI: could not restore vehicle state (ok): $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _stopBluetoothPairing({bool advance = true}) async {
+    final stopPinPolling = _blePinPolling.stop();
+    final stopAdvRearming = _bleAdvRearming.stop();
+    await runBoundedCleanupActions([
+      () => stopPinPolling,
+      () => stopAdvRearming,
+      if (_bleWhitelistDisabled) _restoreBluetoothWhitelist,
+      if (_pairingVehicleStateChanged) _restorePairingVehicleState,
+    ]);
+    if (!_pairingVehicleStateChanged) _stateBeforePairing = null;
+    if (!mounted) return;
     setState(() {
       _btPairingActive = false;
       _btAdvertisingSettling = false;
       _blePinCode = null;
       _bleConnected = false;
     });
-    _setPhase(InstallerPhase.keycardSetup);
+    if (advance) _setPhase(InstallerPhase.keycardSetup);
   }
 
   // Killed on entry to keycardSetup so that any auto-startup master-learning
@@ -5990,6 +7657,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
   Future<void> _onEnterKeycardSetup() async {
     setState(() {
       _keycardLearning = false;
+      _keycardMasterLearning = false;
       _keycardStage = _KeycardStage.loading;
       _keycardServiceCanMaster = null;
       _keycardMasterCount = 0;
@@ -6021,7 +7689,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
       await _sshService.runCommand('lsc set scooter.usb0-policy always-on');
       debugPrint('UI: scooter.usb0-policy=always-on (keycardSetup)');
     } catch (e) {
-      debugPrint('UI: failed to set scooter.usb0-policy=always-on at keycardSetup (ok): $e');
+      debugPrint(
+        'UI: failed to set scooter.usb0-policy=always-on at keycardSetup (ok): $e',
+      );
     }
 
     // Same hazards on the freshly-installed image: keycard learning can sit
@@ -6062,7 +7732,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
     }
 
     try {
-      await _sshService.runCommand('systemctl start librescoot-keycard 2>/dev/null; true');
+      await _sshService.runCommand(
+        'systemctl start librescoot-keycard 2>/dev/null; true',
+      );
       debugPrint('UI: started librescoot-keycard for keycard setup phase');
     } catch (e) {
       debugPrint('UI: failed to start librescoot-keycard: $e');
@@ -6082,7 +7754,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
       if (activeState == 'active') break;
     }
     if (activeState != 'active') {
-      debugPrint('UI: librescoot-keycard not active after start (state=$activeState)');
+      debugPrint(
+        'UI: librescoot-keycard not active after start (state=$activeState)',
+      );
     }
 
     // Subscribe to keycard:events early so we don't miss any tap during the
@@ -6103,11 +7777,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
       debugPrint('UI: failed to disengage master-learning on entry: $e');
     }
 
-    final canMaster = await _keycardDetectCapability();
+    final capability = await _keycardDetectCapability();
     await _keycardRefreshCounts();
     if (!mounted) return;
 
     setState(() {
+      _keycardCapability = capability;
+      final canMaster = capability == KeycardCapability.current;
       _keycardServiceCanMaster = canMaster;
       if (canMaster &&
           (_keycardMasterCount > 0 || _keycardAuthorizedCount > 0)) {
@@ -6118,7 +7794,14 @@ class _InstallerScreenState extends State<InstallerScreen> {
     });
   }
 
-  bool get _canDriveKeycard => _sshService.isConnected || _isDryRun;
+  KeycardCapability? _keycardCapability;
+
+  /// A reader nobody answers for cannot enrol a card, so the buttons that
+  /// drive it are dead regardless of the link being up.
+  bool get _canDriveKeycard =>
+      (_sshService.isConnected &&
+          _keycardCapability != KeycardCapability.unreachable) ||
+      _isDryRun;
 
   /// Probe the keycard-service for new-command support by sending
   /// `learn:master:stop` and inspecting `keycard.command-result`. The new
@@ -6127,7 +7810,13 @@ class _InstallerScreenState extends State<InstallerScreen> {
   /// `error:unknown command`. We snapshot command-result before the probe so
   /// we can wait for it to actually change, instead of racing against an old
   /// stale value.
-  Future<bool> _keycardDetectCapability() async {
+  ///
+  /// Silence is its own answer. Nobody writing command-result at all means no
+  /// keycard-service is listening, which is not an old one: the reader sits on
+  /// the DBC panel, so a board with no dashboard reachable cannot enrol
+  /// anything. Reporting that as legacy sends the UI down a path that offers
+  /// teach-in on hardware that cannot do it.
+  Future<KeycardCapability> _keycardDetectCapability() async {
     try {
       final before = await _sshService.redisHget('keycard', 'command-result');
       await _sshService.redisLpush('scooter:keycard', 'learn:master:stop');
@@ -6140,23 +7829,26 @@ class _InstallerScreenState extends State<InstallerScreen> {
         final lower = result.toLowerCase();
         if (lower.startsWith('error:unknown')) {
           debugPrint('UI: keycard capability probe -> legacy ($result)');
-          return false;
+          return KeycardCapability.legacy;
         }
         debugPrint('UI: keycard capability probe -> new ($result)');
-        return true;
+        return KeycardCapability.current;
       }
-      debugPrint('UI: keycard capability probe timed out, assuming legacy');
+      debugPrint('UI: keycard capability probe: nobody answered');
     } catch (e) {
       debugPrint('UI: keycard capability probe failed: $e');
     }
-    return false;
+    return KeycardCapability.unreachable;
   }
 
   Future<void> _keycardRefreshCounts() async {
     if (_isDryRun) return;
     try {
       final m = await _sshService.redisHget('system', 'keycard-master-count');
-      final a = await _sshService.redisHget('system', 'keycard-authorized-count');
+      final a = await _sshService.redisHget(
+        'system',
+        'keycard-authorized-count',
+      );
       if (!mounted) return;
       setState(() {
         _keycardMasterCount = int.tryParse(m ?? '') ?? 0;
@@ -6193,6 +7885,33 @@ class _InstallerScreenState extends State<InstallerScreen> {
     _keycardEventsSub = null;
   }
 
+  Future<void> _stopActiveKeycardModes() async {
+    if (_isDryRun) {
+      _keycardLearning = false;
+      _keycardMasterLearning = false;
+      return;
+    }
+    await runBoundedCleanupActions([
+      if (_keycardLearning)
+        () async {
+          await _sshService.redisLpush('scooter:keycard', 'learn:stop');
+          _keycardLearning = false;
+          debugPrint('UI: stopped keycard learning during cleanup');
+        },
+      if (_keycardMasterLearning)
+        () async {
+          await _sshService.redisLpush('scooter:keycard', 'learn:master:stop');
+          _keycardMasterLearning = false;
+          debugPrint('UI: stopped master keycard learning during cleanup');
+        },
+    ]);
+  }
+
+  Future<void> _cleanupKeycardPhase() async {
+    await _stopActiveKeycardModes();
+    await _keycardTearDown();
+  }
+
   Future<void> _startKeycardLearning() async {
     if (_isDryRun) {
       // Carry the previous session's count forward so "Add more" simulates
@@ -6200,7 +7919,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
       _keycardAuthorizedCountBefore = _keycardAuthorizedCount;
     } else {
       try {
-        final raw = await _sshService.redisHget('system', 'keycard-authorized-count');
+        final raw = await _sshService.redisHget(
+          'system',
+          'keycard-authorized-count',
+        );
         _keycardAuthorizedCountBefore = int.tryParse(raw ?? '') ?? 0;
       } catch (e) {
         debugPrint('UI: failed to read authorized count before learn: $e');
@@ -6211,7 +7933,11 @@ class _InstallerScreenState extends State<InstallerScreen> {
       } catch (e) {
         debugPrint('UI: failed to start keycard learning: $e');
         if (mounted) {
-          _setStatus(AppLocalizations.of(context)!.keycardStartLearningFailed(e.toString()));
+          _setStatus(
+            AppLocalizations.of(
+              context,
+            )!.keycardStartLearningFailed(e.toString()),
+          );
         }
         return;
       }
@@ -6245,21 +7971,29 @@ class _InstallerScreenState extends State<InstallerScreen> {
       int polled = _keycardAuthorizedCountBefore;
       for (var i = 0; i < 25; i++) {
         try {
-          final raw = await _sshService.redisHget('system', 'keycard-authorized-count');
+          final raw = await _sshService.redisHget(
+            'system',
+            'keycard-authorized-count',
+          );
           polled = int.tryParse(raw ?? '') ?? polled;
         } catch (_) {}
         if (polled >= expected) break;
         await Future.delayed(const Duration(milliseconds: 200));
       }
       if (polled != expected) {
-        debugPrint('UI: count after learn:stop ($polled) != expected ($expected); '
-            'trusting events (sessionDelta=$sessionDelta)');
+        debugPrint(
+          'UI: count after learn:stop ($polled) != expected ($expected); '
+          'trusting events (sessionDelta=$sessionDelta)',
+        );
       }
-      _keycardAuthorizedCount =
-          polled >= _keycardAuthorizedCountBefore ? polled : expected;
+      _keycardAuthorizedCount = polled >= _keycardAuthorizedCountBefore
+          ? polled
+          : expected;
     }
     final registered = sessionDelta > 0;
-    debugPrint('UI: keycard learning stopped (registered=$registered, sessionDelta=$sessionDelta)');
+    debugPrint(
+      'UI: keycard learning stopped (registered=$registered, sessionDelta=$sessionDelta)',
+    );
     if (!mounted) return;
     setState(() {
       _keycardLearning = false;
@@ -6280,22 +8014,45 @@ class _InstallerScreenState extends State<InstallerScreen> {
     });
   }
 
-  Future<void> _keycardStartMasterStage() async {
+  /// Put the vehicle into master teach-in and show the stage that asks for a
+  /// tap.
+  ///
+  /// Subscribing and starting are one operation, because the screen is only
+  /// honest when both worked. A failed start means a tap does nothing at all;
+  /// a failed subscribe is worse, because the vehicle really does enrol the
+  /// card while the installer never hears the event, never advances, and ends
+  /// up disagreeing with the scooter about what happened.
+  Future<void> _keycardStartMasterStage({bool retry = false}) async {
     setState(() {
       _keycardStage = _KeycardStage.master;
       _keycardToastMessage = null;
+      _keycardMasterStartError = null;
     });
-    if (!_isDryRun) {
-      try {
-        await _keycardSubscribeEvents();
-      } catch (e) {
-        debugPrint('UI: failed to subscribe to keycard events: $e');
+    if (_isDryRun) return;
+
+    try {
+      await _keycardSubscribeEvents();
+      if (retry) {
+        // A push that threw may still have reached the service, so the board
+        // can already be in master mode. Put it back to a known state before
+        // asking again rather than starting on top of a start.
+        try {
+          await _sshService.redisLpush('scooter:keycard', 'learn:master:stop');
+        } catch (e) {
+          debugPrint('UI: could not clear master mode before retry: $e');
+        }
       }
-      try {
-        await _sshService.redisLpush('scooter:keycard', 'learn:master:start');
-      } catch (e) {
-        debugPrint('UI: failed to start master teach-in: $e');
-      }
+      // Set before the push, not after. If this throws we do not know whether
+      // the command landed, and the cleanup on window close only sends
+      // learn:master:stop when this flag is set. Claiming the mode we asked
+      // for means a board left in it still gets stopped; a stop it never
+      // needed is what the Skip button sends anyway.
+      _keycardMasterLearning = true;
+      await _sshService.redisLpush('scooter:keycard', 'learn:master:start');
+    } catch (e) {
+      debugPrint('UI: master teach-in did not start: $e');
+      if (!mounted) return;
+      setState(() => _keycardMasterStartError = e.toString());
     }
   }
 
@@ -6328,6 +8085,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         _keycardShowToast(l10n.keycardCardDuplicateToast, Colors.orangeAccent);
       }
     } else if (payload.startsWith('master-learned:')) {
+      _keycardMasterLearning = false;
       _keycardShowToast(l10n.keycardMasterStageLearnedToast, Colors.green);
       _keycardRefreshCounts();
       // Auto-advance: master successfully registered.
@@ -6340,7 +8098,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
     } else if (payload.startsWith('rejected:already-authorized:')) {
       _keycardShowToast(l10n.keycardMasterStageRejectedToast, Colors.redAccent);
     } else if (payload.startsWith('error:save-failed:')) {
-      _keycardShowToast(l10n.keycardMasterStageSaveFailedToast, Colors.redAccent);
+      _keycardShowToast(
+        l10n.keycardMasterStageSaveFailedToast,
+        Colors.redAccent,
+      );
     } else if (payload == 'reset') {
       // Service told everyone state was wiped; refresh counts.
       _keycardRefreshCounts();
@@ -6365,6 +8126,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
         debugPrint('UI: failed to stop master teach-in: $e');
       }
     }
+    _keycardMasterLearning = false;
     await _keycardTearDown();
     if (!mounted) return;
     if (advance) {
@@ -6404,6 +8166,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     if (!_isDryRun) {
       try {
         await _sshService.redisLpush('scooter:keycard', 'reset');
+        _keycardMasterLearning = false;
       } catch (e) {
         debugPrint('UI: failed to send reset: $e');
       }
@@ -6431,36 +8194,78 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Widget _buildKeycardSetup(AppLocalizations l10n) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 480),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const Icon(Icons.nfc, size: 48, color: kAccent),
-            const SizedBox(height: 16),
-            Text(_keycardStageHeading(l10n),
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center),
-            const SizedBox(height: 24),
-            switch (_keycardStage) {
-              _KeycardStage.loading => const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: CircularProgressIndicator(),
+    return PhaseLayout(
+      title: _keycardStageHeading(l10n),
+      actions: _keycardStage == _KeycardStage.cards
+          ? _keycardCardsActions(l10n)
+          : const [],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // What the screen is for and how it goes, on every stage: it used
+          // to open as an NFC icon over a spinner and say nothing at all
+          // until the reader was ready.
+          if (_keycardStage != _KeycardStage.alreadyConfigured) ...[
+            Text(l10n.keycardWhy,
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade300)),
+            const SizedBox(height: 20),
+            // Steps on the left, what is true right now on the right, the same
+            // shape the pairing screen uses. This step needs it more: it is the
+            // only one with a count, and that count is what enables Finish, so
+            // without somewhere to show it the user infers it from whether the
+            // button lit up.
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      InstructionStep(
+                        number: 1,
+                        title: l10n.keycardStep1,
+                        description: l10n.keycardStep1Desc,
+                      ),
+                      InstructionStep(
+                        number: 2,
+                        title: l10n.keycardStep2,
+                        description: l10n.keycardStep2Desc,
+                      ),
+                      InstructionStep(
+                        number: 3,
+                        title: l10n.keycardStep3,
+                        description: l10n.keycardStep3Desc,
+                      ),
+                    ],
+                  ),
                 ),
-              _KeycardStage.alreadyConfigured =>
-                _buildKeycardAlreadyConfigured(l10n),
-              _KeycardStage.cards => _buildKeycardCardsStage(l10n),
-              _KeycardStage.cardsReview => _buildKeycardCardsReview(l10n),
-              _KeycardStage.master => _buildKeycardMasterStage(l10n),
-              _KeycardStage.done => const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: CircularProgressIndicator(),
-                ),
-            },
+                const SizedBox(width: 24),
+                Expanded(flex: 2, child: _keycardStatusPanel(l10n)),
+              ],
+            ),
+            const SizedBox(height: 12),
           ],
-        ),
+          switch (_keycardStage) {
+            _KeycardStage.loading || _KeycardStage.done => Row(
+                children: [
+                  const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2)),
+                  const SizedBox(width: 12),
+                  Text(l10n.keycardPreparingReader,
+                      style: TextStyle(color: Colors.grey.shade400)),
+                ],
+              ),
+            _KeycardStage.alreadyConfigured =>
+              _buildKeycardAlreadyConfigured(l10n),
+            _KeycardStage.cards => _buildKeycardCardsStage(l10n),
+            _KeycardStage.cardsReview => _buildKeycardCardsReview(l10n),
+            _KeycardStage.master => _buildKeycardMasterStage(l10n),
+          },
+        ],
       ),
     );
   }
@@ -6482,7 +8287,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
       children: [
         Text(
           l10n.keycardEntryAlreadyConfiguredBody(
-              _keycardMasterCount, _keycardAuthorizedCount),
+            _keycardMasterCount,
+            _keycardAuthorizedCount,
+          ),
           style: TextStyle(fontSize: 13, color: Colors.grey.shade300),
           textAlign: TextAlign.center,
         ),
@@ -6516,15 +8323,9 @@ class _InstallerScreenState extends State<InstallerScreen> {
           style: TextStyle(fontSize: 13, color: Colors.grey.shade300),
         ),
         const SizedBox(height: 16),
-        if (!_keycardLearning)
-          Center(
-            child: OutlinedButton.icon(
-              onPressed: _canDriveKeycard ? _startKeycardLearning : null,
-              icon: const Icon(Icons.nfc, size: 18),
-              label: Text(l10n.keycardStartLearning),
-            ),
-          )
-        else ...[
+        // Nothing to show before the first card: the action bar already
+        // carries Start, and having it here too made one screen ask twice.
+        if (_keycardLearning || _keycardAuthorizedCount > 0) ...[
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
@@ -6537,24 +8338,32 @@ class _InstallerScreenState extends State<InstallerScreen> {
               children: [
                 const Icon(Icons.contactless, size: 28, color: kAccent),
                 const SizedBox(height: 8),
-                Text(l10n.keycardLearningActive,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, color: kAccent)),
+                Text(
+                  l10n.keycardLearningActive,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: kAccent,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text(l10n.keycardLearningActiveHint,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+                Text(
+                  l10n.keycardLearningActiveHint,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                ),
                 const SizedBox(height: 8),
-                Text(l10n.keycardLearningTapped(_keycardSessionTapCount),
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: _keycardSessionTapCount > 0
-                          ? Colors.green
-                          : Colors.grey.shade400,
-                      fontWeight: _keycardSessionTapCount > 0
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                    )),
+                Text(
+                  l10n.keycardLearningTapped(_keycardSessionTapCount),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: _keycardSessionTapCount > 0
+                        ? Colors.green
+                        : Colors.grey.shade400,
+                    fontWeight: _keycardSessionTapCount > 0
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                ),
               ],
             ),
           ),
@@ -6577,23 +8386,163 @@ class _InstallerScreenState extends State<InstallerScreen> {
             ),
           ],
         ],
-        if (!_keycardLearning && (_keycardServiceCanMaster ?? false)) ...[
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: _keycardStartOver,
-            icon: const Icon(Icons.refresh, size: 18),
-            label: Text(l10n.keycardStartOverButton),
-          ),
-        ],
-        if (!_keycardLearning) ...[
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: _skipKeycardSetupEntirely,
-            child: Text(l10n.skipKeycardSetup),
-          ),
-        ],
       ],
     );
+  }
+
+  /// The cards stage has three states and they used to share button slots, so
+  /// Start sat where Done had been a moment earlier and read as "start over".
+  ///
+  ///   nothing enrolled : Skip .......... Start
+  ///   learning         : ................ Stop learning
+  ///   cards enrolled   : Start over ... Add more, Finish
+  ///
+  /// Skip is gone once a card is on file: the setup has happened, so the only
+  /// question left is whether to add more or move on.
+  /// Skip, Start/Stop and Finish, all three present at every point.
+  ///
+  /// The instructions on this screen tell the user to press Finish, so Finish
+  /// exists from the start; it is disabled until a card has actually been
+  /// taught in, which is the condition it depends on. Start becomes Stop while
+  /// the reader is scanning, so ending a scan and ending the step are separate
+  /// buttons rather than the same one under two names.
+  /// What is true right now: the reader, and the count that gates Finish.
+  Widget _keycardStatusPanel(AppLocalizations l10n) {
+    final scanning = _keycardLearning;
+    final preparing = _keycardStage == _KeycardStage.loading ||
+        _keycardStage == _KeycardStage.done;
+    final unreachable = _keycardCapability == KeycardCapability.unreachable;
+    final (state, colour) = switch ((preparing, unreachable, scanning)) {
+      (true, _, _) => (l10n.keycardReaderPreparing, Colors.grey.shade400),
+      // Nobody answered the capability probe, so there is no reader to hold a
+      // card to. Saying "Ready" here would be the panel's only lie.
+      (_, true, _) => (l10n.keycardReaderUnreachable, Colors.orange),
+      (_, _, true) => (l10n.keycardReaderScanning, Colors.amber),
+      _ => (l10n.keycardReaderReady, kAccent),
+    };
+    // Taps arrive as events before the count hash settles, so the running
+    // total leads with what this session has seen and falls back to the hash
+    // where that is higher, which is the case on a board that already had
+    // cards before the installer touched it.
+    final session = _keycardAuthorizedCountBefore + _keycardSessionTapCount;
+    final cards = session > _keycardAuthorizedCount
+        ? session
+        : _keycardAuthorizedCount;
+    final masters = _keycardMasterCount;
+
+    Widget line(String text) => Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Text(text, style: const TextStyle(fontSize: 13)),
+        );
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: colour.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colour.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 9,
+                height: 9,
+                decoration:
+                    BoxDecoration(shape: BoxShape.circle, color: colour),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  state,
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold, color: colour, fontSize: 14),
+                ),
+              ),
+            ],
+          ),
+          line(l10n.keycardCardsTaught(cards)),
+          // Only when one exists: a scooter with no master card is the
+          // ordinary case and a zero here would read as something missing.
+          if (masters > 0) line(l10n.keycardMastersRegistered(masters)),
+          if (cards == 0 && !unreachable) ...[
+            const SizedBox(height: 12),
+            Text(
+              l10n.keycardNeedOneToFinish,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  List<PhaseAction> _keycardCardsActions(AppLocalizations l10n) {
+    // A tap this session counts even before the hash catches up: learn:stop
+    // can take seconds to settle on a freshly flashed eMMC.
+    final taught = _keycardAuthorizedCount > 0 || _keycardSessionTapCount > 0;
+    return [
+      if (!_keycardLearning && (_keycardServiceCanMaster ?? false))
+        PhaseAction(
+          label: l10n.keycardStartOverButton,
+          icon: Icons.refresh,
+          side: ActionSide.back,
+          onPressed: _keycardStartOver,
+        ),
+      PhaseAction(
+        label: l10n.skipKeycardSetup,
+        side: ActionSide.forward,
+        onPressed: () => _skipKeycardSetup(confirmFirst: !taught),
+      ),
+      PhaseAction(
+        label: _keycardLearning
+            ? l10n.keycardStopScanning
+            : (taught ? l10n.keycardAddMore : l10n.keycardStartLearning),
+        icon: _keycardLearning ? Icons.stop : Icons.nfc,
+        onPressed: _canDriveKeycard
+            ? (_keycardLearning
+                ? () => _stopKeycardLearning(advance: false)
+                : _startKeycardLearning)
+            : null,
+      ),
+      PhaseAction(
+        label: l10n.keycardFinishCards,
+        icon: Icons.check,
+        primary: true,
+        onPressed: taught ? () => _stopKeycardLearning() : null,
+      ),
+    ];
+  }
+
+  /// Leaving the step. Skipping with nothing taught in is the one route that
+  /// asks first: it is a click away from a scooter with no card, and the
+  /// button sits next to Finish.
+  Future<void> _skipKeycardSetup({required bool confirmFirst}) async {
+    if (confirmFirst) {
+      final l10n = AppLocalizations.of(context)!;
+      final go = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(l10n.keycardSkipConfirmTitle),
+          content: Text(l10n.keycardSkipConfirmBody),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(l10n.cancelButton),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(l10n.keycardSkipConfirmAction),
+            ),
+          ],
+        ),
+      );
+      if (go != true) return;
+    }
+    await _skipKeycardSetupEntirely();
   }
 
   Widget _buildKeycardCardsReview(AppLocalizations l10n) {
@@ -6615,8 +8564,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
               const Icon(Icons.check_circle, color: Colors.green, size: 20),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(l10n.keycardLearnedAck(_keycardSessionTapCount),
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade200)),
+                child: Text(
+                  l10n.keycardLearnedAck(_keycardSessionTapCount),
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade200),
+                ),
               ),
             ],
           ),
@@ -6663,7 +8614,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
           decoration: BoxDecoration(
             color: Colors.redAccent.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.redAccent.withValues(alpha: 0.6), width: 1.5),
+            border: Border.all(
+              color: Colors.redAccent.withValues(alpha: 0.6),
+              width: 1.5,
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -6671,45 +8625,104 @@ class _InstallerScreenState extends State<InstallerScreen> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.warning_amber_rounded,
-                      color: Colors.redAccent, size: 22),
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    color: Colors.redAccent,
+                    size: 22,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(l10n.keycardMasterStageWarningHeading,
-                        style: const TextStyle(
-                          color: Colors.redAccent,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        )),
+                    child: Text(
+                      l10n.keycardMasterStageWarningHeading,
+                      style: const TextStyle(
+                        color: Colors.redAccent,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              Text(l10n.keycardMasterStageWarningBody,
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade200)),
+              Text(
+                l10n.keycardMasterStageWarningBody,
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade200),
+              ),
             ],
           ),
         ),
         const SizedBox(height: 16),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: kAccent.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: kAccent.withValues(alpha: 0.3)),
-          ),
-          child: Column(
-            children: [
-              const Icon(Icons.contactless, size: 28, color: kAccent),
-              const SizedBox(height: 8),
-              Text(l10n.keycardMasterStageHint,
+        // Asking for a tap is only true while the vehicle is listening for
+        // one. When the stage could not be started, the same slot says so
+        // instead, because a card held against a reader that was never put
+        // into master mode does nothing and looks identical to waiting.
+        if (_keycardMasterStartError == null)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: kAccent.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: kAccent.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              children: [
+                const Icon(Icons.contactless, size: 28, color: kAccent),
+                const SizedBox(height: 8),
+                Text(
+                  l10n.keycardMasterStageHint,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                      fontWeight: FontWeight.bold, color: kAccent)),
-            ],
+                    fontWeight: FontWeight.bold,
+                    color: kAccent,
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.redAccent.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 22,
+                      color: Colors.redAccent,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        l10n.keycardMasterStageStartFailed,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SelectableText(
+                  _keycardMasterStartError!,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    color: Colors.redAccent,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
         if (_keycardToastMessage != null) ...[
           const SizedBox(height: 12),
           Container(
@@ -6718,18 +8731,30 @@ class _InstallerScreenState extends State<InstallerScreen> {
             decoration: BoxDecoration(
               color: _keycardToastColor.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: _keycardToastColor.withValues(alpha: 0.4)),
+              border: Border.all(
+                color: _keycardToastColor.withValues(alpha: 0.4),
+              ),
             ),
-            child: Text(_keycardToastMessage!,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: _keycardToastColor,
-                  fontWeight: FontWeight.w600,
-                )),
+            child: Text(
+              _keycardToastMessage!,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: _keycardToastColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
         const SizedBox(height: 16),
+        if (_keycardMasterStartError != null) ...[
+          FilledButton.icon(
+            onPressed: () => _keycardStartMasterStage(retry: true),
+            icon: const Icon(Icons.refresh),
+            label: Text(l10n.keycardMasterStageRetryButton),
+          ),
+          const SizedBox(height: 8),
+        ],
         FilledButton.icon(
           onPressed: () => _keycardStopMasterStage(advance: true),
           icon: const Icon(Icons.skip_next),
@@ -6743,9 +8768,10 @@ class _InstallerScreenState extends State<InstallerScreen> {
         ),
         if (_isDryRun) ...[
           const SizedBox(height: 16),
-          Text('[DRY RUN]',
-              style: TextStyle(
-                  fontSize: 11, color: Colors.grey.shade500)),
+          Text(
+            '[DRY RUN]',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+          ),
           const SizedBox(height: 4),
           TextButton.icon(
             onPressed: () =>
@@ -6755,7 +8781,8 @@ class _InstallerScreenState extends State<InstallerScreen> {
           ),
           TextButton.icon(
             onPressed: () => _keycardSimulateMasterEvent(
-                'rejected:already-authorized:CAFEBABE'),
+              'rejected:already-authorized:CAFEBABE',
+            ),
             icon: const Icon(Icons.block, size: 16),
             label: Text(l10n.keycardSimulateRejectedTapButton),
           ),
@@ -6765,114 +8792,195 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 
   Widget _buildFinish(AppLocalizations l10n) {
+    // The install is done by now; this is confirming the unlock landed, which
+    // is a wait like any other and takes the overlay rather than a frame with
+    // a spinner in it.
     if (_awaitingFinishHandover) {
-      return Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.lock_open, size: 56, color: kAccent),
-              const SizedBox(height: 20),
-              Text(
-                l10n.finishHandoverTitle,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                l10n.finishHandoverBody,
-                style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              const CircularProgressIndicator(),
-            ],
-          ),
-        ),
+      return _waitPhase(
+        title: l10n.finishHandoverTitle,
+        warning: l10n.finishHandoverBody,
       );
     }
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 720),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.celebration, size: 64, color: kAccent),
-            const SizedBox(height: 16),
-            Text(l10n.welcomeToLibrescoot,
-                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: kAccent)),
-            const SizedBox(height: 24),
-            Text(l10n.finalSteps, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 16),
-            // The dashboard path already swapped the cable back before the
-            // trampoline ran, so telling the user to do it again is wrong;
-            // what is left there is tightening the screws they were told to
-            // leave loose. An MDB-only run still has the laptop plugged in.
-            ..._finalSteps(l10n),
-            const SizedBox(height: 24),
-            _buildGettingStarted(l10n),
-            const SizedBox(height: 24),
-            CheckboxListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              title: Text(l10n.keepCachedDownloads),
-              subtitle: Text(l10n.mbOnDisk(_totalCacheSizeMb()),
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-              value: _keepCache,
-              onChanged: (v) => setState(() => _keepCache = v ?? false),
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () async {
-                if (!_keepCache) {
-                  await _offerCleanup();
-                }
-                if (mounted) exit(0);
-              },
-              icon: const Icon(Icons.check_circle),
-              label: Text(l10n.finished),
-            ),
-          ],
+    return PhaseLayout(
+      title: l10n.welcomeToLibrescoot,
+      actions: [
+        PhaseAction(
+          label: l10n.finished,
+          icon: Icons.check_circle,
+          primary: true,
+          onPressed: () async {
+            if (!_keepCache) {
+              await _offerCleanup();
+            }
+            if (mounted) exit(0);
+          },
         ),
+      ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.celebration, size: 40, color: kAccent),
+          const SizedBox(height: 12),
+          // The reassembly steps are the same on every route, but what they
+          // set in motion is not: on the trampoline routes reconnecting the
+          // cable starts work on the board, and the screen used to end the
+          // conversation right where that begins.
+          _finishWhatHappensNext(l10n),
+          const SizedBox(height: 16),
+          Text(
+            l10n.finalSteps,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+          const SizedBox(height: 8),
+          // The dashboard path already swapped the cable back before the
+          // trampoline ran, so telling the user to do it again is wrong;
+          // what is left there is tightening the screws they were told to
+          // leave loose. An MDB-only run still has the laptop plugged in.
+          ..._finalSteps(l10n),
+          const SizedBox(height: 16),
+          // The one part of this screen about actually using the scooter, so
+          // it is open rather than an expander at the bottom. It carries its
+          // own heading and the handbook and website links.
+          _buildGettingStarted(l10n),
+          const SizedBox(height: 12),
+          CheckboxListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: Text(l10n.keepCachedDownloads),
+            subtitle: Text(
+              l10n.mbOnDisk(_totalCacheSizeMb()),
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+            ),
+            value: _keepCache,
+            onChanged: (v) => setState(() => _keepCache = v ?? false),
+          ),
+        ],
       ),
     );
   }
 
-  /// The last physical steps, which differ by how the install ended. Both
-  /// paths now unlock the scooter themselves, so neither asks the user to.
+  /// What the reassembly steps set in motion, which differs by route.
+  ///
+  /// Any run that started the trampoline continues on the board after the
+  /// cable goes back: that is what arms _deviceFinishArmed, and the trampoline
+  /// is always given onDevice, so there is no variant that hands back to the
+  /// laptop. Whether the dashboard is being written on top of that is the
+  /// plan's own answer, since tiles alone also require the handoff.
+  Widget _finishWhatHappensNext(AppLocalizations l10n) {
+    final continues = _deviceFinishArmed;
+    final flashesDbc = continues && (_plan?.needsDbcWork ?? false);
+    final body = !continues
+        ? l10n.finishNextNothing
+        : (flashesDbc ? l10n.finishNextDbcFlash : l10n.finishNextOnDevice);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: (continues ? Colors.amber : kAccent).withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: (continues ? Colors.amber : kAccent).withValues(alpha: 0.35),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            continues ? Icons.autorenew : Icons.check_circle_outline,
+            size: 20,
+            color: continues ? Colors.amber : kAccent,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.finishNextHeading,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  body,
+                  style: TextStyle(
+                      fontSize: 13, height: 1.4, color: Colors.grey.shade300),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The last physical steps. Both paths unlock the scooter themselves, so
+  /// neither asks the user to.
   List<Widget> _finalSteps(AppLocalizations l10n) {
-    final swapped = _deviceFinishArmed;
+    final swapped = dashboardCableIsBack(
+      laptopSeesBoard: _device != null,
+      deviceFinishArmed: _deviceFinishArmed,
+    );
     final steps = <({String title, String description})>[
       if (!swapped)
         (
           title: l10n.disconnectUsbFromLaptopFinal,
-          description: l10n.disconnectUsbFromLaptopFinalDesc
+          description: l10n.disconnectUsbFromLaptopFinalDesc,
         ),
       if (!swapped)
         (
           title: l10n.reconnectDbcUsbCable,
-          description: l10n.reconnectDbcUsbCableDesc
+          description: l10n.reconnectDbcUsbCableDesc,
         ),
       if (swapped)
         (title: l10n.tightenDbcCable, description: l10n.tightenDbcCableDesc),
       (
         title: l10n.closeSeatboxAndFootwell,
-        description: l10n.closeSeatboxAndFootwellDesc
+        description: l10n.closeSeatboxAndFootwellDesc,
       ),
       (title: l10n.finalRide, description: l10n.finalRideDesc),
     ];
+    // One line each. These are physical steps someone is looking at while
+    // they do them, so the titles carry it. Only the last keeps its
+    // description, because it says the one thing the scooter cannot: that it
+    // has already unlocked itself, and what to do if it has not.
     return [
       for (var i = 0; i < steps.length; i++)
-        InstructionStep(
-          number: i + 1,
-          title: steps[i].title,
-          description: steps[i].description,
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 20,
+                child: Text('${i + 1}.',
+                    style:
+                        TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(steps[i].title,
+                        style: const TextStyle(fontSize: 13)),
+                    if (i == steps.length - 1) ...[
+                      const SizedBox(height: 2),
+                      Text(steps[i].description,
+                          style: TextStyle(
+                              fontSize: 12,
+                              height: 1.3,
+                              color: Colors.grey.shade400)),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
     ];
   }
 
-  Widget _buildGettingStarted(AppLocalizations l10n) {
+  Widget _buildGettingStarted(AppLocalizations l10n, {bool showTitle = true}) {
     final isGerman = Localizations.localeOf(context).languageCode == 'de';
     final handbookUrl = isGerman
         ? 'https://librescoot.org/handbook/'
@@ -6880,7 +8988,7 @@ class _InstallerScreenState extends State<InstallerScreen> {
     const websiteUrl = 'https://librescoot.org/';
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         border: Border.all(color: kAccent.withValues(alpha: 0.4)),
         borderRadius: BorderRadius.circular(8),
@@ -6889,29 +8997,63 @@ class _InstallerScreenState extends State<InstallerScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.lightbulb_outline, size: 20, color: kAccent),
-              const SizedBox(width: 8),
-              Text(l10n.gettingStartedTitle,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: kAccent)),
-            ],
+          if (showTitle) ...[
+            Row(
+              children: [
+                const Icon(Icons.lightbulb_outline, size: 20, color: kAccent),
+                const SizedBox(width: 8),
+                Text(
+                  l10n.gettingStartedTitle,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: kAccent,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+          _buildTip(
+            Icons.menu_open,
+            l10n.gettingStartedOpenMenuTitle,
+            l10n.gettingStartedOpenMenuDesc,
           ),
-          const SizedBox(height: 16),
-          _buildTip(Icons.menu_open, l10n.gettingStartedOpenMenuTitle, l10n.gettingStartedOpenMenuDesc),
-          _buildTip(Icons.swipe_vertical, l10n.gettingStartedDriveMenuTitle, l10n.gettingStartedDriveMenuDesc),
-          _buildTip(Icons.system_update_alt, l10n.gettingStartedUpdateModeTitle, l10n.gettingStartedUpdateModeDesc),
-          _buildTip(Icons.navigation_outlined, l10n.gettingStartedNavigationTitle, l10n.gettingStartedNavigationDesc),
+          _buildTip(
+            Icons.swipe_vertical,
+            l10n.gettingStartedDriveMenuTitle,
+            l10n.gettingStartedDriveMenuDesc,
+          ),
+          _buildTip(
+            Icons.system_update_alt,
+            l10n.gettingStartedUpdateModeTitle,
+            l10n.gettingStartedUpdateModeDesc,
+          ),
+          _buildTip(
+            Icons.navigation_outlined,
+            l10n.gettingStartedNavigationTitle,
+            l10n.gettingStartedNavigationDesc,
+          ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 16,
             runSpacing: 4,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Text(l10n.gettingStartedFooter,
-                  style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
-              _buildLinkButton(Icons.open_in_new, l10n.gettingStartedLinkWebsite, websiteUrl),
-              _buildLinkButton(Icons.menu_book_outlined, l10n.gettingStartedLinkHandbook, handbookUrl),
+              Text(
+                l10n.gettingStartedFooter,
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+              ),
+              _buildLinkButton(
+                Icons.open_in_new,
+                l10n.gettingStartedLinkWebsite,
+                websiteUrl,
+              ),
+              _buildLinkButton(
+                Icons.menu_book_outlined,
+                l10n.gettingStartedLinkHandbook,
+                handbookUrl,
+              ),
             ],
           ),
         ],
@@ -6931,9 +9073,22 @@ class _InstallerScreenState extends State<InstallerScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(description, style: TextStyle(color: Colors.grey.shade400, fontSize: 13, height: 1.4)),
+                Text(
+                  description,
+                  style: TextStyle(
+                    color: Colors.grey.shade400,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
               ],
             ),
           ),
@@ -6960,14 +9115,15 @@ class _InstallerScreenState extends State<InstallerScreen> {
     final uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(url)),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(url)));
     }
   }
 
   String _totalCacheSizeMb() {
-    final total = _downloadState.items.fold<int>(0, (sum, i) => sum + i.expectedSize);
+    final total = _downloadState.items.fold<int>(
+      0,
+      (sum, i) => sum + i.expectedSize,
+    );
     return (total / 1024 / 1024).toStringAsFixed(0);
   }
 
@@ -7029,6 +9185,19 @@ class _InstallerScreenState extends State<InstallerScreen> {
   }
 }
 
+/// Whether the dashboard's USB cable is the one currently in the MDB.
+///
+/// The board has a single USB port, so the laptop and the dashboard cannot
+/// both be in it. The laptop seeing the board is proof its own cable is in
+/// that port, whatever the run did earlier: someone who plugged back in to
+/// read a log must not be told the dashboard cable is already seated. With no
+/// link, an armed device-run finish means the user swapped it over before
+/// walking away, and tightening the screws is all that is left.
+bool dashboardCableIsBack({
+  required bool laptopSeesBoard,
+  required bool deviceFinishArmed,
+}) => !laptopSeesBoard && deviceFinishArmed;
+
 /// An install failure whose message is already in the user's language.
 /// [toString] is the message itself because the artifact screen renders
 /// `e.toString()` straight into the same slot as mender's stderr.
@@ -7042,6 +9211,10 @@ class _LocalizedInstallException implements Exception {
 }
 
 class _ManualPasswordDialog extends StatefulWidget {
+  /// Returned when the user says they do not know the password, as distinct
+  /// from cancelling. Not a password anyone could set: the field rejects it.
+  static const unknown = '\u0000unknown';
+
   final String? version;
   final int previousAttempts;
   final int maxAttempts;
@@ -7117,6 +9290,14 @@ class _ManualPasswordDialogState extends State<_ManualPasswordDialog> {
         TextButton(
           onPressed: () => Navigator.of(context).pop(null),
           child: Text(l10n.cancelButton),
+        ),
+        // Distinct from Cancel: cancelling is changing your mind, this is not
+        // having the answer, and the two want different next steps. Reported
+        // as its own value so the caller can say where to find it.
+        TextButton(
+          onPressed: () =>
+              Navigator.of(context).pop(_ManualPasswordDialog.unknown),
+          child: Text(l10n.manualPasswordUnknown),
         ),
         FilledButton(
           onPressed: _submit,
