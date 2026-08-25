@@ -160,12 +160,17 @@ class InstallPlanPanel extends StatelessWidget {
         _ => null,
       };
 
+  /// The board's version with the distribution it belongs to, since the two
+  /// use overlapping numbering and a bare number says nothing about which.
   String _versionLabel(AppLocalizations l10n, BoardState state) {
     final version = state.version;
     if (version == null || version.isEmpty) return l10n.boardVersionUnknown;
+    final named =
+        '${state.isLibrescoot ? l10n.distroLibrescoot : l10n.distroStock} '
+        '$version';
     return state.provenance == StateProvenance.lastSeen
-        ? l10n.boardVersionLastSeen(version)
-        : l10n.boardVersionCurrent(version);
+        ? l10n.boardVersionLastSeen(named)
+        : l10n.boardVersionCurrent(named);
   }
 
   String _actionLabel(AppLocalizations l10n, BoardAction action) =>

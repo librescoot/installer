@@ -2717,8 +2717,20 @@ abstract class AppLocalizations {
   /// No description provided for @healthVersionPlan.
   ///
   /// In en, this message translates to:
-  /// **'Installed {current}, installing {target}'**
+  /// **'Currently installed: {current} - To install: {target}'**
   String healthVersionPlan(String current, String target);
+
+  /// No description provided for @distroStock.
+  ///
+  /// In en, this message translates to:
+  /// **'unu scooterOS'**
+  String get distroStock;
+
+  /// No description provided for @distroLibrescoot.
+  ///
+  /// In en, this message translates to:
+  /// **'Librescoot'**
+  String get distroLibrescoot;
 
   /// No description provided for @healthAuxVoltage.
   ///

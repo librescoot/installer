@@ -3250,6 +3250,28 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     setState(() => _reconnectDiagnostics = snapshot.trim());
   }
 
+  /// What is on the board, named. A bare version number does not say which
+  /// distribution it belongs to, and the two use overlapping numbering.
+  String _installedVersionLabel(AppLocalizations l10n) {
+    final version = _mdbInfo?.firmwareVersion ?? '';
+    final distro =
+        _isLibrescootFirmware ? l10n.distroLibrescoot : l10n.distroStock;
+    return version.isEmpty ? distro : '$distro $version';
+  }
+
+  /// What the run intends to put there, with the channel it came from, since
+  /// stable and nightly of the same version are different artifacts.
+  String? _targetVersionLabel(AppLocalizations l10n) {
+    final tag = _downloadState.releaseTag;
+    if (tag == null || tag.isEmpty) return null;
+    final channel = switch (_downloadState.channel) {
+      DownloadChannel.stable => l10n.channelStable,
+      DownloadChannel.testing => l10n.channelTesting,
+      DownloadChannel.nightly => l10n.channelNightly,
+    };
+    return '${l10n.distroLibrescoot} $channel $tag';
+  }
+
   bool get _isLibrescootFirmware {
     // /etc/os-release ID= is the authoritative discriminator. Stable
     // Librescoot ships VERSION_ID=1.0.1, indistinguishable from stock by
@@ -3464,14 +3486,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         children: [
           // The current version alone does not say whether this run is an
           // upgrade, a reinstall or a downgrade, which is the question someone
-          // reads this screen to answer. The target is known by now.
+          // reads this screen to answer. Both sides name their distribution,
+          // since a bare version number does not say which one it belongs to.
           if (_mdbInfo != null)
             Text(
               _downloadState.releaseTag == null
-                  ? l10n.firmwareVersionDisplay(_mdbInfo!.firmwareVersion)
+                  ? l10n.firmwareVersionDisplay(_installedVersionLabel(l10n))
                   : l10n.healthVersionPlan(
-                      _mdbInfo!.firmwareVersion,
-                      _downloadState.releaseTag!,
+                      _installedVersionLabel(l10n),
+                      _targetVersionLabel(l10n) ?? _downloadState.releaseTag!,
                     ),
               style: TextStyle(color: Colors.grey.shade400),
             ),

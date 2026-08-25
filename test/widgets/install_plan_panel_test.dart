@@ -42,7 +42,10 @@ void main() {
 
     expect(find.text('MDB (main board)'), findsOneWidget);
     expect(find.text('DBC (dashboard)'), findsOneWidget);
-    expect(find.text('Currently v1.2.0'), findsOneWidget);
+    // The distribution is named alongside the version: the two use
+    // overlapping numbering, so a bare number says nothing about which one it
+    // belongs to.
+    expect(find.text('Currently Librescoot v1.2.0'), findsOneWidget);
     expect(find.text('Version unknown'), findsOneWidget);
   });
 

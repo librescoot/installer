@@ -1547,8 +1547,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String healthVersionPlan(String current, String target) {
-    return 'Installiert $current, wird installiert $target';
+    return 'Aktuell installierte Version: $current - Zu installierende Version: $target';
   }
+
+  @override
+  String get distroStock => 'unu scooterOS';
+
+  @override
+  String get distroLibrescoot => 'Librescoot';
 
   @override
   String healthAuxVoltage(int mv) {
