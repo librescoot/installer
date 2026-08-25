@@ -75,18 +75,23 @@ if [ -e "$tries" ]; then
 fi
 ''';
 
+  /// Librescoot units only, and deliberately. This recovers a board an earlier
+  /// install left masked, which is a state only a Librescoot board reaches: a
+  /// stock board is one this installer has not touched yet.
+  ///
+  /// Unit names, not binary names. Librescoot ships `librescoot-<x>` units
+  /// running `<x>-service` binaries, so `keycard-service` matched nothing here
+  /// and never could.
   @visibleForTesting
   static const interruptedInstallServiceRecoveryCommand = r'''
 set -eu
-units='librescoot-keycard keycard-service librescoot-bluetooth librescoot-ums'
+units='librescoot-keycard librescoot-bluetooth librescoot-ums'
 systemctl unmask $units >/dev/null 2>&1 || true
 systemctl start librescoot-bluetooth
 systemctl start librescoot-ums
 
 if [ "$(systemctl show -p LoadState --value librescoot-keycard 2>/dev/null || true)" = loaded ]; then
   systemctl start librescoot-keycard
-elif [ "$(systemctl show -p LoadState --value keycard-service 2>/dev/null || true)" = loaded ]; then
-  systemctl start keycard-service
 fi
 
 for unit in $units; do
@@ -484,7 +489,8 @@ done
     // Stop power manager to prevent suspend/hibernate during flashing
     try {
       await runCommand(
-        'systemctl stop librescoot-pm 2>/dev/null; systemctl stop pm-service 2>/dev/null; systemctl stop unu-pm 2>/dev/null; true',
+        'systemctl stop librescoot-pm 2>/dev/null; '
+        'systemctl stop unu-pm 2>/dev/null; true',
       );
       debugPrint('SSH: stopped power manager');
     } catch (_) {}
@@ -1597,8 +1603,8 @@ done
   /// vehicle unit in it. Emitting `unknown` for that keeps a board that has not
   /// finished starting from being reported as a board with no stack.
   ///
-  /// The vehicle unit is `librescoot-vehicle` or `unu-vehicle`. Never
-  /// `vehicle-service`, whatever else in this file spells it that way.
+  /// The vehicle unit is `librescoot-vehicle` or `unu-vehicle`.
+  /// `vehicle-service` is the binary Librescoot's unit runs, never a unit.
   @visibleForTesting
   static const stackProbeScript =
       r'''command -v redis-cli >/dev/null 2>&1 || { echo none; exit 0; }; '''
@@ -1691,8 +1697,7 @@ done
   /// rejects anything else.
   Future<void> deactivateMainBattery() async {
     await runCommand(
-      'systemctl stop unu-vehicle vehicle-service librescoot-vehicle '
-      '2>/dev/null; true',
+      'systemctl stop unu-vehicle librescoot-vehicle 2>/dev/null; true',
     );
     await runCommand(
       "redis-cli hset vehicle seatbox:lock open >/dev/null && "
@@ -1714,8 +1719,7 @@ done
       "redis-cli publish vehicle seatbox:lock >/dev/null; true",
     );
     await runCommand(
-      'systemctl start unu-vehicle vehicle-service librescoot-vehicle '
-      '2>/dev/null; true',
+      'systemctl start unu-vehicle librescoot-vehicle 2>/dev/null; true',
     );
   }
 

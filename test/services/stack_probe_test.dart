@@ -129,6 +129,20 @@ void main() {
       expect(SshService.stackProbeScript, isNot(contains('vehicle-service')));
     });
 
+    test('the recovery command names units, not binaries', () {
+      // Librescoot ships librescoot-<x> units running <x>-service binaries;
+      // stock ships unu-<x> for both. Naming a binary to systemctl matches
+      // nothing, which is why a stock keycard was never started.
+      // Librescoot units only: this recovers a board an earlier install left
+      // masked, and a stock board has not been touched by the installer.
+      const cmd = SshService.interruptedInstallServiceRecoveryCommand;
+      expect(cmd, contains('librescoot-keycard'));
+      expect(cmd, isNot(contains('unu-')));
+      for (final binary in ['keycard-service', 'pm-service', 'vehicle-service']) {
+        expect(cmd, isNot(contains(binary)), reason: '$binary is a binary');
+      }
+    });
+
     test('a healthy stock board is not a bootstrap image', () {
       // Stock has a working vehicle stack under its own unit names and no
       // mender artifact at all. Reading that as a damaged Librescoot install

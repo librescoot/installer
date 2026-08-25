@@ -2724,7 +2724,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         // after disengaging auto-master-learn).
         try {
           await _sshService.runCommand(
-            'systemctl unmask librescoot-keycard keycard-service '
+            'systemctl unmask librescoot-keycard '
             'librescoot-bluetooth librescoot-ums 2>/dev/null; '
             'systemctl start librescoot-bluetooth librescoot-ums 2>/dev/null; true',
           );
