@@ -5,29 +5,37 @@ import 'package:librescoot_installer/services/usb_detector.dart';
 /// installer stops handing 192.168.7.50 to whatever `en` happened to be up
 /// without an address. This is the macOS twin of the Linux sysfs check.
 ///
-/// PROVENANCE. The device and interface levels below are real: the
-/// `0525:A4A2` header and its `IOUSBHostInterface` child are the sample
-/// already in usb_detector_ioreg_test.dart, captured on a Mac with the board
-/// attached, and a live watcher on that Mac confirmed with the same ioreg
-/// invocation this code uses that a "BSD Name" of `en12` does appear inside
-/// the `0525:A4A2` subtree while the board answered on 192.168.7.1.
+/// PROVENANCE. Measured, not invented. Captured on macOS 15.7.7 with a real
+/// board attached in ethernet gadget mode, indentation preserved.
 ///
-/// The driver nub between them is INVENTED. The real chain was not captured,
-/// and it is deliberately given an implausible name here so that no reader
-/// mistakes it for measurement, and so the test fails if the walk ever starts
-/// depending on the names of intermediate nodes rather than on the tree shape.
+/// The chain is four levels below the USB device and the leaf is NOT an
+/// IOEthernetInterface, which is worth knowing before anyone "tidies" this
+/// walk:
+///
+///   IOUSBHostDevice
+///     > AppleUSBCDCCompositeDevice   (!registered, !matched)
+///       > AppleUserECM
+///         > IOSkywalkLegacyEthernet  (!registered, !matched)
+///           > en12                   (IOSkywalkLegacyEthernetInterface)
+///
+/// Two of the four intermediate nodes are unmatched, so a walk that skipped
+/// unmatched nodes, or stopped at one as a dead branch, would never reach the
+/// interface. And the leaf class is IOSkywalkLegacyEthernetInterface, so a walk
+/// that matched on the class name rather than on the "BSD Name" key would fail
+/// here while passing every fixture written from expectation.
+///
+/// Skywalk is the newer networking stack, so this depth and these names are
+/// release-dependent. That is why the walk tracks indent and nothing else.
 const _ethernetWithInterface = '''
-  +-o RNDIS_Ethernet Gadget@01100000  <class IOUSBHostDevice, id 0x10002f111>
+  +-o RNDIS/Ethernet Gadget@00100000  <class IOUSBHostDevice, registered, matched>
     |   "idProduct" = 42146
-    |   "USB Product Name" = "RNDIS_Ethernet Gadget"
     |   "idVendor" = 1317
-    | +-o IOUSBHostInterface@0  <class IOUSBHostInterface>
-    |   |   "idProduct" = 42146
-    |   |   "idVendor" = 1317
-    |   | +-o SomeNubWhoseRealNameWeHaveNotCaptured  <class IOService>
-    |   |     +-o en12  <class IOEthernetInterface, id 0x10002fc10>
-    |   |       |   "BSD Name" = "en12"
-    |   |       |   "IOInterfaceType" = 6
+    +-o AppleUSBCDCCompositeDevice  <class AppleUSBCDCCompositeDevice, !registered, !matched>
+    | |   "idVendor" = 1317
+    | +-o AppleUserECM  <class IOUserNetworkEthernet, registered, matched>
+    |   +-o IOSkywalkLegacyEthernet  <class IOSkywalkLegacyEthernet, !registered, !matched>
+    |   | +-o en12  <class IOSkywalkLegacyEthernetInterface, registered, matched>
+    |   |   |   "BSD Name" = "en12"
 ''';
 
 /// A dock's gigabit adapter enumerated alongside the MDB. Different vendor,
@@ -44,10 +52,11 @@ const _gadgetBesideADock = '''
   +-o RNDIS_Ethernet Gadget@01100000  <class IOUSBHostDevice, id 0x10002f111>
     |   "idProduct" = 42146
     |   "idVendor" = 1317
-    | +-o IOUSBHostInterface@0  <class IOUSBHostInterface>
-    |   | +-o SomeNubWhoseRealNameWeHaveNotCaptured  <class IOService>
-    |   |     +-o en12  <class IOEthernetInterface, id 0x10002fc10>
-    |   |       |   "BSD Name" = "en12"
+    +-o AppleUSBCDCCompositeDevice  <class AppleUSBCDCCompositeDevice, !registered, !matched>
+    | +-o AppleUserECM  <class IOUserNetworkEthernet, registered, matched>
+    |   +-o IOSkywalkLegacyEthernet  <class IOSkywalkLegacyEthernet, !registered, !matched>
+    |   | +-o en12  <class IOSkywalkLegacyEthernetInterface, registered, matched>
+    |   |   |   "BSD Name" = "en12"
 ''';
 
 /// The MDB in mass storage, from usb_detector_ioreg_test.dart. No interface
@@ -115,6 +124,31 @@ void main() {
     |   |       |   "BSD Name" = "en12"
 ''';
     expect(UsbDetector.parseIoregEthernetInterface(hexForm), 'en12');
+  });
+
+  test('unmatched intermediate nodes do not stop the walk', () {
+    // Two of the four real intermediate nodes are !registered, !matched. A
+    // walk that treated an unmatched node as a dead branch would never reach
+    // the interface, and would do so only on hardware.
+    expect(_ethernetWithInterface, contains('!registered, !matched'));
+    expect(
+      UsbDetector.parseIoregEthernetInterface(_ethernetWithInterface),
+      'en12',
+    );
+  });
+
+  test('the leaf is found by its key, not by its class name', () {
+    // The real leaf is an IOSkywalkLegacyEthernetInterface, not an
+    // IOEthernetInterface. Matching on the class would pass any fixture
+    // written from expectation and fail on a real Mac.
+    expect(
+      _ethernetWithInterface,
+      isNot(contains('<class IOEthernetInterface')),
+    );
+    expect(
+      UsbDetector.parseIoregEthernetInterface(_ethernetWithInterface),
+      'en12',
+    );
   });
 
   test('empty and unrelated output yield nothing', () {
