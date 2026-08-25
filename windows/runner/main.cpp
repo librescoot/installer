@@ -26,8 +26,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
-  Win32Window::Size size(1100, 750);
-  if (!window.Create(L"librescoot_installer", origin, size)) {
+  // Same default as the Linux and macOS runners.
+  Win32Window::Size size(1280, 800);
+  if (!window.Create(L"Librescoot Installer", origin, size)) {
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);
