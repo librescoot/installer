@@ -5973,14 +5973,28 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
     return PhaseLayout(
       title: l10n.preparingDbcFlash,
+      subtitle: l10n.preparingDbcFlashSubtitle,
       actions: [
-        if (_dbcUploadReady)
+        if (_dbcUploadReady) ...[
+          // The plan decided there was dashboard work, and nothing between
+          // there and here re-examines it: the laptop occupies the MDB's only
+          // OTG port, so the dashboard cannot be probed and its presence is
+          // assumed the whole way. On a board that turns out not to have one,
+          // starting the trampoline arms a run that fails an hour later with a
+          // red LED, so leaving has to be an option here and not only after a
+          // failure.
+          PhaseAction(
+            label: l10n.skipToFinish,
+            side: ActionSide.back,
+            onPressed: busy ? null : () => _setPhase(InstallerPhase.finish),
+          ),
           PhaseAction(
             label: l10n.dbcReadyButton,
             icon: Icons.bolt,
             primary: true,
             onPressed: busy ? null : _startTrampoline,
-          )
+          ),
+        ]
         else if (!busy) ...[
           if (_dbcPrepBlocked)
             PhaseAction(
@@ -6014,6 +6028,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // A long stage with a progress bar and nothing else looks like the
+          // installer talking to itself. What it is doing, and why the DBC is
+          // not on the other end of the cable, belongs on the screen.
+          Text(
+            l10n.preparingDbcFlashExplainer,
+            style: TextStyle(
+                fontSize: 14, height: 1.5, color: Colors.grey.shade300),
+          ),
+          const SizedBox(height: 20),
           LinearProgressIndicator(value: _progress, minHeight: 6),
           const SizedBox(height: 16),
           if (_dbcPrepSubsteps.isNotEmpty)
