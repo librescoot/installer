@@ -1093,6 +1093,23 @@ done
     // If that fails, fall back to plain UMS bootcmd.
     // Use single quotes so the remote shell passes semicolons through
     // to fw_setenv as a single value argument.
+    //
+    // This bootcmd stays until an image is written, and putting it back early
+    // is not a courtesy but a hazard. UMS is the only state on this board
+    // reachable without a working Linux: entering it needs fw_setenv, which
+    // needs a booted rootfs. So a board parked here can always be flashed,
+    // and a board taken out of here that then fails to boot cannot be brought
+    // back without opening it up.
+    //
+    // Restoring the old bootcmd would also require knowing nothing has been
+    // written yet, which is not knowable: another instance may have started a
+    // write, and a partly written rootfs leaves an environment nobody should
+    // trust. Once anything has been written the only guaranteed-correct state
+    // is a complete image.
+    //
+    // A run abandoned at the flash screen therefore leaves the board in UMS on
+    // purpose. Relaunching picks it straight back up, which is what
+    // mdbDetectedUmsSkipping is for.
     final fullBootcmd =
         "$fwSetenvCmd $configFlag bootcmd 'fuse prog -y 0 5 0x00002860; "
         "fuse prog -y 0 6 0x00000010; ums 0 mmc 1'";
