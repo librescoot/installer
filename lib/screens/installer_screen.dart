@@ -19,6 +19,7 @@ import '../models/board_state.dart';
 import '../models/download_state.dart';
 import '../models/install_plan.dart';
 import '../l10n/phase_l10n.dart';
+import '../models/finish_handover.dart';
 import '../models/installer_phase.dart';
 import '../models/keycard_capability.dart';
 import '../models/phase_attempt.dart';
@@ -832,6 +833,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       return;
     }
 
+
     // Connected, but the device may have closed the install out itself while
     // we were unplugged, in which case redoing any of it is wrong: the
     // settings backup is already consumed, so a second restore would put
@@ -839,10 +841,22 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // The completion record is the device's own proof, not our assumption —
     // an armed trampoline that failed never writes one, and that run does
     // still need the laptop-side finish.
-    if (_deviceFinishArmed && await _deviceReportedFinished()) {
-      debugPrint(
-        'UI: device finished the install itself, skipping finish work',
-      );
+    //
+    // No answer at all is the third case, and the ordinary one once the
+    // trampoline is running: by then the cable is on the dashboard, so the
+    // session this would run over is gone even though the client still thinks
+    // it is up. Everything below needs that link, so there is nothing to do
+    // but show the finish screen and let the device close itself out, which
+    // is what it was armed to do.
+    final reported = await _deviceReportedFinished();
+    final todo = finishHandover(
+      dryRun: _isDryRun,
+      linkUp: _sshService.isConnected,
+      deviceArmed: _deviceFinishArmed,
+      deviceReported: reported,
+    );
+    if (todo == FinishHandover.none) {
+      debugPrint('UI: nothing for the laptop to finish (reported=$reported)');
       if (mounted) setState(() => _awaitingFinishHandover = false);
       return;
     }
@@ -975,9 +989,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   /// Whether the device wrote the completion record its autonomous finish
-  /// ends with. Any failure to ask counts as "no": redoing the finish is
-  /// wasteful, skipping one that never happened leaves the vehicle parked.
-  Future<bool> _deviceReportedFinished() async {
+  /// ends with. Null when the question could not be put: the answer then says
+  /// nothing about the install, only that there is no link to ask over, and
+  /// every step of the laptop-side finish needs that same link.
+  Future<bool?> _deviceReportedFinished() async {
     try {
       final out = await _sshService
           .runCommand('cat /data/last-install 2>/dev/null; true')
@@ -986,10 +1001,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         out,
       ).completedFor(_installRunId);
     } catch (e) {
-      debugPrint(
-        'UI: could not read the completion record ($e), finishing here',
-      );
-      return false;
+      debugPrint('UI: could not read the completion record ($e)');
+      return null;
     }
   }
 
