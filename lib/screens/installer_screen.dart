@@ -1236,7 +1236,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                         upgradingSteps: _upgradingSteps,
                         dbcMapsOnly: _dbcMapsOnly,
                         downloadItems: _downloadState.items,
-                        statusMessage: _statusMessage,
+                        // The last thing the run said is not what is happening
+                        // once the run is over. The finish screen is not a
+                        // wait, so the footer has nothing to report; only the
+                        // handover before it does.
+                        statusMessage: _currentPhase == InstallerPhase.finish &&
+                                !_awaitingFinishHandover
+                            ? null
+                            : _statusMessage,
                         isBusy: _isProcessing,
                         progress: _progress,
                         onShowLog: _showLogDialog,),
