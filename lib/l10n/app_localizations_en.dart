@@ -237,6 +237,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get channelNoReleases => 'No releases available';
 
   @override
+  String get manifestBundledNotice =>
+      'Offline: these versions come from the list built into this installer and may be out of date.';
+
+  @override
   String get loadingChannels => 'Loading available channels...';
 
   @override

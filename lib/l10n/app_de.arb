@@ -72,6 +72,7 @@
   "channelTestingDesc": "Neueste Features, evtl. Noch ungeschliffen",
   "channelNightlyDesc": "Täglich aus main gebaut, für Entwickler",
   "channelNoReleases": "Keine Releases verfügbar",
+  "manifestBundledNotice": "Offline: Diese Versionen stammen aus der im Installer hinterlegten Liste und sind womöglich veraltet.",
   "loadingChannels": "Verfügbare Kanäle werden geladen...",
   "region": "Region",
   "selectRegion": "Region auswählen",

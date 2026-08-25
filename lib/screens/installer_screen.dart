@@ -1447,6 +1447,25 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             )
           else
             _buildChannelSelector(l10n),
+          // The cards look the same whether the list came from the network or
+          // from the snapshot compiled into the app, so say which.
+          if (_downloadService.manifestIsBundled) ...[
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.cloud_off, size: 15, color: Colors.amber.shade300),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    l10n.manifestBundledNotice,
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.amber.shade200),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 24),
 
           // Region selection with skip checkbox inline
@@ -5470,7 +5489,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // The status line carries a live percentage. The step NAME must not, or
     // the list shows the figure it was built with for the whole install.
     final installing = l10n.artifactInstalling(0).split('(').first.trimRight();
+    // A retry arrives here with the session gone, and the first SSH call
+    // reconnects lazily inside the upload. Without a step for that, the
+    // transfer was shown as active and its clock running while there was no
+    // connection to transfer over, so the elapsed figure measured the wait for
+    // a reconnect and the estimate derived from it meant nothing.
+    final reconnecting = !_isDryRun && !_sshService.isConnected;
     _beginWait([
+      if (reconnecting)
+        WaitStep(
+            label: l10n.reconnectingSsh, typical: const Duration(seconds: 20)),
       WaitStep(
           label: l10n.artifactStaging, typical: const Duration(seconds: 60)),
       WaitStep(
@@ -5599,6 +5627,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           throw _LocalizedInstallException(_preflightMessage(l10n, preflight));
         }
 
+        if (reconnecting) {
+          // Explicitly, so the step is active while it actually happens.
+          _setStatus(l10n.reconnectingSsh);
+          await _sshService.ensureConnected('artifact retry');
+        }
         _setStatus(l10n.artifactStaging, progress: 0);
         await artifacts.stage(
           board: Board.mdb,

@@ -72,6 +72,7 @@
   "channelTestingDesc": "Latest features, may have rough edges",
   "channelNightlyDesc": "Built daily from main, for developers",
   "channelNoReleases": "No releases available",
+  "manifestBundledNotice": "Offline: these versions come from the list built into this installer and may be out of date.",
   "loadingChannels": "Loading available channels...",
   "region": "Region",
   "selectRegion": "Select your region",

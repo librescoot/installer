@@ -530,6 +530,12 @@ abstract class AppLocalizations {
   /// **'No releases available'**
   String get channelNoReleases;
 
+  /// No description provided for @manifestBundledNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline: these versions come from the list built into this installer and may be out of date.'**
+  String get manifestBundledNotice;
+
   /// No description provided for @loadingChannels.
   ///
   /// In en, this message translates to:

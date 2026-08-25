@@ -736,6 +736,11 @@ done
     return client;
   }
 
+  /// Re-establish the session if it is gone, for a caller that wants the
+  /// reconnect to happen at a point it can show rather than lazily inside the
+  /// next upload.
+  Future<void> ensureConnected(String operation) => _ensureConnected(operation);
+
   Future<void> _ensureConnected(String operation) async {
     if (_client != null) return;
     if (_lastPassword == null) {

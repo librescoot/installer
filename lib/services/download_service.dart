@@ -65,6 +65,11 @@ class DownloadService {
   ///   5. Bundled snapshot baked into the app at build time
   ///      (`assets/latest.json.fallback`) as a final fallback so the
   ///      installer can at least show channel choices when offline.
+  /// The release manifest came from the snapshot compiled into the app, not
+  /// from the network or a cache of it, so the versions on offer are as old as
+  /// the build.
+  bool manifestIsBundled = false;
+
   Future<Map<String, dynamic>> _fetchLatest() async {
     // Which source answered, on every path and not only the failing ones. This
     // runs before the first useful screen and can take a network round trip,
@@ -128,6 +133,10 @@ class DownloadService {
 
     try {
       debugPrint('latest.json: using bundled fallback snapshot');
+      // The channels and versions the user is about to pick from were baked in
+      // at build time. The welcome screen looks identical either way, so it
+      // has to be told.
+      manifestIsBundled = true;
       final bundled = await rootBundle.loadString('assets/latest.json.fallback');
       _cachedLatest = jsonDecode(bundled) as Map<String, dynamic>;
       return _cachedLatest!;
