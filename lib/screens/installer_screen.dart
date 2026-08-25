@@ -3703,6 +3703,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         mdbState: _mdbState,
         dbcState: _dbcState,
         targetVersion: _downloadState.releaseTag ?? '',
+        tilesAvailable: _downloadState.wantsOfflineMaps,
         onChanged: (p) => setState(() => _plan = p),
       ),
     );

@@ -1991,13 +1991,13 @@ abstract class AppLocalizations {
   /// No description provided for @regionHint.
   ///
   /// In en, this message translates to:
-  /// **'For offline maps and navigation support'**
+  /// **'Which offline maps to download. Whether to install them is chosen later, with the rest of the plan'**
   String get regionHint;
 
   /// No description provided for @skipOfflineMaps.
   ///
   /// In en, this message translates to:
-  /// **'Skip offline maps'**
+  /// **'Do not download offline maps'**
   String get skipOfflineMaps;
 
   /// No description provided for @bluetoothPairingHeading.
@@ -2575,6 +2575,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Refreshing map tiles needs the DBC cable swap, even with the DBC left alone'**
   String get planTilesNeedDbcHandoff;
+
+  /// No description provided for @planInstallTiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Update the offline maps'**
+  String get planInstallTiles;
+
+  /// No description provided for @planInstallTilesDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Adds a dashboard step: the maps go to the main board, then the cable swaps back and the scooter copies them over.'**
+  String get planInstallTilesDetail;
+
+  /// No description provided for @planTilesNotDownloaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Not downloaded. Offline maps were skipped on the first screen.'**
+  String get planTilesNotDownloaded;
 
   /// No description provided for @actionLeaveBlockedStockMdb.
   ///

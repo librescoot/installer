@@ -468,8 +468,8 @@
       }
     }
   },
-  "regionHint": "For offline maps and navigation support",
-  "skipOfflineMaps": "Skip offline maps",
+  "regionHint": "Which offline maps to download. Whether to install them is chosen later, with the rest of the plan",
+  "skipOfflineMaps": "Do not download offline maps",
   "bluetoothPairingHeading": "Bluetooth pairing",
   "bluetoothPairingHint": "Pair your phone or other Bluetooth devices with the scooter.",
   "bleMacLabel": "BLE address",
@@ -628,6 +628,9 @@
   "upgradeBlockedMinimalImage": "This board is running a bootstrap image and has to be installed",
   "upgradeBlockedNoMender": "This board has no update client, so it can only be reinstalled",
   "planTilesNeedDbcHandoff": "Refreshing map tiles needs the DBC cable swap, even with the DBC left alone",
+  "planInstallTiles": "Update the offline maps",
+  "planInstallTilesDetail": "Adds a dashboard step: the maps go to the main board, then the cable swaps back and the scooter copies them over.",
+  "planTilesNotDownloaded": "Not downloaded. Offline maps were skipped on the first screen.",
   "actionLeaveBlockedStockMdb": "A stock main board has to be installed before anything else can be done",
   "planDbcNeedsLibrescootMdb": "The dashboard can only be reached through the MDB, and the tools that reach it are part of Librescoot. Install the MDB in this run, or leave the dashboard alone.",
   "planNothingToDo": "Nothing selected. Pick at least one action to continue.",

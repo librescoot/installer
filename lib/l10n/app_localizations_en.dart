@@ -1078,10 +1078,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get regionHint => 'For offline maps and navigation support';
+  String get regionHint =>
+      'Which offline maps to download. Whether to install them is chosen later, with the rest of the plan';
 
   @override
-  String get skipOfflineMaps => 'Skip offline maps';
+  String get skipOfflineMaps => 'Do not download offline maps';
 
   @override
   String get bluetoothPairingHeading => 'Bluetooth pairing';
@@ -1438,6 +1439,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get planTilesNeedDbcHandoff =>
       'Refreshing map tiles needs the DBC cable swap, even with the DBC left alone';
+
+  @override
+  String get planInstallTiles => 'Update the offline maps';
+
+  @override
+  String get planInstallTilesDetail =>
+      'Adds a dashboard step: the maps go to the main board, then the cable swaps back and the scooter copies them over.';
+
+  @override
+  String get planTilesNotDownloaded =>
+      'Not downloaded. Offline maps were skipped on the first screen.';
 
   @override
   String get actionLeaveBlockedStockMdb =>

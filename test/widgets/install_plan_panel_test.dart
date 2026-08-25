@@ -155,7 +155,12 @@ void main() {
     expect(seen!.mdb.action, BoardAction.leave);
   });
 
-  testWidgets('warns that tiles need the cable swap', (tester) async {
+  testWidgets('the maps are a choice here and say what they cost',
+      (tester) async {
+    // The welcome screen decides whether to DOWNLOAD them, which reads as a
+    // size choice. Whether to install them belongs with the rest of what this
+    // run will do, and the cost is a dashboard step the user did not ask for.
+    InstallPlan? seen;
     final plan = InstallPlan(
       mdb: const BoardPlan(board: Board.mdb, action: BoardAction.upgrade),
       dbc: const BoardPlan(board: Board.dbc, action: BoardAction.leave),
@@ -166,11 +171,42 @@ void main() {
       mdbState: _mdbState,
       dbcState: _stockDbc,
       targetVersion: 'v1.2.1',
-      onChanged: (_) {},
+      onChanged: (p) => seen = p,
     )));
 
-    expect(
-        find.textContaining('needs the DBC cable swap'), findsOneWidget);
+    expect(find.text('Update the offline maps'), findsOneWidget);
+    expect(find.textContaining('Adds a dashboard step'), findsOneWidget);
+
+    await tester.ensureVisible(find.byType(CheckboxListTile));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(CheckboxListTile));
+    await tester.pump();
+    expect(seen, isNotNull);
+    expect(seen!.installTiles, isFalse);
+  });
+
+  testWidgets('maps that were never downloaded cannot be chosen here',
+      (tester) async {
+    InstallPlan? seen;
+    await tester.pumpWidget(_host(InstallPlanPanel(
+      plan: InstallPlan(
+        mdb: const BoardPlan(board: Board.mdb, action: BoardAction.upgrade),
+        dbc: const BoardPlan(board: Board.dbc, action: BoardAction.leave),
+        installTiles: false,
+      ),
+      mdbState: _mdbState,
+      dbcState: _stockDbc,
+      targetVersion: 'v1.2.1',
+      tilesAvailable: false,
+      onChanged: (p) => seen = p,
+    )));
+
+    expect(find.textContaining('Not downloaded'), findsOneWidget);
+    await tester.ensureVisible(find.byType(CheckboxListTile));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(CheckboxListTile));
+    await tester.pump();
+    expect(seen, isNull, reason: 'a disabled control must not change the plan');
   });
 
   testWidgets('says so when the plan selects nothing', (tester) async {

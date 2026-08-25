@@ -1085,10 +1085,11 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get regionHint => 'Für Offline-Karten und Navigationsunterstützung';
+  String get regionHint =>
+      'Welche Offline-Karten heruntergeladen werden. Ob sie installiert werden, wird später mit dem Rest des Plans entschieden';
 
   @override
-  String get skipOfflineMaps => 'Offline-Karten überspringen';
+  String get skipOfflineMaps => 'Offline-Karten nicht herunterladen';
 
   @override
   String get bluetoothPairingHeading => 'Bluetooth-Kopplung';
@@ -1450,6 +1451,17 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get planTilesNeedDbcHandoff =>
       'Für neue Kartendaten muss das DBC-Kabel umgesteckt werden, auch wenn das DBC unverändert bleibt';
+
+  @override
+  String get planInstallTiles => 'Offline-Karten aktualisieren';
+
+  @override
+  String get planInstallTilesDetail =>
+      'Fügt einen DBC-Schritt hinzu: Die Karten wandern auf das MDB, dann wird das Kabel zurückgesteckt und der Roller kopiert sie selbst.';
+
+  @override
+  String get planTilesNotDownloaded =>
+      'Nicht heruntergeladen. Offline-Karten wurden im ersten Schritt übersprungen.';
 
   @override
   String get actionLeaveBlockedStockMdb =>

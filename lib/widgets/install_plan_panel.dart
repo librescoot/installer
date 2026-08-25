@@ -14,6 +14,7 @@ class InstallPlanPanel extends StatelessWidget {
     required this.dbcState,
     required this.targetVersion,
     required this.onChanged,
+    this.tilesAvailable = true,
   });
 
   final InstallPlan plan;
@@ -21,6 +22,10 @@ class InstallPlanPanel extends StatelessWidget {
   final BoardState dbcState;
   final String targetVersion;
   final ValueChanged<InstallPlan> onChanged;
+
+  /// The tiles were fetched, so installing them is a choice that can be made
+  /// here. Skipping the download on the first screen takes it away.
+  final bool tilesAvailable;
 
   @override
   Widget build(BuildContext context) {
@@ -37,12 +42,27 @@ class InstallPlanPanel extends StatelessWidget {
         const SizedBox(height: 12),
         _boardCard(context, l10n, l10n.boardDbc, dbcState, plan.dbc,
             (p) => onChanged(plan.withDbc(p))),
-        if (plan.installTiles && !plan.needsDbcWork)
-          Padding(
-            padding: const EdgeInsets.only(top: 16),
-            child: Text(l10n.planTilesNeedDbcHandoff,
-                style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 12),
+        // The maps used to be decided on the welcome screen, where the control
+        // reads as a download-size choice, and this screen only stated the
+        // consequence without offering a way to act on it. Every other part of
+        // what this run will do is chosen here, so the maps are too.
+        Card(
+          child: CheckboxListTile(
+            value: tilesAvailable && plan.installTiles,
+            onChanged: tilesAvailable
+                ? (v) => onChanged(plan.withTiles(v ?? false))
+                : null,
+            title: Text(l10n.planInstallTiles),
+            subtitle: Text(
+              tilesAvailable
+                  ? l10n.planInstallTilesDetail
+                  : l10n.planTilesNotDownloaded,
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+            controlAffinity: ListTileControlAffinity.leading,
           ),
+        ),
         if (plan.dbcWorkStrandedOn(mdbState))
           Padding(
             padding: const EdgeInsets.only(top: 16),
