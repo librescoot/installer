@@ -403,22 +403,36 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
       );
 
       if (result.exitCode != 0) {
-        // Configuring an interface needs root and the app does not have it on
-        // this path. That is survivable: the gadget serves DHCP, so macOS
-        // configures the interface itself moments later and the board becomes
-        // reachable without us. Say which of those two happened rather than
-        // logging a bare failure on a path that works.
-        final denied =
-            result.stderr.toString().toLowerCase().contains('permission denied');
+        final denied = result.stderr
+            .toString()
+            .toLowerCase()
+            .contains('permission denied');
+        // A machine that has run a successful install before carries a saved
+        // service configuration for this gadget, and macOS reapplies it when
+        // the interface returns. So the board can already be reachable and
+        // nothing here was needed. That is not a rescue and there is no DHCP
+        // lease behind it: `ipconfig getpacket` returns nothing on this link.
+        //
+        // On a machine that has never installed, there is no saved
+        // configuration to reapply and this is the only route, so a denial is
+        // the whole failure and the user has to be told what to do about it.
         await Future.delayed(const Duration(seconds: 2));
-        final reachable = await isMdbReachable();
-        debugPrint(
-          denied
-              ? 'Network: ifconfig not permitted, '
-                  '${reachable ? "DHCP configured it instead" : "and no DHCP lease arrived"}'
-              : 'Network: ifconfig failed: ${result.stderr}',
-        );
-        return reachable;
+        if (await isMdbReachable()) {
+          debugPrint(
+            'Network: ifconfig not permitted, but the board is already '
+            'reachable on an existing address',
+          );
+          return true;
+        }
+        if (denied) {
+          throw const NetworkPrivilegeException(
+            'Configuring the USB network interface on macOS requires '
+            'administrator rights. Quit and relaunch the installer with: '
+            'sudo <path-to-installer>',
+          );
+        }
+        debugPrint('Network: ifconfig failed: ${result.stderr}');
+        return false;
       }
 
       await Future.delayed(const Duration(seconds: 2));
