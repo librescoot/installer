@@ -665,7 +665,7 @@
     }
   },
   "artifactVerifying": "Verifying installed version...",
-  "waitingForDbcUpload": "Waiting for the dashboard transfer to finish...",
+  "waitingForDbcUpload": "Still transferring the dashboard files",
   "artifactStillMinimal": "The MDB came back on the bootstrap image, so the firmware artifact did not take. Retry, or write the full image instead.",
   "artifactVersionMismatch": "The MDB still reports {found} after the reboot, not {expected}. The install was rolled back, so nothing was changed. Retry, or write the full image instead.",
   "@artifactVersionMismatch": {
@@ -883,6 +883,12 @@
       }
     }
   },
+  "substepAlreadyThere": "already on the scooter",
+  "substepFileImage": "dashboard image",
+  "substepFileImageMap": "dashboard image checksums",
+  "substepFileFirmware": "dashboard firmware",
+  "substepFileMaps": "map tiles",
+  "substepFileRouting": "routing data",
   "substepUploadStarting": "Starting upload...",
   "substepUploadComplete": "Upload complete",
   "substepUploadNothingToDo": "All files are already on the scooter",

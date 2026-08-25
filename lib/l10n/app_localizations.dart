@@ -2699,7 +2699,7 @@ abstract class AppLocalizations {
   /// No description provided for @waitingForDbcUpload.
   ///
   /// In en, this message translates to:
-  /// **'Waiting for the dashboard transfer to finish...'**
+  /// **'Still transferring the dashboard files'**
   String get waitingForDbcUpload;
 
   /// No description provided for @artifactStillMinimal.
@@ -3361,6 +3361,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Upload {filename}'**
   String substepUploadFile(String filename);
+
+  /// No description provided for @substepAlreadyThere.
+  ///
+  /// In en, this message translates to:
+  /// **'already on the scooter'**
+  String get substepAlreadyThere;
+
+  /// No description provided for @substepFileImage.
+  ///
+  /// In en, this message translates to:
+  /// **'dashboard image'**
+  String get substepFileImage;
+
+  /// No description provided for @substepFileImageMap.
+  ///
+  /// In en, this message translates to:
+  /// **'dashboard image checksums'**
+  String get substepFileImageMap;
+
+  /// No description provided for @substepFileFirmware.
+  ///
+  /// In en, this message translates to:
+  /// **'dashboard firmware'**
+  String get substepFileFirmware;
+
+  /// No description provided for @substepFileMaps.
+  ///
+  /// In en, this message translates to:
+  /// **'map tiles'**
+  String get substepFileMaps;
+
+  /// No description provided for @substepFileRouting.
+  ///
+  /// In en, this message translates to:
+  /// **'routing data'**
+  String get substepFileRouting;
 
   /// No description provided for @substepUploadStarting.
   ///

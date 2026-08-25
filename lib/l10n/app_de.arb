@@ -547,7 +547,7 @@
     }
   },
   "artifactVerifying": "Installierte Version wird geprüft...",
-  "waitingForDbcUpload": "Warte auf das Ende der Display-Übertragung...",
+  "waitingForDbcUpload": "Display-Dateien werden noch übertragen",
   "artifactStillMinimal": "Das MDB ist mit dem Bootstrap-Image zurückgekommen, das Firmware-Artefakt wurde also nicht übernommen. Versuche es erneut oder schreibe stattdessen das vollständige Image.",
   "artifactVersionMismatch": "Das MDB meldet nach dem Neustart weiterhin {found} statt {expected}. Die Installation wurde zurückgerollt, es wurde also nichts geändert. Versuche es erneut oder schreibe stattdessen das vollständige Image.",
   "@artifactVersionMismatch": {
@@ -737,6 +737,12 @@
       }
     }
   },
+  "substepAlreadyThere": "liegt schon auf dem Roller",
+  "substepFileImage": "Display-Image",
+  "substepFileImageMap": "Prüfdaten zum Display-Image",
+  "substepFileFirmware": "Display-Firmware",
+  "substepFileMaps": "Karten",
+  "substepFileRouting": "Routing-Daten",
   "substepUploadStarting": "Übertragung wird vorbereitet...",
   "substepUploadComplete": "Übertragung abgeschlossen",
   "substepUploadNothingToDo": "Alle Dateien sind schon auf dem Roller",

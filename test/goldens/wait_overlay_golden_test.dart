@@ -108,7 +108,7 @@ void main() {
           WaitStep(
               label: 'Firmware wird installiert', typical: Duration(minutes: 2)),
           WaitStep(
-              label: 'Warte auf das Ende der Display-Übertragung...',
+              label: 'Display-Dateien werden noch übertragen',
               typical: Duration(minutes: 3)),
         ],
         currentStep: 2,
@@ -116,8 +116,7 @@ void main() {
         stepStartedAt: start.add(const Duration(minutes: 3)),
         warning: 'USB und Strom nicht trennen.',
         // The dashboard's map tiles, going up behind the MDB install.
-        backgroundLabel:
-            'valhalla_tiles_berlin.tar.zst übertragen - 210 / 512 MB, '
+        backgroundLabel: 'Routing-Daten übertragen - 210 / 512 MB, '
             'noch 1 Min. 40 Sek.',
         backgroundProgress: 0.41,
         now: () => start.add(const Duration(minutes: 3, seconds: 40)),

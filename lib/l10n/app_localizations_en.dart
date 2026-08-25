@@ -1514,8 +1514,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get artifactVerifying => 'Verifying installed version...';
 
   @override
-  String get waitingForDbcUpload =>
-      'Waiting for the dashboard transfer to finish...';
+  String get waitingForDbcUpload => 'Still transferring the dashboard files';
 
   @override
   String get artifactStillMinimal =>
@@ -1909,6 +1908,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String substepUploadFile(String filename) {
     return 'Upload $filename';
   }
+
+  @override
+  String get substepAlreadyThere => 'already on the scooter';
+
+  @override
+  String get substepFileImage => 'dashboard image';
+
+  @override
+  String get substepFileImageMap => 'dashboard image checksums';
+
+  @override
+  String get substepFileFirmware => 'dashboard firmware';
+
+  @override
+  String get substepFileMaps => 'map tiles';
+
+  @override
+  String get substepFileRouting => 'routing data';
 
   @override
   String get substepUploadStarting => 'Starting upload...';

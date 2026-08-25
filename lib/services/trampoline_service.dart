@@ -87,6 +87,16 @@ String serializeInstallRunState({
 /// The service has no localizations, and the screen that shows these does, so
 /// the words come in from there. The defaults are the English ones, which is
 /// what a caller with nothing to say should get.
+/// One file on its way to the MDB: where it is, where it goes, and what to
+/// call it on screen.
+class _Upload {
+  const _Upload(this.local, this.remote, this.name);
+
+  final String local;
+  final String remote;
+  final String name;
+}
+
 class SubstepLabels {
   const SubstepLabels({
     this.checkExisting = 'Check existing files',
@@ -95,6 +105,12 @@ class SubstepLabels {
     this.uploadScript = 'Upload trampoline script',
     this.uploadFile = _defaultUploadFile,
     this.verifying = _defaultVerifying,
+    this.imageName = 'dashboard image',
+    this.imageMapName = 'dashboard image checksums',
+    this.firmwareName = 'dashboard firmware',
+    this.mapsName = 'map tiles',
+    this.routingName = 'routing data',
+    this.alreadyThere = 'already on the scooter',
     this.starting = 'Starting upload...',
     this.complete = 'Upload complete',
     this.nothingToDo = 'All files are already on the scooter',
@@ -107,6 +123,15 @@ class SubstepLabels {
   final String uploadScript;
   final String Function(String filename) uploadFile;
   final String Function(String filename) verifying;
+  /// What each file is, for someone who is not going to recognise
+  /// `valhalla_tiles_berlin.tar.zst`.
+  final String imageName;
+  final String imageMapName;
+  final String firmwareName;
+  final String mapsName;
+  final String routingName;
+
+  final String alreadyThere;
   final String starting;
   final String complete;
   final String nothingToDo;
@@ -505,16 +530,19 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     // but only kicks in on the first PUT.
     await _ssh.runCommand('mkdir -p /data/installer');
 
-    final filesToUpload = <MapEntry<String, String>>[];
+    final l = labels ?? const SubstepLabels();
+    final filesToUpload = <_Upload>[];
 
     if (dbcImageLocalPath != null) {
       final dbcFilename = File(dbcImageLocalPath).uri.pathSegments.last;
-      filesToUpload.add(MapEntry(dbcImageLocalPath, '/data/installer/$dbcFilename'));
+      filesToUpload.add(_Upload(
+          dbcImageLocalPath, '/data/installer/$dbcFilename', l.imageName));
     }
 
     if (dbcBmapLocalPath != null) {
       final bmapFilename = File(dbcBmapLocalPath).uri.pathSegments.last;
-      filesToUpload.add(MapEntry(dbcBmapLocalPath, '/data/installer/$bmapFilename'));
+      filesToUpload.add(_Upload(
+          dbcBmapLocalPath, '/data/installer/$bmapFilename', l.imageMapName));
     }
 
     // The DBC artifact is staged in /data/installer next to the image rather
@@ -522,29 +550,29 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     // trampoline is what puts it at the seed path over there.
     if (dbcArtifactLocalPath != null) {
       final artifactFilename = File(dbcArtifactLocalPath).uri.pathSegments.last;
-      filesToUpload.add(
-          MapEntry(dbcArtifactLocalPath, '/data/installer/$artifactFilename'));
+      filesToUpload.add(_Upload(dbcArtifactLocalPath,
+          '/data/installer/$artifactFilename', l.firmwareName));
     }
 
     if (osmTilesLocalPath != null && region != null) {
-      filesToUpload.add(MapEntry(osmTilesLocalPath, '/data/installer/${region.osmTilesFilename}'));
+      filesToUpload.add(_Upload(osmTilesLocalPath,
+          '/data/installer/${region.osmTilesFilename}', l.mapsName));
     }
     if (valhallaTilesLocalPath != null && region != null) {
       // Keep whatever name was downloaded: the routing tiles may be the zstd
       // form, and the trampoline decides what to do from the suffix.
       final valhallaFilename =
           File(valhallaTilesLocalPath).uri.pathSegments.last;
-      filesToUpload.add(
-          MapEntry(valhallaTilesLocalPath, '/data/installer/$valhallaFilename'));
+      filesToUpload.add(_Upload(valhallaTilesLocalPath,
+          '/data/installer/$valhallaFilename', l.routingName));
     }
 
-    final l = labels ?? const SubstepLabels();
     final substeps = <Substep>[
       Substep(id: 'check', label: l.checkExisting),
       for (final e in filesToUpload)
         Substep(
-            id: 'up:${e.value}',
-            label: l.uploadFile(File(e.key).uri.pathSegments.last)),
+            id: 'up:${e.remote}',
+            label: l.uploadFile(e.name)),
       if (dbcImageLocalPath != null)
         Substep(id: 'flasher', label: l.uploadFlasher),
       if (dbcImageLocalPath != null)
@@ -571,12 +599,12 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     final fileSizes = <int>[];
     var totalBytes = 0;
     for (final entry in filesToUpload) {
-      final size = await File(entry.key).length();
+      final size = await File(entry.local).length();
       fileSizes.add(size);
-      final filename = File(entry.key).uri.pathSegments.last;
+      final filename = entry.name;
       setStep('check', SubstepState.active, detail: l.verifying(filename));
       onProgress?.call(l.verifying(filename), 0.0);
-      final matches = await _remoteFileMatches(entry.key, entry.value);
+      final matches = await _remoteFileMatches(entry.local, entry.remote);
       needsUpload.add(!matches);
       if (!matches) totalBytes += size;
     }
@@ -585,7 +613,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     if (totalBytes == 0) {
       onProgress?.call(l.nothingToDo, 0.95);
       for (final e in filesToUpload) {
-        setStep('up:${e.value}', SubstepState.done, detail: 'already on device');
+        setStep('up:${e.remote}', SubstepState.done, detail: l.alreadyThere);
       }
       await _stopUploadServer();
     } else {
@@ -599,8 +627,8 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       try {
         for (var i = 0; i < filesToUpload.length; i++) {
           final entry = filesToUpload[i];
-          final filename = File(entry.key).uri.pathSegments.last;
-          final stepId = 'up:${entry.value}';
+          final filename = entry.name;
+          final stepId = 'up:${entry.remote}';
 
           if (!needsUpload[i]) {
             setStep(stepId, SubstepState.done, detail: 'already on device');
@@ -611,8 +639,8 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
           onProgress?.call(l.uploadFile(filename), bytesSoFar / totalBytes);
           final baseBytes = bytesSoFar;
           await _uploadViaHttp(
-            entry.key,
-            entry.value,
+            entry.local,
+            entry.remote,
             onProgress: (sent, total) {
               final overall = (baseBytes + sent) / totalBytes;
               final mb = sent / (1024 * 1024);

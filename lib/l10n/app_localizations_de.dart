@@ -1527,8 +1527,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get artifactVerifying => 'Installierte Version wird geprüft...';
 
   @override
-  String get waitingForDbcUpload =>
-      'Warte auf das Ende der Display-Übertragung...';
+  String get waitingForDbcUpload => 'Display-Dateien werden noch übertragen';
 
   @override
   String get artifactStillMinimal =>
@@ -1932,6 +1931,24 @@ class AppLocalizationsDe extends AppLocalizations {
   String substepUploadFile(String filename) {
     return '$filename übertragen';
   }
+
+  @override
+  String get substepAlreadyThere => 'liegt schon auf dem Roller';
+
+  @override
+  String get substepFileImage => 'Display-Image';
+
+  @override
+  String get substepFileImageMap => 'Prüfdaten zum Display-Image';
+
+  @override
+  String get substepFileFirmware => 'Display-Firmware';
+
+  @override
+  String get substepFileMaps => 'Karten';
+
+  @override
+  String get substepFileRouting => 'Routing-Daten';
 
   @override
   String get substepUploadStarting => 'Übertragung wird vorbereitet...';
