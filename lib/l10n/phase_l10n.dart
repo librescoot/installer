@@ -11,7 +11,15 @@ extension MajorStepL10n on MajorStep {
   /// upgrade puts the same title on the skipped step and on mdbInstall, which
   /// is the step actually doing the upgrade, and reads as if the upgrade
   /// itself had been skipped.
-  String localizedTitle(AppLocalizations l10n, {bool upgrade = false}) =>
+  /// [mapsOnly] is a plan that leaves the dashboard alone but installs maps.
+  /// needsHandoff is true for tiles by themselves, so the dashboard block runs
+  /// and writes no firmware: naming it a flash promises something it does not
+  /// do.
+  String localizedTitle(
+    AppLocalizations l10n, {
+    bool upgrade = false,
+    bool mapsOnly = false,
+  }) =>
       switch (this) {
         MajorStep.prepare => l10n.majorStepPrepare,
         MajorStep.connect => l10n.majorStepConnect,
@@ -19,14 +27,18 @@ extension MajorStepL10n on MajorStep {
         MajorStep.pairing => l10n.majorStepPairing,
         MajorStep.mdbInstall =>
           upgrade ? l10n.majorStepMdbUpgrade : l10n.majorStepMdbInstall,
-        MajorStep.dbcFlash =>
-          upgrade ? l10n.majorStepDbcUpgrade : l10n.majorStepDbcFlash,
+        MajorStep.dbcFlash => mapsOnly
+            ? l10n.majorStepDbcMaps
+            : upgrade
+                ? l10n.majorStepDbcUpgrade
+                : l10n.majorStepDbcFlash,
         MajorStep.finish => l10n.majorStepFinish,
       };
 }
 
 extension InstallerPhaseL10n on InstallerPhase {
-  String localizedTitle(AppLocalizations l10n) => switch (this) {
+  String localizedTitle(AppLocalizations l10n, {bool mapsOnly = false}) =>
+      switch (this) {
         InstallerPhase.welcome => l10n.phaseWelcomeTitle,
         InstallerPhase.notices => l10n.phaseNoticesTitle,
         InstallerPhase.physicalPrep => l10n.phasePhysicalPrepTitle,
@@ -40,15 +52,19 @@ extension InstallerPhaseL10n on InstallerPhase {
         InstallerPhase.mdbBoot => l10n.phaseMdbBootTitle,
         InstallerPhase.mdbArtifact => l10n.phaseMdbArtifactTitle,
         InstallerPhase.cbbReconnect => l10n.phaseCbbReconnectTitle,
-        InstallerPhase.dbcPrep => l10n.phaseDbcPrepTitle,
-        InstallerPhase.dbcFlash => l10n.phaseDbcFlashTitle,
+        InstallerPhase.dbcPrep =>
+          mapsOnly ? l10n.phaseDbcPrepTitleMaps : l10n.phaseDbcPrepTitle,
+        InstallerPhase.dbcFlash =>
+          mapsOnly ? l10n.phaseDbcFlashTitleMaps : l10n.phaseDbcFlashTitle,
         InstallerPhase.reconnect => l10n.phaseReconnectTitle,
         InstallerPhase.bluetoothPairing => l10n.phaseBluetoothPairingTitle,
         InstallerPhase.keycardSetup => l10n.phaseKeycardSetupTitle,
         InstallerPhase.finish => l10n.phaseFinishTitle,
       };
 
-  String localizedDescription(AppLocalizations l10n) => switch (this) {
+  String localizedDescription(AppLocalizations l10n,
+          {bool mapsOnly = false}) =>
+      switch (this) {
         InstallerPhase.welcome => l10n.phaseWelcomeDescription,
         InstallerPhase.notices => l10n.phaseNoticesDescription,
         InstallerPhase.physicalPrep => l10n.phasePhysicalPrepDescription,
@@ -62,8 +78,12 @@ extension InstallerPhaseL10n on InstallerPhase {
         InstallerPhase.mdbBoot => l10n.phaseMdbBootDescription,
         InstallerPhase.mdbArtifact => l10n.phaseMdbArtifactDescription,
         InstallerPhase.cbbReconnect => l10n.phaseCbbReconnectDescription,
-        InstallerPhase.dbcPrep => l10n.phaseDbcPrepDescription,
-        InstallerPhase.dbcFlash => l10n.phaseDbcFlashDescription,
+        InstallerPhase.dbcPrep => mapsOnly
+            ? l10n.phaseDbcPrepDescriptionMaps
+            : l10n.phaseDbcPrepDescription,
+        InstallerPhase.dbcFlash => mapsOnly
+            ? l10n.phaseDbcFlashDescriptionMaps
+            : l10n.phaseDbcFlashDescription,
         InstallerPhase.reconnect => l10n.phaseReconnectDescription,
         InstallerPhase.bluetoothPairing => l10n.phaseBluetoothPairingDescription,
         InstallerPhase.keycardSetup => l10n.phaseKeycardSetupDescription,

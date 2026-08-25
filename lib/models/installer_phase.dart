@@ -114,6 +114,23 @@ enum InstallerPhase {
   final bool hiddenUnlessActive;
 }
 
+/// The phases that are nothing but waiting on the board. They draw as an
+/// overlay over the screen the user just left rather than as a screen of
+/// their own, because a screen of their own is an empty frame with a spinner
+/// in the middle of it.
+/// DBC-Vorbereitung and Prüfen are not in here: they already show their own
+/// substeps, so they are not empty frames to begin with.
+const Set<InstallerPhase> kWaitPhases = {
+  InstallerPhase.mdbConnect,
+  InstallerPhase.mdbToUms,
+  InstallerPhase.mdbBoot,
+  InstallerPhase.mdbArtifact,
+};
+
+extension InstallerPhaseWait on InstallerPhase {
+  bool get isWait => kWaitPhases.contains(this);
+}
+
 /// Major step grouping for sidebar display
 enum MajorStep {
   prepare('Prepare', [InstallerPhase.welcome, InstallerPhase.notices, InstallerPhase.physicalPrep]),

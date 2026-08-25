@@ -8,7 +8,7 @@
   "phasePhysicalPrepDescription": "Open footwell, connect USB",
   "phaseMdbConnectTitle": "MDB Connect",
   "phaseMdbConnectDescription": "Detect device and establish SSH",
-  "phaseResumeDetectedTitle": "Previous attempt",
+  "phaseResumeDetectedTitle": "Previous Attempt",
   "phaseResumeDetectedDescription": "Interrupted installation found",
   "phaseHealthCheckTitle": "Health Check",
   "phaseHealthCheckDescription": "Verify scooter readiness",
@@ -32,7 +32,7 @@
   "phaseBluetoothPairingDescription": "Pair phone or other devices",
   "phaseFinishTitle": "Finish",
   "phaseFinishDescription": "Reassemble and welcome",
-  "majorStepPrepare": "Prepare",
+  "majorStepPrepare": "Set up",
   "majorStepConnect": "Connect",
   "majorStepMdbFlash": "Prepare MDB",
   "majorStepPairing": "Pairing & Cards",
@@ -48,12 +48,12 @@
   "prerequisiteUsbCable": "USB cable (laptop to Mini-B)",
   "prerequisiteTime": "About 20 minutes",
   "reliabilityWarningTitle": "Before you start",
-  "reliabilityWarningBody": "The flash takes several minutes and any USB drop or laptop sleep mid-flash leaves the MDB in an inconsistent state. Please check:\n• A known-good USB cable, plugged in firmly at both ends. Flaky cables are the #1 cause of failed installs\n• Laptop on power, or fully charged. Battery saver / sleep can break the flash\n• Use a direct USB port, not a USB hub if possible\n• Don't unplug or move things around once the flash starts",
+  "reliabilityWarningBody": "The flash takes several minutes and any USB drop or laptop sleep mid-flash leaves the MDB in an inconsistent state. Check:\n• A known-good USB cable, plugged in firmly at both ends. Flaky cables are the #1 cause of failed installs\n• Laptop on power, or fully charged. Battery saver / sleep can break the flash\n• Use a direct USB port, not a USB hub if possible\n• Don't unplug or move things around once the flash starts",
   "noPowerCycleWarningTitle": "DO NOT power-cycle anything during the install",
-  "noPowerCycleWarningBody": "If something looks stuck, gives no feedback, or behaves weirdly: PAUSE and ask in Discord first. Do NOT pull the AUX battery, do NOT disconnect the CBB, do NOT yank USB, do NOT reboot the scooter or your laptop. The installer can recover from almost any state. But only if you don't intervene. Power-cycling mid-flash is what bricks scooters.",
+  "noPowerCycleWarningBody": "If something looks stuck, gives no feedback, or behaves oddly: stop and ask in Discord before doing anything else. Do not pull the AUX battery, disconnect the CBB, unplug USB, or restart the scooter or your laptop. The installer can recover from almost any state, as long as nothing interrupts it. Cutting power mid-flash is what bricks scooters.",
   "downloadsFailedHeading": "Could not reach the download server",
   "downloadsFailedBody": "Check the laptop's internet connection, then try again. You can also continue offline if you already have the firmware cached.",
-  "downloadsRetry": "Try again",
+  "downloadsRetry": "Retry",
   "noticesHeading": "Read this before continuing",
   "noticesSubheading": "Two things that will save your install if you take them seriously.",
   "noticesAcknowledgeButton": "I've read this, continue",
@@ -72,18 +72,19 @@
   "channelTestingDesc": "Latest features, may have rough edges",
   "channelNightlyDesc": "Built daily from main, for developers",
   "channelNoReleases": "No releases available",
+  "manifestBundledNotice": "Offline: these versions come from the list built into this installer and may be out of date.",
   "loadingChannels": "Loading available channels...",
   "region": "Region",
   "selectRegion": "Select your region",
   "startInstallation": "Start Installation",
-  "selectRegionError": "Please select a region for offline maps",
+  "selectRegionError": "Select a region for offline maps",
   "resolvingReleases": "Resolving releases...",
-  "physicalPrepHeading": "Physical Preparation",
+  "physicalPrepHeading": "Physical preparation",
   "physicalPrepSubheading": "Prepare your scooter for USB connection.",
   "removeFootwellCover": "Remove footwell cover",
   "removeFootwellCoverDesc": "Four screws to remove. PH2 Phillips from factory, H4 hex or Torx if serviced by a good shop.",
   "unscrewUsbCable": "Unscrew USB cable from MDB",
-  "unscrewUsbCableDesc": "Disconnect the internal DBC USB cable from the MDB board. Use a flat head or PH1 screwdriver.",
+  "unscrewUsbCableDesc": "Disconnect the internal DBC USB cable from the MDB. Use a flat head or PH1 screwdriver.",
   "connectLaptopUsb": "Connect laptop USB cable",
   "connectLaptopUsbDesc": "Plug your USB cable into the MDB port and connect the other end to your laptop.",
   "doneDetectDevice": "Done. Detect Device",
@@ -97,16 +98,47 @@
   "unfinishedInstallDetected": "Unfinished installation detected, continuing without unlock...",
   "waitingForBatteryData": "Waiting for AUX/CBB battery data...",
   "resumeFoundHeading": "Interrupted installation found",
-  "resumeFoundBody": "A previous installation on this scooter did not finish. Continuing clears what it left behind: the onboot script it armed is disarmed, and the services it stopped are started again. The installation then runs from the beginning; nothing is resumed.",
+  "resumeFoundBody": "The scooter is not damaged. An installation was interrupted, and this screen clears what it left behind before starting again.",
+  "resumeWhatHappensHeading": "What happens when you continue",
+  "resumeWhatHappensCleanup": "The leftovers are cleared: the onboot script the previous run armed is disarmed, and the services it stopped are started again.",
+  "resumeWhatHappensRestart": "The installation runs from the beginning. Nothing is resumed, so no half-finished step is carried over.",
+  "resumeWhatHappensKeep": "Nothing extra is lost. The previous run had already made whatever changes it made; starting again does not repeat that cost.",
+  "resumeTakesAsLong": "It takes as long as a normal installation, about 20 minutes.",
   "resumeClearingLeftovers": "Clearing what the previous run left behind...",
+  "resumeCleanupFailed": "The previous install could not be made safe: {error}\n\nNothing else will run until cleanup succeeds.",
+  "@resumeCleanupFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "resumeFoundLastError": "Last recorded error:",
+  "resumeRunningHeading": "An install is still running on the scooter",
+  "resumeRunningBody": "The scooter is still working through the previous install. Nothing here touches it while it runs.",
+  "resumeRunningWait": "Wait for the scooter to finish. This carries on by itself afterwards.",
+  "resumeStageLabel": "Last step: {stage}",
+  "@resumeStageLabel": {
+    "placeholders": {
+      "stage": {
+        "type": "String"
+      }
+    }
+  },
+  "resumeActorScooter": "on the scooter",
+  "resumeActorInstaller": "in the installer",
+  "resumeLogHeading": "Last lines from the scooter's log",
   "awaitingUnlockHeading": "Unlock your scooter",
-  "awaitingUnlockDetail": "Please unlock your scooter to continue. Use your keycard or paired phone.",
+  "awaitingUnlockDetail": "Unlock the scooter so the installer can carry on.",
+  "awaitingUnlockHintKeycard": "Hold your keycard against the reader on the handlebars",
+  "awaitingUnlockHintPhone": "Or use a paired phone",
+  "awaitingUnlockWatching": "The installer continues automatically once the scooter is unlocked.",
+  "awaitingParkWatching": "The installer continues automatically once the scooter is parked.",
   "awaitingParkHeading": "Park your scooter",
-  "awaitingParkDetail": "Please park your scooter (flip the kickstand down) to continue.",
+  "awaitingParkDetail": "Park your scooter (flip the kickstand down) to continue.",
   "awaitingParkContinueAnyway": "Continue anyway",
-  "lockingScooter": "Locking scooter for flashing...",
-  "connected": "Connected!",
+  "lockingScooter": "Locking the scooter for flashing...",
+  "connected": "Connected",
   "sshConnectionFailed": "SSH connection failed: {error}. Check cable and retry.",
   "@sshConnectionFailed": {
     "placeholders": {
@@ -135,8 +167,11 @@
   },
   "manualPasswordFieldLabel": "Password",
   "manualPasswordSubmit": "Connect",
+  "manualPasswordUnknown": "I don't know it",
+  "manualPasswordUnknownHeading": "The scooter wants a password nobody has",
+  "manualPasswordUnknownBody": "Scooters normally answer with a password the installer already carries. This one does not, which usually means it was changed.\n\nIf a workshop has had the scooter, ask them whether they set a root password. That is the most common reason.\n\nOtherwise ask in the Librescoot Discord and mention the firmware version shown above.\n\nNothing on the scooter has been changed and it is safe to close the installer.",
   "untestedFirmwareHeading": "Untested firmware version",
-  "untestedFirmwareBody": "Installation has not been tested on firmware versions older than 1.12.0 (yours: {version}). The installer should still work, but please share any issues on the Librescoot Discord.",
+  "untestedFirmwareBody": "Installation has not been tested on firmware versions older than 1.12.0 (yours: {version}). The installer should still work, but share any issues on the Librescoot Discord.",
   "@untestedFirmwareBody": {
     "placeholders": {
       "version": {
@@ -145,12 +180,15 @@
     }
   },
   "openLibrescootDiscord": "Open Librescoot Discord",
-  "healthCheckHeading": "Health Check",
+  "healthCheckHeading": "Health check",
   "verifyingReadiness": "Verifying scooter readiness...",
   "incompleteImageStatus": "Incomplete firmware image detected. Re-flashing to recover...",
   "incompleteImageHeading": "Incomplete firmware image",
-  "incompleteImageBody": "This scooter is running a minimal recovery image with no battery telemetry. This can happen when a previous install wrote the wrong image. Continue to re-flash the full firmware and finish setup.",
+  "incompleteImageBody": "This scooter is running a minimal recovery image. It boots and answers, but carries none of the vehicle services. This can happen if an earlier installation did not finish. Continue to re-flash the full firmware and finish setup.",
   "reflashToRecover": "Re-flash to recover",
+  "stockFirmwareStatus": "Stock firmware detected. Ready to install Librescoot...",
+  "stockFirmwareHeading": "Stock firmware",
+  "stockFirmwareBody": "This scooter is running its original firmware. Nothing is wrong with it. Continue to install Librescoot.",
   "continueButton": "Continue",
   "retryButton": "Retry",
   "proceedAtOwnRisk": "Proceed at my own risk",
@@ -160,7 +198,8 @@
   "mainBattery": "Main battery",
   "present": "present",
   "notPresent": "not present",
-  "riskAuxLow": "Low 12V battery could cause the MDB or DBC to shut down during flashing. The LED indicators may also fail. Close the seatbox with the main battery inserted and wait for it to charge.",
+  "healthValueUnknown": "cannot be read",
+  "riskAuxLow": "Low 12V battery could cause the MDB or DBC to shut down during flashing. The LED indicators may also fail. Close the seatbox with the main battery inserted and wait for the AUX battery to charge.",
   "riskCbbSoh": "Degraded CBB health may cause unreliable power delivery during flashing.",
   "riskCbbCharge": "Low CBB charge increases the risk of power loss during the DBC flash. Close the seatbox with the main battery inserted and wait for the CBB to charge.",
   "riskNoBattery": "Without the main battery, the 12V auxiliary battery will drain faster. The scooter may shut down during extended operations.",
@@ -172,11 +211,17 @@
   "waitingForUmsDevice": "Waiting for UMS device...",
   "readyToFlash": "Ready to begin flashing",
   "readyToFlashHint": "The device is in flashing mode. You can mount the device to create manual backups before proceeding.",
+  "readyToFlashTargetLabel": "Target",
+  "readyToFlashImageLabel": "Image to write",
+  "readyToFlashErases": "This erases the main board. Everything currently on it is replaced.",
+  "readyToFlashDuration": "The write takes about a minute. Do not disconnect USB or power while it runs.",
+  "readyToFlashNoTarget": "No target device resolved yet.",
   "beginFlashing": "Begin flashing",
   "flashingMdb": "Flashing MDB",
   "flashingMdbSubheading": "Two-phase write: partitions first, boot sector last.",
+  "flashAwaitingAuthorisation": "macOS will ask for your password or Touch ID before the write can start. Look for a system dialog, it may be behind this window. Nothing is being written until you approve it.",
   "waitingForMdbFirmware": "Waiting for MDB firmware download...",
-  "mdbFlashComplete": "MDB flash complete!",
+  "mdbFlashComplete": "MDB flash complete",
   "flashProgressMb": "{mb} MB written",
   "@flashProgressMb": {
     "placeholders": {
@@ -215,21 +260,22 @@
       }
     }
   },
-  "scooterPrepHeading": "Scooter Preparation",
+  "scooterPrepHeading": "Scooter preparation",
   "scooterPrepSubheading": "MDB firmware has been written. Now prepare for reboot.",
   "disconnectCbb": "Disconnect the CBB",
-  "disconnectCbbDesc": "The main battery must already be removed before disconnecting CBB. Failure to follow this order risks electrical damage.",
+  "disconnectCbbDesc": "The main battery must already be removed before disconnecting CBB. Doing this out of order risks electrical damage.",
   "disconnectAuxPole": "Disconnect one AUX pole",
-  "disconnectAuxPoleDesc": "Remove ONLY the positive pole (outermost, the red cable and pole) to avoid risk of inverting polarity. This will remove power from the MDB; the USB connection will disappear.",
-  "auxDisconnectWarning": "The USB connection will be lost when you disconnect AUX. This is expected. The installer will wait for the MDB to reboot.",
+  "disconnectAuxPoleDesc": "Remove only the positive terminal (outer, red cable and post) to avoid reversing polarity. This cuts power to the MDB, so the USB connection drops.",
+  "auxDisconnectWarning": "The USB connection drops when you disconnect AUX. That is expected. Reconnect the AUX pole on the next screen to start the MDB.",
   "doneCbbAuxDisconnected": "Done, the scooter is restarting",
+  "doneAuxDisconnected": "Done, AUX is disconnected",
   "brakeResetHeading": "Restart the scooter",
-  "brakeResetIntro": "Squeeze and hold both brake levers. Every ten seconds, let go of the right one for about a second, then squeeze it again. After the fourth hold, just let go. The scooter cuts its own power and boots again.",
-  "brakeResetAfterNote": "The USB connection disappears the moment the power drops. That is expected, and the installer waits for the board to come back.",
+  "brakeResetIntro": "Squeeze and hold both brake levers. Every ten seconds, let go of the right one for about a second, then squeeze it again. After the fourth hold, just let go. The scooter restarts.",
+  "brakeResetAfterNote": "The USB connection disappears while it restarts. That is expected, and the installer waits for the board to come back.",
   "brakePacerStart": "Start the timer",
   "brakePacerStop": "Stop",
   "brakePacerRestart": "Run it again",
-  "brakePacerDone": "That is the pattern. Let go now. The scooter cuts its own power in a few seconds and comes back on its own.",
+  "brakePacerDone": "That is the pattern. Let go now. The scooter restarts a few seconds later on its own.",
   "brakeDiagramBlipLegend": "Right lever released for about a second",
   "brakeDiagramEndLegend": "Just let go at {seconds} seconds",
   "brakeBandBothHeld": "Left lever held down throughout",
@@ -247,7 +293,7 @@
   },
   "scooterPrepManualFallback": "Or cut the power by hand",
   "deactivatingMainBattery": "Turning the main battery off...",
-  "waitingForMdbBoot": "Waiting for MDB Boot",
+  "waitingForMdbBoot": "Waiting for MDB boot",
   "mdbBootRestartingNote": "The scooter is restarting on its own. This takes a minute or two.",
   "reconnectAuxPole": "Reconnect the AUX pole",
   "reconnectAuxPoleDesc": "Reconnect the positive AUX pole. The MDB will power on and boot into Librescoot.",
@@ -288,11 +334,23 @@
       }
     }
   },
-  "cbbNotDetected": "CBB not detected. Please check the connection.",
-  "cbbDetectionMayTakeMinutes": "This can take several minutes, please be patient.",
+  "cbbNotDetected": "CBB not detected. Check the connection.",
+  "cbbDetectionMayTakeMinutes": "This can take several minutes.",
   "preparingDbcFlash": "Preparing DBC Flash",
+  "preparingDbcFlashSubtitle": "Everything the dashboard needs goes onto the MDB first.",
+  "preparingDbcFlashExplainer": "The DBC hangs off the MDB, not off your laptop. So the installer copies the image, the firmware and the offline maps onto the MDB, together with a script that takes over from there. The cable swap comes after that: laptop off, DBC cable back onto the MDB. From then on the MDB flashes the dashboard on its own.",
+  "preparingMapTransfer": "Transferring maps",
+  "preparingMapTransferSubtitle": "The offline maps go to the main board first.",
+  "preparingMapTransferExplainer": "The dashboard hangs off the main board, not off your laptop. So the installer copies the offline maps to the main board and leaves a script there that does the rest. No dashboard firmware is written: you chose to leave the dashboard as it is. Then comes the cable swap, laptop off and the dashboard cable back onto the main board, and the maps go across on their own.",
+  "skipMapTransfer": "Skip the maps",
+  "majorStepDbcMaps": "Maps",
+  "phaseDbcPrepTitleMaps": "Upload Maps",
+  "phaseDbcPrepDescriptionMaps": "Upload the offline maps",
+  "phaseDbcFlashTitleMaps": "Transfer",
+  "phaseDbcFlashDescriptionMaps": "The scooter copies them over",
+  "dbcReadyButtonMaps": "Begin transferring maps",
   "waitingForDownloads": "Waiting for downloads to complete...",
-  "startingTrampoline": "Starting trampoline script...",
+  "startingTrampoline": "Starting the on-device install script...",
   "uploadError": "Upload error: {error}",
   "@uploadError": {
     "placeholders": {
@@ -318,7 +376,7 @@
   "blinkerStepFlash": "Flash DBC",
   "blinkerStepRestart": "Restart DBC",
   "blinkerStepMaps": "Upload maps",
-  "verifyingDbcInstallation": "Verifying DBC Installation",
+  "verifyingDbcInstallation": "Verifying DBC installation",
   "reconnectUsbToLaptop": "Reconnect USB to laptop...",
   "waitingForRndisDevice": "Waiting for RNDIS device...",
   "readingTrampolineStatus": "Reading trampoline status...",
@@ -330,7 +388,7 @@
       }
     }
   },
-  "dbcFlashSuccessful": "DBC flash successful!",
+  "dbcFlashSuccessful": "DBC flash complete",
   "dbcInstallSuccessfulVersion": "DBC install successful, now running {version}",
   "@dbcInstallSuccessfulVersion": {
     "placeholders": {
@@ -350,8 +408,12 @@
   "dbcFlashError": "DBC Flash Error",
   "closeButton": "Close",
   "trampolineStatusUnknown": "Trampoline status unknown. Check /data/trampoline.log on MDB.",
-  "welcomeToLibrescoot": "Welcome to Librescoot!",
+  "welcomeToLibrescoot": "Welcome to Librescoot",
   "finalSteps": "Final steps:",
+  "finishNextHeading": "What happens next",
+  "finishNextDbcFlash": "When you reconnect the DBC cable, the scooter starts installing the dashboard by itself. That takes about 20 minutes. Leave the power connected and let it finish; the boot light shows it working.",
+  "finishNextOnDevice": "When you reconnect the DBC cable, the scooter finishes the rest by itself. You do not need to plug the laptop back in.",
+  "finishNextNothing": "The main board is done and nothing else runs on the scooter. Reassemble it and ride.",
   "disconnectUsbFromLaptopFinal": "Unplug the laptop USB cable from the MDB",
   "disconnectUsbFromLaptopFinalDesc": "Unplug the laptop USB cable from the MDB. The DBC cable goes back into that port next.",
   "reconnectDbcUsbCable": "Reconnect DBC USB cable",
@@ -371,15 +433,21 @@
   "downloads": "Downloads",
   "downloadsFinished": "Downloads finished",
   "downloadsFinishedHint": "You can continue offline.",
+  "assetChipMdbArtifact": "MDB artifact",
+  "assetChipDbcArtifact": "DBC artifact",
+  "assetChipMdbImage": "MDB image",
+  "assetChipDbcImage": "DBC image",
+  "assetChipMaps": "Maps",
+  "assetChipRoutes": "Routes",
   "downloadMdbFirmware": "MDB Firmware",
   "downloadDbcFirmware": "DBC Firmware",
   "downloadMapTiles": "Map Tiles",
   "downloadRoutingTiles": "Routing Tiles",
-  "safetyCheckFailed": "Safety Check Failed",
+  "safetyCheckFailed": "Safety check failed",
   "cannotFlashSafety": "Cannot flash this device due to safety concerns:",
   "cancelButton": "Cancel",
   "confirmFlashTargetTitle": "Confirm the flash target",
-  "confirmFlashTargetBody": "Windows could not confirm this disk is not your system disk. Check the target before flashing.",
+  "confirmFlashTargetBody": "The installer could not confirm this disk is not your system disk. Check the target before flashing.",
   "confirmFlashTargetDetected": "Detected Librescoot device",
   "confirmFlashTargetOthers": "Other USB disks on this machine:",
   "confirmFlashTargetInternalHidden": "Internal disks are not shown.",
@@ -405,9 +473,9 @@
       }
     }
   },
-  "regionHint": "For offline maps and navigation support",
-  "skipOfflineMaps": "Skip offline maps",
-  "bluetoothPairingHeading": "Bluetooth Pairing",
+  "regionHint": "Which offline maps to download. Whether to install them is chosen later, with the rest of the plan",
+  "skipOfflineMaps": "Do not download offline maps",
+  "bluetoothPairingHeading": "Bluetooth pairing",
   "bluetoothPairingHint": "Pair your phone or other Bluetooth devices with the scooter.",
   "bleMacLabel": "BLE address",
   "startPairing": "Start pairing",
@@ -421,7 +489,7 @@
   "blePairedHint": "To pair another device, disconnect this one on the device itself first. The scooter holds only one Bluetooth connection at a time.",
   "bleLinkHeldHeading": "A device is holding the connection",
   "bleLinkHeldHint": "The scooter holds only one Bluetooth connection at a time, and it will not advertise while one is up. Disconnect it on the connected device before pairing a new one.",
-  "keycardLearningHeading": "Keycard Setup",
+  "keycardLearningHeading": "Keycard setup",
   "keycardLearningBody": "Register the NFC cards you want to use to unlock and lock the scooter. Click Start, hold each card to the reader one by one, then click Done.",
   "keycardLearnedAck": "{count, plural, one{1 keycard registered} other{{count} keycards registered}}. Click Continue to finish, or Add more cards to register additional ones.",
   "@keycardLearnedAck": {
@@ -444,6 +512,10 @@
   "keycardLearningActive": "Learning mode active",
   "keycardLearningActiveHint": "Hold each card to the reader. Click Done when finished.",
   "keycardStopLearning": "Done",
+  "keycardStopScanning": "Stop",
+  "keycardSkipConfirmTitle": "Skip without a keycard?",
+  "keycardSkipConfirmBody": "No card is taught in, so the scooter cannot be unlocked with one. Only the phone will work.",
+  "keycardSkipConfirmAction": "Skip anyway",
   "keycardStartLearningFailed": "Could not start keycard learning: {error}",
   "@keycardStartLearningFailed": {
     "placeholders": {
@@ -473,13 +545,15 @@
   "keycardCardsStageContinueButton": "Continue",
   "keycardCardsStageAddMasterButton": "Add master card (advanced)",
   "keycardMasterStageHeading": "Add master card",
-  "keycardMasterStageWarningHeading": "WARNING: master card is NOT for unlocking",
-  "keycardMasterStageWarningBody": "The master card is used to manage other keycards. It CANNOT unlock the scooter. Do NOT use any of the cards you just registered as unlock cards. Use a separate, fresh card.",
+  "keycardMasterStageWarningHeading": "The master card cannot unlock the scooter",
+  "keycardMasterStageWarningBody": "The master card manages your other keycards. It cannot unlock the scooter, and none of the cards you just registered can serve as a master. Use a separate, unused card.",
   "keycardMasterStageHint": "Hold the master card to the reader.",
   "keycardCardDuplicateToast": "This card is already registered.",
   "keycardMasterStageRejectedToast": "This card is already registered as an unlock card.",
-  "keycardMasterStageSaveFailedToast": "Could not save master card: write failed.",
+  "keycardMasterStageSaveFailedToast": "Could not save master card. Try again.",
   "keycardMasterStageLearnedToast": "Master card registered.",
+  "keycardMasterStageStartFailed": "Master card setup could not be started",
+  "keycardMasterStageRetryButton": "Try again",
   "keycardMasterStageSkipButton": "Skip",
   "keycardSimulateTapButton": "[DRY RUN] Simulate tap",
   "keycardSimulateMasterTapButton": "[DRY RUN] Simulate master tap",
@@ -548,16 +622,20 @@
   "actionUpgrade": "Upgrade",
   "actionUpgradeDetail": "Keeps settings, keycards, maps and trips",
   "actionCleanInstall": "Clean install",
-  "actionCleanInstallDetail": "Erases settings, keycards, maps and trips",
+  "actionCleanInstallDetail": "Erases settings and trip history. Keycards and maps are set up again later in this run",
   "actionUpgradeDetailDbc": "Keeps the offline maps",
   "actionCleanInstallDetailDbc": "Erases the offline maps only",
+  "actionCleanInstallDetailDbcTiles": "Erases the offline maps. They are installed again in this run",
   "actionLeave": "Leave alone",
   "actionLeaveDetail": "This board is not touched",
-  "upgradeBlockedNotLibrescoot": "Upgrade needs Librescoot already installed",
+  "upgradeBlockedNotLibrescoot": "Upgrade needs Librescoot to already be installed",
   "upgradeBlockedStateUnknown": "Upgrade needs a known version on this board",
   "upgradeBlockedMinimalImage": "This board is running a bootstrap image and has to be installed",
   "upgradeBlockedNoMender": "This board has no update client, so it can only be reinstalled",
   "planTilesNeedDbcHandoff": "Refreshing map tiles needs the DBC cable swap, even with the DBC left alone",
+  "planInstallTiles": "Update the offline maps",
+  "planInstallTilesDetail": "Adds a dashboard step: the maps go to the main board, then the cable swaps back and the scooter copies them over.",
+  "planTilesNotDownloaded": "Not downloaded. Offline maps were skipped on the first screen.",
   "actionLeaveBlockedStockMdb": "A stock main board has to be installed before anything else can be done",
   "planDbcNeedsLibrescootMdb": "The dashboard can only be reached through the MDB, and the tools that reach it are part of Librescoot. Install the MDB in this run, or leave the dashboard alone.",
   "planNothingToDo": "Nothing selected. Pick at least one action to continue.",
@@ -604,7 +682,10 @@
   "artifactStagingInBackground": "Finishing the firmware install...",
   "artifactNoneDownloaded": "No firmware artifact was downloaded for this board.",
   "dbcImageMissing": "The DBC system image this plan needs is missing.",
-  "artifactRebootTimeout": "The MDB did not come back after the reboot.",
+  "artifactRebootTimeout": "Could not reach the scooter after the reboot.",
+  "artifactRebootTimeoutHint": "Check that the USB cable is firmly connected at both ends and that the scooter has power. A scooter with no main battery fitted can also go to sleep on its own while it waits.",
+  "artifactRetryDetail": "Free. Tries again from where this stopped, and keeps your settings, keycards and trips.",
+  "artifactFullImageDetail": "Last resort. Rewrites the whole board and erases settings, keycards and trips.",
   "artifactPreflightNoMender": "This board has no update client, so it cannot take a firmware artifact.",
   "artifactPreflightOtaBusy": "The scooter is running its own update right now ({status}). Let it finish and reboot, then retry.",
   "@artifactPreflightOtaBusy": {
@@ -635,6 +716,27 @@
   "dbcCleanInstallBody": "The dashboard's last known version is only what the main board saw the last time the two were powered together, so a board the plan treated as upgradable may have no update client at all. Installing from scratch writes the bootstrap image first, which reformats the DBC's data partition and loses its offline maps. Anything on the main board, including settings, paired keycards and trip history, is untouched.\n\nThis needs another cable swap: the installer stages the files, you screw the dashboard cable back onto the main board, and the rest runs unattended.",
   "dbcCleanInstallConfirm": "Erase and install the DBC",
   "firmwareVersionDisplay": "Firmware: {version}",
+  "healthVersionPlan": "Currently installed: {current} - To install: {target}",
+  "distroStock": "unu scooterOS",
+  "distroLibrescoot": "Librescoot",
+  "@healthVersionPlan": {
+    "placeholders": {
+      "current": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "healthAuxVoltage": "{mv} mV",
+  "@healthAuxVoltage": {
+    "placeholders": {
+      "mv": {
+        "type": "int"
+      }
+    }
+  },
   "@firmwareVersionDisplay": {
     "placeholders": {
       "version": {
@@ -646,14 +748,15 @@
   "reconnectCbbStep": "Reconnect the CBB",
   "reconnectCbbStepDesc": "Plug the CBB cable back into the connector in the footwell. Without the CBB, the MDB could shut down during flashing.",
   "mainBatteryMissingHeading": "No main battery detected",
-  "mainBatteryMissingHint": "The dashboard flash draws from the main pack. Put it back in the seatbox before continuing.",
+  "mainBatteryMissingHint": "The dashboard flash draws from the main battery. Put it back in the seatbox before continuing.",
   "cbbDetected": "CBB detected",
   "batteryDetected": "Battery detected",
   "proceedWithoutCbb": "I understand the risks, proceed anyway",
   "checkingCbbAndBattery": "Checking CBB and battery...",
   "waitingForUsbDisconnect": "Waiting for USB disconnect...",
   "dbcFlashDurationHeadline": "The DBC flash can take 10 to 20 minutes.",
-  "finishHandoverTitle": "Finishing the install…",
+  "finishHandoverRestoring": "Restoring settings and services",
+  "finishHandoverTitle": "Waiting for the scooter to unlock",
   "finishHandoverBody": "Stay with the scooter until it unlocks itself. Then you can unplug the USB cable.",
   "networkConfigNeedsPermission": "macOS is asking for permission to change network settings. Click Allow in the system dialog, then hit Retry.",
   "waitingForMdb": "Waiting for the MDB...",
@@ -661,7 +764,8 @@
   "dbcFlashSequence": "From here the scooter carries on by itself: it writes the image to the dashboard, restarts it and copies the maps over. Progress is shown on the dashboard screen. Stay with the scooter until one of these two things happens.",
   "dbcFlashDoNotDisconnect": "Do not disconnect USB or power while this runs.",
   "dbcFlashDoneSignal": "Done: the scooter unlocks itself. That is the signal, there is nothing else to wait for.",
-  "dbcFlashFailSignal": "Failed: the hazards come on and the dashboard LED blinks red. Plug USB back into the MDB and fetch the log here.",
+  "dbcFlashFailSignal": "Failed: the dashboard LED blinks red and the hazards come on. Plug USB back into the MDB and fetch the log here.",
+  "dbcFlashLedIsTheSignal": "The LED on the dashboard is the error signal: if it blinks red, something has gone wrong.",
   "dbcFlashSomethingWrong": "LED blinking red: reconnect USB and fetch the log",
   "phaseKeycardSetupTitle": "Keycard Setup",
   "phaseKeycardSetupDescription": "Register your keycards",
@@ -672,7 +776,7 @@
   "waitingForDevicePath": "Waiting for device path...",
   "noDevicePathFound": "No device path found. Check USB connection and retry.",
   "mdbDisconnectedFlashingDbc": "MDB disconnected. Flashing DBC autonomously...",
-  "mdbReconnectedVerifying": "MDB reconnected! Verifying...",
+  "mdbReconnectedVerifying": "MDB reconnected. Verifying...",
   "logDebugShell": "Log & Debug Shell",
   "internalError": "Internal error: {error}",
   "@internalError": {
@@ -693,6 +797,7 @@
     }
   },
   "revealLogFile": "Show in folder",
+  "debugShell": "Debug shell",
   "debugCommandHint": "Run a command in the installer context...",
   "mbOnDisk": "{size} MB on disk",
   "@mbOnDisk": {
@@ -707,7 +812,7 @@
   "language": "Language",
   "languageGerman": "Deutsch",
   "languageEnglish": "English",
-  "gettingStartedTitle": "Getting started",
+  "gettingStartedTitle": "Using your scooter",
   "gettingStartedOpenMenuTitle": "Open the menu",
   "gettingStartedOpenMenuDesc": "While parked, give two short pulls in a row on the left brake lever. Use the brake levers to scroll and select; the on-screen hints show what each lever does.",
   "gettingStartedDriveMenuTitle": "Quick menu while riding",
@@ -751,5 +856,116 @@
   "tightenDbcCable": "Screw the dashboard cable down",
   "tightenDbcCableDesc": "The internal dashboard USB cable is already plugged into the MDB. Tighten the screws now.",
   "finalRide": "Ride off",
-  "finalRideDesc": "The scooter unlocked itself when the install finished. If it did not, use one of the keycards you set up, or unlock over Bluetooth."
+  "finalRideDesc": "The scooter unlocked itself when the install finished. If it did not, use one of the keycards you set up, or unlock over Bluetooth.",
+  "notEnoughDiskSpace": "Not enough disk space: {needed} more is required. Free up space and try again.",
+  "@notEnoughDiskSpace": {
+    "placeholders": {
+      "needed": {
+        "type": "String"
+      }
+    }
+  },
+  "keycardFinishCards": "Finish",
+  "substepCheckExisting": "Check existing files",
+  "substepVerifying": "verifying {filename}",
+  "@substepVerifying": {
+    "placeholders": {
+      "filename": {
+        "type": "String"
+      }
+    }
+  },
+  "substepUploadFile": "Upload {filename}",
+  "@substepUploadFile": {
+    "placeholders": {
+      "filename": {
+        "type": "String"
+      }
+    }
+  },
+  "substepUploadFlasher": "Upload flasher tool",
+  "substepUploadFwTools": "Upload DBC bootloader tools",
+  "substepUploadScript": "Upload trampoline script",
+  "waitStepCounter": "Step {current} of {total}",
+  "waitRemaining": "about {duration} left",
+  "@waitRemaining": {
+    "placeholders": {
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "@waitStepCounter": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "waitElapsed": "{time} elapsed",
+  "@waitElapsed": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "waitLongerThanUsual": "{time} · longer than usual",
+  "@waitLongerThanUsual": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "waitShowLog": "Show log",
+  "waitHideLog": "Hide log",
+  "blePairingWhy": "A paired phone can unlock the scooter and show its state through the app. You can skip this and do it later.",
+  "blePairingStep1": "Open Bluetooth on your phone",
+  "blePairingStep1Desc": "Your phone's Bluetooth settings, or the app.",
+  "blePairingStep2": "Pick the scooter from the device list",
+  "blePairingStep2Desc": "It shows up under the address given here.",
+  "blePairingStep3": "Confirm the PIN",
+  "blePairingStep3Desc": "The PIN appears on this screen as soon as your phone asks for it.",
+  "blePairingOneAtATime": "The scooter holds one Bluetooth connection at a time. If a device is already connected, disconnect it there first.",
+  "keycardWhy": "A card you teach the scooter unlocks it without a phone. You can teach it several, and repeat this later at any time. A clean install clears cards taught before it.",
+  "keycardStep1": "Start learning",
+  "keycardStep1Desc": "The scooter then waits for a card.",
+  "keycardStep2": "Hold the card against the reader",
+  "keycardStep2Desc": "The reader sits at the front of the dashboard. Hold it there until the installer counts the card.",
+  "keycardStep3": "Press Finish",
+  "keycardStep3Desc": "That ends the learning and the cards take effect.",
+  "keycardPanelHeading": "Reader",
+  "keycardReaderPreparing": "Preparing",
+  "keycardReaderReady": "Ready",
+  "keycardReaderUnreachable": "Reader not reachable",
+  "keycardReaderScanning": "Hold a card to the reader",
+  "keycardCardsTaught": "{count, plural, =0{No keycards taught in} =1{1 keycard taught in} other{{count} keycards taught in}}",
+  "@keycardCardsTaught": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "keycardMastersRegistered": "{count, plural, =1{1 master card registered} other{{count} master cards registered}}",
+  "@keycardMastersRegistered": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "keycardNeedOneToFinish": "One card is enough to finish.",
+  "keycardPreparingReader": "Preparing the card reader...",
+  "blePairingDeviceName": "Device name",
+  "blePairingStateIdle": "Pairing not started",
+  "blePairingStateVisible": "Visible, waiting for a device",
+  "blePinConfirmTitle": "Confirm this PIN on your phone",
+  "blePinConfirmHint": "Your phone shows the same number. If they match, confirm it there.",
+  "blePairingStep2DescCompare": "Compare the name and address on the right if several devices show up.",
+  "blePairingStep3DescOverlay": "The installer shows it in large type as soon as your phone asks."
 }

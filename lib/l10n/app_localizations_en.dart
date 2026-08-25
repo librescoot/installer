@@ -33,7 +33,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get phaseMdbConnectDescription => 'Detect device and establish SSH';
 
   @override
-  String get phaseResumeDetectedTitle => 'Previous attempt';
+  String get phaseResumeDetectedTitle => 'Previous Attempt';
 
   @override
   String get phaseResumeDetectedDescription => 'Interrupted installation found';
@@ -105,7 +105,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get phaseFinishDescription => 'Reassemble and welcome';
 
   @override
-  String get majorStepPrepare => 'Prepare';
+  String get majorStepPrepare => 'Set up';
 
   @override
   String get majorStepConnect => 'Connect';
@@ -157,7 +157,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reliabilityWarningBody =>
-      'The flash takes several minutes and any USB drop or laptop sleep mid-flash leaves the MDB in an inconsistent state. Please check:\n• A known-good USB cable, plugged in firmly at both ends. Flaky cables are the #1 cause of failed installs\n• Laptop on power, or fully charged. Battery saver / sleep can break the flash\n• Use a direct USB port, not a USB hub if possible\n• Don\'t unplug or move things around once the flash starts';
+      'The flash takes several minutes and any USB drop or laptop sleep mid-flash leaves the MDB in an inconsistent state. Check:\n• A known-good USB cable, plugged in firmly at both ends. Flaky cables are the #1 cause of failed installs\n• Laptop on power, or fully charged. Battery saver / sleep can break the flash\n• Use a direct USB port, not a USB hub if possible\n• Don\'t unplug or move things around once the flash starts';
 
   @override
   String get noPowerCycleWarningTitle =>
@@ -165,7 +165,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noPowerCycleWarningBody =>
-      'If something looks stuck, gives no feedback, or behaves weirdly: PAUSE and ask in Discord first. Do NOT pull the AUX battery, do NOT disconnect the CBB, do NOT yank USB, do NOT reboot the scooter or your laptop. The installer can recover from almost any state. But only if you don\'t intervene. Power-cycling mid-flash is what bricks scooters.';
+      'If something looks stuck, gives no feedback, or behaves oddly: stop and ask in Discord before doing anything else. Do not pull the AUX battery, disconnect the CBB, unplug USB, or restart the scooter or your laptop. The installer can recover from almost any state, as long as nothing interrupts it. Cutting power mid-flash is what bricks scooters.';
 
   @override
   String get downloadsFailedHeading => 'Could not reach the download server';
@@ -175,7 +175,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Check the laptop\'s internet connection, then try again. You can also continue offline if you already have the firmware cached.';
 
   @override
-  String get downloadsRetry => 'Try again';
+  String get downloadsRetry => 'Retry';
 
   @override
   String get noticesHeading => 'Read this before continuing';
@@ -237,6 +237,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get channelNoReleases => 'No releases available';
 
   @override
+  String get manifestBundledNotice =>
+      'Offline: these versions come from the list built into this installer and may be out of date.';
+
+  @override
   String get loadingChannels => 'Loading available channels...';
 
   @override
@@ -249,13 +253,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get startInstallation => 'Start Installation';
 
   @override
-  String get selectRegionError => 'Please select a region for offline maps';
+  String get selectRegionError => 'Select a region for offline maps';
 
   @override
   String get resolvingReleases => 'Resolving releases...';
 
   @override
-  String get physicalPrepHeading => 'Physical Preparation';
+  String get physicalPrepHeading => 'Physical preparation';
 
   @override
   String get physicalPrepSubheading =>
@@ -273,7 +277,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get unscrewUsbCableDesc =>
-      'Disconnect the internal DBC USB cable from the MDB board. Use a flat head or PH1 screwdriver.';
+      'Disconnect the internal DBC USB cable from the MDB. Use a flat head or PH1 screwdriver.';
 
   @override
   String get connectLaptopUsb => 'Connect laptop USB cable';
@@ -319,37 +323,102 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get resumeFoundBody =>
-      'A previous installation on this scooter did not finish. Continuing clears what it left behind: the onboot script it armed is disarmed, and the services it stopped are started again. The installation then runs from the beginning; nothing is resumed.';
+      'The scooter is not damaged. An installation was interrupted, and this screen clears what it left behind before starting again.';
+
+  @override
+  String get resumeWhatHappensHeading => 'What happens when you continue';
+
+  @override
+  String get resumeWhatHappensCleanup =>
+      'The leftovers are cleared: the onboot script the previous run armed is disarmed, and the services it stopped are started again.';
+
+  @override
+  String get resumeWhatHappensRestart =>
+      'The installation runs from the beginning. Nothing is resumed, so no half-finished step is carried over.';
+
+  @override
+  String get resumeWhatHappensKeep =>
+      'Nothing extra is lost. The previous run had already made whatever changes it made; starting again does not repeat that cost.';
+
+  @override
+  String get resumeTakesAsLong =>
+      'It takes as long as a normal installation, about 20 minutes.';
 
   @override
   String get resumeClearingLeftovers =>
       'Clearing what the previous run left behind...';
 
   @override
+  String resumeCleanupFailed(String error) {
+    return 'The previous install could not be made safe: $error\n\nNothing else will run until cleanup succeeds.';
+  }
+
+  @override
   String get resumeFoundLastError => 'Last recorded error:';
+
+  @override
+  String get resumeRunningHeading =>
+      'An install is still running on the scooter';
+
+  @override
+  String get resumeRunningBody =>
+      'The scooter is still working through the previous install. Nothing here touches it while it runs.';
+
+  @override
+  String get resumeRunningWait =>
+      'Wait for the scooter to finish. This carries on by itself afterwards.';
+
+  @override
+  String resumeStageLabel(String stage) {
+    return 'Last step: $stage';
+  }
+
+  @override
+  String get resumeActorScooter => 'on the scooter';
+
+  @override
+  String get resumeActorInstaller => 'in the installer';
+
+  @override
+  String get resumeLogHeading => 'Last lines from the scooter\'s log';
 
   @override
   String get awaitingUnlockHeading => 'Unlock your scooter';
 
   @override
   String get awaitingUnlockDetail =>
-      'Please unlock your scooter to continue. Use your keycard or paired phone.';
+      'Unlock the scooter so the installer can carry on.';
+
+  @override
+  String get awaitingUnlockHintKeycard =>
+      'Hold your keycard against the reader on the handlebars';
+
+  @override
+  String get awaitingUnlockHintPhone => 'Or use a paired phone';
+
+  @override
+  String get awaitingUnlockWatching =>
+      'The installer continues automatically once the scooter is unlocked.';
+
+  @override
+  String get awaitingParkWatching =>
+      'The installer continues automatically once the scooter is parked.';
 
   @override
   String get awaitingParkHeading => 'Park your scooter';
 
   @override
   String get awaitingParkDetail =>
-      'Please park your scooter (flip the kickstand down) to continue.';
+      'Park your scooter (flip the kickstand down) to continue.';
 
   @override
   String get awaitingParkContinueAnyway => 'Continue anyway';
 
   @override
-  String get lockingScooter => 'Locking scooter for flashing...';
+  String get lockingScooter => 'Locking the scooter for flashing...';
 
   @override
-  String get connected => 'Connected!';
+  String get connected => 'Connected';
 
   @override
   String sshConnectionFailed(String error) {
@@ -380,18 +449,29 @@ class AppLocalizationsEn extends AppLocalizations {
   String get manualPasswordSubmit => 'Connect';
 
   @override
+  String get manualPasswordUnknown => 'I don\'t know it';
+
+  @override
+  String get manualPasswordUnknownHeading =>
+      'The scooter wants a password nobody has';
+
+  @override
+  String get manualPasswordUnknownBody =>
+      'Scooters normally answer with a password the installer already carries. This one does not, which usually means it was changed.\n\nIf a workshop has had the scooter, ask them whether they set a root password. That is the most common reason.\n\nOtherwise ask in the Librescoot Discord and mention the firmware version shown above.\n\nNothing on the scooter has been changed and it is safe to close the installer.';
+
+  @override
   String get untestedFirmwareHeading => 'Untested firmware version';
 
   @override
   String untestedFirmwareBody(String version) {
-    return 'Installation has not been tested on firmware versions older than 1.12.0 (yours: $version). The installer should still work, but please share any issues on the Librescoot Discord.';
+    return 'Installation has not been tested on firmware versions older than 1.12.0 (yours: $version). The installer should still work, but share any issues on the Librescoot Discord.';
   }
 
   @override
   String get openLibrescootDiscord => 'Open Librescoot Discord';
 
   @override
-  String get healthCheckHeading => 'Health Check';
+  String get healthCheckHeading => 'Health check';
 
   @override
   String get verifyingReadiness => 'Verifying scooter readiness...';
@@ -405,10 +485,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get incompleteImageBody =>
-      'This scooter is running a minimal recovery image with no battery telemetry. This can happen when a previous install wrote the wrong image. Continue to re-flash the full firmware and finish setup.';
+      'This scooter is running a minimal recovery image. It boots and answers, but carries none of the vehicle services. This can happen if an earlier installation did not finish. Continue to re-flash the full firmware and finish setup.';
 
   @override
   String get reflashToRecover => 'Re-flash to recover';
+
+  @override
+  String get stockFirmwareStatus =>
+      'Stock firmware detected. Ready to install Librescoot...';
+
+  @override
+  String get stockFirmwareHeading => 'Stock firmware';
+
+  @override
+  String get stockFirmwareBody =>
+      'This scooter is running its original firmware. Nothing is wrong with it. Continue to install Librescoot.';
 
   @override
   String get continueButton => 'Continue';
@@ -438,8 +529,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notPresent => 'not present';
 
   @override
+  String get healthValueUnknown => 'cannot be read';
+
+  @override
   String get riskAuxLow =>
-      'Low 12V battery could cause the MDB or DBC to shut down during flashing. The LED indicators may also fail. Close the seatbox with the main battery inserted and wait for it to charge.';
+      'Low 12V battery could cause the MDB or DBC to shut down during flashing. The LED indicators may also fail. Close the seatbox with the main battery inserted and wait for the AUX battery to charge.';
 
   @override
   String get riskCbbSoh =>
@@ -479,6 +573,23 @@ class AppLocalizationsEn extends AppLocalizations {
       'The device is in flashing mode. You can mount the device to create manual backups before proceeding.';
 
   @override
+  String get readyToFlashTargetLabel => 'Target';
+
+  @override
+  String get readyToFlashImageLabel => 'Image to write';
+
+  @override
+  String get readyToFlashErases =>
+      'This erases the main board. Everything currently on it is replaced.';
+
+  @override
+  String get readyToFlashDuration =>
+      'The write takes about a minute. Do not disconnect USB or power while it runs.';
+
+  @override
+  String get readyToFlashNoTarget => 'No target device resolved yet.';
+
+  @override
   String get beginFlashing => 'Begin flashing';
 
   @override
@@ -489,10 +600,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Two-phase write: partitions first, boot sector last.';
 
   @override
+  String get flashAwaitingAuthorisation =>
+      'macOS will ask for your password or Touch ID before the write can start. Look for a system dialog, it may be behind this window. Nothing is being written until you approve it.';
+
+  @override
   String get waitingForMdbFirmware => 'Waiting for MDB firmware download...';
 
   @override
-  String get mdbFlashComplete => 'MDB flash complete!';
+  String get mdbFlashComplete => 'MDB flash complete';
 
   @override
   String flashProgressMb(String mb) {
@@ -515,7 +630,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get scooterPrepHeading => 'Scooter Preparation';
+  String get scooterPrepHeading => 'Scooter preparation';
 
   @override
   String get scooterPrepSubheading =>
@@ -526,32 +641,35 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get disconnectCbbDesc =>
-      'The main battery must already be removed before disconnecting CBB. Failure to follow this order risks electrical damage.';
+      'The main battery must already be removed before disconnecting CBB. Doing this out of order risks electrical damage.';
 
   @override
   String get disconnectAuxPole => 'Disconnect one AUX pole';
 
   @override
   String get disconnectAuxPoleDesc =>
-      'Remove ONLY the positive pole (outermost, the red cable and pole) to avoid risk of inverting polarity. This will remove power from the MDB; the USB connection will disappear.';
+      'Remove only the positive terminal (outer, red cable and post) to avoid reversing polarity. This cuts power to the MDB, so the USB connection drops.';
 
   @override
   String get auxDisconnectWarning =>
-      'The USB connection will be lost when you disconnect AUX. This is expected. The installer will wait for the MDB to reboot.';
+      'The USB connection drops when you disconnect AUX. That is expected. Reconnect the AUX pole on the next screen to start the MDB.';
 
   @override
   String get doneCbbAuxDisconnected => 'Done, the scooter is restarting';
+
+  @override
+  String get doneAuxDisconnected => 'Done, AUX is disconnected';
 
   @override
   String get brakeResetHeading => 'Restart the scooter';
 
   @override
   String get brakeResetIntro =>
-      'Squeeze and hold both brake levers. Every ten seconds, let go of the right one for about a second, then squeeze it again. After the fourth hold, just let go. The scooter cuts its own power and boots again.';
+      'Squeeze and hold both brake levers. Every ten seconds, let go of the right one for about a second, then squeeze it again. After the fourth hold, just let go. The scooter restarts.';
 
   @override
   String get brakeResetAfterNote =>
-      'The USB connection disappears the moment the power drops. That is expected, and the installer waits for the board to come back.';
+      'The USB connection disappears while it restarts. That is expected, and the installer waits for the board to come back.';
 
   @override
   String get brakePacerStart => 'Start the timer';
@@ -564,7 +682,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get brakePacerDone =>
-      'That is the pattern. Let go now. The scooter cuts its own power in a few seconds and comes back on its own.';
+      'That is the pattern. Let go now. The scooter restarts a few seconds later on its own.';
 
   @override
   String get brakeDiagramBlipLegend =>
@@ -602,7 +720,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get deactivatingMainBattery => 'Turning the main battery off...';
 
   @override
-  String get waitingForMdbBoot => 'Waiting for MDB Boot';
+  String get waitingForMdbBoot => 'Waiting for MDB boot';
 
   @override
   String get mdbBootRestartingNote =>
@@ -674,20 +792,59 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get cbbNotDetected => 'CBB not detected. Please check the connection.';
+  String get cbbNotDetected => 'CBB not detected. Check the connection.';
 
   @override
-  String get cbbDetectionMayTakeMinutes =>
-      'This can take several minutes, please be patient.';
+  String get cbbDetectionMayTakeMinutes => 'This can take several minutes.';
 
   @override
   String get preparingDbcFlash => 'Preparing DBC Flash';
 
   @override
+  String get preparingDbcFlashSubtitle =>
+      'Everything the dashboard needs goes onto the MDB first.';
+
+  @override
+  String get preparingDbcFlashExplainer =>
+      'The DBC hangs off the MDB, not off your laptop. So the installer copies the image, the firmware and the offline maps onto the MDB, together with a script that takes over from there. The cable swap comes after that: laptop off, DBC cable back onto the MDB. From then on the MDB flashes the dashboard on its own.';
+
+  @override
+  String get preparingMapTransfer => 'Transferring maps';
+
+  @override
+  String get preparingMapTransferSubtitle =>
+      'The offline maps go to the main board first.';
+
+  @override
+  String get preparingMapTransferExplainer =>
+      'The dashboard hangs off the main board, not off your laptop. So the installer copies the offline maps to the main board and leaves a script there that does the rest. No dashboard firmware is written: you chose to leave the dashboard as it is. Then comes the cable swap, laptop off and the dashboard cable back onto the main board, and the maps go across on their own.';
+
+  @override
+  String get skipMapTransfer => 'Skip the maps';
+
+  @override
+  String get majorStepDbcMaps => 'Maps';
+
+  @override
+  String get phaseDbcPrepTitleMaps => 'Upload Maps';
+
+  @override
+  String get phaseDbcPrepDescriptionMaps => 'Upload the offline maps';
+
+  @override
+  String get phaseDbcFlashTitleMaps => 'Transfer';
+
+  @override
+  String get phaseDbcFlashDescriptionMaps => 'The scooter copies them over';
+
+  @override
+  String get dbcReadyButtonMaps => 'Begin transferring maps';
+
+  @override
   String get waitingForDownloads => 'Waiting for downloads to complete...';
 
   @override
-  String get startingTrampoline => 'Starting trampoline script...';
+  String get startingTrampoline => 'Starting the on-device install script...';
 
   @override
   String uploadError(String error) {
@@ -750,7 +907,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get blinkerStepMaps => 'Upload maps';
 
   @override
-  String get verifyingDbcInstallation => 'Verifying DBC Installation';
+  String get verifyingDbcInstallation => 'Verifying DBC installation';
 
   @override
   String get reconnectUsbToLaptop => 'Reconnect USB to laptop...';
@@ -767,7 +924,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get dbcFlashSuccessful => 'DBC flash successful!';
+  String get dbcFlashSuccessful => 'DBC flash complete';
 
   @override
   String dbcInstallSuccessfulVersion(String version) {
@@ -790,10 +947,25 @@ class AppLocalizationsEn extends AppLocalizations {
       'Trampoline status unknown. Check /data/trampoline.log on MDB.';
 
   @override
-  String get welcomeToLibrescoot => 'Welcome to Librescoot!';
+  String get welcomeToLibrescoot => 'Welcome to Librescoot';
 
   @override
   String get finalSteps => 'Final steps:';
+
+  @override
+  String get finishNextHeading => 'What happens next';
+
+  @override
+  String get finishNextDbcFlash =>
+      'When you reconnect the DBC cable, the scooter starts installing the dashboard by itself. That takes about 20 minutes. Leave the power connected and let it finish; the boot light shows it working.';
+
+  @override
+  String get finishNextOnDevice =>
+      'When you reconnect the DBC cable, the scooter finishes the rest by itself. You do not need to plug the laptop back in.';
+
+  @override
+  String get finishNextNothing =>
+      'The main board is done and nothing else runs on the scooter. Reassemble it and ride.';
 
   @override
   String get disconnectUsbFromLaptopFinal =>
@@ -839,6 +1011,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadsFinishedHint => 'You can continue offline.';
 
   @override
+  String get assetChipMdbArtifact => 'MDB artifact';
+
+  @override
+  String get assetChipDbcArtifact => 'DBC artifact';
+
+  @override
+  String get assetChipMdbImage => 'MDB image';
+
+  @override
+  String get assetChipDbcImage => 'DBC image';
+
+  @override
+  String get assetChipMaps => 'Maps';
+
+  @override
+  String get assetChipRoutes => 'Routes';
+
+  @override
   String get downloadMdbFirmware => 'MDB Firmware';
 
   @override
@@ -851,7 +1041,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadRoutingTiles => 'Routing Tiles';
 
   @override
-  String get safetyCheckFailed => 'Safety Check Failed';
+  String get safetyCheckFailed => 'Safety check failed';
 
   @override
   String get cannotFlashSafety =>
@@ -865,7 +1055,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get confirmFlashTargetBody =>
-      'Windows could not confirm this disk is not your system disk. Check the target before flashing.';
+      'The installer could not confirm this disk is not your system disk. Check the target before flashing.';
 
   @override
   String get confirmFlashTargetDetected => 'Detected Librescoot device';
@@ -907,13 +1097,14 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get regionHint => 'For offline maps and navigation support';
+  String get regionHint =>
+      'Which offline maps to download. Whether to install them is chosen later, with the rest of the plan';
 
   @override
-  String get skipOfflineMaps => 'Skip offline maps';
+  String get skipOfflineMaps => 'Do not download offline maps';
 
   @override
-  String get bluetoothPairingHeading => 'Bluetooth Pairing';
+  String get bluetoothPairingHeading => 'Bluetooth pairing';
 
   @override
   String get bluetoothPairingHint =>
@@ -960,7 +1151,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'The scooter holds only one Bluetooth connection at a time, and it will not advertise while one is up. Disconnect it on the connected device before pairing a new one.';
 
   @override
-  String get keycardLearningHeading => 'Keycard Setup';
+  String get keycardLearningHeading => 'Keycard setup';
 
   @override
   String get keycardLearningBody =>
@@ -1004,6 +1195,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get keycardStopLearning => 'Done';
+
+  @override
+  String get keycardStopScanning => 'Stop';
+
+  @override
+  String get keycardSkipConfirmTitle => 'Skip without a keycard?';
+
+  @override
+  String get keycardSkipConfirmBody =>
+      'No card is taught in, so the scooter cannot be unlocked with one. Only the phone will work.';
+
+  @override
+  String get keycardSkipConfirmAction => 'Skip anyway';
 
   @override
   String keycardStartLearningFailed(String error) {
@@ -1063,11 +1267,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get keycardMasterStageWarningHeading =>
-      'WARNING: master card is NOT for unlocking';
+      'The master card cannot unlock the scooter';
 
   @override
   String get keycardMasterStageWarningBody =>
-      'The master card is used to manage other keycards. It CANNOT unlock the scooter. Do NOT use any of the cards you just registered as unlock cards. Use a separate, fresh card.';
+      'The master card manages your other keycards. It cannot unlock the scooter, and none of the cards you just registered can serve as a master. Use a separate, unused card.';
 
   @override
   String get keycardMasterStageHint => 'Hold the master card to the reader.';
@@ -1081,10 +1285,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get keycardMasterStageSaveFailedToast =>
-      'Could not save master card: write failed.';
+      'Could not save master card. Try again.';
 
   @override
   String get keycardMasterStageLearnedToast => 'Master card registered.';
+
+  @override
+  String get keycardMasterStageStartFailed =>
+      'Master card setup could not be started';
+
+  @override
+  String get keycardMasterStageRetryButton => 'Try again';
 
   @override
   String get keycardMasterStageSkipButton => 'Skip';
@@ -1210,13 +1421,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get actionCleanInstallDetail =>
-      'Erases settings, keycards, maps and trips';
+      'Erases settings and trip history. Keycards and maps are set up again later in this run';
 
   @override
   String get actionUpgradeDetailDbc => 'Keeps the offline maps';
 
   @override
   String get actionCleanInstallDetailDbc => 'Erases the offline maps only';
+
+  @override
+  String get actionCleanInstallDetailDbcTiles =>
+      'Erases the offline maps. They are installed again in this run';
 
   @override
   String get actionLeave => 'Leave alone';
@@ -1226,7 +1441,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get upgradeBlockedNotLibrescoot =>
-      'Upgrade needs Librescoot already installed';
+      'Upgrade needs Librescoot to already be installed';
 
   @override
   String get upgradeBlockedStateUnknown =>
@@ -1243,6 +1458,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get planTilesNeedDbcHandoff =>
       'Refreshing map tiles needs the DBC cable swap, even with the DBC left alone';
+
+  @override
+  String get planInstallTiles => 'Update the offline maps';
+
+  @override
+  String get planInstallTilesDetail =>
+      'Adds a dashboard step: the maps go to the main board, then the cable swaps back and the scooter copies them over.';
+
+  @override
+  String get planTilesNotDownloaded =>
+      'Not downloaded. Offline maps were skipped on the first screen.';
 
   @override
   String get actionLeaveBlockedStockMdb =>
@@ -1316,7 +1542,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get artifactRebootTimeout =>
-      'The MDB did not come back after the reboot.';
+      'Could not reach the scooter after the reboot.';
+
+  @override
+  String get artifactRebootTimeoutHint =>
+      'Check that the USB cable is firmly connected at both ends and that the scooter has power. A scooter with no main battery fitted can also go to sleep on its own while it waits.';
+
+  @override
+  String get artifactRetryDetail =>
+      'Free. Tries again from where this stopped, and keeps your settings, keycards and trips.';
+
+  @override
+  String get artifactFullImageDetail =>
+      'Last resort. Rewrites the whole board and erases settings, keycards and trips.';
 
   @override
   String get artifactPreflightNoMender =>
@@ -1367,6 +1605,22 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String healthVersionPlan(String current, String target) {
+    return 'Currently installed: $current - To install: $target';
+  }
+
+  @override
+  String get distroStock => 'unu scooterOS';
+
+  @override
+  String get distroLibrescoot => 'Librescoot';
+
+  @override
+  String healthAuxVoltage(int mv) {
+    return '$mv mV';
+  }
+
+  @override
   String get openSeatboxButton => 'Open seatbox';
 
   @override
@@ -1381,7 +1635,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mainBatteryMissingHint =>
-      'The dashboard flash draws from the main pack. Put it back in the seatbox before continuing.';
+      'The dashboard flash draws from the main battery. Put it back in the seatbox before continuing.';
 
   @override
   String get cbbDetected => 'CBB detected';
@@ -1403,7 +1657,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'The DBC flash can take 10 to 20 minutes.';
 
   @override
-  String get finishHandoverTitle => 'Finishing the install…';
+  String get finishHandoverRestoring => 'Restoring settings and services';
+
+  @override
+  String get finishHandoverTitle => 'Waiting for the scooter to unlock';
 
   @override
   String get finishHandoverBody =>
@@ -1433,7 +1690,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dbcFlashFailSignal =>
-      'Failed: the hazards come on and the dashboard LED blinks red. Plug USB back into the MDB and fetch the log here.';
+      'Failed: the dashboard LED blinks red and the hazards come on. Plug USB back into the MDB and fetch the log here.';
+
+  @override
+  String get dbcFlashLedIsTheSignal =>
+      'The LED on the dashboard is the error signal: if it blinks red, something has gone wrong.';
 
   @override
   String get dbcFlashSomethingWrong =>
@@ -1471,7 +1732,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'MDB disconnected. Flashing DBC autonomously...';
 
   @override
-  String get mdbReconnectedVerifying => 'MDB reconnected! Verifying...';
+  String get mdbReconnectedVerifying => 'MDB reconnected. Verifying...';
 
   @override
   String get logDebugShell => 'Log & Debug Shell';
@@ -1494,6 +1755,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get revealLogFile => 'Show in folder';
+
+  @override
+  String get debugShell => 'Debug shell';
 
   @override
   String get debugCommandHint => 'Run a command in the installer context...';
@@ -1519,7 +1783,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get languageEnglish => 'English';
 
   @override
-  String get gettingStartedTitle => 'Getting started';
+  String get gettingStartedTitle => 'Using your scooter';
 
   @override
   String get gettingStartedOpenMenuTitle => 'Open the menu';
@@ -1624,4 +1888,180 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get finalRideDesc =>
       'The scooter unlocked itself when the install finished. If it did not, use one of the keycards you set up, or unlock over Bluetooth.';
+
+  @override
+  String notEnoughDiskSpace(String needed) {
+    return 'Not enough disk space: $needed more is required. Free up space and try again.';
+  }
+
+  @override
+  String get keycardFinishCards => 'Finish';
+
+  @override
+  String get substepCheckExisting => 'Check existing files';
+
+  @override
+  String substepVerifying(String filename) {
+    return 'verifying $filename';
+  }
+
+  @override
+  String substepUploadFile(String filename) {
+    return 'Upload $filename';
+  }
+
+  @override
+  String get substepUploadFlasher => 'Upload flasher tool';
+
+  @override
+  String get substepUploadFwTools => 'Upload DBC bootloader tools';
+
+  @override
+  String get substepUploadScript => 'Upload trampoline script';
+
+  @override
+  String waitStepCounter(int current, int total) {
+    return 'Step $current of $total';
+  }
+
+  @override
+  String waitRemaining(String duration) {
+    return 'about $duration left';
+  }
+
+  @override
+  String waitElapsed(String time) {
+    return '$time elapsed';
+  }
+
+  @override
+  String waitLongerThanUsual(String time) {
+    return '$time · longer than usual';
+  }
+
+  @override
+  String get waitShowLog => 'Show log';
+
+  @override
+  String get waitHideLog => 'Hide log';
+
+  @override
+  String get blePairingWhy =>
+      'A paired phone can unlock the scooter and show its state through the app. You can skip this and do it later.';
+
+  @override
+  String get blePairingStep1 => 'Open Bluetooth on your phone';
+
+  @override
+  String get blePairingStep1Desc =>
+      'Your phone\'s Bluetooth settings, or the app.';
+
+  @override
+  String get blePairingStep2 => 'Pick the scooter from the device list';
+
+  @override
+  String get blePairingStep2Desc => 'It shows up under the address given here.';
+
+  @override
+  String get blePairingStep3 => 'Confirm the PIN';
+
+  @override
+  String get blePairingStep3Desc =>
+      'The PIN appears on this screen as soon as your phone asks for it.';
+
+  @override
+  String get blePairingOneAtATime =>
+      'The scooter holds one Bluetooth connection at a time. If a device is already connected, disconnect it there first.';
+
+  @override
+  String get keycardWhy =>
+      'A card you teach the scooter unlocks it without a phone. You can teach it several, and repeat this later at any time. A clean install clears cards taught before it.';
+
+  @override
+  String get keycardStep1 => 'Start learning';
+
+  @override
+  String get keycardStep1Desc => 'The scooter then waits for a card.';
+
+  @override
+  String get keycardStep2 => 'Hold the card against the reader';
+
+  @override
+  String get keycardStep2Desc =>
+      'The reader sits at the front of the dashboard. Hold it there until the installer counts the card.';
+
+  @override
+  String get keycardStep3 => 'Press Finish';
+
+  @override
+  String get keycardStep3Desc =>
+      'That ends the learning and the cards take effect.';
+
+  @override
+  String get keycardPanelHeading => 'Reader';
+
+  @override
+  String get keycardReaderPreparing => 'Preparing';
+
+  @override
+  String get keycardReaderReady => 'Ready';
+
+  @override
+  String get keycardReaderUnreachable => 'Reader not reachable';
+
+  @override
+  String get keycardReaderScanning => 'Hold a card to the reader';
+
+  @override
+  String keycardCardsTaught(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count keycards taught in',
+      one: '1 keycard taught in',
+      zero: 'No keycards taught in',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String keycardMastersRegistered(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count master cards registered',
+      one: '1 master card registered',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get keycardNeedOneToFinish => 'One card is enough to finish.';
+
+  @override
+  String get keycardPreparingReader => 'Preparing the card reader...';
+
+  @override
+  String get blePairingDeviceName => 'Device name';
+
+  @override
+  String get blePairingStateIdle => 'Pairing not started';
+
+  @override
+  String get blePairingStateVisible => 'Visible, waiting for a device';
+
+  @override
+  String get blePinConfirmTitle => 'Confirm this PIN on your phone';
+
+  @override
+  String get blePinConfirmHint =>
+      'Your phone shows the same number. If they match, confirm it there.';
+
+  @override
+  String get blePairingStep2DescCompare =>
+      'Compare the name and address on the right if several devices show up.';
+
+  @override
+  String get blePairingStep3DescOverlay =>
+      'The installer shows it in large type as soon as your phone asks.';
 }

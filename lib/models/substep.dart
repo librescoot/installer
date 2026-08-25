@@ -1,4 +1,7 @@
-enum SubstepState { pending, active, done, failed }
+/// [degraded] is a step that did not complete but has a working fallback, so
+/// the run continues by another route. Distinct from [failed], which is a step
+/// whose absence stops the thing that depends on it.
+enum SubstepState { pending, active, done, degraded, failed }
 
 class Substep {
   Substep({
