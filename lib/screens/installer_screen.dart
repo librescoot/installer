@@ -1163,11 +1163,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                       '%u',
                       '/dev/console',
                     ])).stdout.toString().trim();
-                    final proc = await Process.start('launchctl', [
-                      'asuser',
-                      uid,
-                      'pbcopy',
-                    ]);
+                    final (exe, args, env) = LogService.pbcopyCommand(uid);
+                    final proc = await Process.start(exe, args,
+                        environment: env);
                     proc.stdin.write(text);
                     await proc.stdin.close();
                   } else {
