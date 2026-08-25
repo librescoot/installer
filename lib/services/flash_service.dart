@@ -612,6 +612,12 @@ class FlashService {
     if (fromEnv != null && fromEnv.isNotEmpty && await File(fromEnv).exists()) {
       return fromEnv;
     }
+    // macOS ships none of the X11 helpers below, and the app does not
+    // self-elevate there, so without one `sudo` runs in a GUI with no
+    // terminal: it fails before it asks anything and the user is told the
+    // flash failed, having never been offered a password box. One is written
+    // on demand instead.
+    if (Platform.isMacOS) return _writeMacOsAskpass();
     const candidates = [
       '/usr/bin/ssh-askpass',
       '/usr/bin/ksshaskpass',
@@ -624,6 +630,45 @@ class FlashService {
       if (await File(c).exists()) return c;
     }
     return null;
+  }
+
+  /// The helper `sudo -A` runs: ask through osascript, print what was typed.
+  ///
+  /// A cancelled dialog makes osascript exit non-zero with nothing on stdout,
+  /// which sudo reads as an empty password and refuses, so cancelling ends the
+  /// flash rather than starting one nobody authorised.
+  @visibleForTesting
+  static const String macOsAskpassScript = '#!/bin/sh\n'
+      'osascript'
+      ' -e \'display dialog "Librescoot Installer needs your administrator'
+      ' password to write to the card." with title "Librescoot Installer"'
+      ' default answer "" with hidden answer with icon caution\''
+      ' -e \'text returned of result\'\n';
+
+  /// An askpass helper for macOS: a script that asks through osascript and
+  /// prints what was typed, which is the contract `sudo -A` expects.
+  ///
+  /// It lives in a directory made by mkdtemp rather than at a fixed path,
+  /// because a predictable world-writable path is one another local user can
+  /// pre-create and have root run.
+  Future<String?>? _macOsAskpassPath;
+
+  Future<String?> _writeMacOsAskpass() async {
+    // One per flash service: sudo may ask more than once, and rewriting the
+    // script under a running prompt is not worth the risk.
+    return _macOsAskpassPath ??= () async {
+      try {
+        final dir =
+            await Directory.systemTemp.createTemp('librescoot_askpass_');
+        final script = File(path.join(dir.path, 'askpass.sh'));
+        await script.writeAsString(macOsAskpassScript);
+        await Process.run('chmod', ['0700', script.path]);
+        return script.path;
+      } catch (e) {
+        debugPrint('Flash: could not write the askpass helper ($e)');
+        return null;
+      }
+    }();
   }
 
   /// Linux two-phase flash: single pkexec auth, both phases + verify in one script.
