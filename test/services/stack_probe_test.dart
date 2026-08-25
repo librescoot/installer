@@ -24,6 +24,13 @@ void main() {
       );
     });
 
+    test('a board that could not answer is not a board with no stack', () {
+      // systemd lists no units at all for the first minute of a boot, so the
+      // script says `unknown` rather than letting an empty list read as an
+      // image with nothing on it.
+      expect(SshService.parseStackProbe('unknown\n'), isNull);
+    });
+
     test('anything that is not an answer is unknown', () {
       for (final out in ['', '   ', '\n\n', 'Connection reset by peer', 'yes']) {
         expect(SshService.parseStackProbe(out), isNull, reason: out);
@@ -52,15 +59,50 @@ void main() {
       );
     });
 
-    test('a release artifact with no stack is a rollback', () {
-      // The case the check exists for: u-boot rolled back and the board came
-      // up on stage 0 again.
+    test('a release artifact outranks a probe that found no stack', () {
+      // mender names the image that is running. A board can boot its new
+      // rootfs and still be starting systemd, so the probe finds no vehicle
+      // unit on an image that has one, and letting that outvote the artifact
+      // name reported an installed, committed, running artifact as a failed
+      // install. A genuine rollback is still caught: it comes up on the old
+      // VERSION_ID, which the version check after this one compares.
       expect(
         looksLikeBootstrapImage(
           artifactName: 'release-v1.2.1',
           serviceStack: ServiceStack.none,
         ),
+        isFalse,
+      );
+    });
+
+    test('a stage-0 artifact is bootstrap whatever the probe says', () {
+      for (final stack in [
+        ServiceStack.librescoot,
+        ServiceStack.stock,
+        ServiceStack.none,
+        null,
+      ]) {
+        expect(
+          looksLikeBootstrapImage(
+            artifactName: 'librescoot-unu-mdb-minimal-nightly-20260823t082958',
+            serviceStack: stack,
+          ),
+          isTrue,
+          reason: '$stack',
+        );
+      }
+    });
+
+    test('with no artifact name the probe decides', () {
+      // A board with no mender at all, where the stack is the only evidence.
+      expect(
+        looksLikeBootstrapImage(
+            artifactName: null, serviceStack: ServiceStack.none),
         isTrue,
+      );
+      expect(
+        looksLikeBootstrapImage(artifactName: '', serviceStack: null),
+        isFalse,
       );
     });
 

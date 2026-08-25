@@ -3270,6 +3270,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       artifactName: artifact,
       serviceStack: stack,
     );
+    // The inputs to the verdict, in the log, next to the verdict. Without them
+    // a false "still on the bootstrap image" is undiagnosable from a report.
+    debugPrint(
+      'State: mdb artifact=${artifact ?? "none"} stack=${stack?.name ?? "unanswered"} '
+      'version=${version ?? "unknown"} -> minimal=$minimal',
+    );
 
     return BoardState(
       board: Board.mdb,

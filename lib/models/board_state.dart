@@ -63,11 +63,22 @@ enum ServiceStack {
 
 /// Whether a board should be treated as still running a bootstrap image.
 ///
-/// The artifact name is the authority: a stage-0 image carries "minimal" in
-/// it. The service-stack probe only overrules that when it actually answered,
-/// because a board that could not be asked is not a board that said no.
+/// The artifact name is the authority in both directions. mender reports which
+/// image is actually running: a name carrying "minimal" is a stage-0 board, and
+/// a name that does not is a board that took the artifact. The stack probe is
+/// weaker evidence than that, since a stack can be absent for reasons other
+/// than the image, so it only decides the case when mender said nothing.
+///
+/// That asymmetry is the point. A board can boot its new rootfs and still be
+/// bringing systemd up, so the probe finds no vehicle unit on an image that
+/// plainly has one. Letting the probe outvote the artifact name reported an
+/// installed, committed, running artifact as a failed install, and offered to
+/// rewrite the eMMC to fix it.
 bool looksLikeBootstrapImage({
   required String? artifactName,
   required ServiceStack? serviceStack,
-}) =>
-    (artifactName ?? '').contains('minimal') || serviceStack == ServiceStack.none;
+}) {
+  final name = artifactName ?? '';
+  if (name.isNotEmpty) return name.contains('minimal');
+  return serviceStack == ServiceStack.none;
+}

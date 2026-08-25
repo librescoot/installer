@@ -1530,7 +1530,7 @@ done
   /// as a rollback to the bootstrap image, with the artifact name and
   /// os-release both saying otherwise. A board that is up but slow gets a few
   /// tries before this gives up on it.
-  Future<ServiceStack?> detectServiceStack({int attempts = 3}) async {
+  Future<ServiceStack?> detectServiceStack({int attempts = 12}) async {
     for (var attempt = 1; attempt <= attempts; attempt++) {
       try {
         // redis-cli alone separates nothing: the bootstrap image ships valkey
@@ -1541,7 +1541,14 @@ done
         // stock board distinct from a board with no stack at all.
         final out = await runCommand(_stackProbeScript);
         final answer = parseStackProbe(out);
-        if (answer != null) return answer;
+        if (answer != null) {
+          // Logged on the way out, not only when it goes wrong. This decides
+          // whether a finished install is reported as a failure, and a
+          // decision that leaves no trace in the log we ask users for cannot
+          // be diagnosed from a report.
+          debugPrint('SSH: stack probe -> ${answer.name} (attempt $attempt)');
+          return answer;
+        }
         debugPrint('SSH: stack probe gave nothing useful: ${out.trim()}');
       } catch (e) {
         debugPrint('SSH: stack probe failed (attempt $attempt): $e');
@@ -1550,12 +1557,18 @@ done
         await Future.delayed(const Duration(seconds: 5));
       }
     }
+    debugPrint('SSH: stack probe never answered after $attempts attempts');
     return null;
   }
 
+  /// systemd answers list-unit-files with nothing at all for the first minute
+  /// or so of a boot, and an empty list looks exactly like a list with no
+  /// vehicle unit in it. Emitting `unknown` for that keeps a board that has not
+  /// finished starting from being reported as a board with no stack.
   static const _stackProbeScript =
       r'''command -v redis-cli >/dev/null 2>&1 || { echo none; exit 0; }; '''
       r'''u=$(systemctl list-unit-files 2>/dev/null); '''
+      r'''[ -z "$u" ] && { echo unknown; exit 0; }; '''
       r'''echo "$u" | grep -q "^librescoot-vehicle" && { echo librescoot; exit 0; }; '''
       r'''echo "$u" | grep -q "^vehicle-service" && { echo stock; exit 0; }; '''
       r'''echo none''';
@@ -1573,6 +1586,8 @@ done
       'librescoot' => ServiceStack.librescoot,
       'stock' => ServiceStack.stock,
       'none' => ServiceStack.none,
+      // `unknown` is the board saying it could not answer, which is the same
+      // as not answering: null, so the caller retries rather than concluding.
       _ => null,
     };
   }
