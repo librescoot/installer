@@ -790,6 +790,38 @@ class AppLocalizationsEn extends AppLocalizations {
       'The DBC hangs off the MDB, not off your laptop. So the installer copies the image, the firmware and the offline maps onto the MDB, together with a script that takes over from there. The cable swap comes after that: laptop off, DBC cable back onto the MDB. From then on the MDB flashes the dashboard on its own.';
 
   @override
+  String get preparingMapTransfer => 'Transferring maps';
+
+  @override
+  String get preparingMapTransferSubtitle =>
+      'The offline maps go to the main board first.';
+
+  @override
+  String get preparingMapTransferExplainer =>
+      'The dashboard hangs off the main board, not off your laptop. So the installer copies the offline maps to the main board and leaves a script there that does the rest. No dashboard firmware is written: you chose to leave the dashboard as it is. Then comes the cable swap, laptop off and the dashboard cable back onto the main board, and the maps go across on their own.';
+
+  @override
+  String get skipMapTransfer => 'Skip the maps';
+
+  @override
+  String get majorStepDbcMaps => 'Maps';
+
+  @override
+  String get phaseDbcPrepTitleMaps => 'Upload Maps';
+
+  @override
+  String get phaseDbcPrepDescriptionMaps => 'Upload the offline maps';
+
+  @override
+  String get phaseDbcFlashTitleMaps => 'Transfer';
+
+  @override
+  String get phaseDbcFlashDescriptionMaps => 'The scooter copies them over';
+
+  @override
+  String get dbcReadyButtonMaps => 'Begin transferring maps';
+
+  @override
   String get waitingForDownloads => 'Waiting for downloads to complete...';
 
   @override

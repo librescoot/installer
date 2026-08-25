@@ -797,6 +797,38 @@ class AppLocalizationsDe extends AppLocalizations {
       'Das DBC hängt am MDB, nicht am Laptop. Der Installer kopiert deshalb Image, Firmware und Offline-Karten auf das MDB und legt dort ein Skript ab, das den Rest übernimmt. Erst danach kommt der Kabeltausch: Laptop ab, DBC-Kabel wieder ans MDB. Von da an flasht das MDB das Display allein weiter.';
 
   @override
+  String get preparingMapTransfer => 'Karten werden übertragen';
+
+  @override
+  String get preparingMapTransferSubtitle =>
+      'Die Offline-Karten wandern zuerst auf das MDB.';
+
+  @override
+  String get preparingMapTransferExplainer =>
+      'Das DBC hängt am MDB, nicht am Laptop. Der Installer kopiert deshalb die Offline-Karten auf das MDB und legt dort ein Skript ab, das den Rest übernimmt. Es wird keine Display-Firmware geschrieben: du hast das DBC auf unverändert gestellt. Danach kommt der Kabeltausch, Laptop ab und DBC-Kabel wieder ans MDB, und die Karten wandern von allein hinüber.';
+
+  @override
+  String get skipMapTransfer => 'Karten überspringen';
+
+  @override
+  String get majorStepDbcMaps => 'Karten';
+
+  @override
+  String get phaseDbcPrepTitleMaps => 'Karten hochladen';
+
+  @override
+  String get phaseDbcPrepDescriptionMaps => 'Offline-Karten hochladen';
+
+  @override
+  String get phaseDbcFlashTitleMaps => 'Übertragen';
+
+  @override
+  String get phaseDbcFlashDescriptionMaps => 'Der Roller kopiert sie selbst';
+
+  @override
+  String get dbcReadyButtonMaps => 'Kartenübertragung starten';
+
+  @override
   String get waitingForDownloads => 'Warte auf Abschluss der Downloads...';
 
   @override

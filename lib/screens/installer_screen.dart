@@ -1224,6 +1224,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                         completedPhases: _completedPhases,
                         skippedPhases: _skippedPhases,
                         upgradingSteps: _upgradingSteps,
+                        dbcMapsOnly: _dbcMapsOnly,
                         downloadItems: _downloadState.items,
                         statusMessage: _statusMessage,
                         isBusy: _isProcessing,
@@ -6000,13 +6001,19 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // The upload usually started while the user was pairing, so this phase
     // mostly displays work already in flight rather than kicking it off.
     final busy = _isProcessing || _dbcStageInFlight;
+    // needsHandoff is true for tiles alone, so this step runs for a plan that
+    // leaves the dashboard untouched. What it does then is copy maps, and a
+    // screen titled for a firmware flash promises something else entirely.
+    final mapsOnly = !(_plan?.needsDbcWork ?? true);
     if (!_dbcPrepStarted && !busy) {
       _dbcPrepStarted = true;
       Future.microtask(_uploadDbcFiles);
     }
     return PhaseLayout(
-      title: l10n.preparingDbcFlash,
-      subtitle: l10n.preparingDbcFlashSubtitle,
+      title: mapsOnly ? l10n.preparingMapTransfer : l10n.preparingDbcFlash,
+      subtitle: mapsOnly
+          ? l10n.preparingMapTransferSubtitle
+          : l10n.preparingDbcFlashSubtitle,
       actions: [
         if (_dbcUploadReady) ...[
           // The plan decided there was dashboard work, and nothing between
@@ -6017,12 +6024,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           // red LED, so leaving has to be an option here and not only after a
           // failure.
           PhaseAction(
-            label: l10n.skipToFinish,
+            // Skipping a firmware write is an escape hatch and should read
+            // like one. Skipping a map copy costs stale offline maps, which
+            // is recoverable and repeatable, so it reads as an ordinary
+            // choice.
+            label: mapsOnly ? l10n.skipMapTransfer : l10n.skipToFinish,
             side: ActionSide.back,
             onPressed: busy ? null : () => _setPhase(InstallerPhase.finish),
           ),
           PhaseAction(
-            label: l10n.dbcReadyButton,
+            label: mapsOnly ? l10n.dbcReadyButtonMaps : l10n.dbcReadyButton,
             icon: Icons.bolt,
             primary: true,
             onPressed: busy ? null : _startTrampoline,
@@ -6065,7 +6076,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           // installer talking to itself. What it is doing, and why the DBC is
           // not on the other end of the cable, belongs on the screen.
           Text(
-            l10n.preparingDbcFlashExplainer,
+            mapsOnly
+                ? l10n.preparingMapTransferExplainer
+                : l10n.preparingDbcFlashExplainer,
             style: TextStyle(
                 fontSize: 14, height: 1.5, color: Colors.grey.shade300),
           ),
@@ -6725,6 +6738,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// The MDB's step is mdbInstall, not mdbFlash: mdbFlash prepares the board
   /// for a raw write and is the step an upgrade skips, so it keeps its own
   /// name. mdbInstall is where the upgrade happens.
+  /// needsHandoff is true for tiles by themselves, so the dashboard block runs
+  /// for a plan that leaves the dashboard untouched. What it does then is copy
+  /// maps, and every label on it otherwise says flash.
+  bool get _dbcMapsOnly =>
+      !(_plan?.needsDbcWork ?? true) && (_plan?.installTiles ?? false);
+
   Set<MajorStep> get _upgradingSteps => {
     if (_plan?.mdb.action == BoardAction.upgrade) MajorStep.mdbInstall,
     if (_plan?.dbc.action == BoardAction.upgrade) MajorStep.dbcFlash,

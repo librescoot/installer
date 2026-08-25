@@ -15,6 +15,7 @@ class PhaseSidebar extends StatelessWidget {
     required this.completedPhases,
     this.skippedPhases = const {},
     this.upgradingSteps = const {},
+    this.dbcMapsOnly = false,
     this.downloadItems = const [],
     this.statusMessage,
     this.isBusy = false,
@@ -29,6 +30,10 @@ class PhaseSidebar extends StatelessWidget {
   /// Major steps whose board the plan is upgrading rather than flashing.
   /// Only changes the wording; the phases themselves are the same.
   final Set<MajorStep> upgradingSteps;
+
+  /// The plan leaves the dashboard alone but installs maps, so the
+  /// dashboard block copies files and writes no firmware.
+  final bool dbcMapsOnly;
   final List<DownloadItem> downloadItems;
 
   /// What the installer is doing right now. It used to live in a strip along
@@ -103,6 +108,7 @@ class PhaseSidebar extends StatelessWidget {
                     isCompleted: major.isCompleted(currentPhase),
                     isSkipped: major.phases.every((p) => skippedPhases.contains(p)),
                     isUpgrade: upgradingSteps.contains(major),
+                    mapsOnly: dbcMapsOnly,
                     l10n: l10n,
                   ),
                   // Show substeps only for the active major step
@@ -114,6 +120,7 @@ class PhaseSidebar extends StatelessWidget {
                           isCurrent: phase == currentPhase,
                           isCompleted: completedPhases.contains(phase) || phase.index < currentPhase.index,
                           l10n: l10n,
+                          mapsOnly: dbcMapsOnly,
                         ),
                 ],
               ],
@@ -224,6 +231,7 @@ class _MajorStepItem extends StatelessWidget {
     required this.l10n,
     this.isSkipped = false,
     this.isUpgrade = false,
+    this.mapsOnly = false,
   });
 
   final MajorStep step;
@@ -231,6 +239,7 @@ class _MajorStepItem extends StatelessWidget {
   final bool isCompleted;
   final bool isSkipped;
   final bool isUpgrade;
+  final bool mapsOnly;
   final AppLocalizations l10n;
 
   @override
@@ -292,7 +301,8 @@ class _MajorStepItem extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  step.localizedTitle(l10n, upgrade: isUpgrade),
+                  step.localizedTitle(l10n,
+                      upgrade: isUpgrade, mapsOnly: mapsOnly),
                   style: TextStyle(
                     color: textColor,
                     fontSize: 14,
@@ -324,12 +334,14 @@ class _SubStepItem extends StatelessWidget {
     required this.isCurrent,
     required this.isCompleted,
     required this.l10n,
+    this.mapsOnly = false,
   });
 
   final InstallerPhase phase;
   final bool isCurrent;
   final bool isCompleted;
   final AppLocalizations l10n;
+  final bool mapsOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -355,7 +367,7 @@ class _SubStepItem extends StatelessWidget {
           const SizedBox(width: 6),
           Expanded(
             child: Text(
-              phase.localizedTitle(l10n),
+              phase.localizedTitle(l10n, mapsOnly: mapsOnly),
               style: TextStyle(
                 color: textColor,
                 fontSize: 11,

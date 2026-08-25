@@ -1478,6 +1478,66 @@ abstract class AppLocalizations {
   /// **'The DBC hangs off the MDB, not off your laptop. So the installer copies the image, the firmware and the offline maps onto the MDB, together with a script that takes over from there. The cable swap comes after that: laptop off, DBC cable back onto the MDB. From then on the MDB flashes the dashboard on its own.'**
   String get preparingDbcFlashExplainer;
 
+  /// No description provided for @preparingMapTransfer.
+  ///
+  /// In en, this message translates to:
+  /// **'Transferring maps'**
+  String get preparingMapTransfer;
+
+  /// No description provided for @preparingMapTransferSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'The offline maps go to the main board first.'**
+  String get preparingMapTransferSubtitle;
+
+  /// No description provided for @preparingMapTransferExplainer.
+  ///
+  /// In en, this message translates to:
+  /// **'The dashboard hangs off the main board, not off your laptop. So the installer copies the offline maps to the main board and leaves a script there that does the rest. No dashboard firmware is written: you chose to leave the dashboard as it is. Then comes the cable swap, laptop off and the dashboard cable back onto the main board, and the maps go across on their own.'**
+  String get preparingMapTransferExplainer;
+
+  /// No description provided for @skipMapTransfer.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip the maps'**
+  String get skipMapTransfer;
+
+  /// No description provided for @majorStepDbcMaps.
+  ///
+  /// In en, this message translates to:
+  /// **'Maps'**
+  String get majorStepDbcMaps;
+
+  /// No description provided for @phaseDbcPrepTitleMaps.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload Maps'**
+  String get phaseDbcPrepTitleMaps;
+
+  /// No description provided for @phaseDbcPrepDescriptionMaps.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload the offline maps'**
+  String get phaseDbcPrepDescriptionMaps;
+
+  /// No description provided for @phaseDbcFlashTitleMaps.
+  ///
+  /// In en, this message translates to:
+  /// **'Transfer'**
+  String get phaseDbcFlashTitleMaps;
+
+  /// No description provided for @phaseDbcFlashDescriptionMaps.
+  ///
+  /// In en, this message translates to:
+  /// **'The scooter copies them over'**
+  String get phaseDbcFlashDescriptionMaps;
+
+  /// No description provided for @dbcReadyButtonMaps.
+  ///
+  /// In en, this message translates to:
+  /// **'Begin transferring maps'**
+  String get dbcReadyButtonMaps;
+
   /// No description provided for @waitingForDownloads.
   ///
   /// In en, this message translates to:
