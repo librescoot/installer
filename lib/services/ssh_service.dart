@@ -495,23 +495,6 @@ done
       debugPrint('SSH: stopped power manager');
     } catch (_) {}
 
-    // Ask the subsystem, not the filesystem. A present sftp-server binary is
-    // not a working subsystem: the board ships one and the handshake never
-    // completes, so every first upload spent its full timeout finding that
-    // out and then fell back to cat anyway. Opening a session answers the
-    // question that matters, and costs the bound below when the answer is no.
-    try {
-      final sftp = await _requireClient('SFTP probe')
-          .sftp()
-          .timeout(sftpProbeTimeout);
-      sftp.close();
-      _sftpAvailable = true;
-      debugPrint('SSH: SFTP available');
-    } catch (e) {
-      _sftpAvailable = false;
-      debugPrint('SSH: SFTP not available ($e), uploads will use cat');
-    }
-
     final detected = await _detectFirmwareVersion();
     if (detected.version != null) {
       authVersion = detected.version!;
@@ -523,6 +506,58 @@ done
       debugPrint(
         'SSH: firmware version detection failed, using Unknown for UI',
       );
+    }
+
+    // Stock runs dropbear, which has no working sftp subsystem, and os-release
+    // has just told us which distribution this is. Skipping the probe outright
+    // is better than probing well: the answer is already known and the probe
+    // costs a timeout to reach it.
+    final osId = detected.osId ?? '';
+    if (osId.isNotEmpty && !osId.startsWith('librescoot')) {
+      _sftpAvailable = false;
+      debugPrint('SSH: os-release ID "$osId", uploads will use cat');
+    } else {
+      // Write something, do not just open a session. Neither the sftp-server
+      // binary being on disk nor a session opening says the subsystem works:
+      // dropbear opens one and then never completes a write, so an
+      // open-and-close probe reported available and every upload afterwards
+      // spent its full timeout discovering otherwise.
+      //
+      // A few bytes to /tmp is the smallest operation that exercises the thing
+      // that actually fails, and the file is removed on the way out.
+      try {
+        final sftp = await _requireClient(
+          'SFTP probe',
+        ).sftp().timeout(sftpProbeTimeout);
+        try {
+          const probePath = '/tmp/.installer-sftp-probe';
+          final file = await sftp
+              .open(
+                probePath,
+                mode:
+                    SftpFileOpenMode.write |
+                    SftpFileOpenMode.create |
+                    SftpFileOpenMode.truncate,
+              )
+              .timeout(sftpProbeTimeout);
+          try {
+            await file
+                .write(Stream.value(Uint8List.fromList([0x6f, 0x6b])))
+                .done
+                .timeout(sftpProbeTimeout);
+          } finally {
+            await file.close();
+          }
+          await sftp.remove(probePath).timeout(sftpProbeTimeout);
+          _sftpAvailable = true;
+          debugPrint('SSH: SFTP available');
+        } finally {
+          sftp.close();
+        }
+      } catch (e) {
+        _sftpAvailable = false;
+        debugPrint('SSH: SFTP not available ($e), uploads will use cat');
+      }
     }
 
     // Get serial number
@@ -1039,8 +1074,7 @@ done
   }
 
   Future<void> _uploadViaCat(Uint8List content, String remotePath) async {
-    final session =
-        await _requireClient('upload').execute('cat > $remotePath');
+    final session = await _requireClient('upload').execute('cat > $remotePath');
     session.stdin.add(content);
     await session.stdin.close();
     // Drain stdout/stderr to prevent blocking
@@ -1747,8 +1781,9 @@ done
     await _ensureConnected('file download');
     SSHSession? session;
     try {
-      session = await _requireClient('file download')
-          .execute('cat ${_shellEscape(remotePath)}');
+      session = await _requireClient(
+        'file download',
+      ).execute('cat ${_shellEscape(remotePath)}');
       final chunks = <int>[];
       final stdoutDone = () async {
         await for (final data in session!.stdout) {
