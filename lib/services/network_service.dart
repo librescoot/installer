@@ -403,8 +403,22 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
       );
 
       if (result.exitCode != 0) {
-        debugPrint('ifconfig failed: ${result.stderr}');
-        return false;
+        // Configuring an interface needs root and the app does not have it on
+        // this path. That is survivable: the gadget serves DHCP, so macOS
+        // configures the interface itself moments later and the board becomes
+        // reachable without us. Say which of those two happened rather than
+        // logging a bare failure on a path that works.
+        final denied =
+            result.stderr.toString().toLowerCase().contains('permission denied');
+        await Future.delayed(const Duration(seconds: 2));
+        final reachable = await isMdbReachable();
+        debugPrint(
+          denied
+              ? 'Network: ifconfig not permitted, '
+                  '${reachable ? "DHCP configured it instead" : "and no DHCP lease arrived"}'
+              : 'Network: ifconfig failed: ${result.stderr}',
+        );
+        return reachable;
       }
 
       await Future.delayed(const Duration(seconds: 2));
