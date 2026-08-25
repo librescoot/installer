@@ -134,6 +134,19 @@ class UsbDetector {
   int _macDiskProbeAttempts = 0;
   static const int _maxMacDiskProbeAttempts = 12;
 
+  /// Whether the macOS disk probe result is currently cached.
+  ///
+  /// The cache outliving the device it describes is what hands the flasher a
+  /// path that no longer exists, so the conditions that clear it are worth
+  /// pinning in a test rather than trusting by inspection.
+  @visibleForTesting
+  bool get hasMacDiskInfoCache => _macDiskInfoCache != null;
+
+  /// Seed the macOS disk probe cache, standing in for a probe that has landed.
+  @visibleForTesting
+  void seedMacDiskInfoForTest(Map<String, dynamic>? info) =>
+      _macDiskInfoCache = info;
+
   Stream<UsbDevice?> get deviceStream => _deviceController.stream;
   UsbDevice? get currentDevice => _lastDevice;
 
@@ -204,11 +217,22 @@ class UsbDetector {
           device?.isRemovable != _lastDevice?.isRemovable ||
           device?.systemDiskVerdict != _lastDevice?.systemDiskVerdict;
       if (changed) {
+        // Computed before _lastDevice is replaced, or the comparison is
+        // against the value we are about to overwrite and never fires.
+        final modeChanged = device?.mode != _lastDevice?.mode;
         _lastDevice = device;
-        if (device == null) {
-          // The cached path can outlive the device (USB drop, power-cycle).
-          // Drop it so resolveDevicePath() doesn't hand back a node that
-          // no longer exists on the host.
+        if (device == null || modeChanged) {
+          // The cached path can outlive the device (USB drop, power-cycle),
+          // and it also outlives a mode change: mass storage to ethernet
+          // leaves a disk node cached for a board that no longer presents
+          // one, because the device is not null so the drop below is skipped.
+          // Clearing on the mode change catches the case a null poll misses
+          // when the board switches gadget without a gap the poll can see.
+          //
+          // Resetting the attempt counter matters for the same transition:
+          // it is capped, and a device that is present but not yet
+          // enumerated exhausts the cap and then never probes again, which
+          // is the state that most needs another look.
           _macDiskInfoCache = null;
           _macDiskProbeAttempts = 0;
         }
