@@ -1912,6 +1912,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
+        // A border grows inward from the box edge, so widening it on selection
+        // shrinks the content box and reflows everything below the card for
+        // the length of the animation. The border stays one width and the
+        // selected state is carried by colour; the padding absorbs the second
+        // pixel so the card's own size never changes.
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           // Same radius and same border colour as the Cards elsewhere, so a
@@ -1920,7 +1925,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: selected ? kAccent : kOutline,
-            width: selected ? 2 : 1,
           ),
           color: selected
               ? kAccent.withValues(alpha: 0.08)
