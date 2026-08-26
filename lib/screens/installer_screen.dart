@@ -5797,6 +5797,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       } catch (e) {
         debugPrint('UI: install state write did not settle before reboot: $e');
       }
+      // The image on the other side of this reboot has vehicle-service and
+      // takes usb0 down with the dashboard, so the reconnect below has to be
+      // arranged from the board before it goes. See installUsb0KeeperOnboot.
+      await _sshService.installUsb0KeeperOnboot();
       await _sshService.reboot();
       _expectMinimalMdb = false;
       await _reconnectAfterReboot(l10n);

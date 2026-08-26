@@ -1189,6 +1189,76 @@ done
     debugPrint('SSH: bootloader configured for mass storage mode');
   }
 
+  /// The one-shot `/data/onboot.sh` that keeps usb0 up across the reboot into
+  /// the freshly installed image.
+  ///
+  /// The image that boots next has vehicle-service, which the stage-0 image
+  /// did not, and its default usb0 policy hands the link to dashboard_power.
+  /// The dashboard is off here, so the board withdraws the installer's only
+  /// route in at the moment it has to check that the install took. Setting the
+  /// policy is what holds the link, and a script on the board is the only
+  /// thing that can: the setting is transient, so it cannot be written before
+  /// the reboot, and writing it after one needs the link it is there to keep.
+  ///
+  /// librescoot-onboot.service runs this on the next boot
+  /// (ConditionPathExists=/data/onboot.sh), and /data survives the artifact
+  /// install, which is what puts it on the far side of the reboot.
+  @visibleForTesting
+  static const String usb0KeeperOnboot = r'''#!/bin/sh
+# Written by the Librescoot installer before the reboot into the new image.
+# One shot: it deletes itself at the end, so the trampoline's own onboot.sh is
+# never shadowed and nothing of this outlives the run. The trampoline backs up
+# an onboot.sh it finds and restores it when it retires, so a keeper that stayed
+# would come back as a permanent one.
+ip link set usb0 up 2>/dev/null || ifconfig usb0 up 2>/dev/null
+# A board that rolled back is on stage 0 again, with no lsc and no redis to set
+# a policy in. It also has no vehicle-service to take usb0 down, so the line
+# above is all that board needs.
+if command -v lsc >/dev/null 2>&1; then
+  i=0
+  while [ $i -lt 60 ]; do
+    redis-cli ping >/dev/null 2>&1 && break
+    i=$((i+1))
+    sleep 1
+  done
+  lsc set scooter.usb0-policy always-on >/dev/null 2>&1
+fi
+rm -f /data/onboot.sh
+''';
+
+  /// Install [usb0KeeperOnboot] as `/data/onboot.sh`, unless something already
+  /// occupies that path.
+  ///
+  /// Best effort: a board this could not be written to still gets its reboot,
+  /// and the reconnect afterwards is what reports whether it came back.
+  ///
+  /// Never overwrites. An onboot.sh already there belongs to a trampoline run
+  /// that has not finished, and that one has a dashboard install behind it;
+  /// losing it to hold a link open trades the install for the diagnosis of it.
+  Future<void> installUsb0KeeperOnboot() async {
+    try {
+      final existing = await runCommand(
+        'test -f /data/onboot.sh && echo yes || echo no',
+      );
+      if (existing.trim() == 'yes') {
+        debugPrint(
+          'SSH: /data/onboot.sh is already taken, no usb0 keeper for this '
+          'reboot',
+        );
+        return;
+      }
+      await runCommand(
+        "cat > /data/onboot.sh << 'LSIUSB0'\n"
+        '$usb0KeeperOnboot'
+        'LSIUSB0\n'
+        'chmod +x /data/onboot.sh; sync',
+      );
+      debugPrint('SSH: installed the one-shot usb0 keeper as /data/onboot.sh');
+    } catch (e) {
+      debugPrint('SSH: could not install the usb0 keeper (ok): $e');
+    }
+  }
+
   /// Reboot the device
   Future<void> reboot() async {
     // No guard: every command here goes through runCommand, which reconnects
