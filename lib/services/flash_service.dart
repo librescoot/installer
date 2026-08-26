@@ -305,9 +305,15 @@ class FlashService {
   /// (Xcode build phase / CMake install), so no chmod is needed at runtime.
   /// Windows bundles it via Flutter assets (no execute bit needed).
   /// macOS dd fallback for hosts without a matching librescoot-flasher
-  /// binary in the bundle. Single-phase, no bmap, no two-phase safety —
-  /// strictly a "get the bits there" path. We're root via self-elevation,
-  /// so writing to /dev/rdiskN works without authopen.
+  /// binary in the bundle. Single-phase, no bmap, no two-phase safety:
+  /// strictly a "get the bits there" path.
+  ///
+  /// This used to run dd as itself, on the reasoning that the app had
+  /// self-elevated. It no longer does on macOS, and /dev/rdiskN is root-owned,
+  /// so that dd could only ever end in "Permission denied" with no prompt
+  /// anywhere for the user to answer. dd goes through `sudo -A` and the
+  /// osascript askpass now, and where there is no way to ask, this refuses
+  /// instead of starting a write that cannot land.
   Future<void> _writeMacOSDdFallback(
     String imagePath,
     String rawDevice,
@@ -318,26 +324,53 @@ class FlashService {
     final totalMb = totalBytes / (1024 * 1024);
     onProgress?.call(0.0, 'dd fallback (no Go flasher for this CPU)...');
 
+    // Only dd needs the privileges, so sudo wraps dd alone and gunzip stays on
+    // this side of the pipe as the user.
+    final env = <String, String>{};
+    var dd = 'dd';
+    final isRoot =
+        (await Process.run('id', ['-u'])).stdout.toString().trim() == '0';
+    if (!isRoot) {
+      final askpass = await _findAskpass();
+      if (askpass == null) {
+        throw Exception(
+          'This build has no flasher for ${Abi.current()} and no way to ask '
+          'for the administrator password, so the card cannot be written. '
+          'Download the installer again from downloads.librescoot.org.',
+        );
+      }
+      env['SUDO_ASKPASS'] = askpass;
+      dd = 'sudo -A dd';
+      onProgress?.call(0.0, 'Waiting for authorization...');
+    }
+
     // macOS /bin/sh is bash, which supports pipefail: without it, a gunzip
     // I/O error would be swallowed and only dd's (successful) exit code
     // would count, leaving a truncated write reported as success.
     final cmd = isCompressed
-        ? 'set -o pipefail; gunzip -c "$imagePath" | dd of=$rawDevice bs=4m'
-        : 'dd if="$imagePath" of=$rawDevice bs=4m';
+        ? 'set -o pipefail; gunzip -c "$imagePath" | $dd of=$rawDevice bs=4m'
+        : '$dd if="$imagePath" of=$rawDevice bs=4m';
 
-    final process = await Process.start('/bin/sh', ['-c', cmd]);
+    debugPrint('Flash: dd fallback: $cmd');
+    final process = await Process.start('/bin/sh', ['-c', cmd],
+        environment: env.isEmpty ? null : env);
 
-    // macOS dd prints status only on SIGINFO. Poke it every 2s so the
-    // user sees something move.
-    final ticker = Timer.periodic(const Duration(seconds: 2), (_) async {
-      try {
-        final r = await Process.run('pgrep', ['-P', '${process.pid}', 'dd']);
-        final ddPid = int.tryParse(r.stdout.toString().trim());
-        if (ddPid != null) {
-          await Process.run('kill', ['-INFO', '$ddPid']);
-        }
-      } catch (_) {}
-    });
+    // macOS dd prints status only on SIGINFO. Poke it every 2s so the user
+    // sees something move. Only while we are root: under sudo the dd belongs
+    // to root and a signal from this uid bounces off it, so there is nothing
+    // to poke and the write runs without a byte counter.
+    final ticker = isRoot
+        ? Timer.periodic(const Duration(seconds: 2), (_) async {
+            try {
+              final r =
+                  await Process.run('pgrep', ['-P', '${process.pid}', 'dd']);
+              final ddPid = int.tryParse(r.stdout.toString().trim());
+              if (ddPid != null) {
+                await Process.run('kill', ['-INFO', '$ddPid']);
+              }
+            } catch (_) {}
+          })
+        : null;
 
     final stderrBuf = StringBuffer();
     process.stdout.listen((_) {});
@@ -358,7 +391,7 @@ class FlashService {
         }
       }
     }
-    ticker.cancel();
+    ticker?.cancel();
 
     final exit = await process.exitCode;
     if (exit != 0) {

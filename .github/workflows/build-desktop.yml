@@ -113,14 +113,20 @@ jobs:
           TAG="$(tr -d '[:space:]' < assets/tools/FLASHER_VERSION)"
           echo "Fetching librescoot-flasher $TAG into assets/tools/"
           cd assets/tools
-          # Host flasher for this target + linux-arm (always, for on-device MDB flash)
+          # Host flashers for this target + linux-arm (always, for on-device MDB flash).
+          # macOS takes both CPUs: the .app is universal, so an Intel Mac runs an
+          # x86_64 process and looks for the amd64 binary. Shipping only arm64
+          # sent those hosts into an unprivileged dd on /dev/rdiskN, which can
+          # only end in "Permission denied" with no prompt to answer.
           case "${{ matrix.target }}" in
-            macos)      HOST_ASSET=librescoot-flasher-darwin-arm64 ;;
-            linux-x64)  HOST_ASSET=librescoot-flasher-linux-amd64 ;;
-            windows)    HOST_ASSET=librescoot-flasher-windows-amd64.exe ;;
+            macos)      HOST_ASSETS=(librescoot-flasher-darwin-arm64 librescoot-flasher-darwin-amd64) ;;
+            linux-x64)  HOST_ASSETS=(librescoot-flasher-linux-amd64) ;;
+            windows)    HOST_ASSETS=(librescoot-flasher-windows-amd64.exe) ;;
           esac
+          PATTERNS=()
+          for asset in "${HOST_ASSETS[@]}"; do PATTERNS+=(--pattern "$asset"); done
           gh release download "$TAG" --repo librescoot/librescoot-flasher \
-            --pattern "$HOST_ASSET" \
+            "${PATTERNS[@]}" \
             --pattern librescoot-flasher-linux-arm
           chmod +x librescoot-flasher-*
           # Drop tooling that isn't used by this target
