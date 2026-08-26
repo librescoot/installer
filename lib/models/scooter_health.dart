@@ -5,6 +5,9 @@ class ScooterHealth {
   bool? batteryPresent;
   bool? cbbPresent;
 
+  /// Main pack charge in percent.
+  int? batteryCharge;
+
   /// Corrected terminal voltage in mV. Predicts whether the pack survives a
   /// long install better than the charge does: the firmware quantises charge
   /// to 25% steps, so 100% covers everything from 12543 mV upward.
@@ -17,6 +20,13 @@ class ScooterHealth {
   bool? get cbbSohOk =>
       cbbStateOfHealth == null ? null : cbbStateOfHealth! >= 80;
   bool? get cbbChargeOk => cbbCharge == null ? null : cbbCharge! >= 80;
+
+  /// A warning rather than a precondition, which is why it is not in [allOk].
+  /// The board runs off the AUX battery, so an install completes on a nearly
+  /// flat pack; what it costs is the scooter afterwards, and a bench left on
+  /// a pack this low goes flat overnight.
+  bool? get batteryChargeOk =>
+      batteryCharge == null ? null : batteryCharge! >= 10;
 
   /// Every precondition measured and met. An unread value is not a pass.
   bool get allOk =>

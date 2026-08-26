@@ -2166,4 +2166,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String dbcSayFailTiles(String count) {
     return '$count Karten-Uebertragung(en) fehlgeschlagen.';
   }
+
+  @override
+  String get mainBatteryCharge => 'Fahrakku-Ladung';
+
+  @override
+  String get riskMainBatteryLow =>
+      'Der Fahrakku ist fast leer. Die Installation läuft über die AUX-Batterie und geht durch, aber weit kommt der Roller danach nicht, und so stehen gelassen ist er morgen leer. Lade ihn im Anschluss.';
 }

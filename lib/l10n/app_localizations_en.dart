@@ -2140,4 +2140,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String dbcSayFailTiles(String count) {
     return '$count map transfer(s) failed.';
   }
+
+  @override
+  String get mainBatteryCharge => 'Main battery charge';
+
+  @override
+  String get riskMainBatteryLow =>
+      'The main battery is nearly empty. The install runs off the 12V battery and will finish, but the scooter will not get far afterwards and a bench left like this goes flat. Charge it when you are done.';
 }

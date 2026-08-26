@@ -75,6 +75,18 @@ class HealthCheckPanel extends StatelessWidget {
           // Only a pack that reported itself absent is a risk. One nobody
           // could ask about is an open question, and the row says so.
           if (health.batteryPresent == false) _risk(l10n.riskNoBattery),
+          // Its own row rather than a figure in the one above, the same way
+          // the CBB keeps charge and health apart: fitted and charged are
+          // different questions and a board can pass one and fail the other.
+          if (health.batteryCharge != null) ...[
+            _row(
+              l10n.mainBatteryCharge,
+              '${health.batteryCharge}%',
+              '\u2265 10%',
+              health.batteryChargeOk,
+            ),
+            if (health.batteryChargeOk == false) _risk(l10n.riskMainBatteryLow),
+          ],
         ],
       ),
     );

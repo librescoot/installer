@@ -67,4 +67,31 @@ void main() {
       expect(ScooterHealth().allOk, isFalse);
     });
   });
+
+  group('main pack charge', () {
+    test('a nearly flat pack warns without failing the preconditions', () {
+      // The board runs off the AUX battery, so the install completes either
+      // way. Blocking on this would stop a run that was going to work.
+      final h = ScooterHealth()
+        ..auxCharge = 100
+        ..cbbStateOfHealth = 95
+        ..cbbCharge = 90
+        ..batteryPresent = true
+        ..batteryCharge = 7;
+      expect(h.batteryChargeOk, isFalse);
+      expect(h.allOk, isTrue, reason: 'a warning must not gate the install');
+    });
+
+    test('ten percent is the line, and it is inclusive', () {
+      expect((ScooterHealth()..batteryCharge = 10).batteryChargeOk, isTrue);
+      expect((ScooterHealth()..batteryCharge = 9).batteryChargeOk, isFalse);
+      expect((ScooterHealth()..batteryCharge = 100).batteryChargeOk, isTrue);
+    });
+
+    test('a charge nobody read is not a flat pack', () {
+      // battery-service is absent from the bootstrap image, so this field is
+      // routinely missing. Rendering that as 0% accuses the hardware.
+      expect(ScooterHealth().batteryChargeOk, isNull);
+    });
+  });
 }

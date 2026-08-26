@@ -1722,6 +1722,9 @@ done
     if (batteryPresent == 'true' || batteryPresent == 'false') {
       health.batteryPresent = batteryPresent == 'true';
     }
+    health.batteryCharge = int.tryParse(
+      await redisHget('battery:0', 'charge') ?? '',
+    );
     return health;
   }
 

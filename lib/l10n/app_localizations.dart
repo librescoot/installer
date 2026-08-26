@@ -3739,6 +3739,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count} map transfer(s) failed.'**
   String dbcSayFailTiles(String count);
+
+  /// No description provided for @mainBatteryCharge.
+  ///
+  /// In en, this message translates to:
+  /// **'Main battery charge'**
+  String get mainBatteryCharge;
+
+  /// No description provided for @riskMainBatteryLow.
+  ///
+  /// In en, this message translates to:
+  /// **'The main battery is nearly empty. The install runs off the 12V battery and will finish, but the scooter will not get far afterwards and a bench left like this goes flat. Charge it when you are done.'**
+  String get riskMainBatteryLow;
 }
 
 class _AppLocalizationsDelegate

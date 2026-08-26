@@ -854,5 +854,7 @@
   "dbcSayBanner": "Librescoot wird installiert",
   "dbcSayFailOnboot": "Der Teil nach dem Neustart ist mehrfach gescheitert.",
   "dbcSayFailDbc": "Das Display hat sich nach dem Flashen nicht gemeldet.",
-  "dbcSayFailTiles": "{count} Karten-Uebertragung(en) fehlgeschlagen."
+  "dbcSayFailTiles": "{count} Karten-Uebertragung(en) fehlgeschlagen.",
+  "mainBatteryCharge": "Fahrakku-Ladung",
+  "riskMainBatteryLow": "Der Fahrakku ist fast leer. Die Installation läuft über die AUX-Batterie und geht durch, aber weit kommt der Roller danach nicht, und so stehen gelassen ist er morgen leer. Lade ihn im Anschluss."
 }
