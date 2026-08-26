@@ -26,4 +26,30 @@ void main() {
       isTrue,
     );
   });
+
+  group('the stall hint waits for abnormal, not for slow', () {
+    test('it cannot fire inside the time a healthy board takes', () {
+      // The hint names the host's network stack as a likely cause. Firing it
+      // while the board is still doing what it does on every good run accuses
+      // something innocent, and tells the operator to act when the correct
+      // response is to keep waiting.
+      expect(stableConnectionStallAfter, greaterThan(stableConnectionTypical));
+    });
+
+    test('with margin, because healthy runs vary', () {
+      // The run that prompted this warned at 90s against a 135s typical, then
+      // recovered on its own thirty seconds later and finished clean. A
+      // threshold a hair past typical would have done the same thing.
+      expect(
+        stableConnectionStallAfter.inSeconds,
+        greaterThanOrEqualTo(stableConnectionTypical.inSeconds * 3 ~/ 2),
+        reason: 'too close to typical to survive a slow-but-healthy board',
+      );
+    });
+
+    test('and still bounded, so a genuinely dead link is not silent forever',
+        () {
+      expect(stableConnectionStallAfter.inMinutes, lessThanOrEqualTo(10));
+    });
+  });
 }

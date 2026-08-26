@@ -1,3 +1,25 @@
+/// How long ten stable pings take on a healthy board after a flash.
+///
+/// Measured, like every other typical here: the gadget is back on the bus at
+/// about +10s, the board's network starts answering at ~+114s, and the tenth
+/// consecutive ping lands at ~+132s.
+const stableConnectionTypical = Duration(seconds: 135);
+
+/// When waiting for that connection stops being normal and is worth a hint
+/// naming likely causes.
+///
+/// Comfortably past [stableConnectionTypical] rather than close to it. The
+/// hint blames the host's network stack, which is a real cause but not the
+/// usual one: the usual one is the board still bringing usb0 up. A threshold
+/// inside the normal range therefore accuses NetworkManager on a healthy run.
+///
+/// This has now been too low twice. It first counted loop iterations rather
+/// than seconds, so it fired at about 27s. It was then 90s, which a healthy
+/// board beat on a run whose carrier was slower than usual: the hint appeared,
+/// and the same run recovered on its own half a minute later and finished
+/// clean without anyone touching it.
+const stableConnectionStallAfter = Duration(seconds: 240);
+
 /// One step inside a phase that waits on the scooter.
 ///
 /// The typical duration is measured, not guessed: it is what the step took on

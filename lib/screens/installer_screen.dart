@@ -4902,7 +4902,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     _beginWait([
       WaitStep(
           label: l10n.waitingStableConnection,
-          typical: const Duration(seconds: 135)),
+          typical: stableConnectionTypical),
       WaitStep(
           label: l10n.reconnectingSsh, typical: const Duration(seconds: 25)),
     ]);
@@ -4991,7 +4991,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // count loop iterations rather than seconds, and each iteration is a ping
     // plus a delay, so "15" arrived after about 27 seconds and accused
     // NetworkManager while the scooter was still starting up.
-    const stallHintAfter = Duration(seconds: 90);
+    const stallHintAfter = stableConnectionStallAfter;
     var stableCount = 0;
     DateTime? failingSince;
     var diagnosticsLogged = false;
