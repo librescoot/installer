@@ -79,6 +79,30 @@ void main() {
       );
     });
 
+    test('an unreachable board is not reported as a bad filesystem', () async {
+      // The wait that ends because SSH died never read /proc/mounts, so it
+      // has no verdict about /data to give. Claiming one sends whoever reads
+      // the log to repartition a board whose only problem is the link.
+      await expectLater(
+        waitForMdbDataPartition(
+          runCommand: (command) async =>
+              throw Exception('SSH session lost before command'),
+          maxAttempts: 1,
+        ),
+        throwsA(
+          isA<DataPartitionWaitException>().having(
+            (error) => error.toString(),
+            'message',
+            allOf(
+              contains('stopped answering'),
+              contains('SSH session lost before command'),
+              isNot(contains('did not mount as ext4')),
+            ),
+          ),
+        ),
+      );
+    });
+
     test('cancels without throwing when the screen is disposed', () async {
       final result = await waitForMdbDataPartition(
         runCommand: (command) async => fail('must not probe after disposal'),

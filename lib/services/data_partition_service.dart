@@ -43,10 +43,19 @@ class DataPartitionWaitException implements Exception {
 
   @override
   String toString() {
-    final detail =
-        lastProbe?.diagnostic ?? lastError?.toString() ?? 'no response';
+    // Only a probe that answered can be reported as a verdict about /data. A
+    // wait that ended because the board stopped answering never read
+    // /proc/mounts at all, and saying it did not mount as ext4 sends whoever
+    // reads it to repartition a board whose only problem is an unreachable
+    // link.
+    final probe = lastProbe;
+    if (probe == null) {
+      final detail = lastError?.toString() ?? 'no response';
+      return 'MDB stopped answering while waiting for /data to mount, so '
+          'the partition was never read. Last error: $detail';
+    }
     return 'MDB /data did not mount as ext4 on /dev/mmcblk1p4. '
-        'Last probe: $detail';
+        'Last probe: ${probe.diagnostic}';
   }
 }
 
