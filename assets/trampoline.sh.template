@@ -2230,7 +2230,17 @@ device_finish() {
       # directory first leaves it nothing to restore from.
       log "  retiring the onboot script"
       retire_onboot
+      # The sweep takes the log with it, and this is the run whose log nobody
+      # can ever produce: a failure keeps $INSTALLER_DIR for the installer to
+      # read, a success is the one that deletes its own account of itself, so
+      # a user reporting a successful install has only the laptop's half of
+      # it. Keep a copy beside the run record, which lives outside the swept
+      # directory, and keep writing to that copy for the rest of the finish.
+      mkdir -p "$RUN_HISTORY_DIR"
+      cp "$LOG" "$RUN_HISTORY_DIR/$RUN_ID.log" 2>/dev/null
       rm -rf "$INSTALLER_DIR"
+      LOG="$RUN_HISTORY_DIR/$RUN_ID.log"
+      log "  kept this log at $LOG"
       # The reboot restores librescoot-pm, which is stopped on every connect and
       # by this script and started by nothing else; applies usb0-policy in a
       # shell that survives the gadget teardown it causes; and tears down the

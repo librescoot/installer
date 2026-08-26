@@ -339,10 +339,35 @@ void main() {
       contains('systemctl start librescoot-keycard'),
       reason: 'the finish must start the keycard reader',
     );
-    for (final gate in ['KC_MASTERS', 'KC_CARDS', 'keycard-master-count']) {
+    for (final gate in [
+      'KC_MASTERS',
+      'KC_CARDS',
+      'keycard-master-count',
+      'START_KEYCARD',
+    ]) {
       expect(onboot, isNot(contains(gate)),
           reason: 'starting the reader must not depend on $gate');
     }
+  });
+
+  test('the finish keeps its own log out of the sweep', () {
+    // The success path deletes the staging directory, and the trampoline's
+    // log lives in it. A failed run keeps that directory for the installer to
+    // read; a successful one used to delete the only account of the half of
+    // the install the laptop never saw, which is the half nobody can produce
+    // afterwards.
+    final finishStart = onboot.indexOf('device_finish()');
+    final finishEnd =
+        onboot.indexOf('\n}\n\nif [ "\$ONBOOT_TRIES"', finishStart);
+    final finish = onboot.substring(finishStart, finishEnd);
+    final copy = finish.indexOf(r'cp "$LOG" "$RUN_HISTORY_DIR/$RUN_ID.log"');
+    final sweep = finish.indexOf(r'rm -rf "$INSTALLER_DIR"');
+    expect(copy, greaterThanOrEqualTo(0), reason: 'the log is not kept');
+    expect(sweep, greaterThan(copy), reason: 'the sweep runs before the copy');
+    // And the rest of the finish has somewhere to write: appending to a path
+    // under a directory that no longer exists loses every line silently.
+    final repoint = finish.indexOf(r'LOG="$RUN_HISTORY_DIR/$RUN_ID.log"');
+    expect(repoint, greaterThan(sweep));
   });
 
   test('no remote command on the dashboard is wrapped in timeout', () {
