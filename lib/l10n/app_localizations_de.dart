@@ -648,7 +648,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get disconnectCbbDesc =>
-      'Der Fahrakku muss bereits entnommen sein, bevor du die CBB trennst. Bei falscher Reihenfolge droht ein elektrischer Schaden.';
+      'Erst die CBB, dann der AUX-Pol. Der Fahrakku ist zu diesem Zeitpunkt schon aus: das MDB steht im Flash-Modus und spricht nicht mehr mit ihm. Ausbauen musst du ihn nicht.';
 
   @override
   String get disconnectAuxPole => 'Einen AUX-Pol trennen';

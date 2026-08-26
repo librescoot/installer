@@ -1223,7 +1223,7 @@ abstract class AppLocalizations {
   /// No description provided for @disconnectCbbDesc.
   ///
   /// In en, this message translates to:
-  /// **'The main battery must already be removed before disconnecting CBB. Doing this out of order risks electrical damage.'**
+  /// **'CBB first, then the AUX pole. The main battery is already off at this point: the MDB is parked in flash mode and has stopped talking to it. You do not need to take it out.'**
   String get disconnectCbbDesc;
 
   /// No description provided for @disconnectAuxPole.

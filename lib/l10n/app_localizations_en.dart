@@ -641,7 +641,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get disconnectCbbDesc =>
-      'The main battery must already be removed before disconnecting CBB. Doing this out of order risks electrical damage.';
+      'CBB first, then the AUX pole. The main battery is already off at this point: the MDB is parked in flash mode and has stopped talking to it. You do not need to take it out.';
 
   @override
   String get disconnectAuxPole => 'Disconnect one AUX pole';

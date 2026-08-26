@@ -263,7 +263,7 @@
   "scooterPrepHeading": "Scooter preparation",
   "scooterPrepSubheading": "MDB firmware has been written. Now prepare for reboot.",
   "disconnectCbb": "Disconnect the CBB",
-  "disconnectCbbDesc": "The main battery must already be removed before disconnecting CBB. Doing this out of order risks electrical damage.",
+  "disconnectCbbDesc": "CBB first, then the AUX pole. The main battery is already off at this point: the MDB is parked in flash mode and has stopped talking to it. You do not need to take it out.",
   "disconnectAuxPole": "Disconnect one AUX pole",
   "disconnectAuxPoleDesc": "Remove only the positive terminal (outer, red cable and post) to avoid reversing polarity. This cuts power to the MDB, so the USB connection drops.",
   "auxDisconnectWarning": "The USB connection drops when you disconnect AUX. That is expected. Reconnect the AUX pole on the next screen to start the MDB.",
