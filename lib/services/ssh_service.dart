@@ -1206,10 +1206,19 @@ done
   @visibleForTesting
   static const String usb0KeeperOnboot = r'''#!/bin/sh
 # Written by the Librescoot installer before the reboot into the new image.
-# One shot: it deletes itself at the end, so the trampoline's own onboot.sh is
-# never shadowed and nothing of this outlives the run. The trampoline backs up
-# an onboot.sh it finds and restores it when it retires, so a keeper that stayed
-# would come back as a permanent one.
+# One shot, so it removes itself, and it does that first rather than last.
+# Everything below can block: the redis wait runs to a minute, and systemd
+# kills a oneshot that outruns its start timeout. Removed last, a keeper that
+# got killed there would still be on disk, and would run again on the next
+# boot, and the one after, pinning usb0-policy on every future boot of a
+# scooter nobody is installing. Removing it first costs a keeper that dies
+# mid-run its second chance, which it does not have anyway: by then the
+# installer has moved on.
+#
+# It also has to be gone before the trampoline looks. The trampoline backs up
+# an onboot.sh it finds and restores it when it retires, so a keeper still
+# sitting there would come back as a permanent one.
+rm -f /data/onboot.sh
 ip link set usb0 up 2>/dev/null || ifconfig usb0 up 2>/dev/null
 # A board that rolled back is on stage 0 again, with no lsc and no redis to set
 # a policy in. It also has no vehicle-service to take usb0 down, so the line
@@ -1223,7 +1232,6 @@ if command -v lsc >/dev/null 2>&1; then
   done
   lsc set scooter.usb0-policy always-on >/dev/null 2>&1
 fi
-rm -f /data/onboot.sh
 ''';
 
   /// Install [usb0KeeperOnboot] as `/data/onboot.sh`, unless something already

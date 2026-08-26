@@ -52,12 +52,20 @@ void main() {
     );
   });
 
-  test('it removes itself, so the trampoline never inherits it', () {
+  test('it removes itself before anything that can block', () {
     // The trampoline backs up an onboot.sh it finds and puts it back when it
     // retires, so a keeper still sitting there at that point would return as a
     // permanent one and pin usb0-policy on every future boot.
-    expect(script, contains('rm -f /data/onboot.sh'));
-    expect(script.trimRight(), endsWith('rm -f /data/onboot.sh'));
+    //
+    // First, not last. Everything after it can block: the redis wait runs to a
+    // minute, and systemd kills a oneshot that outruns its start timeout.
+    // Removed last, a keeper killed there is still on disk and runs again on
+    // the next boot, and the one after, on a scooter nobody is installing.
+    final rm = script.indexOf('rm -f /data/onboot.sh');
+    expect(rm, isNot(-1));
+    expect(rm, lessThan(script.indexOf('redis-cli ping')),
+        reason: 'a blocking wait before the removal can strand the keeper');
+    expect(rm, lessThan(script.indexOf('lsc set')));
   });
 
   test('nothing in it needs a heredoc to expand', () {
