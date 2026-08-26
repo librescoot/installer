@@ -7899,12 +7899,34 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       debugPrint('UI: failed to subscribe to keycard events: $e');
     }
 
-    // Disengage boot-time auto-master-learning before any tap can land.
-    try {
-      await _sshService.redisLpush('scooter:keycard', 'set-master:NONE');
-      debugPrint('UI: keycardSetup entered, master mode disengaged');
-    } catch (e) {
-      debugPrint('UI: failed to disengage master-learning on entry: $e');
+    // Disengage boot-time auto-master-learning before any tap can land, but
+    // only on a board that has it armed.
+    //
+    // `set-master:NONE` is the only command that clears masterLearningMode
+    // (learn:master:stop only leaves teach-in), and it is destructive:
+    // SetMaster replaces the whole master list with the NONE sentinel and
+    // persists it, and GetMasterCount does not count NONE. Sent to a board
+    // that already has a master it erases a registration and then reports
+    // zero, which is what an upgrade did to a user's card. A board with a
+    // master never armed auto-learning in the first place, so there is
+    // nothing to disengage there and nothing lost by staying quiet.
+    //
+    // A count nobody could read is not a zero: unreadable leaves the command
+    // unsent, which risks the next tap being learned as master on a board
+    // with none, against erasing one on a board that has it.
+    final masterCount = await _keycardReadMasterCount();
+    if (masterCount == 0) {
+      try {
+        await _sshService.redisLpush('scooter:keycard', 'set-master:NONE');
+        debugPrint('UI: keycardSetup entered, master mode disengaged');
+      } catch (e) {
+        debugPrint('UI: failed to disengage master-learning on entry: $e');
+      }
+    } else {
+      debugPrint(
+        'UI: keycardSetup entered, left the master list alone '
+        '(count=${masterCount ?? "unreadable"})',
+      );
     }
 
     final capability = await _keycardDetectCapability();
@@ -7969,6 +7991,25 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       debugPrint('UI: keycard capability probe failed: $e');
     }
     return KeycardCapability.unreachable;
+  }
+
+  /// How many real master cards the board has on file, or null when nobody
+  /// could say. keycard-service publishes this when it starts, so a read that
+  /// races its startup answers about the read rather than about the board.
+  Future<int?> _keycardReadMasterCount() async {
+    if (_isDryRun) return null;
+    for (var attempt = 1; attempt <= 3; attempt++) {
+      try {
+        final raw = await _sshService.redisHget('system', 'keycard-master-count');
+        final parsed = int.tryParse(raw ?? '');
+        if (parsed != null) return parsed;
+      } catch (e) {
+        debugPrint('UI: master-count read failed (attempt $attempt): $e');
+      }
+      if (attempt < 3) await Future.delayed(const Duration(seconds: 1));
+    }
+    debugPrint('UI: master count never answered');
+    return null;
   }
 
   Future<void> _keycardRefreshCounts() async {
