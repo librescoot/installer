@@ -1297,7 +1297,12 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
       // Use lsusb for device detection
       final result = await Process.run('lsusb', ['-d', '0525:']);
 
-      if (result.exitCode != 0) return null;
+      // Not `return null`: lsusb exits 1 when nothing matches, and a board in
+      // serial-download mode is 15a2, never 0525. Returning here made the SDP
+      // checks at the bottom of this method unreachable in exactly the case
+      // they exist for, so a board sitting in its boot ROM read as no board
+      // at all for as long as it sat there.
+      if (result.exitCode != 0) return _detectLinuxRecovery();
 
       final output = result.stdout.toString();
 
@@ -1325,8 +1330,13 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
       }
     } catch (_) {}
 
-    // Check for SDP / serial-download recovery mode (DBC i.MX6SL or
-    // MDB i.MX6UL). See _detectMacOSIoreg for the protocol notes.
+    return _detectLinuxRecovery();
+  }
+
+  /// The i.MX Boot ROM's own USB identity, which is what is on the bus when
+  /// the board found nothing bootable. See _detectMacOSIoreg for the protocol
+  /// notes.
+  Future<UsbDevice?> _detectLinuxRecovery() async {
     try {
       final dbc = await Process.run('lsusb', ['-d', '15a2:0061']);
       if (dbc.exitCode == 0 && dbc.stdout.toString().isNotEmpty) {

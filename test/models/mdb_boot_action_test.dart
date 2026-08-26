@@ -42,4 +42,39 @@ void main() {
           reason: '$mode with no restart seen');
     }
   });
+
+  group('serial download', () {
+    test('a board in its boot ROM is waited on, not proceeded past', () {
+      // Seen on hardware: the boot after a flash found nothing bootable and
+      // the board enumerated as the i.MX boot ROM for two minutes. Everything
+      // that was not mass storage used to count as running the image, which
+      // would have had the installer SSH into a boot ROM.
+      expect(
+        mdbBootActionFor(mode: DeviceMode.recoveryMdb, sawRestart: true),
+        MdbBootAction.waitForRecovery,
+      );
+      expect(
+        mdbBootActionFor(mode: DeviceMode.recoveryDbc, sawRestart: true),
+        MdbBootAction.waitForRecovery,
+      );
+    });
+
+    test('it is the same answer before a restart was seen', () {
+      // A board in its boot ROM has plainly restarted, but the verdict does
+      // not depend on having watched it happen.
+      expect(
+        mdbBootActionFor(mode: DeviceMode.recoveryMdb, sawRestart: false),
+        MdbBootAction.waitForRecovery,
+      );
+    });
+
+    test('recovery is not reflash: nothing here says the image is bad', () {
+      // The board recovers by itself and boots the image it already has.
+      // Rewriting the eMMC would be acting on a board that is mid-recovery.
+      expect(
+        mdbBootActionFor(mode: DeviceMode.recoveryMdb, sawRestart: true),
+        isNot(MdbBootAction.reflash),
+      );
+    });
+  });
 }

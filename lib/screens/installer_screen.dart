@@ -4935,11 +4935,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       if (action == MdbBootAction.proceed || action == MdbBootAction.reflash) {
         break;
       }
-      _setStatus(
-        action == MdbBootAction.waitForRestart
-            ? l10n.waitingForMdbRestart
-            : l10n.waitingForUsbDevice,
-      );
+      _setStatus(switch (action) {
+        MdbBootAction.waitForRestart => l10n.waitingForMdbRestart,
+        // The board is announcing this on the bus under the boot ROM's own
+        // identity. Saying nothing leaves an operator watching a wait that
+        // looks identical to a slow boot, and the one thing that would cost
+        // them the board here is deciding to intervene.
+        MdbBootAction.waitForRecovery => l10n.waitingForBoardRecovery,
+        _ => l10n.waitingForUsbDevice,
+      });
       // Leaving mass storage, or leaving the bus at all, is the restart.
       if (_device?.mode != DeviceMode.massStorage) sawRestart = true;
       await Future.delayed(const Duration(seconds: 1));

@@ -12,6 +12,12 @@ enum MdbBootAction {
   /// Back in mass storage after a restart. The image did not take.
   reflash,
 
+  /// The board is sitting in its own boot ROM: it looked for something to
+  /// boot and found nothing. Not a brick, and not something to act on. The
+  /// nRF re-arms a power cycle when Linux never checks in, and the boot after
+  /// that has been seen to succeed.
+  waitForRecovery,
+
   /// Running the image. Carry on.
   proceed,
 }
@@ -27,11 +33,18 @@ enum MdbBootAction {
 ///
 /// The mirror mistake is waiting for a restart that already happened: a board
 /// that is running the image never goes away again, so the wait never ends.
+///
+/// Serial-download mode is its own answer and not [proceed]. Anything that is
+/// not mass storage used to count as running the image, which would have had
+/// the installer open an SSH session against a boot ROM.
 MdbBootAction mdbBootActionFor({
   required DeviceMode? mode,
   required bool sawRestart,
 }) {
   if (mode == null) return MdbBootAction.waitForDevice;
+  if (mode == DeviceMode.recoveryMdb || mode == DeviceMode.recoveryDbc) {
+    return MdbBootAction.waitForRecovery;
+  }
   if (mode == DeviceMode.massStorage) {
     return sawRestart ? MdbBootAction.reflash : MdbBootAction.waitForRestart;
   }

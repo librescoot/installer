@@ -2173,4 +2173,8 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get riskMainBatteryLow =>
       'Der Fahrakku ist fast leer. Die Installation läuft über die AUX-Batterie und geht durch, aber weit kommt der Roller danach nicht, und so stehen gelassen ist er morgen leer. Lade ihn im Anschluss.';
+
+  @override
+  String get waitingForBoardRecovery =>
+      'Das Hauptboard hat nichts zum Starten gefunden und wartet in seinem Wiederherstellungsmodus. Nach etwa zwei Minuten startet es sich selbst neu. Kabel und Strom in Ruhe lassen.';
 }

@@ -3751,6 +3751,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The main battery is nearly empty. The install runs off the 12V battery and will finish, but the scooter will not get far afterwards and a bench left like this goes flat. Charge it when you are done.'**
   String get riskMainBatteryLow;
+
+  /// No description provided for @waitingForBoardRecovery.
+  ///
+  /// In en, this message translates to:
+  /// **'The main board found nothing to start and is waiting in its recovery mode. It restarts itself after about two minutes. Leave the cable and the power alone.'**
+  String get waitingForBoardRecovery;
 }
 
 class _AppLocalizationsDelegate
