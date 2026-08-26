@@ -366,34 +366,30 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
         return true;
       }
 
-      // First, try to find the network service name
-      final serviceResult = await Process.run('networksetup', ['-listallhardwareports']);
-      String? serviceName;
-
-      if (serviceResult.exitCode == 0) {
-        final lines = serviceResult.stdout.toString().split('\n');
-        for (var i = 0; i < lines.length; i++) {
-          if (lines[i].contains('Device: ${iface.name}') && i > 0) {
-            final portLine = lines[i - 1];
-            if (portLine.startsWith('Hardware Port:')) {
-              serviceName = portLine.substring('Hardware Port:'.length).trim();
-              break;
-            }
-          }
-        }
-      }
+      final serviceName = await macOSServiceNameFor(iface.name);
 
       if (serviceName != null) {
         // Use networksetup for named services
+        debugPrint('Network: networksetup -setmanual "$serviceName" $targetIp');
         final result = await Process.run(
           'networksetup',
           ['-setmanual', serviceName, targetIp, subnetMask],
         );
+        final out = result.stdout.toString().trim();
+        final err = result.stderr.toString().trim();
+        // Logged either way. This step deciding not to work is what sends the
+        // run into the ifconfig fallback, and a run that ends there with no
+        // record of why cannot be diagnosed from the log the user hands over.
+        debugPrint('Network: networksetup exit=${result.exitCode}'
+            '${out.isEmpty ? '' : ' stdout=$out'}'
+            '${err.isEmpty ? '' : ' stderr=$err'}');
 
         if (result.exitCode == 0) {
           await Future.delayed(const Duration(seconds: 2));
           return await isMdbReachable();
         }
+      } else {
+        debugPrint('Network: no macOS network service owns ${iface.name}');
       }
 
       // Fallback: use ifconfig directly
@@ -437,10 +433,71 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
 
       await Future.delayed(const Duration(seconds: 2));
       return await isMdbReachable();
+    } on NetworkPrivilegeException {
+      // The generic catch below would turn this into a plain false, and the
+      // caller reads false as "not reachable yet" and keeps pinging. The
+      // whole point of the exception is that no amount of waiting fixes it,
+      // so it has to leave this function intact. _configureLinux does the
+      // same thing for the same reason.
+      rethrow;
     } catch (e) {
       debugPrint('Failed to configure macOS interface: $e');
       return false;
     }
+  }
+
+  /// The macOS *network service* that owns [device], or null if none does.
+  ///
+  /// `networksetup -setmanual` addresses a service, and the hardware port is a
+  /// different name that only usually matches it: rename a service in System
+  /// Settings, or plug in a second adapter of the same model, and the port name
+  /// stops resolving. The service order listing prints both together, so read
+  /// the pairing there and keep the port name as the fallback.
+  @visibleForTesting
+  Future<String?> macOSServiceNameFor(String device) async {
+    try {
+      final order =
+          await Process.run('networksetup', ['-listnetworkserviceorder']);
+      if (order.exitCode == 0) {
+        final name = parseServiceOrder(order.stdout.toString(), device);
+        if (name != null) return name;
+      }
+
+      final ports =
+          await Process.run('networksetup', ['-listallhardwareports']);
+      if (ports.exitCode == 0) {
+        final lines = ports.stdout.toString().split('\n');
+        for (var i = 1; i < lines.length; i++) {
+          if (lines[i].trim() != 'Device: $device') continue;
+          final portLine = lines[i - 1];
+          if (portLine.startsWith('Hardware Port:')) {
+            return portLine.substring('Hardware Port:'.length).trim();
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Network: service lookup failed for $device: $e');
+    }
+    return null;
+  }
+
+  /// The service named above the `(Hardware Port: ..., Device: en5)` line in
+  /// `networksetup -listnetworkserviceorder` output.
+  ///
+  /// Enabled services are numbered "(1)", disabled ones are marked "(*)", and
+  /// both name a service that -setmanual accepts.
+  @visibleForTesting
+  static String? parseServiceOrder(String output, String device) {
+    final lines = output.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      if (!lines[i].contains('Device: $device)')) continue;
+      for (var j = i - 1; j >= 0; j--) {
+        final match =
+            RegExp(r'^\((?:\*|\d+)\)\s+(.+)$').firstMatch(lines[j].trim());
+        if (match != null) return match.group(1)!.trim();
+      }
+    }
+    return null;
   }
 
   Future<bool> _isMacOSInterfaceConfigured(String interfaceName) async {
