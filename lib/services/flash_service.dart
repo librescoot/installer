@@ -540,7 +540,47 @@ class FlashService {
       throw Exception('Flash failed: ${_humanFlashError(out)}');
     }
 
+    await _flushDevice(devicePath);
     onProgress?.call(1.0, 'Flash complete');
+  }
+
+  /// Push what the write left in host buffers down to the device, before
+  /// anything cuts its power.
+  ///
+  /// The dd path has always ended in `sync`; this one ended at "Flash
+  /// complete". So the two disagreed about whether the write was durable at
+  /// the moment the user is told to restart the scooter, and the restart on
+  /// this path is a power cut rather than a shutdown: whatever has not reached
+  /// the eMMC by then is gone. A board that comes up without the last of its
+  /// bootloader finds nothing to start and drops into its boot ROM.
+  ///
+  /// Best-effort by design. A flush that cannot be issued is not a reason to
+  /// fail a write that succeeded, but it is worth saying so in the log,
+  /// because it changes what a boot failure afterwards means.
+  Future<void> _flushDevice(String devicePath) async {
+    try {
+      if (Platform.isLinux) {
+        // blockdev asks the block layer to flush and pass a cache sync to the
+        // device; the bare sync afterwards covers anything still queued
+        // elsewhere. Both are cheap against a write measured in minutes.
+        final r = await Process.run('blockdev', ['--flushbufs', devicePath]);
+        if (r.exitCode != 0) {
+          debugPrint('Flash: blockdev --flushbufs said: ${r.stderr}');
+        }
+        await Process.run('sync', []);
+        debugPrint('Flash: flushed $devicePath');
+      } else if (Platform.isMacOS) {
+        await Process.run('sync', []);
+        debugPrint('Flash: flushed $devicePath');
+      } else {
+        // Windows writes to \\.\PHYSICALDRIVE without going through a
+        // filesystem cache, and there is no equivalent flush to call from
+        // here. Named so a reader does not take the silence for an omission.
+        debugPrint('Flash: no host flush needed on this platform');
+      }
+    } catch (e) {
+      debugPrint('Flash: could not flush $devicePath (ok): $e');
+    }
   }
 
   /// Strip the flasher's machine-readable protocol lines out of a failure.
