@@ -9279,12 +9279,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // but cheap to keep for now so upgraders don't accumulate orphans.
       // settings.toml.preinstall and .default are deliberately not in it:
       // the restore owns the first and nothing owns the second.
-      await _sshService.runCommand(
+      // Echoes what it actually copied, because a run with no trampoline
+      // behind it has nothing to preserve and the directory is never made.
+      final preserved = await _sshService.runCommand(
         'if [ -d /data/installer ]; then '
         '  rm -rf /data/last-install-log; mkdir -p /data/last-install-log; '
         '  for f in trampoline.log trampoline-status trampoline-journal.log; do '
-        r'    [ -f "/data/installer/$f" ] && cp "/data/installer/$f" /data/last-install-log/; '
+        r'    [ -f "/data/installer/$f" ] && cp "/data/installer/$f" /data/last-install-log/ && echo "$f"; '
         '  done; '
+        '  rmdir /data/last-install-log 2>/dev/null; '
         'fi; true',
       );
       await _sshService.runCommand(
@@ -9302,7 +9305,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // Keep the small diagnostic files on the device too. They cost a few
       // hundred kilobytes against the hundreds of megabytes swept above, and
       // they are what a later visit reads when the user says it went wrong.
-      debugPrint('Cleanup: trampoline log preserved at /data/last-install-log');
+      // Said only when something was kept: an MDB-only run has no trampoline
+      // log, and claiming a path that was never created sends whoever reads
+      // this log looking for a directory that is not there.
+      final kept = preserved.trim();
+      debugPrint(kept.isEmpty
+          ? 'Cleanup: nothing to preserve, this run had no trampoline'
+          : 'Cleanup: preserved at /data/last-install-log: '
+              '${kept.split(RegExp(r"\s+")).join(", ")}');
     } catch (e) {
       debugPrint('Cleanup: MDB cleanup failed: $e');
     }
