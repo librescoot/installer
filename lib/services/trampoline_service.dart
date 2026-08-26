@@ -685,6 +685,35 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       }
     }
 
+    // Routing tiles ship as .tar.zst and are unpacked on the dashboard, which
+    // only grew zstd in the 2026-08-09 image. An upgrade never writes the
+    // stage-0 image that has one, so the board keeps whatever its own firmware
+    // shipped, and on stable v1.2.1 that is nothing: the unpack fails and the
+    // tiles are lost. Carry one it can run.
+    //
+    // Only when the routing tiles are actually compressed. It is 625 KB that
+    // a run staging a plain tar, or no tiles at all, has no use for.
+    if (valhallaTilesLocalPath != null &&
+        valhallaTilesLocalPath.endsWith('.zst')) {
+      try {
+        final zstdAsset = await rootBundle.load('assets/tools/zstd-dbc');
+        await _ssh.uploadFile(
+          zstdAsset.buffer.asUint8List(),
+          '/data/installer/zstd-dbc',
+        );
+        await _ssh.runCommand('chmod +x /data/installer/zstd-dbc');
+        debugPrint(
+          'Trampoline: staged zstd for the dashboard '
+          '(${zstdAsset.lengthInBytes} bytes)',
+        );
+      } catch (e) {
+        // The trampoline probes the dashboard's own zstd first and only
+        // reaches for this one when there is none, so a board that has it is
+        // unaffected by this having failed.
+        debugPrint('Trampoline: zstd helper not staged ($e)');
+      }
+    }
+
     // The flasher and fw_setenv/fw_env tools are only needed to write the
     // stage-0 image, so an upgrade (no dbcImageLocalPath) skips both and
     // never pushes tools it will never run.

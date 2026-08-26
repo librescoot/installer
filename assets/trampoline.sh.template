@@ -1694,8 +1694,28 @@ if [ -f "$VALHALLA_TILES_FILE" ]; then
       # the DBC keeps the transfer about a third the size; zstd ships in the
       # DBC image and ums-service already installs routing tiles this way.
       dbc_say "{{MSG_ROUTING}}"
+      # Which zstd unpacks this. The dashboard's own, when it has one: only
+      # the 2026-08-09 image and later do, and an upgrade never writes the
+      # stage-0 image that would have brought one, so a board on stable v1.2.1
+      # has none and the unpack used to fail with the tiles already uploaded.
+      #
+      # Both checks run the thing rather than look for it. The board's own
+      # zstd and the one we send are asked the same question, because "it is
+      # there" and "it works here" are different questions: ours needs glibc
+      # 2.38 and exists for older firmware, so only the second one matters.
+      ZSTD_BIN=zstd
+      if ! dbc_ssh "zstd --version >/dev/null 2>&1"; then
+        log "  the dashboard has no zstd, sending one"
+        if upload_to_dbc "$INSTALLER_DIR/zstd-dbc" "/installer/zstd-dbc" "zstd helper" &&
+           dbc_ssh "chmod +x /data/installer/zstd-dbc && /data/installer/zstd-dbc --version >/dev/null 2>&1"; then
+          ZSTD_BIN=/data/installer/zstd-dbc
+          log "  using the zstd we sent"
+        else
+          log "ERROR: no usable zstd on the dashboard, routing tiles cannot be unpacked"
+        fi
+      fi
       if upload_to_dbc "$VALHALLA_TILES_FILE" "/valhalla/tiles.tar.zst" "routing tiles"; then
-        if dbc_ssh "zstd -d -f -o /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar.zst && mv -f /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar && rm -f /data/valhalla/tiles.tar.zst"; then
+        if dbc_ssh "$ZSTD_BIN -d -f -o /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar.zst && mv -f /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar && rm -f /data/valhalla/tiles.tar.zst"; then
           dbc_ssh "systemctl restart valhalla" 2>/dev/null || true
         else
           log "ERROR: routing tile decompression failed"
