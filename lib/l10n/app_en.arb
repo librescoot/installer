@@ -893,7 +893,16 @@
   "substepUploadComplete": "Upload complete",
   "substepUploadNothingToDo": "All files are already on the scooter",
   "substepRemaining": "{mins}m {secs}s remaining",
-  "@substepRemaining": { "placeholders": { "mins": { "type": "int" }, "secs": { "type": "int" } } },
+  "@substepRemaining": {
+    "placeholders": {
+      "mins": {
+        "type": "int"
+      },
+      "secs": {
+        "type": "int"
+      }
+    }
+  },
   "substepUploadFlasher": "Upload flasher tool",
   "substepUploadFwTools": "Upload DBC bootloader tools",
   "substepUploadScript": "Upload trampoline script",
@@ -978,5 +987,34 @@
   "blePinConfirmTitle": "Confirm this PIN on your phone",
   "blePinConfirmHint": "Your phone shows the same number. If they match, confirm it there.",
   "blePairingStep2DescCompare": "Compare the name and address on the right if several devices show up.",
-  "blePairingStep3DescOverlay": "The installer shows it in large type as soon as your phone asks."
+  "blePairingStep3DescOverlay": "The installer shows it in large type as soon as your phone asks.",
+  "dbcSayInstalling": "Installing firmware, this takes a few minutes",
+  "dbcSayInstalled": "Firmware installed, display restarting",
+  "dbcSayRunning": "Firmware {version} running",
+  "dbcSayMaps": "Transferring maps",
+  "dbcSayRouting": "Transferring routing maps",
+  "dbcSayFailed": "Installation failed",
+  "dbcSaySwap1": "Plug the USB cable back into the MDB and",
+  "dbcSaySwap2": "continue in the installer on the laptop.",
+  "dbcSayDone": "Done. The scooter is unlocking now.",
+  "@dbcSayRunning": {
+    "description": "Shown on the dashboard once the new firmware is up. The version is filled by the trampoline script on the vehicle, not here.",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "dbcSayBanner": "Installing Librescoot",
+  "dbcSayFailOnboot": "The part after the restart failed repeatedly.",
+  "dbcSayFailDbc": "The display did not come back after flashing.",
+  "dbcSayFailTiles": "{count} map transfer(s) failed.",
+  "@dbcSayFailTiles": {
+    "description": "Shown on the dashboard when map transfers failed. The count is filled by the trampoline script on the vehicle, not here.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  }
 }

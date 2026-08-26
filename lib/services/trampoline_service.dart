@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
+import '../models/dashboard_messages.dart';
 import '../models/install_plan.dart';
 import '../models/region.dart';
 import '../models/substep.dart';
@@ -170,6 +171,10 @@ class TrampolineService {
     // user never has to reconnect on the happy path. Every value it needs is
     // known before the cable swap, which is why they can be baked in here.
     DeviceFinish finish = DeviceFinish.laptop,
+    // What the dashboard says while this runs. The template carries no prose
+    // of its own, so a caller that skips these gets English rather than the
+    // German the strings started as.
+    DashboardMessages messages = DashboardMessages.english,
   }) {
     if (upgradeMode && dbcMenderPath.isEmpty && !installTiles) {
       throw ArgumentError(
@@ -178,7 +183,15 @@ class TrampolineService {
       );
     }
 
-    return template
+    // The dashboard lines first: they are prose, and prose is the one thing
+    // that could carry a {{PLACEHOLDER}} of its own through the substitutions
+    // below if it went last.
+    var rendered = template;
+    messages.placeholders.forEach((placeholder, value) {
+      rendered = rendered.replaceAll(placeholder, value);
+    });
+
+    return rendered
         .replaceAll('{{MODE}}', upgradeMode ? 'upgrade' : 'flash')
         .replaceAll('{{DBC_IMAGE_PATH}}', dbcImagePath)
         .replaceAll('{{DBC_MENDER_PATH}}', dbcMenderPath)
@@ -228,11 +241,13 @@ class TrampolineService {
     bool installTiles = false,
     String? valhallaTilesFilename,
     DeviceFinish finish = DeviceFinish.laptop,
+    DashboardMessages messages = DashboardMessages.english,
   }) async {
     final template = await rootBundle.loadString('assets/trampoline.sh.template');
     return renderTemplate(
       template,
       finish: finish,
+      messages: messages,
       upgradeMode: upgradeMode,
       dbcImagePath: dbcImagePath,
       dbcMenderPath: dbcMenderPath,
@@ -501,6 +516,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     String? dbcArtifactLocalPath,
     String? dbcTargetVersion,
     DeviceFinish finish = DeviceFinish.laptop,
+    DashboardMessages messages = DashboardMessages.english,
     String? osmTilesLocalPath,
     String? valhallaTilesLocalPath,
     Region? region,
@@ -731,6 +747,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       dbcMenderPath: dbcMenderRemotePath,
       dbcTargetVersion: dbcTargetVersion ?? '',
       finish: finish,
+      messages: messages,
       region: region,
       installTiles: osmTilesLocalPath != null || valhallaTilesLocalPath != null,
       valhallaTilesFilename: valhallaTilesLocalPath == null

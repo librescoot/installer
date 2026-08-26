@@ -2095,4 +2095,49 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get blePairingStep3DescOverlay =>
       'The installer shows it in large type as soon as your phone asks.';
+
+  @override
+  String get dbcSayInstalling =>
+      'Installing firmware, this takes a few minutes';
+
+  @override
+  String get dbcSayInstalled => 'Firmware installed, display restarting';
+
+  @override
+  String dbcSayRunning(String version) {
+    return 'Firmware $version running';
+  }
+
+  @override
+  String get dbcSayMaps => 'Transferring maps';
+
+  @override
+  String get dbcSayRouting => 'Transferring routing maps';
+
+  @override
+  String get dbcSayFailed => 'Installation failed';
+
+  @override
+  String get dbcSaySwap1 => 'Plug the USB cable back into the MDB and';
+
+  @override
+  String get dbcSaySwap2 => 'continue in the installer on the laptop.';
+
+  @override
+  String get dbcSayDone => 'Done. The scooter is unlocking now.';
+
+  @override
+  String get dbcSayBanner => 'Installing Librescoot';
+
+  @override
+  String get dbcSayFailOnboot =>
+      'The part after the restart failed repeatedly.';
+
+  @override
+  String get dbcSayFailDbc => 'The display did not come back after flashing.';
+
+  @override
+  String dbcSayFailTiles(String count) {
+    return '$count map transfer(s) failed.';
+  }
 }

@@ -17,6 +17,7 @@ import '../main.dart'
 import '../l10n/app_localizations.dart';
 import '../models/board_state.dart';
 import '../models/download_state.dart';
+import '../models/dashboard_messages.dart';
 import '../models/install_plan.dart';
 import '../l10n/phase_l10n.dart';
 import '../models/finish_handover.dart';
@@ -5075,6 +5076,33 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
   }
 
+  /// What the dashboard says while the trampoline works, in the language this
+  /// installer is running in.
+  ///
+  /// The operator reading the dashboard is the one who started the run, so the
+  /// UI language is the right one. Separate from [DeviceFinish.language],
+  /// which is the owner's dashboard language afterwards.
+  DashboardMessages _buildDashboardMessages() {
+    final l10n = AppLocalizations.of(context)!;
+    return DashboardMessages(
+      banner: l10n.dbcSayBanner,
+      installing: l10n.dbcSayInstalling,
+      installed: l10n.dbcSayInstalled,
+      // The version is not ours to fill: the script reads it off the board
+      // after the reboot, long after this string is written.
+      running: l10n.dbcSayRunning(DashboardMessages.versionToken),
+      maps: l10n.dbcSayMaps,
+      routing: l10n.dbcSayRouting,
+      failed: l10n.dbcSayFailed,
+      swap1: l10n.dbcSaySwap1,
+      swap2: l10n.dbcSaySwap2,
+      done: l10n.dbcSayDone,
+      failOnboot: l10n.dbcSayFailOnboot,
+      failDbc: l10n.dbcSayFailDbc,
+      failTiles: l10n.dbcSayFailTiles(DashboardMessages.tileErrorsToken),
+    );
+  }
+
   /// What the trampoline needs to close the install out without the laptop.
   /// Everything here is settled by the time the dashboard files are staged:
   /// the plan on the plan screen, the language on the welcome screen, the
@@ -6376,6 +6404,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         valhallaTilesLocalPath: installTiles ? valhallaItem?.localPath : null,
         region: installTiles ? _downloadState.selectedRegion : null,
         finish: _buildDeviceFinish(),
+        messages: _buildDashboardMessages(),
         onProgress: (status, progress) {
           if (background) {
             _setBackgroundStatus(status, progress: progress);

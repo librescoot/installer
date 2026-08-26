@@ -2120,4 +2120,50 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get blePairingStep3DescOverlay =>
       'Der Installer zeigt sie groß an, sobald dein Handy danach fragt.';
+
+  @override
+  String get dbcSayInstalling =>
+      'Firmware wird installiert, das dauert ein paar Minuten';
+
+  @override
+  String get dbcSayInstalled => 'Firmware installiert, Display startet neu';
+
+  @override
+  String dbcSayRunning(String version) {
+    return 'Firmware $version läuft';
+  }
+
+  @override
+  String get dbcSayMaps => 'Karten werden übertragen';
+
+  @override
+  String get dbcSayRouting => 'Routing-Karten werden übertragen';
+
+  @override
+  String get dbcSayFailed => 'Installation fehlgeschlagen';
+
+  @override
+  String get dbcSaySwap1 => 'USB-Kabel zurück auf das MDB stecken und im';
+
+  @override
+  String get dbcSaySwap2 => 'Installer auf dem Laptop weitermachen.';
+
+  @override
+  String get dbcSayDone => 'Fertig. Der Roller entsperrt sich jetzt.';
+
+  @override
+  String get dbcSayBanner => 'Librescoot wird installiert';
+
+  @override
+  String get dbcSayFailOnboot =>
+      'Der Teil nach dem Neustart ist mehrfach gescheitert.';
+
+  @override
+  String get dbcSayFailDbc =>
+      'Das Display hat sich nach dem Flashen nicht gemeldet.';
+
+  @override
+  String dbcSayFailTiles(String count) {
+    return '$count Karten-Uebertragung(en) fehlgeschlagen.';
+  }
 }

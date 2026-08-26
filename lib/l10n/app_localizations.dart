@@ -3661,6 +3661,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The installer shows it in large type as soon as your phone asks.'**
   String get blePairingStep3DescOverlay;
+
+  /// No description provided for @dbcSayInstalling.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing firmware, this takes a few minutes'**
+  String get dbcSayInstalling;
+
+  /// No description provided for @dbcSayInstalled.
+  ///
+  /// In en, this message translates to:
+  /// **'Firmware installed, display restarting'**
+  String get dbcSayInstalled;
+
+  /// Shown on the dashboard once the new firmware is up. The version is filled by the trampoline script on the vehicle, not here.
+  ///
+  /// In en, this message translates to:
+  /// **'Firmware {version} running'**
+  String dbcSayRunning(String version);
+
+  /// No description provided for @dbcSayMaps.
+  ///
+  /// In en, this message translates to:
+  /// **'Transferring maps'**
+  String get dbcSayMaps;
+
+  /// No description provided for @dbcSayRouting.
+  ///
+  /// In en, this message translates to:
+  /// **'Transferring routing maps'**
+  String get dbcSayRouting;
+
+  /// No description provided for @dbcSayFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Installation failed'**
+  String get dbcSayFailed;
+
+  /// No description provided for @dbcSaySwap1.
+  ///
+  /// In en, this message translates to:
+  /// **'Plug the USB cable back into the MDB and'**
+  String get dbcSaySwap1;
+
+  /// No description provided for @dbcSaySwap2.
+  ///
+  /// In en, this message translates to:
+  /// **'continue in the installer on the laptop.'**
+  String get dbcSaySwap2;
+
+  /// No description provided for @dbcSayDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Done. The scooter is unlocking now.'**
+  String get dbcSayDone;
+
+  /// No description provided for @dbcSayBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing Librescoot'**
+  String get dbcSayBanner;
+
+  /// No description provided for @dbcSayFailOnboot.
+  ///
+  /// In en, this message translates to:
+  /// **'The part after the restart failed repeatedly.'**
+  String get dbcSayFailOnboot;
+
+  /// No description provided for @dbcSayFailDbc.
+  ///
+  /// In en, this message translates to:
+  /// **'The display did not come back after flashing.'**
+  String get dbcSayFailDbc;
+
+  /// Shown on the dashboard when map transfers failed. The count is filled by the trampoline script on the vehicle, not here.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} map transfer(s) failed.'**
+  String dbcSayFailTiles(String count);
 }
 
 class _AppLocalizationsDelegate

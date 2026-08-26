@@ -1684,7 +1684,7 @@ if [ -n "$VALHALLA_TILES_FILE" ] && [ ! -f "$VALHALLA_TILES_FILE" ]; then
 fi
 
 if [ -f "$OSM_TILES_FILE" ]; then
-  dbc_say "Karten werden übertragen"
+  dbc_say "{{MSG_MAPS}}"
   upload_to_dbc "$OSM_TILES_FILE" "/maps/map.mbtiles" "display tiles" || TILE_ERRORS=\$((TILE_ERRORS + 1))
 fi
 if [ -f "$VALHALLA_TILES_FILE" ]; then
@@ -1693,7 +1693,7 @@ if [ -f "$VALHALLA_TILES_FILE" ]; then
       # Valhalla mmaps the tar, so it has to land uncompressed. Decompressing on
       # the DBC keeps the transfer about a third the size; zstd ships in the
       # DBC image and ums-service already installs routing tiles this way.
-      dbc_say "Routing-Karten werden übertragen"
+      dbc_say "{{MSG_ROUTING}}"
       if upload_to_dbc "$VALHALLA_TILES_FILE" "/valhalla/tiles.tar.zst" "routing tiles"; then
         if dbc_ssh "zstd -d -f -o /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar.zst && mv -f /data/valhalla/tiles.tar.new /data/valhalla/tiles.tar && rm -f /data/valhalla/tiles.tar.zst"; then
           dbc_ssh "systemctl restart valhalla" 2>/dev/null || true
@@ -1795,7 +1795,7 @@ dbc_console_init() {
   # cursor, \033[2J clears, \033[H homes it.
   dbc_ssh "systemctl stop getty@tty1 2>/dev/null;
            printf '\033%%G\033[?25l\033[2J\033[H' > $DBC_CONSOLE 2>/dev/null;
-           printf '\n${DBC_INDENT}Librescoot wird installiert\n\n' > $DBC_CONSOLE" \
+           printf '\n${DBC_INDENT}%s\n\n' \"{{MSG_BANNER}}\" > $DBC_CONSOLE" \
     2>/dev/null || log "  (could not claim the dashboard console)"
 }
 
@@ -1810,11 +1810,11 @@ dbc_say() {
 # one of the two that can say what actually went wrong.
 dbc_fail_say() {
   dbc_say ""
-  dbc_say "Installation fehlgeschlagen"
+  dbc_say "{{MSG_FAILED}}"
   dbc_say "$1"
   dbc_say ""
-  dbc_say "USB-Kabel zurück auf das MDB stecken und im"
-  dbc_say "Installer auf dem Laptop weitermachen."
+  dbc_say "{{MSG_SWAP_1}}"
+  dbc_say "{{MSG_SWAP_2}}"
 }
 
 # Dashboard power. Same definitions as the trampoline half, repeated for the
@@ -2273,7 +2273,7 @@ device_finish() {
       sleep 5
       if redis-cli -h localhost lpush scooter:state unlock >/dev/null 2>&1; then
         dbc_say ""
-        dbc_say "Fertig. Der Roller entsperrt sich jetzt."
+        dbc_say "{{MSG_DONE}}"
         log "  unlocked: the install is done and the scooter is usable"
       else
         log "  WARNING: could not unlock, the owner has to use a keycard"
@@ -2302,7 +2302,7 @@ if [ "$ONBOOT_TRIES" -gt 3 ]; then
   write_status \
     "error: the post-reboot stage failed $((ONBOOT_TRIES - 1)) times and was abandoned" \
     "mode: $MODE"
-  dbc_fail_say "Der Teil nach dem Neustart ist mehrfach gescheitert."
+  dbc_fail_say "{{MSG_FAIL_ONBOOT}}"
   bootled_guard_stop
   bootled_blink_red
   hazards_30s
@@ -2397,7 +2397,7 @@ if [ $ELAPSED -ge 300 ]; then
     write_status "error: DBC not reachable, artifact not installed"
     # Power the DBC down like the success branch below does, so a failed
     # install does not leave it drawing on the aux battery indefinitely.
-    dbc_fail_say "Das Display hat sich nach dem Flashen nicht gemeldet."
+    dbc_fail_say "{{MSG_FAIL_DBC}}"
     dbc_power_off || true
     bootled_guard_stop
     bootled_blink_red
@@ -2548,7 +2548,7 @@ if [ -n "$DBC_MENDER" ]; then
   DBC_ART_NAME=$(basename "$DBC_MENDER")
   DBC_ART_PATH="/data/ota/dbc/$DBC_ART_NAME"
   log "Installing DBC artifact $DBC_ART_NAME"
-  dbc_say "Firmware wird installiert, das dauert ein paar Minuten"
+  dbc_say "{{MSG_INSTALLING}}"
 
   # What the board runs right now, so a reboot that changes nothing can be
   # told from one that installed something. Read before anything is written.
@@ -2667,7 +2667,7 @@ if [ -n "$DBC_MENDER" ]; then
     fi
   fi
 
-  dbc_say "Firmware installiert, Display startet neu"
+  dbc_say "{{MSG_INSTALLED}}"
   # The upload has to be finished before the dashboard goes down under it.
   if [ -n "${TILES_JOB:-}" ]; then
     log "  waiting for the tile upload to finish before rebooting"
@@ -2704,7 +2704,7 @@ if [ -n "$DBC_MENDER" ]; then
   DBC_ART_AFTER=$(ssh -y -y root@$DBC_IP 'mender-update show-artifact' 2>/dev/null | head -n 1 | tr -d '\r')
   log "  DBC now runs ${DBC_VER:-unknown} (artifact ${DBC_ART_AFTER:-unknown})"
   dbc_console_init
-  dbc_say "Firmware $DBC_VER läuft"
+  dbc_say "{{MSG_RUNNING}}"
   [ -n "$DBC_VER" ] || artifact_fail "error: could not read the DBC version after the artifact install"
   if [ -n "$DBC_TARGET" ]; then
     # Lower-cased and with the tag's optional v prefix dropped, the same
@@ -2767,7 +2767,7 @@ if [ "${TILE_ERRORS:-0}" -gt 0 ]; then
   log "=========================================="
   CURRENT_STAGE="installing-tiles"
   write_status "error: $TILE_ERRORS tile upload(s) failed"
-  dbc_fail_say "$TILE_ERRORS Karten-Uebertragung(en) fehlgeschlagen." 
+  dbc_fail_say "{{MSG_FAIL_TILES}}" 
   # Switch the boot LED from solid amber (set at the top of onboot.sh) to
   # blinking red, and add hazards (capped at 30s so an abandoned error
   # doesn't drain the battery). Both indicators stop on installer reconnect

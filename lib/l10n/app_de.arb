@@ -747,7 +747,16 @@
   "substepUploadComplete": "Übertragung abgeschlossen",
   "substepUploadNothingToDo": "Alle Dateien sind schon auf dem Roller",
   "substepRemaining": "noch {mins} Min. {secs} Sek.",
-  "@substepRemaining": { "placeholders": { "mins": { "type": "int" }, "secs": { "type": "int" } } },
+  "@substepRemaining": {
+    "placeholders": {
+      "mins": {
+        "type": "int"
+      },
+      "secs": {
+        "type": "int"
+      }
+    }
+  },
   "substepUploadFlasher": "Flash-Werkzeug übertragen",
   "substepUploadFwTools": "DBC-Bootloader-Werkzeuge übertragen",
   "substepUploadScript": "Trampolin-Skript übertragen",
@@ -832,5 +841,18 @@
   "blePinConfirmTitle": "Diese PIN am Handy bestätigen",
   "blePinConfirmHint": "Dein Handy zeigt dieselbe Zahl. Stimmen sie überein, bestätige dort.",
   "blePairingStep2DescCompare": "Vergleiche den Namen und die Adresse rechts, wenn mehrere Geräte auftauchen.",
-  "blePairingStep3DescOverlay": "Der Installer zeigt sie groß an, sobald dein Handy danach fragt."
+  "blePairingStep3DescOverlay": "Der Installer zeigt sie groß an, sobald dein Handy danach fragt.",
+  "dbcSayInstalling": "Firmware wird installiert, das dauert ein paar Minuten",
+  "dbcSayInstalled": "Firmware installiert, Display startet neu",
+  "dbcSayRunning": "Firmware {version} läuft",
+  "dbcSayMaps": "Karten werden übertragen",
+  "dbcSayRouting": "Routing-Karten werden übertragen",
+  "dbcSayFailed": "Installation fehlgeschlagen",
+  "dbcSaySwap1": "USB-Kabel zurück auf das MDB stecken und im",
+  "dbcSaySwap2": "Installer auf dem Laptop weitermachen.",
+  "dbcSayDone": "Fertig. Der Roller entsperrt sich jetzt.",
+  "dbcSayBanner": "Librescoot wird installiert",
+  "dbcSayFailOnboot": "Der Teil nach dem Neustart ist mehrfach gescheitert.",
+  "dbcSayFailDbc": "Das Display hat sich nach dem Flashen nicht gemeldet.",
+  "dbcSayFailTiles": "{count} Karten-Uebertragung(en) fehlgeschlagen."
 }

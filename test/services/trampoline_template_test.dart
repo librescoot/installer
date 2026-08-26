@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:librescoot_installer/models/dashboard_messages.dart';
 import 'package:librescoot_installer/models/install_plan.dart';
 import 'package:librescoot_installer/services/trampoline_service.dart';
 
@@ -22,6 +23,47 @@ void main() {
       ]) {
         expect(template, contains(ph), reason: '$ph is missing');
       }
+    });
+
+    test('carries no prose of its own, only the placeholders for it', () {
+      // Every line the trampoline puts on the dashboard is filled by whoever
+      // renders this, so that a garage outside Germany can read the one
+      // instruction the install cannot proceed without. A literal that creeps
+      // back in reaches the vehicle in a language nobody chose.
+      for (final ph in DashboardMessages.english.placeholders.keys) {
+        expect(template, contains(ph), reason: '$ph is missing');
+      }
+      final says = RegExp(r'dbc_(?:fail_)?say "([^"]*)"')
+          .allMatches(template)
+          .map((m) => m.group(1)!)
+          .where((arg) => arg.isNotEmpty)
+          .toList();
+      expect(says, isNotEmpty, reason: 'the say sites moved');
+      // The console banner is a printf rather than a dbc_say, so the sweep
+      // above cannot see it.
+      expect(template, contains(r'{{MSG_BANNER}}'));
+      for (final arg in says) {
+        expect(
+          arg.startsWith('{{MSG_') || arg.startsWith(r'$'),
+          isTrue,
+          reason: 'literal on the dashboard: "$arg"',
+        );
+      }
+    });
+
+    test('fills every dashboard line it declares', () {
+      final out = TrampolineService.renderTemplate(
+        template,
+        upgradeMode: false,
+        dbcImagePath: '/data/installer/dbc.sdimg.gz',
+        dbcMenderPath: '/data/installer/dbc.mender',
+        messages: DashboardMessages.english,
+      );
+      expect(out, isNot(contains('{{MSG_')));
+      expect(out, contains('dbc_say "Installation failed"'));
+      // The version is the script's to fill, on the far side of a reboot this
+      // process never sees. It has to reach the vehicle unexpanded.
+      expect(out, contains(r'dbc_say "Firmware $DBC_VER running"'));
     });
 
     test('retires onboot.sh only after the work, not before it', () {
