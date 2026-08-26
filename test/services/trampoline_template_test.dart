@@ -19,7 +19,6 @@ void main() {
         '{{MDB_TARGET_VERSION}}',
         '{{FINISH_LANGUAGE}}',
         '{{FINISH_CHANNEL}}',
-        '{{START_KEYCARD}}',
       ]) {
         expect(template, contains(ph), reason: '$ph is missing');
       }
@@ -216,10 +215,8 @@ void main() {
         mdbAction: BoardAction.leave,
         language: 'de',
         otaChannel: 'nightly',
-        startKeycard: true,
       ));
       expect(out, contains('FINISH_ON_DEVICE="true"'));
-      expect(out, contains('START_KEYCARD="true"'));
       expect(out, contains('FINISH_LANGUAGE="de"'));
       expect(out, contains('FINISH_CHANNEL="nightly"'));
       expect(out, isNot(contains('{{FINISH_ON_DEVICE}}')));

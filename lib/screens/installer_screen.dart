@@ -5097,10 +5097,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // it cannot honour, so leave it unset and let the default stand.
       language: (lang == 'en' || lang == 'de') ? lang : '',
       otaChannel: _downloadState.channel.name,
-      // Only safe with a master card on file. Without one, a keycard-service
-      // started behind the user's back re-enters auto-master-learn and
-      // teaches in whatever card is tapped first.
-      startKeycard: _keycardMasterCount > 0,
     );
   }
 

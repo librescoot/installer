@@ -286,7 +286,6 @@ void main() {
       'FINISH_ON_DEVICE',
       'FINISH_LANGUAGE',
       'FINISH_CHANNEL',
-      'START_KEYCARD',
       'MDB_ACTION',
       'MDB_TARGET',
     ]) {

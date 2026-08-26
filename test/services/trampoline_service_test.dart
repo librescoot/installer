@@ -338,7 +338,7 @@ VALHALLA="{{VALHALLA_TILES_FILE}}"
     test('an on-device finish renders the plan into the script', () {
       final out = TrampolineService.renderTemplate(
         '$fixture\nF={{FINISH_ON_DEVICE}} A={{MDB_ACTION}} V={{MDB_TARGET_VERSION}} '
-        'L={{FINISH_LANGUAGE}} C={{FINISH_CHANNEL}} K={{START_KEYCARD}}',
+        'L={{FINISH_LANGUAGE}} C={{FINISH_CHANNEL}}',
         upgradeMode: true,
         dbcImagePath: '',
         dbcMenderPath: '/data/installer/a.mender',
@@ -348,7 +348,6 @@ VALHALLA="{{VALHALLA_TILES_FILE}}"
           mdbTargetVersion: 'v1.2.1',
           language: 'de',
           otaChannel: 'stable',
-          startKeycard: true,
         ),
       );
       expect(out, contains('F=true'));
@@ -356,19 +355,17 @@ VALHALLA="{{VALHALLA_TILES_FILE}}"
       expect(out, contains('V=v1.2.1'));
       expect(out, contains('L=de'));
       expect(out, contains('C=stable'));
-      expect(out, contains('K=true'));
     });
 
     test('the default is the old behaviour: hand back to the laptop', () {
       final out = TrampolineService.renderTemplate(
-        '$fixture\nF={{FINISH_ON_DEVICE}} A={{MDB_ACTION}} K={{START_KEYCARD}}',
+        '$fixture\nF={{FINISH_ON_DEVICE}} A={{MDB_ACTION}}',
         upgradeMode: true,
         dbcImagePath: '',
         dbcMenderPath: '/data/installer/a.mender',
       );
       expect(out, contains('F=false'));
       expect(out, contains('A=leave'));
-      expect(out, contains('K=false'));
     });
 
     test('leaves no placeholder behind', () {

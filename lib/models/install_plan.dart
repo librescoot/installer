@@ -228,7 +228,6 @@ class DeviceFinish {
     this.mdbTargetVersion = '',
     this.language = '',
     this.otaChannel = '',
-    this.startKeycard = false,
   });
 
   /// Off means the old behaviour: the trampoline stops at the green LED and
@@ -245,11 +244,6 @@ class DeviceFinish {
 
   final String language;
   final String otaChannel;
-
-  /// True once keycard pairing has already happened, which is what makes
-  /// starting keycard-service on the device safe: a master card exists, so
-  /// the service cannot silently teach in the next card that gets tapped.
-  final bool startKeycard;
 
   /// The old behaviour, for callers that still hand back to the laptop.
   static const laptop =

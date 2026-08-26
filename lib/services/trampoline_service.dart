@@ -188,7 +188,6 @@ class TrampolineService {
         .replaceAll('{{MDB_TARGET_VERSION}}', finish.mdbTargetVersion)
         .replaceAll('{{FINISH_LANGUAGE}}', finish.language)
         .replaceAll('{{FINISH_CHANNEL}}', finish.otaChannel)
-        .replaceAll('{{START_KEYCARD}}', finish.startKeycard ? 'true' : 'false')
         .replaceAll('{{INSTALL_TILES}}', installTiles ? 'true' : 'false')
         .replaceAll(
           '{{OSM_TILES_FILE}}',

@@ -21,7 +21,6 @@ MDB_ACTION="{{MDB_ACTION}}"               # upgrade | cleanInstall | fullImage |
 MDB_TARGET="{{MDB_TARGET_VERSION}}"       # VERSION_ID the MDB should be on, for the record
 FINISH_LANGUAGE="{{FINISH_LANGUAGE}}"     # dashboard.language to persist, empty to skip
 FINISH_CHANNEL="{{FINISH_CHANNEL}}"       # lsc ota channel to persist, empty to skip
-START_KEYCARD="{{START_KEYCARD}}"         # true when keycard setup already ran
 DBC_BMAP="${DBC_IMAGE%.sdimg.gz}.sdimg.bmap"
 DBC_IP="192.168.7.2"
 BOOT_AREA_BLOCKS=6
@@ -1025,7 +1024,7 @@ log "  TILES_REGION=$TILES_REGION"
 # or hands back to the laptop, and it is invisible in the log otherwise: a
 # run that quietly handed back looks exactly like one that finished.
 log "  FINISH_ON_DEVICE=$FINISH_ON_DEVICE"
-log "  FINISH_LANGUAGE=$FINISH_LANGUAGE CHANNEL=$FINISH_CHANNEL START_KEYCARD=$START_KEYCARD"
+log "  FINISH_LANGUAGE=$FINISH_LANGUAGE CHANNEL=$FINISH_CHANNEL"
 log "  MDB_ACTION=$MDB_ACTION MDB_TARGET=$MDB_TARGET"
 log "=========================================="
 
@@ -1585,7 +1584,6 @@ MODE="$MODE"
 FINISH_ON_DEVICE="$FINISH_ON_DEVICE"
 FINISH_LANGUAGE="$FINISH_LANGUAGE"
 FINISH_CHANNEL="$FINISH_CHANNEL"
-START_KEYCARD="$START_KEYCARD"
 MDB_ACTION="$MDB_ACTION"
 MDB_TARGET="$MDB_TARGET"
 ONBOOT_VARS
