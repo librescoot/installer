@@ -5423,11 +5423,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// Wait for the board to come back after a reboot we issued, and
   /// re-establish SSH. Unlike _waitForMdbBoot this does not set a phase: the
   /// caller is mid-install and decides where to go next.
-  Future<void> _reconnectAfterReboot(AppLocalizations l10n) async {
+  Future<void> _reconnectAfterReboot(
+    AppLocalizations l10n, {
+    Duration settle = const Duration(seconds: 15),
+  }) async {
     // Let the board actually go down first. reboot() returns as soon as the
     // command is accepted, so connecting immediately would land on the system
-    // that is about to disappear.
-    await Future.delayed(const Duration(seconds: 15));
+    // that is about to disappear. A caller that is not following a reboot of
+    // its own passes zero: there is nothing to wait out.
+    if (settle > Duration.zero) await Future.delayed(settle);
 
     // Only log a status line when it changes: this loop runs for up to five
     // minutes and _setStatus appends to the installer log every time.
@@ -5660,6 +5664,20 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     });
     CriticalOperationLease? criticalOperation;
     try {
+      // A retry after the post-reboot reconnect gave up starts here with no
+      // session: reboot() disconnects on purpose and clears the stored
+      // credential with it, so nothing below can re-establish one lazily.
+      // Every probe then failed with "no stored credential", which
+      // _waitForDataPartition reported as a verdict about /data, and no
+      // amount of retrying could have changed it. Reconnect first, through
+      // the same wait the reboot uses because the board may still be on its
+      // way up, and let that report honestly when it cannot.
+      if (!_sshService.isConnected) {
+        debugPrint('UI: artifact install has no SSH session, reconnecting');
+        await _reconnectAfterReboot(l10n, settle: Duration.zero);
+        if (!mounted) return;
+      }
+
       // Collect the work that has been running behind the pairing screens.
       // Nothing on the vehicle is written after this point except the reboot,
       // so this is the last moment where waiting costs the user anything.
