@@ -1224,13 +1224,27 @@ ip link set usb0 up 2>/dev/null || ifconfig usb0 up 2>/dev/null
 # a policy in. It also has no vehicle-service to take usb0 down, so the line
 # above is all that board needs.
 if command -v lsc >/dev/null 2>&1; then
+  # Wait for settings-service, not for redis. redis answers early;
+  # settings-service starts later and stamps the whole settings hash from its
+  # schema, which erases a policy written before it got there. Measured on a
+  # bench run: this script set always-on and exited at +8s, settings-service
+  # loaded its defaults at +9s, vehicle-service read auto at +12s and took
+  # usb0 down at +16s. The script had succeeded and changed nothing.
+  #
+  # So: only write once settings-service is up, and read it back, because a
+  # write that does not survive is the whole failure being fixed here.
   i=0
   while [ $i -lt 60 ]; do
-    redis-cli ping >/dev/null 2>&1 && break
+    if [ "$(systemctl is-active librescoot-settings 2>/dev/null)" = active ]; then
+      lsc set scooter.usb0-policy always-on >/dev/null 2>&1
+      [ "$(redis-cli --raw hget settings scooter.usb0-policy 2>/dev/null)" = always-on ] && break
+    fi
     i=$((i+1))
     sleep 1
   done
-  lsc set scooter.usb0-policy always-on >/dev/null 2>&1
+  # vehicle-service raises the link itself when it sees the policy change, but
+  # it may already have lowered it by now, and this costs nothing if it did not.
+  ip link set usb0 up 2>/dev/null || ifconfig usb0 up 2>/dev/null
 fi
 ''';
 

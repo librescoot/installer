@@ -28,11 +28,11 @@ void main() {
   });
 
   test('it raises the link before it waits for anything', () {
-    // The policy call needs redis, which takes seconds to come up. Raising the
-    // link first means the installer can already reach the board while the
-    // rest of this is still waiting.
+    // The policy call has to wait for settings-service, which is tens of
+    // seconds into a boot. Raising the link first means the installer can
+    // already reach the board while the rest of this is still waiting.
     final raise = script.indexOf('ip link set usb0 up');
-    final wait = script.indexOf('redis-cli ping');
+    final wait = script.indexOf('systemctl is-active librescoot-settings');
     expect(raise, isNot(-1));
     expect(wait, greaterThan(raise));
   });
@@ -63,7 +63,7 @@ void main() {
     // the next boot, and the one after, on a scooter nobody is installing.
     final rm = script.indexOf('rm -f /data/onboot.sh');
     expect(rm, isNot(-1));
-    expect(rm, lessThan(script.indexOf('redis-cli ping')),
+    expect(rm, lessThan(script.indexOf('systemctl is-active librescoot-settings')),
         reason: 'a blocking wait before the removal can strand the keeper');
     expect(rm, lessThan(script.indexOf('lsc set')));
   });
@@ -74,5 +74,29 @@ void main() {
     // $i and $((i+1)) are read on the scooter, by this script, on purpose.
     expect(script, contains(r'$i'));
     expect(script, isNot(contains('{{')));
+  });
+
+  test('it waits for settings-service, not merely for redis', () {
+    // redis answers early. settings-service starts later and stamps the whole
+    // settings hash from its schema, erasing anything written before it. A
+    // keeper that waited on redis set the policy one second too early, exited
+    // 0, and changed nothing; vehicle-service read the default and took usb0
+    // down four seconds later.
+    expect(script, contains('systemctl is-active librescoot-settings'));
+    expect(
+      script.indexOf('systemctl is-active librescoot-settings'),
+      lessThan(script.indexOf('lsc set scooter.usb0-policy')),
+      reason: 'the policy is written before the thing that would erase it',
+    );
+  });
+
+  test('it confirms the policy survived rather than assuming it', () {
+    // The failure this fixes is a write that succeeded and did not last, so
+    // the only honest check is reading it back.
+    expect(script, contains('hget settings scooter.usb0-policy'));
+    expect(
+      script.indexOf('lsc set scooter.usb0-policy'),
+      lessThan(script.indexOf('hget settings scooter.usb0-policy')),
+    );
   });
 }
