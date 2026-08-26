@@ -701,11 +701,19 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     } catch (e) {
       debugPrint('UI: failed to set alarm.enabled=false at $label (ok): $e');
     }
-    // The settings change propagates via a publish — if alarm-service is
-    // mid-restart, was already armed when we set the flag, or the publish
-    // gets dropped, the FSM can stay in an armed state. Belt-and-suspenders:
-    // also push a runtime disarm onto the alarm command queue so the FSM
-    // drops to Disarmed regardless of how alarm.enabled propagated.
+    await _disarmAlarm(label: label);
+  }
+
+  /// The runtime half of disabling the alarm, which is the half that works on
+  /// a board with no settings-service.
+  ///
+  /// `alarm.enabled` propagates via a publish, and if alarm-service is
+  /// mid-restart, was already armed when the flag was set, or the publish gets
+  /// dropped, the FSM can stay in an armed state. Pushing a disarm onto the
+  /// command queue drops it to Disarmed regardless of how the setting
+  /// propagated. The stage-0 image ships valkey, so this lands there too.
+  Future<void> _disarmAlarm({required String label}) async {
+    if (_isDryRun || !_sshService.isConnected) return;
     try {
       await _sshService.redisLpush('scooter:alarm', 'disarm');
       debugPrint('UI: scooter:alarm disarm ($label)');
@@ -7751,22 +7759,34 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       return;
     }
 
-    // Re-apply always-on USB gadget policy: the MDB has been re-flashed since
-    // we first set it, so the freshly-installed image is back to the default.
-    // We restore it to auto on finish. Best-effort: missing on older images.
-    try {
-      await _sshService.runCommand('lsc set scooter.usb0-policy always-on');
-      debugPrint('UI: scooter.usb0-policy=always-on (keycardSetup)');
-    } catch (e) {
-      debugPrint(
-        'UI: failed to set scooter.usb0-policy=always-on at keycardSetup (ok): $e',
-      );
+    // Keycard learning can sit here for a while, and a parked scooter is fair
+    // game for both the auto-standby timer and the alarm, so re-apply the
+    // policy and the parked settings. Cleared at finish.
+    //
+    // Only where they can land, which is the same test the two neighbouring
+    // sites use. With an artifact still due, a clean install is running this
+    // phase on the stage-0 image: it has no settings-service, so every one of
+    // these is `lsc: not found` and post-artifact applies them once the board
+    // has booted the real image. An upgrade has an artifact due too and is
+    // still running the image the connect parked them on, so there is nothing
+    // to re-apply there either. What is left is the board that took a full
+    // image or was left alone, where a reflash did reset them.
+    if (!_mdbArtifactPending) {
+      try {
+        await _sshService.runCommand('lsc set scooter.usb0-policy always-on');
+        debugPrint('UI: scooter.usb0-policy=always-on (keycardSetup)');
+      } catch (e) {
+        debugPrint(
+          'UI: failed to set scooter.usb0-policy=always-on at keycardSetup (ok): $e',
+        );
+      }
+      await _disableInstallerHazards(label: 'keycardSetup');
+    } else {
+      // The alarm is the one hazard that can still be armed on a board this
+      // skipped, and its runtime queue is there even when the settings are
+      // not.
+      await _disarmAlarm(label: 'keycardSetup');
     }
-
-    // Same hazards on the freshly-installed image: keycard learning can sit
-    // here for a while, and the parked-but-locked scooter is fair game for
-    // both the auto-standby timer and the alarm. Cleared at finish.
-    await _disableInstallerHazards(label: 'keycardSetup');
 
     // Stop our manual green LED blinker before keycard-service starts; both
     // drive the LP5562 via i2c and would otherwise race.
