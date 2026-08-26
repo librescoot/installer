@@ -19,6 +19,7 @@ import '../models/board_state.dart';
 import '../models/download_state.dart';
 import '../models/dashboard_messages.dart';
 import '../models/install_plan.dart';
+import '../models/keycard_master.dart';
 import '../l10n/phase_l10n.dart';
 import '../models/finish_handover.dart';
 import '../models/installer_phase.dart';
@@ -7915,7 +7916,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // unsent, which risks the next tap being learned as master on a board
     // with none, against erasing one on a board that has it.
     final masterCount = await _keycardReadMasterCount();
-    if (masterCount == 0) {
+    if (shouldDisengageMasterLearning(masterCount)) {
       try {
         await _sshService.redisLpush('scooter:keycard', 'set-master:NONE');
         debugPrint('UI: keycardSetup entered, master mode disengaged');
