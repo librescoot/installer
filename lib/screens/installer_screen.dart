@@ -936,6 +936,22 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       debugPrint('UI: failed to restore services on finish: $e');
     }
 
+    // Before the handover, not after: the unlock tears down the USB gadget
+    // this is written over, and a record written after that never lands.
+    try {
+      await _sshService.writeCompletionRecord(
+        runId: _installRunId,
+        mode: (_plan?.needsMdbStage0 ?? false) ? 'flash' : 'upgrade',
+        mdbVersion: _mdbState.version ?? '',
+        // Only what this run verified. The dashboard is the trampoline's to
+        // report, and on a run that never handed off there is nothing to say.
+        dbcVersion: _deviceFinishArmed ? (_dbcState.version ?? '') : '',
+      );
+      debugPrint('UI: wrote the completion record for $_installRunId');
+    } catch (e) {
+      debugPrint('UI: could not write the completion record: $e');
+    }
+
     // usb0-policy and the unlock go in one detached MDB-side shell.
     // vehicle-service applies the policy change synchronously: with the DBC
     // powered off and keycards paired, usb0AutoEffective() returns true and

@@ -2102,6 +2102,58 @@ done
     }
   }
 
+  /// Record that a run finished, in the shape the trampoline's own
+  /// write_completion_record writes and [TrampolineStatus.parseCompletionRecord]
+  /// reads: `result:` first, the rest as `key: value` under it.
+  ///
+  /// Only the device finish used to write one. A run the laptop closed out
+  /// left the last thing it wrote standing, which is `stage: finish,
+  /// result: running`, so the next connect read a finished install as one
+  /// that was abandoned at the last step.
+  ///
+  /// All three destinations, same as the device does it: the per-run history
+  /// entry, the current-run pointer, and /data/last-install, which is the one
+  /// a returning installer reads.
+  Future<void> writeCompletionRecord({
+    required String runId,
+    required String mode,
+    String mdbVersion = '',
+    String dbcVersion = '',
+    DateTime? finishedAt,
+  }) async {
+    if (!RegExp(r'^[a-zA-Z0-9._-]+$').hasMatch(runId)) {
+      throw ArgumentError.value(runId, 'runId', 'contains unsafe characters');
+    }
+    final finished = (finishedAt ?? DateTime.now().toUtc())
+        .toIso8601String()
+        .split('.')
+        .first;
+    final record = <String>[
+      'result: success',
+      'run-id: $runId',
+      'finish: complete',
+      'stage: complete',
+      'mode: $mode',
+      'finished: ${finished}Z',
+      'mdb: $mdbVersion',
+      'dbc: $dbcVersion',
+      '',
+    ].join('\n');
+    const historyDir = '/data/installer-runs';
+    final temp = '$historyDir/.$runId.complete';
+    await runCommand('mkdir -p $historyDir');
+    await uploadFile(Uint8List.fromList(utf8.encode(record)), temp);
+    // Rename into place, then copy out, so a reader never sees a half-written
+    // record at any of the three paths.
+    await runCommand(
+      'mv -f $temp $historyDir/$runId; '
+      'cp $historyDir/$runId /data/.last-install.$runId.tmp && '
+      '  mv -f /data/.last-install.$runId.tmp /data/last-install; '
+      'cp $historyDir/$runId /data/.installer-run-state.$runId.tmp && '
+      '  mv -f /data/.installer-run-state.$runId.tmp /data/installer-run-state',
+    );
+  }
+
   Future<void> writeInstallRunState({
     required String runId,
     required String content,
