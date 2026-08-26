@@ -143,6 +143,106 @@ void main() {
       }
     });
 
+    test('a stage-0 name the running image contradicts is not the verdict',
+        () {
+      // The clean-install path, one reboot after the artifact went on.
+      // mender still names the image the board just left, because nothing has
+      // committed the new one yet, while os-release already reads v1.2.1.
+      // Taking the name at face value here installed the same artifact twice.
+      expect(
+        looksLikeBootstrapImage(
+          artifactName: 'release-nightly-20260823T082958-minimal',
+          serviceStack: ServiceStack.librescoot,
+          runningVersion: 'v1.2.1',
+        ),
+        isFalse,
+      );
+    });
+
+    test('a stage-0 name the running image confirms still decides', () {
+      // Same board a minute earlier: the name and os-release agree, so the
+      // name is current and it is a stage-0 board. os-release lowercases the
+      // build stamp the artifact name capitalises, hence the case-insensitive
+      // comparison.
+      expect(
+        looksLikeBootstrapImage(
+          artifactName: 'release-nightly-20260823T082958-minimal',
+          serviceStack: ServiceStack.librescoot,
+          runningVersion: 'nightly-20260823t082958',
+        ),
+        isTrue,
+      );
+    });
+
+    test('a stale name falls back to the probe, not to a verdict', () {
+      // Nothing else to go on: the name describes another image, so the
+      // question is whether this one brought a stack up.
+      expect(
+        looksLikeBootstrapImage(
+          artifactName: 'release-nightly-20260823T082958-minimal',
+          serviceStack: ServiceStack.none,
+          runningVersion: 'v1.2.1',
+        ),
+        isTrue,
+      );
+    });
+
+    test('with no version read, the artifact name is still the authority', () {
+      // The regression this rule has to leave alone: a committed release
+      // artifact whose stack has not finished starting is a finished install,
+      // and an unreadable os-release must not turn it into a failed one.
+      expect(
+        looksLikeBootstrapImage(
+          artifactName: 'release-v1.2.1',
+          serviceStack: ServiceStack.none,
+          runningVersion: null,
+        ),
+        isFalse,
+      );
+      expect(
+        looksLikeBootstrapImage(
+          artifactName: 'release-v1.2.1',
+          serviceStack: ServiceStack.none,
+          runningVersion: '   ',
+        ),
+        isFalse,
+      );
+    });
+
+    test('an upgrade whose name lags a version is not condemned by it', () {
+      // v1.2.0 -> v1.2.1: the name lags to the version the board left, so it
+      // decides nothing either way. An unanswered probe is not `none`, so
+      // what is left says nothing either and the board is not a bootstrap.
+      expect(
+        looksLikeBootstrapImage(
+          artifactName: 'release-v1.2.0',
+          serviceStack: null,
+          runningVersion: 'v1.2.1',
+        ),
+        isFalse,
+      );
+      expect(
+        looksLikeBootstrapImage(
+          artifactName: 'release-v1.2.0',
+          serviceStack: ServiceStack.librescoot,
+          runningVersion: 'v1.2.1',
+        ),
+        isFalse,
+      );
+    });
+
+    test('a committed release name matches the version it was built from', () {
+      expect(artifactNameIsStale('release-v1.2.1', 'v1.2.1'), isFalse);
+      expect(
+        artifactNameIsStale(
+          'release-nightly-20260823T082958-minimal',
+          'nightly-20260823t082958',
+        ),
+        isFalse,
+      );
+      expect(artifactNameIsStale('release-v1.2.1', 'v1.2.0'), isTrue);
+    });
+
     test('a healthy stock board is not a bootstrap image', () {
       // Stock has a working vehicle stack under its own unit names and no
       // mender artifact at all. Reading that as a damaged Librescoot install

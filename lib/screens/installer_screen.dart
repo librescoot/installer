@@ -3385,23 +3385,34 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// os-release ID, but only the full image brings up a service stack, and
   /// the artifact name carries the image recipe.
   Future<BoardState> _detectMdbState() async {
-    final hasMender = await _sshService.hasMenderUpdate();
-    final artifact = hasMender ? await _sshService.menderArtifactName() : null;
     final osRelease = await _sshService.readOsRelease();
     final version = osRelease['VERSION_ID'] ?? _mdbInfo?.firmwareVersion;
     // Probe the stack instead of trusting _mdbStackMissing. After the
     // artifact's reboot that field still holds the answer the stage-0 board
     // gave before the install, which would make every clean install look as
     // if it had never left the bootstrap image.
+    //
+    // Before mender, not after: the probe retries for as long as a minute on
+    // a board that is still starting, and the artifact name only becomes
+    // current when update-service commits, which is one of the things that
+    // board is still starting. Asking mender first read a name from before
+    // the install on every run that got here quickly.
     final stack = await _sshService.detectServiceStack();
+    final hasMender = await _sshService.hasMenderUpdate();
+    final artifact = hasMender ? await _sshService.menderArtifactName() : null;
     final minimal = looksLikeBootstrapImage(
       artifactName: artifact,
       serviceStack: stack,
+      runningVersion: version,
     );
     // The inputs to the verdict, in the log, next to the verdict. Without them
     // a false "still on the bootstrap image" is undiagnosable from a report.
+    // Including which input was discarded: an artifact name in the log that
+    // did not decide anything reads as the reason for the verdict otherwise.
+    final stale = artifact != null && artifactNameIsStale(artifact, version);
     debugPrint(
-      'State: mdb artifact=${artifact ?? "none"} stack=${stack?.name ?? "unanswered"} '
+      'State: mdb artifact=${artifact ?? "none"}${stale ? " (stale)" : ""} '
+      'stack=${stack?.name ?? "unanswered"} '
       'version=${version ?? "unknown"} -> minimal=$minimal',
     );
 
@@ -5785,6 +5796,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _setPhase(_phaseAfterMdbInstall);
     } catch (e) {
       if (!mounted) return;
+      // The panel is on screen and the log says nothing: an install that
+      // stopped here left a silent gap between the last status line and
+      // whatever the user did next, which is the one moment in a run that
+      // most needs a line in the log we ask them to send.
+      debugPrint('UI: MDB artifact install failed: $e');
       setState(() {
         _artifactError = e.toString();
         _isProcessing = false;
