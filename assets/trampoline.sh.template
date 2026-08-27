@@ -571,6 +571,12 @@ probe_for_laptop_then_restore_host() {
 
 fail() {
   log "ERROR: $1"
+  # Disarm what this run queued, as the rescue paths do. Left in place, the
+  # owner's next power cycle runs them headless: the artifact installs and the
+  # board reboots for a run that failed before it touched the dashboard.
+  # Status, logs and the phase bookkeeping stay, which is what says what
+  # happened.
+  rm -f "$SCRIPTS_DIR"/[0-9][0-9]-*.sh "$SCRIPTS_DIR"/[0-9][0-9]-*.sh.tries
   # journalctl -f outlives this script otherwise: it is a child of the SSH
   # session scope, not a service cgroup, so an abandoned failure keeps
   # appending to the journal file until the disk notices.
