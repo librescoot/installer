@@ -864,6 +864,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // Uploaded before the cleanup below, deliberately. A queued phase makes
     // the coordinator decline to retire, so a detached run that dies takes the
     // scooter's next boot to finish rather than leaving it half handed back.
+    await _armInstallPhases();
     try {
       await _sshService.uploadFile(
         Uint8List.fromList(utf8.encode(FinalizeScript.render(
@@ -3965,6 +3966,30 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// skips its phases outright, an upgrade skips only the sdimg write, and a
   /// plan that does nothing at all cannot get here (the panel disables
   /// Continue for it).
+  /// Put the coordinator on the board and tell it what this plan owes it.
+  ///
+  /// Called where phases are queued rather than at plan time: a clean install
+  /// reformats /data, so anything written before the bootstrap flash is gone,
+  /// and on the stock image the write fails outright.
+  ///
+  /// 20-dbc.sh is the trampoline's to write and only exists when there is
+  /// dashboard work. The other three are expected on every plan, including one
+  /// that leaves the MDB alone, because 80-reboot.sh joins on a verdict that
+  /// has to come from somewhere.
+  Future<void> _armInstallPhases() async {
+    try {
+      await _sshService.installOnbootShim();
+      await _sshService.declareExpectedPhases([
+        MdbArtifactScript.phaseName,
+        if (_plan?.needsHandoff ?? false) '20-dbc.sh',
+        RebootPhaseScript.phaseName,
+        FinalizeScript.phaseName,
+      ]);
+    } catch (e) {
+      debugPrint('UI: could not arm the install phases: $e');
+    }
+  }
+
   /// The MDB artifact this run actually staged, or empty when it staged none.
   ///
   /// The download queue always carries one, so it cannot answer this. A
@@ -3978,15 +4003,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Future<void> _startPlan() async {
-    // Here rather than in the two places that queue phases, because only one
-    // of those runs on any given plan. A phase queued into a directory no
-    // coordinator reads ends the run looking clean on an untouched board.
-    try {
-      await _sshService.installOnbootShim();
-    } catch (e) {
-      debugPrint('UI: could not install the onboot coordinator: $e');
-    }
-
     // --mdb-image / --dbc-image supply full sdimgs and no artifacts, so the
     // only thing a plan can mean there is the legacy full-image path.
     if (launchArgs.hasLocalImages) {
@@ -4029,19 +4045,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (!plan.needsHandoff) {
       _skippedPhases.addAll(MajorStep.dbcFlash.phases);
     }
-
-    // What this plan should leave on the board. 20-dbc.sh is the trampoline's
-    // to write, and only exists when there is dashboard work; the other three
-    // are queued for every plan, including one that leaves the MDB alone,
-    // because 80-reboot.sh joins on a verdict that has to come from somewhere.
-    unawaited(_sshService.declareExpectedPhases([
-      MdbArtifactScript.phaseName,
-      if (plan.needsHandoff) '20-dbc.sh',
-      RebootPhaseScript.phaseName,
-      FinalizeScript.phaseName,
-    ]).catchError((Object e) {
-      debugPrint('UI: could not declare the expected phases: $e');
-    }));
 
     if (plan.needsMdbStage0) {
       _expectMinimalMdb = plan.mdb.action == BoardAction.cleanInstall;
@@ -6557,6 +6560,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         return;
       }
 
+      await _armInstallPhases();
       await trampolineService.uploadAll(
         runId: _installRunId,
         releaseTag: _downloadState.releaseTag ?? '',

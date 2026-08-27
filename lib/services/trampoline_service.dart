@@ -868,6 +868,15 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     debugPrint('Trampoline: uploadAll complete');
   }
 
+  /// Matches the running trampoline and nothing else.
+  ///
+  /// One definition because pkill and pgrep have to agree: they did not, and
+  /// the pgrep half could not match the path the script actually runs from,
+  /// so start() reported that the trampoline had not started on every run
+  /// that had in fact started one. The brackets keep the pattern from
+  /// matching its own command line.
+  static const String _trampolinePattern = 'installer/scripts/[t]rampoline.sh';
+
   /// Start the trampoline script on MDB in background.
   Future<void> start({required String runId}) async {
     if (!RegExp(r'^[a-zA-Z0-9._-]+$').hasMatch(runId)) {
@@ -879,7 +888,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     // command because a combined one would carry the pattern in the launcher's
     // arguments and take the launcher with it.
     await _ssh.runCommand(
-      "pkill -f 'installer/scripts/[t]rampoline.sh' 2>/dev/null; true",
+      "pkill -f '$_trampolinePattern' 2>/dev/null; true",
     );
     await _ssh.runCommand(
       'rm -f ${SshService.installerLastInstall}; '
@@ -919,7 +928,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
   /// keeps pgrep from matching its own command line.
   Future<bool> isRunning() async {
     final pid = (await _ssh.runCommand(
-      "pgrep -f 'installer/[t]rampoline.sh' 2>/dev/null; true",
+      "pgrep -f '$_trampolinePattern' 2>/dev/null; true",
     )).trim();
     return pid.isNotEmpty;
   }

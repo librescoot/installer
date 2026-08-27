@@ -95,23 +95,29 @@ void main() {
     expect(body, contains('onboot.sh'));
   });
 
-  test('the coordinator is installed once, for every plan', () {
-    // Both places that queue phases are conditional: a dashboard-less install
-    // never reaches the trampoline, and an install the user walks away from
-    // never reaches the finish. Phases queued into a directory no coordinator
-    // reads make a run end looking clean on a board that was never touched.
+  test('the coordinator is installed where phases are queued, not earlier', () {
+    // It was installed from _startPlan, which runs before the bootstrap flash.
+    // On the stock image that write fails outright ("mkdir: cannot create
+    // directory '/data': Operation not permitted") and a clean install
+    // reformats /data anyway, so the coordinator was never on the board that
+    // needed it. Both places that queue phases run after the flash.
     final source = File('lib/screens/installer_screen.dart').readAsStringSync();
-    final tramp = File('lib/services/trampoline_service.dart').readAsStringSync();
-    final calls = RegExp(r'installOnbootShim\(\)')
-            .allMatches(source)
-            .length +
-        RegExp(r'installOnbootShim\(\)').allMatches(tramp).length;
-    expect(calls, 1, reason: 'it should be installed in exactly one place');
+    final tramp =
+        File('lib/services/trampoline_service.dart').readAsStringSync();
 
-    final start = source.indexOf('Future<void> _startPlan() async {');
-    expect(start, isNot(-1), reason: '_startPlan not found');
-    final end = source.indexOf('\n  /// ', start);
-    expect(source.substring(start, end), contains('installOnbootShim()'),
-        reason: '_startPlan is the one point every plan passes through');
+    final calls = RegExp(r'installOnbootShim\(\)').allMatches(source).length +
+        RegExp(r'installOnbootShim\(\)').allMatches(tramp).length;
+    expect(calls, 1, reason: 'one definition, so it cannot drift');
+    expect(source, contains('Future<void> _armInstallPhases() async {'));
+
+    final planStart = source.indexOf('Future<void> _startPlan() async {');
+    final planEnd = source.indexOf('\n  /// ', planStart);
+    expect(source.substring(planStart, planEnd),
+        isNot(contains('installOnbootShim')),
+        reason: '_startPlan is before the flash that wipes /data');
+
+    // Armed on both routes: a dashboard-less plan never reaches the trampoline.
+    expect(RegExp(r'await _armInstallPhases\(\);').allMatches(source).length, 2,
+        reason: 'both queueing paths have to arm it');
   });
 }
