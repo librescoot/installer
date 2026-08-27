@@ -2341,6 +2341,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             String? before,
             String? after
           })>[
+            // First, because it is a precondition for the whole run rather
+            // than a step in it: a scooter left locked with no main battery
+            // suspends partway through and takes the USB link with it.
+            (
+              title: l10n.keepScooterAwake,
+              description: l10n.keepScooterAwakeDesc,
+              before: null,
+              after: null,
+            ),
             (
               title: l10n.removeFootwellCover,
               description: l10n.removeFootwellCoverDesc,

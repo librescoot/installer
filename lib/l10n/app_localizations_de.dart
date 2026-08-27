@@ -271,6 +271,13 @@ class AppLocalizationsDe extends AppLocalizations {
       'Bereite deinen Roller für die USB-Verbindung vor.';
 
   @override
+  String get keepScooterAwake => 'Roller wach halten';
+
+  @override
+  String get keepScooterAwakeDesc =>
+      'Entsperre den Roller, oder setz einen Fahrakku in den vorderen Schacht. Ohne das eine oder andere geht er mitten in der Installation in den Ruhezustand und nimmt die USB-Verbindung mit.';
+
+  @override
   String get removeFootwellCover => 'Fußraumabdeckung entfernen';
 
   @override

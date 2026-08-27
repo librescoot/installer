@@ -266,6 +266,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Prepare your scooter for USB connection.';
 
   @override
+  String get keepScooterAwake => 'Keep the scooter awake';
+
+  @override
+  String get keepScooterAwakeDesc =>
+      'Unlock the scooter, or put a main battery in the front slot. Without one or the other it suspends partway through the install and takes the USB connection with it.';
+
+  @override
   String get removeFootwellCover => 'Remove footwell cover';
 
   @override

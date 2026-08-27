@@ -81,6 +81,8 @@
   "resolvingReleases": "Releases werden aufgelöst...",
   "physicalPrepHeading": "Physische Vorbereitung",
   "physicalPrepSubheading": "Bereite deinen Roller für die USB-Verbindung vor.",
+  "keepScooterAwake": "Roller wach halten",
+  "keepScooterAwakeDesc": "Entsperre den Roller, oder setz einen Fahrakku in den vorderen Schacht. Ohne das eine oder andere geht er mitten in der Installation in den Ruhezustand und nimmt die USB-Verbindung mit.",
   "removeFootwellCover": "Fußraumabdeckung entfernen",
   "removeFootwellCoverDesc": "Vier Schrauben lösen. Ab Werk PH2 Kreuzschrauben, bei guten Werkstätten H4 Innensechskant oder Torx.",
   "unscrewUsbCable": "USB-Kabel vom MDB lösen",

@@ -584,6 +584,18 @@ abstract class AppLocalizations {
   /// **'Prepare your scooter for USB connection.'**
   String get physicalPrepSubheading;
 
+  /// No description provided for @keepScooterAwake.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep the scooter awake'**
+  String get keepScooterAwake;
+
+  /// No description provided for @keepScooterAwakeDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock the scooter, or put a main battery in the front slot. Without one or the other it suspends partway through the install and takes the USB connection with it.'**
+  String get keepScooterAwakeDesc;
+
   /// No description provided for @removeFootwellCover.
   ///
   /// In en, this message translates to:

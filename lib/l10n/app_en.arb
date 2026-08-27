@@ -81,6 +81,8 @@
   "resolvingReleases": "Resolving releases...",
   "physicalPrepHeading": "Physical preparation",
   "physicalPrepSubheading": "Prepare your scooter for USB connection.",
+  "keepScooterAwake": "Keep the scooter awake",
+  "keepScooterAwakeDesc": "Unlock the scooter, or put a main battery in the front slot. Without one or the other it suspends partway through the install and takes the USB connection with it.",
   "removeFootwellCover": "Remove footwell cover",
   "removeFootwellCoverDesc": "Four screws to remove. PH2 Phillips from factory, H4 hex or Torx if serviced by a good shop.",
   "unscrewUsbCable": "Unscrew USB cable from MDB",
