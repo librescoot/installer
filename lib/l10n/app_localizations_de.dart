@@ -313,7 +313,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String driverClaimedBody(String driver) {
-    return 'Windows hat die USB-Verbindung des Rollers an $driver vergeben statt an den Netzwerktreiber, den der Installer braucht. Das Programm hat sich darübergelegt, deshalb bekommt der Installer sie nicht von allein zurück.\n\nÖffne den Geräte-Manager, such den Roller unter Anschlüsse (COM & LPT), klick ihn mit der rechten Maustaste an und wähle Gerät deinstallieren. Setz den Haken bei „Die Treibersoftware für dieses Gerät löschen\", wenn er angeboten wird, zieh den Roller danach ab und steck ihn wieder an.\n\nAm Roller wurde nichts verändert, du kannst den Installer gefahrlos schließen.';
+    return 'Windows hat die USB-Verbindung des Rollers an $driver vergeben statt an den Netzwerktreiber, den der Installer braucht. Das Programm hat sich darübergelegt, deshalb bekommt der Installer sie nicht von allein zurück.\n\nÖffne den Geräte-Manager, such den Roller unter Anschlüsse (COM & LPT), klick ihn mit der rechten Maustaste an und wähle Gerät deinstallieren. Setz den Haken bei „Die Treibersoftware für dieses Gerät löschen“, wenn er angeboten wird, zieh den Roller danach ab und steck ihn wieder an.\n\nAm Roller wurde nichts verändert, du kannst den Installer gefahrlos schließen.';
   }
 
   @override

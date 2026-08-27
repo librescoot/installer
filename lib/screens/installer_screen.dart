@@ -46,6 +46,7 @@ import '../widgets/brake_gesture.dart';
 import '../widgets/install_plan_panel.dart';
 import '../widgets/instruction_step.dart';
 import '../widgets/phase_layout.dart';
+import '../widgets/driver_blocked_panel.dart';
 import '../widgets/phase_sidebar.dart';
 import '../widgets/substep_list.dart';
 import '../widgets/wait_overlay.dart';
@@ -2408,10 +2409,19 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         ? (r.error ?? '')
         : DriverService.describeForSupport(diagnosis);
 
-    return PhaseLayout(
+    return DriverBlockedPanel(
       title: r.rebootRequired
           ? l10n.driverNeedsRebootHeading
           : l10n.driverClaimedHeading,
+      body: r.rebootRequired
+          ? l10n.driverNeedsRebootBody
+          : l10n.driverClaimedBody(
+              diagnosis == null
+                  ? 'another driver'
+                  : DriverService.describeHolder(diagnosis),
+            ),
+      detailsLabel: l10n.driverClaimedDetailsLabel,
+      details: details,
       actions: [
         PhaseAction(
           label: l10n.driverRecheck,
@@ -2429,58 +2439,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           PhaseAction(
             label: l10n.copyToClipboard,
             icon: Icons.copy,
-            onPressed: () =>
-                Clipboard.setData(ClipboardData(text: details)),
+            onPressed: () => Clipboard.setData(ClipboardData(text: details)),
           ),
       ],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            r.rebootRequired
-                ? l10n.driverNeedsRebootBody
-                : l10n.driverClaimedBody(
-                    diagnosis == null
-                        ? 'another driver'
-                        : DriverService.describeHolder(diagnosis),
-                  ),
-            style: TextStyle(
-              fontSize: 14,
-              height: 1.5,
-              color: Colors.grey.shade300,
-            ),
-          ),
-          if (details.isNotEmpty) ...[
-            const SizedBox(height: 20),
-            Text(
-              l10n.driverClaimedDetailsLabel,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade500,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.black26,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: SelectableText(
-                details,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 11,
-                  height: 1.4,
-                  color: Colors.grey.shade400,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
     );
   }
 
