@@ -941,43 +941,27 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       debugPrint('UI: failed to start the install phases: $e');
     }
 
-    // The screen is waiting on the unlock, so watch for the unlock. Either
-    // outcome ends the wait:
+    // Nothing to watch for from here. The board installs its artifact, reboots
+    // to activate it, and only then unlocks, and the reboot takes this link
+    // with it: the unlock happens minutes later with nothing attached.
     //
-    //  - the vehicle leaves stand-by, which is the unlock landing. This is
-    //    the normal case, and usb0 comes back with it, so the link staying
-    //    up is not evidence that nothing happened.
-    //  - SSH dies and stays dead. Setting usb0-policy=auto tears the gadget
-    //    down synchronously, and on a board that does not unlock it never
-    //    returns, so the drop is all we get.
+    // This used to poll redis for the vehicle leaving stand-by, and both arms
+    // of it now lie. On a clean install the board is still on the bootstrap
+    // image, which has no redis, so the first poll throws and the catch read
+    // that as the handover landing. On an upgrade the poll answers stand-by
+    // for the whole install and the 60s cap always expires, because install
+    // plus reboot plus boot plus unlock does not fit in a minute. Either way
+    // it announced success while the verdict was still minutes away, and the
+    // verdict can be failure.
     //
-    // 60s cap so a stuck handover doesn't trap the user on the wait screen.
-    // This is the second step of the plan set above, so the overlay can say
-    // how long the unlock has been outstanding and whether that is normal,
-    // rather than showing a bare spinner on the last screen of the install.
+    // So say what was handed off and stop. The screen already tells the owner
+    // to stay with the scooter until it unlocks itself, and the unlock is the
+    // signal: it is theirs to see, not this installer's to report.
     _setStatus(handoverL10n.finishHandoverTitle);
-    final deadline = DateTime.now().add(const Duration(seconds: 60));
-    while (DateTime.now().isBefore(deadline)) {
-      await Future.delayed(const Duration(seconds: 1));
-      if (!mounted) return;
-      try {
-        final state = await _sshService
-            .runCommand('redis-cli -h localhost hget vehicle state')
-            .timeout(const Duration(seconds: 2));
-        final trimmed = state.trim();
-        if (trimmed.isNotEmpty && trimmed != 'stand-by') {
-          debugPrint('UI: vehicle is $trimmed — the unlock landed');
-          if (mounted) setState(() => _awaitingFinishHandover = false);
-          return;
-        }
-      } catch (_) {
-        debugPrint('UI: MDB SSH dropped — handover confirmed');
-        _sshService.disconnect();
-        if (mounted) setState(() => _awaitingFinishHandover = false);
-        return;
-      }
-    }
-    debugPrint('UI: timed out waiting for the handover, showing finish anyway');
+    // A moment for the detached coordinator to be running before the link is
+    // dropped underneath it, then let go rather than waiting to be cut off.
+    await Future.delayed(const Duration(seconds: 2));
+    _sshService.disconnect();
     if (mounted) setState(() => _awaitingFinishHandover = false);
   }
 
