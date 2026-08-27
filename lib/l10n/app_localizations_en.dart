@@ -303,6 +303,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get checkingRndisDriver => 'Checking RNDIS driver...';
 
   @override
+  String get driverClaimedHeading => 'Another program has claimed the USB port';
+
+  @override
+  String driverClaimedBody(String driver) {
+    return 'Windows has handed the scooter\'s USB connection to $driver instead of the network driver the installer needs. That program installed itself over the top, so the installer cannot take it back on its own.\n\nOpen Device Manager, find the scooter under Ports (COM & LPT), right-click it and choose Uninstall device. Tick \"Attempt to remove the driver for this device\" if it is offered, then unplug the scooter and plug it in again.\n\nNothing on the scooter has been changed and it is safe to close the installer.';
+  }
+
+  @override
+  String get driverClaimedDetailsLabel => 'Details for a bug report';
+
+  @override
+  String get driverNeedsRebootHeading => 'Windows needs a restart to finish';
+
+  @override
+  String get driverNeedsRebootBody =>
+      'The network driver installed, but Windows could not swap it in while the scooter was plugged in. Restart your computer and run the installer again.\n\nNothing on the scooter has been changed.';
+
+  @override
+  String get driverRecheck => 'Check again';
+
+  @override
   String get configuringNetwork => 'Configuring network...';
 
   @override

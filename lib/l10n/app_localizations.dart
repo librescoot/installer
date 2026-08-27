@@ -650,6 +650,42 @@ abstract class AppLocalizations {
   /// **'Checking RNDIS driver...'**
   String get checkingRndisDriver;
 
+  /// No description provided for @driverClaimedHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Another program has claimed the USB port'**
+  String get driverClaimedHeading;
+
+  /// No description provided for @driverClaimedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Windows has handed the scooter\'s USB connection to {driver} instead of the network driver the installer needs. That program installed itself over the top, so the installer cannot take it back on its own.\n\nOpen Device Manager, find the scooter under Ports (COM & LPT), right-click it and choose Uninstall device. Tick \"Attempt to remove the driver for this device\" if it is offered, then unplug the scooter and plug it in again.\n\nNothing on the scooter has been changed and it is safe to close the installer.'**
+  String driverClaimedBody(String driver);
+
+  /// No description provided for @driverClaimedDetailsLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Details for a bug report'**
+  String get driverClaimedDetailsLabel;
+
+  /// No description provided for @driverNeedsRebootHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Windows needs a restart to finish'**
+  String get driverNeedsRebootHeading;
+
+  /// No description provided for @driverNeedsRebootBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The network driver installed, but Windows could not swap it in while the scooter was plugged in. Restart your computer and run the installer again.\n\nNothing on the scooter has been changed.'**
+  String get driverNeedsRebootBody;
+
+  /// No description provided for @driverRecheck.
+  ///
+  /// In en, this message translates to:
+  /// **'Check again'**
+  String get driverRecheck;
+
   /// No description provided for @configuringNetwork.
   ///
   /// In en, this message translates to:
