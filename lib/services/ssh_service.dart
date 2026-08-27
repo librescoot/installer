@@ -1212,6 +1212,100 @@ done
   /// redis but no settings-service to take an `apply:service` command.
   static const String serviceModeStatePath = '/data/service-mode.json';
 
+  /// Everything the installer stages lives under this one directory.
+  static const String installerDir = '/data/installer';
+
+  /// The scripts the board runs on its own: the trampoline's two halves, the
+  /// cleanup, and a rescue payload when an emergency reboot leaves one.
+  static const String installerScriptsDir = '$installerDir/scripts';
+
+  /// The path librescoot-onboot.service watches, and the only installer file
+  /// outside [installerDir]. Fixed by the unit
+  /// (`ConditionPathExists=/data/onboot.sh`, `ExecStart=/data/onboot.sh`), so
+  /// it cannot move.
+  static const String onbootPath = '/data/onboot.sh';
+
+  /// Where a user's own onboot.sh goes while ours holds the path.
+  static const String displacedOnbootPath = '$installerDir/onboot.sh.bak';
+
+  /// The coordinator. It runs the numbered install phases it finds in
+  /// [installerScriptsDir], in order, and takes itself out once none are
+  /// left.
+  ///
+  /// One writer on purpose. The trampoline used to assemble its own
+  /// post-reboot half straight into /data/onboot.sh, which made the boot path
+  /// something two producers wrote to at different times. The installer
+  /// installs this once, up front, and everything else only drops files into
+  /// the scripts directory. What runs at boot is then a question about the
+  /// contents of one directory rather than about which producer wrote last.
+  ///
+  /// Deliberately small and deliberately dumb. It sequences, counts attempts
+  /// and retires. It knows no phase by name, which is what lets a phase
+  /// abandon the run by deleting the phases after it and dropping in a
+  /// lower-numbered one; there is no abort case here to get wrong.
+  ///
+  /// Only `NN-name.sh` is run at boot. The first phase is launched by the
+  /// laptop, over the link, and carries a DBC flash: it is deliberately not
+  /// numbered, so a board that died in the middle of it comes back without
+  /// re-flashing a dashboard unattended.
+  @visibleForTesting
+  static const String onbootShim = r"""#!/bin/sh
+# Installed by the Librescoot installer. Runs the numbered install phases left
+# in /data/installer/scripts and removes itself once none are left.
+SCRIPTS=/data/installer/scripts
+
+# Counts the attempt before making it. A phase that wedges the boot never
+# reaches its own end, so counting afterwards counts the runs that already
+# worked and retries the ones that did not, forever.
+run_one() {
+  tries="$1.tries"
+  n=$(cat "$tries" 2>/dev/null || echo 0)
+  n=$((n + 1))
+  echo "$n" > "$tries"
+  if [ "$n" -gt 3 ]; then
+    rm -f "$1" "$tries"
+    return 0
+  fi
+  sh "$1"
+}
+
+for phase in "$SCRIPTS"/[0-9][0-9]-*.sh; do
+  # Re-checked inside the loop, not just at the top: the glob was expanded
+  # before the first phase ran, and a phase that abandons the run deletes the
+  # ones after it.
+  [ -f "$phase" ] || continue
+  run_one "$phase"
+done
+
+# Each phase removes itself when it is done, so no phases left is the signal
+# that there is nothing to coordinate any more.
+for phase in "$SCRIPTS"/[0-9][0-9]-*.sh; do
+  [ -f "$phase" ] && exit 0
+done
+if [ -f /data/installer/onboot.sh.bak ]; then
+  mv -f /data/installer/onboot.sh.bak /data/onboot.sh
+else
+  rm -f /data/onboot.sh
+fi
+""";
+
+  /// Put the coordinator in place, saving a user's own onboot.sh if one is
+  /// there. Idempotent: a second run over our own shim must not save it as if
+  /// it were the user's.
+  Future<void> installOnbootShim() async {
+    await runCommand(
+      'mkdir -p $installerScriptsDir; '
+      "if [ -f $onbootPath ] && ! grep -Fq 'Installed by the Librescoot installer' $onbootPath; then "
+      '  cp -f $onbootPath $displacedOnbootPath; '
+      'fi; '
+      "cat > $onbootPath.new << 'LSIONBOOT'\n"
+      '$onbootShim'
+      'LSIONBOOT\n'
+      'chmod +x $onbootPath.new; mv -f $onbootPath.new $onbootPath; sync',
+    );
+    debugPrint('SSH: installed the onboot coordinator');
+  }
+
   /// Arm settings-service's service overlay for the reboot into the freshly
   /// installed image.
   ///
