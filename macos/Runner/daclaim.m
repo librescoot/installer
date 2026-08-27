@@ -5,10 +5,8 @@
 // or pop the "Initialize / Eject / Ignore" dialog. With a claim held, the
 // kernel-level EPERM that authopen normally hits on /dev/rdiskN goes away.
 //
-// Claiming alone is NOT enough to stop the automounter: measured against the
-// MDB's own mass-storage gadget, the claim was granted and macOS mounted the
-// volume anyway. Refusing the mount takes a mount-approval dissenter, which
-// `watch` registers alongside the claim.
+// A claim alone does not stop the automounter (measured: claim granted, macOS
+// mounted anyway), so `watch` also registers a mount-approval dissenter.
 //
 // Protocol: line-based plain text on stdin/stdout.
 //   claim <bsdname>     -> "ok" or "error: ..."
@@ -265,15 +263,9 @@ static void peekCallback(DADiskRef disk, void *ctx) {
     watchConsider(disk);
 }
 
-// Refuse to let one of our disks be mounted.
-//
-// A claim alone does not stop the automounter: verified on 2026-08-27 against
-// the MDB's own mass-storage gadget, where the claim was granted and macOS
-// mounted the volume anyway. This is the callback that actually refuses.
-//
-// Unlike the claim path this must not filter on whole media. What gets mounted
-// is the mountable node, which for a partitioned disk is a child of the whole
-// disk we claimed.
+// A claim does not stop the automounter; this is what refuses the mount.
+// No whole-media filter here: the mountable node is a child of the disk we
+// claimed.
 static DADissenterRef mountApprovalCallback(DADiskRef disk, void *ctx) {
     if (!gWatching) return NULL;
 
@@ -331,7 +323,6 @@ static NSString *doUnwatch(void) {
     DAUnregisterCallback(gSession, peekCallback, NULL);
     DAUnregisterCallback(gSession, appearedCallback, NULL);
     DAUnregisterCallback(gSession, disappearedCallback, NULL);
-    // Approval callbacks have their own unregister entry point.
     DAUnregisterApprovalCallback(gSession, mountApprovalCallback, NULL);
     return @"ok";
 }
