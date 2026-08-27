@@ -787,10 +787,18 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     // breaks the shebang line and prevents execution on Linux.
     final cleanScript = script.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
     debugPrint('Trampoline: script generated (${cleanScript.length} chars)');
+    // Unnumbered on purpose. The coordinator at /data/onboot.sh runs the
+    // numbered phases it finds; this one is launched over the link and carries
+    // a DBC flash, so a board that died in the middle of it must not come back
+    // and re-flash a dashboard with nobody watching.
+    await _ssh.runCommand('mkdir -p ${SshService.installerScriptsDir}');
     await _ssh.uploadFile(
       Uint8List.fromList(utf8.encode(cleanScript)),
-      '/data/installer/trampoline.sh',
+      '${SshService.installerScriptsDir}/trampoline.sh',
     );
+    // Before anything can queue a phase, so the boot path never depends on
+    // whether the run got far enough to arrange its own recovery.
+    await _ssh.installOnbootShim();
     debugPrint('Trampoline: script uploaded');
     setStep('script', SubstepState.done);
 
@@ -809,7 +817,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     // command because a combined one would carry the pattern in the launcher's
     // arguments and take the launcher with it.
     await _ssh.runCommand(
-      "pkill -f 'installer/[t]rampoline.sh' 2>/dev/null; true",
+      "pkill -f 'installer/scripts/[t]rampoline.sh' 2>/dev/null; true",
     );
     await _ssh.runCommand(
       'rm -f /data/last-install; '
@@ -830,7 +838,8 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     // silently, so it goes before anything can be believed.
     await _ssh.runCommand(
       'rm -f /data/installer/trampoline-status; '
-      'nohup /data/installer/trampoline.sh > /data/installer/trampoline-stdout.log 2>&1 &',
+      'nohup ${SshService.installerScriptsDir}/trampoline.sh '
+      '> /data/installer/trampoline-stdout.log 2>&1 &',
     );
 
     // nohup backgrounds the process, so the launching shell reports success

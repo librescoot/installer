@@ -7,6 +7,9 @@ import 'package:librescoot_installer/services/ssh_service.dart';
 /// only one that runs with nobody watching. What it does with the directory it
 /// finds is the whole of the post-reboot contract.
 void main() {
+  group('explicit retirement', retirementTests);
+  group('installing it', installTests);
+
   late Directory root;
   late Directory scripts;
 
@@ -126,5 +129,114 @@ void main() {
     final result = await boot();
     expect(result.exitCode, 0, reason: result.stderr.toString());
     expect(File('${root.path}/onboot.sh').existsSync(), isFalse);
+  });
+}
+
+/// Retirement asked for explicitly, at the end of a run, rather than left to
+/// the coordinator noticing on some later boot. The sweep that follows a
+/// finish deletes the directory a displaced onboot.sh is saved in, so a run
+/// that installed the coordinator and never queued a phase would take the
+/// user's script with it.
+void retirementTests() {
+  late Directory root;
+  late Directory scripts;
+
+  String rehomed(String script) => script.replaceAll('/data/', '${root.path}/');
+
+  Future<ProcessResult> retire() async {
+    final f = File('${root.path}/retire.sh');
+    await f.writeAsString(rehomed(SshService.onbootRetireCommand));
+    return Process.run('sh', [f.path]);
+  }
+
+  Future<void> installShim() async {
+    await File('${root.path}/onboot.sh').writeAsString(SshService.onbootShim);
+  }
+
+  setUp(() async {
+    root = await Directory.systemTemp.createTemp('onboot-retire-');
+    scripts = Directory('${root.path}/installer/scripts');
+    await scripts.create(recursive: true);
+  });
+  tearDown(() => root.delete(recursive: true));
+
+  test('it hands back a displaced onboot.sh', () async {
+    await installShim();
+    final backup = File('${root.path}/installer/onboot.sh.bak');
+    await backup.writeAsString('#!/bin/sh\n# the user had their own\n');
+    final result = await retire();
+    expect(result.exitCode, 0, reason: result.stderr.toString());
+    expect(await File('${root.path}/onboot.sh').readAsString(),
+        contains('the user had their own'));
+    expect(backup.existsSync(), isFalse);
+  });
+
+  test('it declines while a phase is still queued', () async {
+    await installShim();
+    await File('${scripts.path}/30-cleanup.sh').writeAsString('#!/bin/sh\n');
+    final result = await retire();
+    expect(result.exitCode, 0);
+    expect(File('${root.path}/onboot.sh').existsSync(), isTrue,
+        reason: 'the queued phase still needs the coordinator to run it');
+  });
+
+  test('it leaves a script that is not ours alone', () async {
+    final theirs = File('${root.path}/onboot.sh');
+    await theirs.writeAsString('#!/bin/sh\n# somebody else entirely\n');
+    final result = await retire();
+    expect(result.exitCode, 0);
+    expect(await theirs.readAsString(), contains('somebody else entirely'));
+  });
+}
+
+/// What the coordinator displaces, and what it must not.
+void installTests() {
+  late Directory root;
+
+  Future<ProcessResult> install() async {
+    final f = File('${root.path}/install.sh');
+    await f.writeAsString(
+        SshService.onbootInstallCommand.replaceAll('/data/', '${root.path}/'));
+    return Process.run('sh', [f.path]);
+  }
+
+  setUp(() async {
+    root = await Directory.systemTemp.createTemp('onboot-install-');
+    await Directory('${root.path}/installer').create(recursive: true);
+  });
+  tearDown(() => root.delete(recursive: true));
+
+  test('it saves a script that belongs to somebody else', () async {
+    await File('${root.path}/onboot.sh')
+        .writeAsString('#!/bin/sh\n# the user had their own\n');
+    final result = await install();
+    expect(result.exitCode, 0, reason: result.stderr.toString());
+    expect(await File('${root.path}/installer/onboot.sh.bak').readAsString(),
+        contains('the user had their own'));
+    expect(await File('${root.path}/onboot.sh').readAsString(),
+        contains('Installed by the Librescoot installer'));
+  });
+
+  test('it does not save its own shim over the saved script', () async {
+    final backup = File('${root.path}/installer/onboot.sh.bak');
+    await backup.writeAsString('#!/bin/sh\n# the user had their own\n');
+    await File('${root.path}/onboot.sh').writeAsString(SshService.onbootShim);
+    final result = await install();
+    expect(result.exitCode, 0, reason: result.stderr.toString());
+    expect(await backup.readAsString(), contains('the user had their own'),
+        reason: 'a second install would otherwise bury what it displaced');
+  });
+
+  test('it does not mistake an older installer for the user', () async {
+    // Installers before the coordinator wrote their post-reboot half straight
+    // to this path. Saving one as if it were the user's script means handing
+    // it back on retirement, which re-arms a dead run against a staging
+    // directory that has since been swept.
+    await File('${root.path}/onboot.sh').writeAsString(
+        '#!/bin/sh\n# Auto-generated by installer trampoline\nexit 0\n');
+    final result = await install();
+    expect(result.exitCode, 0, reason: result.stderr.toString());
+    expect(File('${root.path}/installer/onboot.sh.bak').existsSync(), isFalse,
+        reason: 'a dead trampoline must not come back as the user\'s script');
   });
 }

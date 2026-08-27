@@ -2740,7 +2740,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       String? previousRun;
       try {
         final leftover = await _sshService.runCommand(
-          'ls /data/installer/trampoline-status /data/installer/trampoline.sh 2>/dev/null; true',
+          'ls /data/installer/trampoline-status '
+          '/data/installer/scripts/trampoline.sh '
+          '/data/installer/trampoline.sh 2>/dev/null; true',
         );
         final leftoversPresent = leftover.trim().isNotEmpty;
         var written = TrampolineResult.unknown;
@@ -9383,6 +9385,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         '  rmdir /data/last-install-log 2>/dev/null; '
         'fi; true',
       );
+      // Before the sweep, which deletes the directory a displaced onboot.sh is
+      // saved in. It declines while a phase is still queued.
+      await _sshService.retireOnbootCoordinator();
       await _sshService.runCommand(
         'rm -rf /data/installer; '
         'rm -f /data/librescoot-unu-*.sdimg.gz /data/librescoot-unu-*.sdimg.bmap '

@@ -132,7 +132,7 @@ void main() {
           File('lib/services/trampoline_service.dart').readAsStringSync();
       final start = source.indexOf('Future<void> start({required String runId})');
       final clear = source.indexOf('rm -f /data/last-install', start);
-      final launch = source.indexOf('nohup /data/installer/trampoline.sh', start);
+      final launch = source.indexOf('nohup \${SshService.installerScriptsDir}', start);
       expect(start, greaterThanOrEqualTo(0));
       expect(clear, greaterThan(start));
       expect(launch, greaterThan(clear));

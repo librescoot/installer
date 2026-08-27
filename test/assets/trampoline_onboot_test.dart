@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// The trampoline writes `/data/onboot.sh` through a quoted heredoc, which
+/// The trampoline writes its post-reboot phase through a quoted heredoc, which
 /// inherits nothing from the script that writes it. Every helper onboot.sh
 /// calls therefore has to be defined a second time inside that heredoc, and a
 /// helper that is only defined in the outer half fails at run time, on the far
@@ -19,8 +19,9 @@ void main() {
     // TILES, ONBOOT_END). Taking only the first would check a fraction of
     // the script, so the body runs from the first chunk to the last
     // terminator, and everything outside it is the trampoline's own half.
-    final start = source.indexOf("cat > /data/onboot.sh << 'ONBOOT'");
-    expect(start, isNot(-1), reason: 'onboot heredoc not found');
+    final start =
+        source.indexOf("""cat > "\$SCRIPTS_DIR/20-dbc.sh" << 'ONBOOT'""");
+    expect(start, isNot(-1), reason: 'post-reboot phase heredoc not found');
     final end = source.indexOf('\nONBOOT_END\n', start);
     expect(end, isNot(-1), reason: 'onboot heredoc is not terminated');
 
@@ -240,7 +241,7 @@ void main() {
     expect(substituted, isNotEmpty, reason: 'no substituted values found');
 
     final chunkRe = RegExp(
-        r"cat >>? /data/onboot\.sh << (')?([A-Z_]+)\1?\n([\s\S]*?)\n\2\n");
+        r'''cat >>? [^\n]*20-dbc\.sh" << (')?([A-Z_]+)\1?\n([\s\S]*?)\n\2\n''');
     final baked = <String>{};
     final assigned = <String>{};
     final readAtRuntime = <String>{};
@@ -279,7 +280,7 @@ void main() {
     // reports the install as done.
     final source = File('assets/trampoline.sh.template').readAsStringSync();
     final vars = RegExp(
-            r'cat >> /data/onboot\.sh << ONBOOT_VARS\n([\s\S]*?)\nONBOOT_VARS')
+            r'''cat >> [^\n]*20-dbc\.sh" << ONBOOT_VARS\n([\s\S]*?)\nONBOOT_VARS''')
         .firstMatch(source)!
         .group(1)!;
     for (final v in [

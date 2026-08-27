@@ -13,10 +13,19 @@ void main() {
 
     final syntax = await Process.run('sh', ['-n', script.path]);
     expect(syntax.exitCode, 0, reason: syntax.stderr.toString());
-    expect(command, contains(r'cp "$backup" "$onboot"'));
-    expect(command, isNot(contains(r'mv "$backup" "$onboot"')));
+    // Queued phases are what an abandoned run actually leaves behind now:
+    // the coordinator would run them on the next boot, against a staging
+    // directory this installer is about to reuse.
+    expect(command, contains(r'rm -f "$scripts"/[0-9][0-9]-*.sh'));
+    expect(command, contains('installer phases are still armed'));
+    // A board an older installer touched carries its post-reboot half at
+    // /data/onboot.sh instead, so that one is still recognised and removed.
     expect(command, contains(r'grep -Fq "$marker" "$onboot"'));
-    expect(command, contains('installer onboot script is still armed'));
+    expect(command, contains('a legacy installer onboot script is still armed'));
+    // The coordinator is retired here rather than left for a boot to notice,
+    // and a user's own onboot.sh goes back where it was.
+    expect(command, contains(r'grep -Fq "$shim" "$onboot"'));
+    expect(command, contains(r'mv -f "$backup" "$onboot"'));
     expect(command, isNot(contains('; true')));
   });
 
