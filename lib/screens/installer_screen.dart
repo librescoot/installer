@@ -885,6 +885,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // and its MDB artifact is staged but not installed. Queue the same two
       // phases the trampoline would have, so a dashboard-less plan finishes
       // the same way: install, one reboot, hand back.
+
       final mdbItem = _downloadState.artifactFor(Board.mdb);
       await _sshService.uploadFile(
         Uint8List.fromList(utf8.encode(MdbArtifactScript.render(
@@ -4045,7 +4046,23 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// skips its phases outright, an upgrade skips only the sdimg write, and a
   /// plan that does nothing at all cannot get here (the panel disables
   /// Continue for it).
-  void _startPlan() {
+  Future<void> _startPlan() async {
+    // The board runs the back half of every install itself now, so the
+    // coordinator goes on before any of it: the artifact install, the reboot
+    // and the handover are all numbered phases, and a phase queued into a
+    // directory no coordinator reads is a run that ends looking clean on a
+    // board that was never touched.
+    //
+    // Here rather than in the two places that queue phases, because only one
+    // of those runs on any given plan: a dashboard-less install never reaches
+    // the trampoline, and an install the user walks away from never reaches
+    // the finish. This is the one point every plan passes through.
+    try {
+      await _sshService.installOnbootShim();
+    } catch (e) {
+      debugPrint('UI: could not install the onboot coordinator: $e');
+    }
+
     // --mdb-image / --dbc-image supply full sdimgs and no artifacts, so the
     // only thing a plan can mean there is the legacy full-image path.
     if (launchArgs.hasLocalImages) {

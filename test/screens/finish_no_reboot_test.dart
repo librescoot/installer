@@ -94,4 +94,24 @@ void main() {
         reason: 'and a fallback for a board where systemd-run will not start');
     expect(body, contains('onboot.sh'));
   });
+
+  test('the coordinator is installed once, for every plan', () {
+    // Both places that queue phases are conditional: a dashboard-less install
+    // never reaches the trampoline, and an install the user walks away from
+    // never reaches the finish. Phases queued into a directory no coordinator
+    // reads make a run end looking clean on a board that was never touched.
+    final source = File('lib/screens/installer_screen.dart').readAsStringSync();
+    final tramp = File('lib/services/trampoline_service.dart').readAsStringSync();
+    final calls = RegExp(r'installOnbootShim\(\)')
+            .allMatches(source)
+            .length +
+        RegExp(r'installOnbootShim\(\)').allMatches(tramp).length;
+    expect(calls, 1, reason: 'it should be installed in exactly one place');
+
+    final start = source.indexOf('Future<void> _startPlan() async {');
+    expect(start, isNot(-1), reason: '_startPlan not found');
+    final end = source.indexOf('\n  /// ', start);
+    expect(source.substring(start, end), contains('installOnbootShim()'),
+        reason: '_startPlan is the one point every plan passes through');
+  });
 }

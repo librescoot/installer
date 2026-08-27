@@ -810,9 +810,6 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       Uint8List.fromList(utf8.encode(cleanScript)),
       '${SshService.installerScriptsDir}/trampoline.sh',
     );
-    // Before anything can queue a phase, so the boot path never depends on
-    // whether the run got far enough to arrange its own recovery.
-    await _ssh.installOnbootShim();
     debugPrint('Trampoline: script uploaded');
 
     // The MDB's own artifact and the reboot that activates it. Queued ahead
