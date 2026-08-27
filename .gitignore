@@ -66,3 +66,7 @@ build/
 
 # Golden diffs, written by a failing golden run
 test/goldens/failures/
+
+# Version-specific SSH credentials — never committed
+/assets/device_configs.bin
+/assets/device_configs.yml
