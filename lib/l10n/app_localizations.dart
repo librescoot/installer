@@ -1307,7 +1307,7 @@ abstract class AppLocalizations {
   /// No description provided for @doneCbbAuxDisconnected.
   ///
   /// In en, this message translates to:
-  /// **'Done, the scooter is restarting'**
+  /// **'Done, the scooter has restarted'**
   String get doneCbbAuxDisconnected;
 
   /// No description provided for @doneAuxDisconnected.

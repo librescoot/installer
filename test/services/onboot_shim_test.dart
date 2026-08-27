@@ -380,4 +380,40 @@ void historyTests() {
           reason: 'the record should carry $field');
     }
   });
+
+  group('the unit that runs it at boot', () {
+    // onboot-service is not in the bootstrap image, so nothing runs the
+    // coordinator at boot there. The rescue phase an aborted run stages would
+    // never run, and neither would a queued phase after an unexpected reboot.
+    test('it writes one only when no unit is known', () {
+      expect(SshService.onbootUnitCommand,
+          contains('systemctl cat librescoot-onboot.service'));
+      expect(SshService.onbootUnitCommand, startsWith('if ! systemctl cat'),
+          reason: 'the full image ships its own; do not shadow it');
+    });
+
+    test('the unit it writes runs the coordinator', () {
+      expect(SshService.onbootUnitCommand,
+          contains('ExecStart=${SshService.onbootPath}'));
+      expect(SshService.onbootUnitCommand,
+          contains('ConditionPathExists=${SshService.onbootPath}'));
+      expect(SshService.onbootUnitCommand, contains('WantedBy=multi-user.target'));
+      expect(SshService.onbootUnitCommand, contains('systemctl enable'));
+    });
+
+    test('it is a complete unit, with nothing left uninterpolated', () {
+      final cmd = SshService.onbootUnitCommand;
+      for (final line in [
+        '[Unit]',
+        '[Service]',
+        '[Install]',
+        'Type=oneshot',
+      ]) {
+        expect(cmd, contains(line));
+      }
+      expect(cmd, isNot(contains(r'$onbootPath')),
+          reason: 'the path must be interpolated before it ships');
+      expect(cmd, contains('/data/onboot.sh'));
+    });
+  });
 }

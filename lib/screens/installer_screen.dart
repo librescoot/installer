@@ -941,22 +941,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       debugPrint('UI: failed to start the install phases: $e');
     }
 
-    // Nothing to watch for from here. The board installs its artifact, reboots
-    // to activate it, and only then unlocks, and the reboot takes this link
-    // with it: the unlock happens minutes later with nothing attached.
-    //
-    // This used to poll redis for the vehicle leaving stand-by, and both arms
-    // of it now lie. On a clean install the board is still on the bootstrap
-    // image, which has no redis, so the first poll throws and the catch read
-    // that as the handover landing. On an upgrade the poll answers stand-by
-    // for the whole install and the 60s cap always expires, because install
-    // plus reboot plus boot plus unlock does not fit in a minute. Either way
-    // it announced success while the verdict was still minutes away, and the
-    // verdict can be failure.
-    //
-    // So say what was handed off and stop. The screen already tells the owner
-    // to stay with the scooter until it unlocks itself, and the unlock is the
-    // signal: it is theirs to see, not this installer's to report.
+    // Nothing to watch for: the board installs, reboots to activate, and only
+    // then unlocks, and the reboot takes this link with it. Polling for the
+    // unlock reported success minutes before the verdict existed, and the
+    // verdict can be failure. The screen already tells the owner to stay until
+    // it unlocks itself, and that unlock is theirs to see.
     _setStatus(handoverL10n.finishHandoverTitle);
     // A moment for the detached coordinator to be running before the link is
     // dropped underneath it, then let go rather than waiting to be cut off.
@@ -4029,13 +4018,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// Continue for it).
   /// The MDB artifact this run actually staged, or empty when it staged none.
   ///
-  /// The download queue always carries an MDB artifact, so asking it alone
-  /// says nothing about whether this plan installs one. A dashboard-only or
-  /// tiles-only plan skips the phase that stages it, and handing that path to
-  /// 10-mdb-artifact.sh either reboots a board the plan promised to leave
-  /// alone, when the running image happens to have seeded its own artifact at
-  /// the same path, or reports the artifact missing and stops the reboot the
-  /// dashboard still needs.
+  /// The download queue always carries one, so it cannot answer this. A
+  /// dashboard-only plan handed that path would reboot a board it promised to
+  /// leave alone, or stop the reboot the dashboard still needs.
   String _stagedMdbArtifactPath() {
     if (!(_plan?.needsMdbArtifact ?? false)) return '';
     final item = _downloadState.artifactFor(Board.mdb);
@@ -4044,16 +4029,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Future<void> _startPlan() async {
-    // The board runs the back half of every install itself now, so the
-    // coordinator goes on before any of it: the artifact install, the reboot
-    // and the handover are all numbered phases, and a phase queued into a
-    // directory no coordinator reads is a run that ends looking clean on a
-    // board that was never touched.
-    //
     // Here rather than in the two places that queue phases, because only one
-    // of those runs on any given plan: a dashboard-less install never reaches
-    // the trampoline, and an install the user walks away from never reaches
-    // the finish. This is the one point every plan passes through.
+    // of those runs on any given plan. A phase queued into a directory no
+    // coordinator reads ends the run looking clean on an untouched board.
     try {
       await _sshService.installOnbootShim();
     } catch (e) {

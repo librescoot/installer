@@ -284,7 +284,7 @@
   "disconnectAuxPole": "Disconnect one AUX pole",
   "disconnectAuxPoleDesc": "Remove only the positive terminal (outer, red cable and post) to avoid reversing polarity. This cuts power to the MDB, so the USB connection drops.",
   "auxDisconnectWarning": "The USB connection drops when you disconnect AUX. That is expected. Reconnect the AUX pole on the next screen to start the MDB.",
-  "doneCbbAuxDisconnected": "Done, the scooter is restarting",
+  "doneCbbAuxDisconnected": "Done, the scooter has restarted",
   "doneAuxDisconnected": "Done, AUX is disconnected",
   "brakeResetHeading": "Restart the scooter",
   "brakeResetIntro": "Squeeze and hold both brake levers. Every ten seconds, let go of the right one for about a second, then squeeze it again. After the fourth hold, just let go. The scooter restarts.",

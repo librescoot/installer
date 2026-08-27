@@ -428,11 +428,11 @@ restore_gadget() {
 # watches, exiting when the laptop enumerates us. If gadget mode still
 # can't be established after 240s, it reboots the MDB: a normal boot
 # always comes back in gadget mode, so the reboot is guaranteed recovery.
-# Before rebooting it stages rescue-onboot.sh as the 00-rescue phase and
-# drops the install phases, so the red error blink comes back right after
-# boot and nothing carries on from a state the rescue exists to abandon; the
-# installer reads the status file as soon as it reconnects, so the error
-# surfaces either way.
+# Before rebooting it drops every phase this run queued and stages
+# rescue-onboot.sh as the 00-rescue phase, so nothing carries on from a state
+# the rescue exists to abandon. Every phase, not just the dashboard one: the
+# rest would reboot onto a new image and unlock a scooter whose dashboard was
+# never flashed.
 # systemd-run for the same cgroup-survival reason as the LED units;
 # stop-error-signals.sh stops it if it's still around on reconnect.
 GADGET_RESCUE_UNIT="librescoot-gadget-rescue"
@@ -477,9 +477,13 @@ gadget_rescue_start() {
         fi
         echo "$(date "+%H:%M:%S") gadget-rescue: gadget mode unrecoverable after 240s, rebooting MDB" >> "$LOG"
         mkdir -p /data/installer/scripts
+        # Cleared before 00-rescue is staged, so the glob cannot take it too.
+        # Status, phase bookkeeping and logs are left: an aborted run is the
+        # one most worth reading afterwards.
+        rm -f /data/installer/scripts/[0-9][0-9]-*.sh \
+              /data/installer/scripts/[0-9][0-9]-*.sh.tries
         cp /data/installer/rescue-onboot.sh /data/installer/scripts/00-rescue.sh
         chmod +x /data/installer/scripts/00-rescue.sh
-        rm -f /data/installer/scripts/20-dbc.sh /data/installer/scripts/20-dbc.sh.tries
         sync &
         sleep 10
         reboot &
@@ -992,9 +996,10 @@ done
 
 log "gadget restore failed, rebooting MDB"
 mkdir -p "$SCRIPTS_DIR"
+# Disarm everything this run queued; keep what says what happened.
+rm -f "$SCRIPTS_DIR"/[0-9][0-9]-*.sh "$SCRIPTS_DIR"/[0-9][0-9]-*.sh.tries
 cp "$INSTALLER_DIR/rescue-onboot.sh" "$SCRIPTS_DIR/00-rescue.sh"
 chmod +x "$SCRIPTS_DIR/00-rescue.sh"
-rm -f "$SCRIPTS_DIR/20-dbc.sh" "$SCRIPTS_DIR/20-dbc.sh.tries"
 sync &
 sleep 10
 reboot &

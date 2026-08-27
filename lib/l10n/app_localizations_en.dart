@@ -690,7 +690,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'The USB connection drops when you disconnect AUX. That is expected. Reconnect the AUX pole on the next screen to start the MDB.';
 
   @override
-  String get doneCbbAuxDisconnected => 'Done, the scooter is restarting';
+  String get doneCbbAuxDisconnected => 'Done, the scooter has restarted';
 
   @override
   String get doneAuxDisconnected => 'Done, AUX is disconnected';

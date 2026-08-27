@@ -229,7 +229,7 @@
   "disconnectAuxPole": "Einen AUX-Pol trennen",
   "disconnectAuxPoleDesc": "Entferne nur den Pluspol (außen, rotes Kabel und Pol), um eine Verpolung zu vermeiden. Dadurch wird das MDB stromlos und die USB-Verbindung geht verloren.",
   "auxDisconnectWarning": "Die USB-Verbindung geht verloren, wenn du AUX trennst. Das ist normal. Schließe den AUX-Pol im nächsten Schritt wieder an, um das MDB zu starten.",
-  "doneCbbAuxDisconnected": "Fertig, der Roller startet neu",
+  "doneCbbAuxDisconnected": "Fertig, der Roller wurde neu gestartet",
   "doneAuxDisconnected": "Fertig, AUX ist getrennt",
   "brakeResetHeading": "Roller neu starten",
   "brakeResetIntro": "Beide Bremshebel ziehen und halten. Alle zehn Sekunden den rechten Hebel etwa eine Sekunde loslassen und wieder ziehen. Nach dem vierten Halten einfach loslassen. Der Roller startet neu.",

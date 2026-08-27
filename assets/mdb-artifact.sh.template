@@ -61,14 +61,9 @@ fi
 
 log "started in the background as pid $!"
 
-# Retire now, not when the install finishes: this script's job was to start it.
-# Left queued it re-runs on the boot after the reboot, backgrounding a second
-# install of the same artifact into the now-inactive slot, which the
-# coordinator then kills mid-write when it exits (KillMode=control-group) and
-# leaves an open mender transaction behind for the owner's next OTA.
-#
-# The verdict lives in RESULT_FILE, which outlives this script, so retiring
-# early costs nothing: 80-reboot.sh joins on the file, never on the phase.
+# Retire now, not when the install finishes: the job was to start it. Left
+# queued it re-runs after the reboot and installs the same artifact again.
+# 80-reboot.sh joins on RESULT_FILE, which outlives this script.
 rm -f "$0" "$0.tries"
 sync
 exit 0

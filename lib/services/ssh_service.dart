@@ -1490,8 +1490,34 @@ fi
   /// re-arms a dead run against a staging directory that has since been swept.
   Future<void> installOnbootShim() async {
     await runCommand(onbootInstallCommand);
+    await runCommand(onbootUnitCommand);
     debugPrint('SSH: installed the onboot coordinator');
   }
+
+  /// The bootstrap image ships no onboot-service, so nothing runs the
+  /// coordinator at boot there: the rescue phase an aborted run stages would
+  /// never run, and neither would a queued phase after an unexpected reboot.
+  /// Written only when no unit is known, so the full image keeps its own.
+  @visibleForTesting
+  static const String onbootUnitCommand =
+      'if ! systemctl cat librescoot-onboot.service >/dev/null 2>&1; then '
+      "  cat > /etc/systemd/system/librescoot-onboot.service << 'LSIUNIT'\n"
+      '[Unit]\n'
+      'Description=Librescoot manual bootup script\n'
+      'Wants=local-fs.target\n'
+      'After=local-fs.target\n'
+      'ConditionPathExists=$onbootPath\n'
+      '\n'
+      '[Service]\n'
+      'Type=oneshot\n'
+      'ExecStart=$onbootPath\n'
+      '\n'
+      '[Install]\n'
+      'WantedBy=multi-user.target\n'
+      'LSIUNIT\n'
+      '  systemctl daemon-reload >/dev/null 2>&1; '
+      '  systemctl enable librescoot-onboot.service >/dev/null 2>&1; '
+      'fi; true';
 
   @visibleForTesting
   static const String onbootInstallCommand =

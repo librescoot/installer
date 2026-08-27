@@ -700,7 +700,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die USB-Verbindung geht verloren, wenn du AUX trennst. Das ist normal. Schließe den AUX-Pol im nächsten Schritt wieder an, um das MDB zu starten.';
 
   @override
-  String get doneCbbAuxDisconnected => 'Fertig, der Roller startet neu';
+  String get doneCbbAuxDisconnected => 'Fertig, der Roller wurde neu gestartet';
 
   @override
   String get doneAuxDisconnected => 'Fertig, AUX ist getrennt';

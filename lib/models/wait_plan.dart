@@ -3,7 +3,10 @@
 /// Measured, like every other typical here: the gadget is back on the bus at
 /// about +10s, the board's network starts answering at ~+114s, and the tenth
 /// consecutive ping lands at ~+132s.
-const stableConnectionTypical = Duration(seconds: 135);
+///
+/// Those are measured from the reboot, but the wait starts when the user says
+/// they made the gesture, and the board takes about ten seconds to act on it.
+const stableConnectionTypical = Duration(seconds: 145);
 
 /// When waiting for that connection stops being normal and is worth a hint
 /// naming likely causes.
@@ -18,7 +21,7 @@ const stableConnectionTypical = Duration(seconds: 135);
 /// board beat on a run whose carrier was slower than usual: the hint appeared,
 /// and the same run recovered on its own half a minute later and finished
 /// clean without anyone touching it.
-const stableConnectionStallAfter = Duration(seconds: 240);
+const stableConnectionStallAfter = Duration(seconds: 250);
 
 /// One step inside a phase that waits on the scooter.
 ///
