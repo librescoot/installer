@@ -131,6 +131,77 @@ void main() {
     expect(result.exitCode, 0, reason: result.stderr.toString());
     expect(File('${root.path}/onboot.sh').existsSync(), isFalse);
   });
+
+  group('the phases the plan asked for', () {
+    // An empty directory cannot tell a run that did everything from one whose
+    // phases were never queued. The second ends looking exactly like success
+    // on a board nothing touched, which is how a dashboard-less install used
+    // to finish cleanly having installed nothing at all.
+    Future<void> expectPhases(List<String> names) =>
+        File('${scripts.path}/.expected').writeAsString(names.join('\n'));
+
+    String status() =>
+        File('${root.path}/installer/trampoline-status').existsSync()
+            ? File('${root.path}/installer/trampoline-status').readAsStringSync()
+            : '';
+
+    test('a run that produced them all retires quietly', () async {
+      await expectPhases(['10-mdb-artifact.sh', '90-finalize.sh']);
+      await phase('10-mdb-artifact.sh', 'rm -f "\$0"');
+      await phase('90-finalize.sh', 'rm -f "\$0"');
+
+      final r = await boot();
+      expect(r.exitCode, 0, reason: r.stderr.toString());
+      expect(status(), isEmpty);
+      expect(File('${root.path}/onboot.sh').existsSync(), isFalse);
+    });
+
+    test('a phase that was never queued is named, not passed over', () async {
+      await expectPhases(['10-mdb-artifact.sh', '80-reboot.sh']);
+      await phase('10-mdb-artifact.sh', 'rm -f "\$0"');
+      // 80-reboot.sh never arrives.
+
+      await boot();
+      expect(status(), contains('80-reboot.sh'));
+      expect(status(), contains('never ran'));
+    });
+
+    test('it still retires, so a missing phase is not a boot loop', () async {
+      // The phase will not appear on a later boot either, and a coordinator
+      // that refuses to retire runs at every boot for the life of the vehicle.
+      await expectPhases(['80-reboot.sh']);
+      await boot();
+      expect(File('${root.path}/onboot.sh').existsSync(), isFalse);
+    });
+
+    test('a phase that wedged does not count as completed', () async {
+      // Completion is the phase removing itself. One still sitting there
+      // after three attempts was abandoned, not finished.
+      await expectPhases(['10-mdb-artifact.sh']);
+      await phase('10-mdb-artifact.sh', 'exit 1');
+      await boot();
+      await boot();
+      await boot();
+      await boot();
+      expect(status(), contains('10-mdb-artifact.sh'));
+    });
+
+    test('the bookkeeping lives where every sweep spares it', () async {
+      // Both files sit under the scripts directory, which the sweeps exclude
+      // by name. In /data/installer they would be gone by the time the
+      // dashboard phase finished.
+      expect(SshService.installerSweepCommand, contains('! -name scripts'));
+      expect(SshService.onbootShim, contains(r'$SCRIPTS/.expected'));
+      expect(SshService.onbootShim, contains(r'$SCRIPTS/.completed'));
+    });
+
+    test('the phase glob never picks up the bookkeeping', () async {
+      await expectPhases([]);
+      await File('${scripts.path}/.completed').writeAsString('x\n');
+      final r = await boot();
+      expect(r.exitCode, 0, reason: r.stderr.toString());
+    });
+  });
 }
 
 /// Retirement asked for explicitly, at the end of a run, rather than left to

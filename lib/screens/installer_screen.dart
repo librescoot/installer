@@ -4106,6 +4106,19 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _skippedPhases.addAll(MajorStep.dbcFlash.phases);
     }
 
+    // What this plan should leave on the board. 20-dbc.sh is the trampoline's
+    // to write, and only exists when there is dashboard work; the other three
+    // are queued for every plan, including one that leaves the MDB alone,
+    // because 80-reboot.sh joins on a verdict that has to come from somewhere.
+    unawaited(_sshService.declareExpectedPhases([
+      MdbArtifactScript.phaseName,
+      if (plan.needsHandoff) '20-dbc.sh',
+      RebootPhaseScript.phaseName,
+      FinalizeScript.phaseName,
+    ]).catchError((Object e) {
+      debugPrint('UI: could not declare the expected phases: $e');
+    }));
+
     if (plan.needsMdbStage0) {
       _expectMinimalMdb = plan.mdb.action == BoardAction.cleanInstall;
       _setPhase(InstallerPhase.mdbToUms);

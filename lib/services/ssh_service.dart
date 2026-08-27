@@ -1308,6 +1308,12 @@ done
 # Installed by the Librescoot installer. Runs the numbered install phases left
 # in /data/installer/scripts and removes itself once none are left.
 SCRIPTS=/data/installer/scripts
+# Both live under SCRIPTS because every sweep spares that directory by name,
+# and these have to survive the one in the dashboard phase to be worth having.
+# The phase glob only matches [0-9][0-9]-*.sh, so neither is ever run.
+EXPECTED="$SCRIPTS/.expected"
+COMPLETED="$SCRIPTS/.completed"
+STATUS=/data/installer/trampoline-status
 
 # Counts the attempt before making it. A phase that wedges the boot never
 # reaches its own end, so counting afterwards counts the runs that already
@@ -1322,6 +1328,10 @@ run_one() {
     return 0
   fi
   sh "$1"
+  # A phase removes itself when it is done, so the file being gone is the only
+  # evidence of completion there is. One that is still here either wedged or
+  # wants another attempt, and neither is a completion.
+  [ -f "$1" ] || echo "${1##*/}" >> "$COMPLETED"
 }
 
 for phase in "$SCRIPTS"/[0-9][0-9]-*.sh; do
@@ -1337,12 +1347,63 @@ done
 for phase in "$SCRIPTS"/[0-9][0-9]-*.sh; do
   [ -f "$phase" ] && exit 0
 done
+
+# Nothing queued, so this run is over. An empty directory cannot tell a run
+# that did everything from one whose phases were never queued at all, and the
+# second ends looking exactly like success on a board nothing touched. The
+# plan said which phases to expect, so say which of them never ran.
+#
+# Recorded rather than retried: a phase that was never queued will not appear
+# on a later boot either, and refusing to retire would leave the coordinator
+# running at every boot forever.
+if [ -f "$EXPECTED" ]; then
+  missing=""
+  # `|| [ -n "$want" ]` so a file with no trailing newline still yields its
+  # last line: read returns non-zero at EOF but has already set the variable,
+  # and losing the last expected phase is losing the one most likely to be the
+  # handover.
+  while IFS= read -r want || [ -n "$want" ]; do
+    [ -n "$want" ] || continue
+    grep -Fqx "$want" "$COMPLETED" 2>/dev/null || missing="$missing $want"
+  done < "$EXPECTED"
+  if [ -n "$missing" ]; then
+    echo "error: install phases never ran:$missing" > "$STATUS"
+  fi
+fi
+rm -f "$EXPECTED" "$COMPLETED"
+
 if [ -f /data/installer/onboot.sh.bak ]; then
   mv -f /data/installer/onboot.sh.bak /data/onboot.sh
 else
   rm -f /data/onboot.sh
 fi
 """;
+
+  /// Tell the coordinator which phases this plan should produce.
+  ///
+  /// It has no other way to tell a finished run from one whose phases were
+  /// never queued: both leave an empty directory, and the second ends looking
+  /// exactly like success on a board nothing touched. With the list it names
+  /// what is missing in the status file instead of retiring quietly.
+  ///
+  /// Clears any previous run's completions at the same time, so a resumed
+  /// install does not credit itself with work the abandoned one did.
+  Future<void> declareExpectedPhases(List<String> phaseNames) async {
+    final safe = phaseNames
+        .where((n) => RegExp(r'^[0-9]{2}-[a-z0-9-]+\.sh$').hasMatch(n))
+        .toList();
+    if (safe.length != phaseNames.length) {
+      throw ArgumentError.value(phaseNames, 'phaseNames', 'unsafe phase name');
+    }
+    await runCommand(
+      'mkdir -p $installerScriptsDir; '
+      "cat > $installerScriptsDir/.expected << 'LSIEXPECTED'\n"
+      '${safe.join('\n')}\n'
+      'LSIEXPECTED\n'
+      'rm -f $installerScriptsDir/.completed; sync',
+    );
+    debugPrint('SSH: expecting phases ${safe.join(", ")}');
+  }
 
   /// Take the coordinator out and give a displaced onboot.sh back.
   ///
