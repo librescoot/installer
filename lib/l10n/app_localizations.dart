@@ -401,7 +401,7 @@ abstract class AppLocalizations {
   /// No description provided for @noPowerCycleWarningBody.
   ///
   /// In en, this message translates to:
-  /// **'If something looks stuck, gives no feedback, or behaves oddly: stop and ask in Discord before doing anything else. Do not pull the AUX battery, disconnect the CBB, unplug USB, or restart the scooter or your laptop. The installer can recover from almost any state, as long as nothing interrupts it. Cutting power mid-flash is what bricks scooters.'**
+  /// **'If something looks stuck, gives no feedback, or behaves oddly: stop and ask in Discord before doing anything else.\n• Do not pull the AUX battery\n• Do not disconnect the CBB\n• Do not unplug USB\n• Do not restart the scooter or your laptop\nThe installer can recover from almost any state, as long as nothing interrupts it. Cutting power mid-flash is what bricks scooters.'**
   String get noPowerCycleWarningBody;
 
   /// No description provided for @downloadsFailedHeading.

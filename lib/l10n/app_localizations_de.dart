@@ -169,7 +169,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get noPowerCycleWarningBody =>
-      'Wenn etwas hängt, keine Rückmeldung gibt oder sich merkwürdig verhält: halt an und frag im Discord nach, bevor du etwas anderes tust. Zieh nicht den AUX-Akku ab, klemm die CBB nicht ab, zieh kein USB-Kabel und starte weder Roller noch Laptop neu. Der Installer kommt aus fast jedem Zustand wieder heraus, solange ihn nichts unterbricht. Strom mitten im Flash zu trennen ist das, was Roller unbrauchbar macht.';
+      'Wenn etwas hängt, keine Rückmeldung gibt oder sich merkwürdig verhält: halt an und frag im Discord nach, bevor du etwas anderes tust.\n• Den AUX-Akku nicht abziehen\n• Die CBB nicht abklemmen\n• Kein USB-Kabel abziehen\n• Weder Roller noch Laptop neu starten\nDer Installer kommt aus fast jedem Zustand wieder heraus, solange ihn nichts unterbricht. Strom mitten im Flash zu trennen ist das, was Roller unbrauchbar macht.';
 
   @override
   String get downloadsFailedHeading => 'Download-Server nicht erreichbar';
