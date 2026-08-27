@@ -49,6 +49,23 @@ if [ -f "$STATUS_FILE" ]; then
     *) INSTALL_OK=no ;;
   esac
 fi
+
+# What is actually running, rather than what the run believed it installed.
+#
+# u-boot rolls back a rootfs that does not commit, and a rolled-back board
+# comes up on the bootstrap image answering everything perfectly happily. By
+# then the sweep has taken the status file with it, so absence reads as
+# success and this would unlock a scooter whose install did not survive its
+# first boot. os-release cannot lag: it is read off the rootfs that is
+# running. The full images set no IMAGE_ID at all, so its presence is the
+# signal, and both boards' bootstrap images carry one.
+RUNNING_IMAGE_ID="$(sed -n 's/^IMAGE_ID=//p' "${OS_RELEASE:-/etc/os-release}" 2>/dev/null | tr -d '"')"
+case "$RUNNING_IMAGE_ID" in
+  *-bootstrap)
+    log "  running $RUNNING_IMAGE_ID: the install did not survive its first boot"
+    INSTALL_OK=no
+    ;;
+esac
 log "finalize starting (install_ok=$INSTALL_OK action=$MDB_ACTION)"
 
 # ---- settings -------------------------------------------------------------
@@ -207,6 +224,20 @@ else
 fi
 
 sync
-rm -f "$0" "$0.tries"
+# Only a run that handed the vehicle back is finished with this phase. A
+# decline is a verdict on this attempt, not on the install: the owner power
+# cycles, the artifact phase and the reboot retry, and the board comes up on
+# the right image needing exactly this. Removing itself here left that boot
+# with no handover at all, so the scooter ran the new image locked, in service
+# mode, with the alarm parked, indefinitely.
+#
+# The coordinator counts the attempt before making it and drops the phase
+# after three, so a permanently failed install still stops rather than
+# retrying at every boot for the life of the vehicle.
+if [ "$INSTALL_OK" = yes ]; then
+  rm -f "$0" "$0.tries"
+else
+  log "  staying queued so the next boot can hand the vehicle back"
+fi
 log "finalize done"
 exit 0

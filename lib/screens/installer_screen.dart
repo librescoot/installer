@@ -886,14 +886,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // phases the trampoline would have, so a dashboard-less plan finishes
       // the same way: install, one reboot, hand back.
 
-      final mdbItem = _downloadState.artifactFor(Board.mdb);
       await _sshService.uploadFile(
         Uint8List.fromList(utf8.encode(MdbArtifactScript.render(
           template: await MdbArtifactScript.loadTemplate(),
           runId: _installRunId,
-          artifactPath: mdbItem == null
-              ? ''
-              : artifactSeedPath(Board.mdb, mdbItem.filename),
+          artifactPath: _stagedMdbArtifactPath(),
         ))),
         MdbArtifactScript.remotePath,
       );
@@ -4046,6 +4043,22 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// skips its phases outright, an upgrade skips only the sdimg write, and a
   /// plan that does nothing at all cannot get here (the panel disables
   /// Continue for it).
+  /// The MDB artifact this run actually staged, or empty when it staged none.
+  ///
+  /// The download queue always carries an MDB artifact, so asking it alone
+  /// says nothing about whether this plan installs one. A dashboard-only or
+  /// tiles-only plan skips the phase that stages it, and handing that path to
+  /// 10-mdb-artifact.sh either reboots a board the plan promised to leave
+  /// alone, when the running image happens to have seeded its own artifact at
+  /// the same path, or reports the artifact missing and stops the reboot the
+  /// dashboard still needs.
+  String _stagedMdbArtifactPath() {
+    if (!(_plan?.needsMdbArtifact ?? false)) return '';
+    final item = _downloadState.artifactFor(Board.mdb);
+    if (item == null) return '';
+    return artifactSeedPath(Board.mdb, item.filename);
+  }
+
   Future<void> _startPlan() async {
     // The board runs the back half of every install itself now, so the
     // coordinator goes on before any of it: the artifact install, the reboot
@@ -6649,12 +6662,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         osmTilesLocalPath: installTiles ? osmItem?.localPath : null,
         valhallaTilesLocalPath: installTiles ? valhallaItem?.localPath : null,
         region: installTiles ? _downloadState.selectedRegion : null,
-        mdbArtifactPath: () {
-          final mdbItem = _downloadState.artifactFor(Board.mdb);
-          return mdbItem == null
-              ? ''
-              : artifactSeedPath(Board.mdb, mdbItem.filename);
-        }(),
+        mdbArtifactPath: _stagedMdbArtifactPath(),
         finish: _buildDeviceFinish(),
         messages: _buildDashboardMessages(),
         onProgress: (status, progress) {

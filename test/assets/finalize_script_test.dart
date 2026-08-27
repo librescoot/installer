@@ -88,6 +88,7 @@ case "\$1" in is-active) echo active ;; esac
       String? status,
       String serviceModeActive = 'false',
       String runId = 'run-test-1',
+      String imageId = '',
     }) async {
       await stubs(serviceModeActive: serviceModeActive);
       await Directory('${root.path}/installer').create(recursive: true);
@@ -101,11 +102,17 @@ case "\$1" in is-active) echo active ;; esac
         render(mdbAction: mdbAction, runId: runId)
             .replaceAll('/data/', '${root.path}/'),
       );
+      final osRelease = File('${root.path}/os-release');
+      await osRelease.writeAsString(
+        'ID=librescoot-mdb\nVERSION_ID=2.0.0\n'
+        '${imageId.isEmpty ? '' : 'IMAGE_ID=$imageId\n'}',
+      );
       return Process.run('sh', [
         script.path
       ], environment: {
         'PATH': '${root.path}/bin:${Platform.environment['PATH']}',
         'CALLS': calls,
+        'OS_RELEASE': osRelease.path,
       });
     }
 
@@ -231,5 +238,49 @@ case "\$1" in is-active) echo active ;; esac
           File('${root.path}/installer/scripts/90-finalize.sh').existsSync(),
           isFalse);
     });
+    group('what it does when the install did not land', () {
+      test('a rolled-back board is not unlocked', () async {
+        // u-boot rolls back a rootfs that does not commit, and the board comes
+        // up on the bootstrap image answering everything happily. The sweep
+        // already took the status file, so absence reads as success: without
+        // this guard the scooter unlocks having installed nothing.
+        await run(status: null, imageId: 'librescoot-mdb-bootstrap');
+        expect(await callLog(), isNot(contains(contains('scooter:state unlock'))));
+      });
+
+      test('a board on the image it installed is unlocked', () async {
+        // The full images set no IMAGE_ID at all, so absence is the good case.
+        await run(status: 'success');
+        expect(await callLog(), contains(contains('scooter:state unlock')));
+      });
+
+      test('the dashboard bootstrap marker counts too', () async {
+        await run(status: 'success', imageId: 'librescoot-dbc-bootstrap');
+        expect(await callLog(), isNot(contains(contains('scooter:state unlock'))));
+      });
+
+      test('it stays queued when it declines, so a retry has a handover',
+          () async {
+        // The coordinator ignores exit codes and runs this straight after a
+        // failed reboot phase. Removing itself there left the boot that
+        // finally succeeded with nothing to hand the vehicle back: right
+        // image, locked, service mode, alarm parked, indefinitely.
+        await run(status: 'error: mender-update install exited 3');
+        expect(
+          File('${root.path}/installer/scripts/90-finalize.sh').existsSync(),
+          isTrue,
+          reason: 'a decline is a verdict on this attempt, not the install',
+        );
+      });
+
+      test('it retires itself once it has handed the vehicle back', () async {
+        await run(status: 'success');
+        expect(
+          File('${root.path}/installer/scripts/90-finalize.sh').existsSync(),
+          isFalse,
+        );
+      });
+    });
+
   });
 }

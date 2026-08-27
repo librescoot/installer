@@ -199,4 +199,46 @@ void main() {
     expect(await File('${root.path}/reboots').readAsString(),
         contains('reboot'));
   });
+
+  test('the artifact phase retires, so the next boot does not reinstall',
+      () async {
+    // It used to stay queued. The boot after the reboot then ran it again and
+    // backgrounded a second install of the same artifact into the now-inactive
+    // slot, which the coordinator killed mid-write when it exited
+    // (KillMode=control-group), leaving an open mender transaction behind for
+    // the owner's next OTA. Three boots of that, then it gave up.
+    final artifact = File('${root.path}/a.mender');
+    await artifact.writeAsString('x');
+    await stub('mender-update',
+        'echo run >> ${root.path}/mender-runs; exit 0');
+    await queueAll(artifactPath: artifact.path);
+
+    await boot();
+    expect(
+      File('${scripts.path}/${MdbArtifactScript.phaseName}').existsSync(),
+      isFalse,
+      reason: 'it started the work; staying queued means doing it again',
+    );
+
+    // A second boot, as happens right after the reboot it triggered.
+    await boot();
+    final runs = await File('${root.path}/mender-runs').readAsLines();
+    // One install, plus the commit-or-rollback preamble that precedes it.
+    expect(runs.length, lessThanOrEqualTo(2),
+        reason: 'the artifact was installed more than once');
+  });
+
+  test('a phase left queued is what the coordinator retries', () async {
+    // The counterpart: 90 deliberately stays queued when it declines, and the
+    // coordinator is what gives it another go on the next boot.
+    await stub('mender-update', 'exit 0');
+    await queueAll(artifactPath: '');
+    await writePhase('90-finalize.sh',
+        'echo 90 >> ${root.path}/order\n'); // never removes itself
+    await boot();
+    expect(File('${scripts.path}/90-finalize.sh').existsSync(), isTrue);
+    await boot();
+    expect((await File('${root.path}/order').readAsLines())
+        .where((l) => l == '90'), hasLength(2));
+  });
 }

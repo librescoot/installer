@@ -43,7 +43,8 @@ case "$RESULT" in
     # Leave the phase in place: the coordinator counts the attempt and gives
     # up after three, which is how this reaches a person.
     log "not rebooting: $RESULT"
-    printf 'error: %s\n' "$RESULT" > "$STATUS_FILE"
+    # RESULT already carries its own "error:" prefix.
+    printf '%s\n' "$RESULT" > "$STATUS_FILE"
     sync
     exit 1
     ;;
