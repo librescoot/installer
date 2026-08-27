@@ -8607,6 +8607,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       title: _keycardStageHeading(l10n),
       actions: switch (_keycardStage) {
         _KeycardStage.cards => _keycardCardsActions(l10n),
+        _KeycardStage.cardsReview => _keycardCardsReviewActions(l10n),
         _KeycardStage.alreadyConfigured =>
           _keycardAlreadyConfiguredActions(l10n),
         _ => const [],
@@ -8965,7 +8966,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Widget _buildKeycardCardsReview(AppLocalizations l10n) {
-    final canMaster = _keycardServiceCanMaster ?? false;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -8991,36 +8991,41 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        FilledButton.icon(
-          onPressed: () => _setPhase(_phaseAfterKeycardSetup),
-          icon: const Icon(Icons.arrow_forward),
-          label: Text(l10n.keycardCardsStageContinueButton),
-        ),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
-          onPressed: _canDriveKeycard ? _startKeycardLearning : null,
-          icon: const Icon(Icons.nfc, size: 18),
-          label: Text(l10n.keycardAddMore),
-        ),
-        if (canMaster && (_keycardAuthorizedCount ?? 0) > 0) ...[
-          const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: _keycardStartMasterStage,
-            icon: const Icon(Icons.shield_outlined, size: 18),
-            label: Text(l10n.keycardCardsStageAddMasterButton),
-          ),
-        ],
-        if (canMaster) ...[
-          const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: _keycardStartOver,
-            icon: const Icon(Icons.refresh, size: 16),
-            label: Text(l10n.keycardStartOverButton),
-          ),
-        ],
       ],
     );
+  }
+
+  /// The same four choices the stage always had, in the action bar every other
+  /// phase puts them in. They used to be stacked in the body, so finishing the
+  /// card step was the one place in the flow where the buttons moved.
+  List<PhaseAction> _keycardCardsReviewActions(AppLocalizations l10n) {
+    final canMaster = _keycardServiceCanMaster ?? false;
+    return [
+      if (canMaster)
+        PhaseAction(
+          label: l10n.keycardStartOverButton,
+          icon: Icons.refresh,
+          side: ActionSide.back,
+          onPressed: _keycardStartOver,
+        ),
+      if (canMaster && (_keycardAuthorizedCount ?? 0) > 0)
+        PhaseAction(
+          label: l10n.keycardCardsStageAddMasterButton,
+          icon: Icons.shield_outlined,
+          onPressed: _keycardStartMasterStage,
+        ),
+      PhaseAction(
+        label: l10n.keycardAddMore,
+        icon: Icons.nfc,
+        onPressed: _canDriveKeycard ? _startKeycardLearning : null,
+      ),
+      PhaseAction(
+        label: l10n.keycardCardsStageContinueButton,
+        icon: Icons.arrow_forward,
+        primary: true,
+        onPressed: () => _setPhase(_phaseAfterKeycardSetup),
+      ),
+    ];
   }
 
   Widget _buildKeycardMasterStage(AppLocalizations l10n) {
