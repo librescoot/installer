@@ -3308,29 +3308,58 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   /// Like _waitForDevice(DeviceMode.ethernet), but with a 5-minute soft
-  /// deadline that surfaces the reconnect diagnostic panel without giving
-  /// up. Returns true once the device shows up, false if the user navigated
-  /// away or cancelled mid-wait. Updates the [setStep] callback's detail
-  /// with elapsed time so the substep row shows a live counter.
+  /// deadline that surfaces the reconnect diagnostic panel, and a hard one
+  /// that gives up. Returns true once the device shows up, false if the user
+  /// navigated away, or if [timeout] passed. Updates the [setStep] callback's
+  /// detail with elapsed time so the substep row shows a live counter.
+  ///
+  /// The hard deadline matches the status poll running alongside it. Without
+  /// one this loop ran forever, and the thing it waits for can fail
+  /// permanently: a board that comes back held by another driver never
+  /// reaches ethernet mode no matter how long anyone waits.
   Future<bool> _waitForRndisWithTimeout(
     AppLocalizations l10n,
-    void Function(String, SubstepState, {String? detail}) setStep,
-  ) async {
+    void Function(String, SubstepState, {String? detail}) setStep, {
+    Duration timeout = const Duration(minutes: 15),
+  }) async {
     if (_isDryRun) {
       await Future.delayed(const Duration(seconds: 1));
       return true;
     }
     final start = DateTime.now();
+    var repairAttempted = false;
     while (_device?.mode != DeviceMode.ethernet) {
       if (!mounted) return false;
       if (_currentPhase != InstallerPhase.reconnect) return false;
-      final elapsed = DateTime.now().difference(start).inSeconds;
+
+      final elapsed = DateTime.now().difference(start);
+      if (elapsed >= timeout) {
+        debugPrint('Reconnect: RNDIS never came back within '
+            '${timeout.inMinutes} minutes');
+        setStep(
+          'rndis',
+          SubstepState.failed,
+          detail: l10n.elapsedSeconds(elapsed.inSeconds),
+        );
+        await _surfaceReconnectDiagnostics(l10n);
+        return false;
+      }
+
       setStep(
         'rndis',
         SubstepState.active,
-        detail: l10n.elapsedSeconds(elapsed),
+        detail: l10n.elapsedSeconds(elapsed.inSeconds),
       );
-      if (elapsed >= 300 && !_reconnectShowDiagnostics) {
+
+      // The board is back but something else on the machine holds it. Waiting
+      // cannot resolve that, so put our driver back once and keep watching.
+      if (!repairAttempted && _device?.mode == DeviceMode.hijacked) {
+        repairAttempted = true;
+        debugPrint('Reconnect: device returned held by another driver');
+        await _ensureDriverBinding();
+      }
+
+      if (elapsed.inSeconds >= 300 && !_reconnectShowDiagnostics) {
         await _surfaceReconnectDiagnostics(l10n);
       }
       await Future.delayed(const Duration(seconds: 1));
