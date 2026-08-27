@@ -1732,18 +1732,17 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             body: lead,
             bullets: dos,
             trail: why,
-            footer: TextButton.icon(
-              onPressed: () => _openExternalUrl('https://discord.gg/BmY2P2T9j3'),
-              icon: Icon(Icons.chat_bubble_outline,
-                  size: 16, color: Colors.red.shade200),
-              label: Text(l10n.openLibrescootDiscord,
-                  style: TextStyle(color: Colors.red.shade200)),
-              style: TextButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
+            footer: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _noticeLink(Icons.chat_bubble_outline,
+                    l10n.openLibrescootDiscord, discordUrl,
+                    Colors.red.shade200),
+                _noticeLink(Icons.menu_book_outlined,
+                    l10n.gettingStartedLinkHandbook, _handbookUrl,
+                    Colors.red.shade200),
+              ],
             ),
           );
           }),
@@ -3810,7 +3809,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                   const SizedBox(height: 8),
                   TextButton.icon(
                     onPressed: () =>
-                        _openExternalUrl('https://discord.gg/BmY2P2T9j3'),
+                        _openExternalUrl(discordUrl),
                     icon: const Icon(
                       Icons.chat_bubble_outline,
                       size: 16,
@@ -9343,10 +9342,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Widget _buildGettingStarted(AppLocalizations l10n, {bool showTitle = true}) {
-    final isGerman = Localizations.localeOf(context).languageCode == 'de';
-    final handbookUrl = isGerman
-        ? 'https://librescoot.org/handbook/'
-        : 'https://librescoot.org/en/handbook/';
+    final handbookUrl = _handbookUrl;
     const websiteUrl = 'https://librescoot.org/';
 
     return Container(
@@ -9455,6 +9451,30 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  static const String discordUrl = 'https://discord.gg/BmY2P2T9j3';
+
+  /// The handbook follows the interface language; there is no combined page.
+  String get _handbookUrl =>
+      Localizations.localeOf(context).languageCode == 'de'
+          ? 'https://librescoot.org/handbook/'
+          : 'https://librescoot.org/en/handbook/';
+
+  /// A link that has to read as a way out, on a screen telling someone not to
+  /// touch anything. A bare text button against a red border did not.
+  Widget _noticeLink(IconData icon, String label, String url, Color colour) {
+    return OutlinedButton.icon(
+      onPressed: () => _openExternalUrl(url),
+      icon: Icon(icon, size: 16),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: colour,
+        side: BorderSide(color: colour.withValues(alpha: 0.5)),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        visualDensity: VisualDensity.compact,
       ),
     );
   }

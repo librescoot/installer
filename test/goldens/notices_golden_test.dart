@@ -51,12 +51,30 @@ void main() {
                     body: dangerLead,
                     bullets: dangerBullets,
                     trail: dangerWhy,
-                    footer: TextButton.icon(
-                      onPressed: () {},
-                      icon: Icon(Icons.chat_bubble_outline,
-                          size: 16, color: Colors.red.shade200),
-                      label: Text(l10n.openLibrescootDiscord,
-                          style: TextStyle(color: Colors.red.shade200)),
+                    footer: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final (icon, label) in [
+                          (Icons.chat_bubble_outline, l10n.openLibrescootDiscord),
+                          (Icons.menu_book_outlined,
+                              l10n.gettingStartedLinkHandbook),
+                        ])
+                          OutlinedButton.icon(
+                            onPressed: () {},
+                            icon: Icon(icon, size: 16),
+                            label: Text(label),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red.shade200,
+                              side: BorderSide(
+                                  color: Colors.red.shade200
+                                      .withValues(alpha: 0.5)),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 10),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 12),
