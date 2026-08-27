@@ -2164,6 +2164,14 @@ device_finish() {
           elif [ -f /data/settings.toml.default ]; then
             cp -f /data/settings.toml.default /data/settings.toml
             log "  no backup, restored the first-install snapshot"
+          elif [ "$(redis-cli -h localhost --raw hget settings dashboard.service-mode-active 2>/dev/null)" = true ]; then
+            # Both keys are overlaid while service mode is live, and writing
+            # anything other than the overlay's own value to an overlaid key
+            # tells settings-service the owner changed it. It would re-assert
+            # the overlay now and hand back 900 and true on the clear, over
+            # whatever was actually configured. The clear already restores
+            # what it captured, so there is nothing to do here.
+            log "  no backup, leaving the parked keys to the service-mode clear"
           else
             lsc set scooter.auto-standby-seconds 900 >/dev/null 2>&1 || true
             lsc set alarm.enabled true >/dev/null 2>&1 || true
@@ -2281,6 +2289,25 @@ device_finish() {
       # vehicle-service also re-claims the PWM channels the progress bar
       # borrowed, without which the blinkers stay dark.
       bootled_blink_stop
+      # End service mode before restoring the policy, not after. clear:service
+      # is consumed off a list, and until it lands settings-service re-asserts
+      # the overlay over any other write to an overlaid key, so a policy write
+      # that jumped the queue would pin always-on for the rest of the boot.
+      # An image without the overlay has no status field, so the loop ends on
+      # its first pass and this costs that board nothing.
+      #
+      # The file goes either way: a clear that never landed must not come back
+      # on the next boot and leave the owner with no hibernation timer and no
+      # alarm.
+      redis-cli -h localhost lpush settings:overlay clear:service >/dev/null 2>&1
+      sm_wait=0
+      while [ $sm_wait -lt 15 ]; do
+        [ "$(redis-cli -h localhost --raw hget settings dashboard.service-mode-active 2>/dev/null)" = true ] || break
+        sm_wait=$((sm_wait+1))
+        sleep 1
+      done
+      rm -f /data/service-mode.json
+      log "  service mode ended"
       lsc set scooter.usb0-policy auto >/dev/null 2>&1 ||
         log "  WARNING: could not restore usb0-policy"
       systemctl start librescoot-pm 2>/dev/null ||

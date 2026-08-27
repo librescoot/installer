@@ -1265,6 +1265,83 @@ mv -f "$tmp" /data/service-mode.json
 sync
 """;
 
+  /// The settings field settings-service publishes while its overlay is
+  /// active.
+  ///
+  /// It carries a schema default, so a build that has service mode always has
+  /// this field in the settings hash and a build without it never does. That
+  /// makes one read serve as both the capability probe and the confirmation.
+  ///
+  /// It also answers a second question worth asking before capturing
+  /// anything: the field only appears once settings-service has stamped the
+  /// hash from the schema and the user's TOML together. Applying the overlay
+  /// before that would capture schema defaults as the base and restore those
+  /// at the end, over whatever the owner had actually configured.
+  static const String serviceModeStatusField = 'dashboard.service-mode-active';
+
+  /// Turn service mode on for the rest of the run, and report whether it took.
+  ///
+  /// Armed at connect rather than only before the reboot, because the overlay
+  /// does more than hold usb0 up. It parks auto-standby, the hibernation timer
+  /// and the alarm for exactly as long as the run lasts, captures what those
+  /// were first, keeps its own values out of `/data/settings.toml` entirely,
+  /// and puts the captured values back on clear. That is the same job the
+  /// installer was doing by hand with `lsc set`, a copy of settings.toml and a
+  /// settings-service restart at the end, done by the service that owns the
+  /// settings.
+  ///
+  /// A false return is not a failure. Stage 0 and stock boards have no
+  /// settings-service at all, and anything built before 2026-06-22 has one
+  /// without the overlay, so the caller keeps the manual path for those.
+  ///
+  /// Already-on counts as on. A board that arrives in service mode captured
+  /// its base when it was turned on, and that base is the one worth restoring.
+  Future<bool> enableServiceMode() async {
+    try {
+      final answer = (await runCommand(serviceModeEnableCommand)).trim();
+      switch (answer) {
+        case 'on':
+          debugPrint('SSH: service mode is live');
+          return true;
+        case 'already-on':
+          debugPrint('SSH: service mode was already live, leaving it');
+          return true;
+        case 'unsupported':
+          debugPrint('SSH: no service mode on this board, using the manual path');
+          return false;
+        default:
+          debugPrint('SSH: service mode did not come up ($answer)');
+          return false;
+      }
+    } catch (e) {
+      debugPrint('SSH: could not ask about service mode (ok): $e');
+      return false;
+    }
+  }
+
+  /// One round trip: probe, apply, confirm.
+  ///
+  /// The apply is consumed off a list, so the confirmation has to be a read of
+  /// the published status rather than the push succeeding. Ten seconds is a
+  /// long time for a BRPop that is already blocked on the list, and it is only
+  /// ever spent on a board that answered the probe, so it cannot become a
+  /// stall on the boards that have no overlay.
+  @visibleForTesting
+  static const String serviceModeEnableCommand = r"""
+status=$(redis-cli -h localhost --raw hget settings dashboard.service-mode-active 2>/dev/null)
+if [ -z "$status" ]; then echo unsupported; exit 0; fi
+if [ "$status" = true ]; then echo already-on; exit 0; fi
+redis-cli -h localhost lpush settings:overlay apply:service >/dev/null 2>&1
+i=0
+while [ $i -lt 10 ]; do
+  sleep 1
+  now=$(redis-cli -h localhost --raw hget settings dashboard.service-mode-active 2>/dev/null)
+  if [ "$now" = true ]; then echo on; exit 0; fi
+  i=$((i+1))
+done
+echo timeout
+""";
+
   /// Hand the vehicle back: end service mode, let usb0 follow the dashboard
   /// again, and unlock.
   ///

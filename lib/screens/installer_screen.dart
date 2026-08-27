@@ -165,6 +165,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// reboot: on the happy path it is not even connected, and after a
   /// reconnect the device has already done all three.
   bool _deviceFinishArmed = false;
+
+  /// True while settings-service is holding the installer's overrides in its
+  /// service overlay rather than the installer holding them by hand.
+  ///
+  /// Re-probed after the reboot into the new image: the board that answered at
+  /// connect is not necessarily the one that answers afterwards, and on a
+  /// clean install it certainly is not.
+  bool _serviceModeLive = false;
   final String _installRunId = createInstallRunId();
   Future<void> _installStateWriteQueue = Future.value();
   int _installStateSequence = 0;
@@ -895,7 +903,22 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
     // Undo our overrides first, then re-apply the user's choices on top, so
     // the scooter behaves normally on next boot.
-    await _resetPersistedSettings();
+    //
+    // Only when the installer is the one holding them. With service mode live
+    // the overrides were never written to /data/settings.toml at all, and
+    // clearing the overlay in the handover puts back what settings-service
+    // captured before it applied them. Running the manual restore over the top
+    // of that is worse than redundant: its last resort writes the schema
+    // defaults for auto-standby and the alarm, settings-service reads those as
+    // a deliberate edit to an overlaid key, and the clear then hands the owner
+    // 900 and true instead of whatever they had configured.
+    if (_serviceModeLive) {
+      debugPrint(
+        'UI: service mode is live, the overlay clear owns the settings restore',
+      );
+    } else {
+      await _resetPersistedSettings();
+    }
 
     if (lang == 'en' || lang == 'de') {
       try {
@@ -2884,6 +2907,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // Before the first `lsc set` below, so the copy is the user's own
     // settings and not ours. An upgrade puts it back at finish.
     await _backupPersistedSettings();
+
+    // Hand the overrides to settings-service if this board has somewhere to
+    // put them. What follows is then a no-op on the keys the overlay covers:
+    // it forces the same values, so settings-service reads those writes as its
+    // own and leaves its captured base alone.
+    _serviceModeLive = await _sshService.enableServiceMode();
 
     // Keep MDB USB gadget powered while the scooter is locked so we don't
     // lose RNDIS mid-flash. Best-effort: the key may not exist on older
@@ -5858,6 +5887,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           'UI: failed to set scooter.usb0-policy=always-on at post-artifact (ok): $e',
         );
       }
+      // The board that answered at connect is not the one answering now, so
+      // ask this one. A clean install in particular reformatted /data under
+      // the connect-time answer.
+      _serviceModeLive = await _sshService.enableServiceMode();
       await _disableInstallerHazards(label: 'post-artifact');
 
       _setPhase(_phaseAfterMdbInstall);
