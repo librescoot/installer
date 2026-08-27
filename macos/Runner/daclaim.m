@@ -1,10 +1,14 @@
 // daclaim — macOS Disk Arbitration helper.
 //
-// Long-lived subprocess that pre-claims block devices via the DiskArbitration
-// framework so macOS Finder/DiskUtility doesn't auto-mount them or pop the
-// "Initialize / Erase / Ignore" dialog when an unrecognised partition table
-// shows up (e.g. the MDB's Linux eMMC layout). With a claim held, even the
+// Long-lived subprocess that keeps macOS off a block device we are about to
+// write (e.g. the MDB's Linux eMMC layout), so Finder does not auto-mount it
+// or pop the "Initialize / Eject / Ignore" dialog. With a claim held, the
 // kernel-level EPERM that authopen normally hits on /dev/rdiskN goes away.
+//
+// Claiming alone is NOT enough to stop the automounter: measured against the
+// MDB's own mass-storage gadget, the claim was granted and macOS mounted the
+// volume anyway. Refusing the mount takes a mount-approval dissenter, which
+// `watch` registers alongside the claim.
 //
 // Protocol: line-based plain text on stdin/stdout.
 //   claim <bsdname>     -> "ok" or "error: ..."
@@ -261,6 +265,30 @@ static void peekCallback(DADiskRef disk, void *ctx) {
     watchConsider(disk);
 }
 
+// Refuse to let one of our disks be mounted.
+//
+// A claim alone does not stop the automounter: verified on 2026-08-27 against
+// the MDB's own mass-storage gadget, where the claim was granted and macOS
+// mounted the volume anyway. This is the callback that actually refuses.
+//
+// Unlike the claim path this must not filter on whole media. What gets mounted
+// is the mountable node, which for a partitioned disk is a child of the whole
+// disk we claimed.
+static DADissenterRef mountApprovalCallback(DADiskRef disk, void *ctx) {
+    if (!gWatching) return NULL;
+
+    io_service_t media = DADiskCopyIOMedia(disk);
+    if (media == IO_OBJECT_NULL) return NULL;
+    bool mine = mediaIsUnderUsbDevice(media, gWatchVendor, gWatchProduct);
+    IOObjectRelease(media);
+    if (!mine) return NULL;
+
+    const char *name = DADiskGetBSDName(disk);
+    fprintf(stderr, "daclaim: refusing mount of %s\n", name ? name : "(unnamed)");
+    return DADissenterCreate(kCFAllocatorDefault, kDAReturnNotPermitted,
+                             CFSTR("Held by librescoot-installer"));
+}
+
 // Covers a disk already attached when the watch armed: its probe is long over,
 // so no peek callback is coming.
 static void appearedCallback(DADiskRef disk, void *ctx) {
@@ -293,6 +321,7 @@ static NSString *doWatch(long vendor, long product) {
     DARegisterDiskPeekCallback(gSession, NULL, 0, peekCallback, NULL);
     DARegisterDiskAppearedCallback(gSession, NULL, appearedCallback, NULL);
     DARegisterDiskDisappearedCallback(gSession, NULL, disappearedCallback, NULL);
+    DARegisterDiskMountApprovalCallback(gSession, NULL, mountApprovalCallback, NULL);
     return @"ok";
 }
 
@@ -302,6 +331,8 @@ static NSString *doUnwatch(void) {
     DAUnregisterCallback(gSession, peekCallback, NULL);
     DAUnregisterCallback(gSession, appearedCallback, NULL);
     DAUnregisterCallback(gSession, disappearedCallback, NULL);
+    // Approval callbacks have their own unregister entry point.
+    DAUnregisterApprovalCallback(gSession, mountApprovalCallback, NULL);
     return @"ok";
 }
 
