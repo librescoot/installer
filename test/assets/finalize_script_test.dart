@@ -182,21 +182,47 @@ case "\$1" in is-active) echo active ;; esac
           contains('run-id: run-good'));
     });
 
-    test('a failed run is handed back but not claimed as a success', () async {
-      // The settings still go back and service mode still ends, because a
-      // scooter left in service mode has no hibernation timer and no alarm.
-      // Nothing here says the install worked.
-      final result = await run(status: 'error: dbc never answered');
+    test('a failed run stays reachable so it can be retried', () async {
+      // Ending service mode puts usb0-policy back to auto, and with keycards
+      // paired and the dashboard dark that closes the gate and takes the link
+      // down. On a failed install that removes the only way back in at the
+      // moment it is needed most.
+      await File('${root.path}/service-mode.json')
+          .writeAsString('{"active":true,"name":"service"}');
+      final result = await run(
+          status: 'error: dbc never answered', serviceModeActive: 'true');
       expect(result.exitCode, 0, reason: result.stderr.toString());
       final log = await callLog();
-      expect(log.any((l) => l.contains('clear:service')), isTrue);
-      expect(log.any((l) => l.contains('usb0-policy auto')), isTrue);
+
+      expect(log.any((l) => l.contains('clear:service')), isFalse,
+          reason: 'the retry needs the link the overlay is holding open');
+      expect(log.any((l) => l.contains('usb0-policy auto')), isFalse);
+      expect(File('${root.path}/service-mode.json').existsSync(), isTrue,
+          reason: 'and it has to survive the reboots before the retry');
+
+      // Started anyway: a service left stopped here stays stopped, and what
+      // keeps a failed board awake is the overlay's own pm settings.
+      expect(log.any((l) => l.contains('start librescoot-pm')), isTrue);
+      expect(log.any((l) => l.contains('restart librescoot-vehicle')), isTrue);
+
       expect(log.any((l) => l.contains('scooter:state unlock')), isFalse,
           reason: 'unlocking contradicts the error the user is looking at');
       expect(
           File('${root.path}/installer/history/run-test-1/record').existsSync(),
           isFalse,
           reason: 'no success record for a run that did not succeed');
+    });
+
+    test('a good run does end it, which is what takes the link down', () async {
+      await File('${root.path}/service-mode.json')
+          .writeAsString('{"active":true,"name":"service"}');
+      final result =
+          await run(status: 'success', serviceModeActive: 'false');
+      expect(result.exitCode, 0, reason: result.stderr.toString());
+      final log = await callLog();
+      expect(log.any((l) => l.contains('clear:service')), isTrue);
+      expect(log.any((l) => l.contains('usb0-policy auto')), isTrue);
+      expect(File('${root.path}/service-mode.json').existsSync(), isFalse);
     });
 
     test('it removes itself so the coordinator can retire', () async {

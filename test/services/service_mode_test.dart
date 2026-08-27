@@ -78,10 +78,14 @@ void main() {
   });
 
   group('interrupted-run disarm', () {
-    test('it takes service mode with it and says so if it could not', () async {
+    test('it leaves service mode alone, because the retry needs it', () async {
+      // This runs at the start of a retry, on a board whose last install did
+      // not finish. Keycards are paired by then, so ending service mode puts
+      // usb0-policy back to auto, the gate closes, and the retry is plugged
+      // into a board that does not answer.
       final command = SshService.interruptedInstallDisarmCommand;
-      expect(command, contains('rm -f /data/service-mode.json'));
-      expect(command, contains('service mode is still armed'));
+      expect(command, isNot(contains('rm -f /data/service-mode.json')));
+      expect(command, isNot(contains('clear:service')));
 
       final dir = await Directory.systemTemp.createTemp('service-mode-disarm-');
       addTearDown(() => dir.delete(recursive: true));
@@ -93,7 +97,8 @@ void main() {
       await script.writeAsString(rehome(command, dir.path));
       final result = await Process.run('sh', [script.path]);
       expect(result.exitCode, 0, reason: result.stderr.toString());
-      expect(armed.existsSync(), isFalse);
+      expect(armed.existsSync(), isTrue,
+          reason: 'the board has to still be reachable when the retry starts');
     });
   });
 }

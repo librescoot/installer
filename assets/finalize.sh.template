@@ -106,32 +106,57 @@ if [ "$INSTALL_OK" = yes ]; then
 fi
 
 # ---- service mode ---------------------------------------------------------
-# Ended before the policy is restored, not after. clear:service is consumed off
-# a list, and until it lands settings-service re-asserts the overlay over any
-# other write to an overlaid key, so a policy write that jumped the queue would
-# pin always-on for the rest of the boot. An image without the overlay has no
-# status field, so the loop ends on its first pass and this costs it nothing.
+# Only on a run that worked, and this is the whole reason the branch exists.
 #
-# The file goes either way: a clear that never landed must not come back on the
-# next boot and leave the owner with no hibernation timer and no alarm. This
-# runs on a failed install too, for exactly that reason.
-redis-cli -h localhost lpush settings:overlay clear:service >/dev/null 2>&1
-i=0
-while [ $i -lt 15 ]; do
-  [ "$(redis-cli -h localhost --raw hget settings dashboard.service-mode-active 2>/dev/null)" = true ] || break
-  i=$((i + 1))
-  sleep 1
-done
-rm -f /data/service-mode.json
-log "  service mode ended"
+# Ending service mode puts scooter.usb0-policy back to auto, and with keycards
+# paired and the dashboard dark that closes the usb0 gate and takes the link
+# down. On a successful install that is correct: the install is over and the
+# link has no further use. On a failed one it removes the only way back in at
+# the moment it is needed most, and a retry means plugging the laptop into a
+# board that no longer answers.
+#
+# So a failed run keeps service mode, and keeps it across reboots: the overlay
+# is re-applied from /data/service-mode.json before vehicle-service starts, so
+# the board a retry meets is reachable however many times it has been
+# power-cycled in between. The cost is a scooter that sits with no hibernation
+# timer and no alarm until somebody retries, which is the same hole an
+# abandoned run leaves and wants the same backstop.
+if [ "$INSTALL_OK" = yes ]; then
+  # Ended before the policy is restored, not after. clear:service is consumed
+  # off a list, and until it lands settings-service re-asserts the overlay over
+  # any other write to an overlaid key, so a policy write that jumped the queue
+  # would pin always-on for the rest of the boot. An image without the overlay
+  # has no status field, so the loop ends on its first pass and this costs it
+  # nothing.
+  #
+  # The file goes either way a clear can go: one that never landed must not come
+  # back on the next boot.
+  redis-cli -h localhost lpush settings:overlay clear:service >/dev/null 2>&1
+  i=0
+  while [ $i -lt 15 ]; do
+    [ "$(redis-cli -h localhost --raw hget settings dashboard.service-mode-active 2>/dev/null)" = true ] || break
+    i=$((i + 1))
+    sleep 1
+  done
+  rm -f /data/service-mode.json
+  log "  service mode ended"
+
+  systemctl stop librescoot-bootled-blink.service 2>/dev/null || true
+  lsc set scooter.usb0-policy auto >/dev/null 2>&1 ||
+    log "  WARNING: could not restore usb0-policy"
+else
+  log "  keeping service mode and usb0 up so the install can be retried"
+fi
 
 # ---- the vehicle ----------------------------------------------------------
-systemctl stop librescoot-bootled-blink.service 2>/dev/null || true
-lsc set scooter.usb0-policy auto >/dev/null 2>&1 ||
-  log "  WARNING: could not restore usb0-policy"
-# librescoot-pm is stopped on every connect and started by nothing else, and
-# restarting vehicle-service re-claims the PWM channels the progress bar
-# borrowed, without which the blinkers stay dark.
+# Started in both cases. A service left stopped here stays stopped: there is no
+# laptop attached any more and no reboot coming to start it by other means.
+# What keeps a failed board awake for its retry is service mode's own
+# pm.default-state and hibernation timer, not whether pm-service is running.
+#
+# Restarting vehicle-service re-claims the PWM channels the progress bar
+# borrowed, without which the blinkers stay dark. On a failed run it comes back
+# reading always-on out of the overlay, so the link survives the restart.
 systemctl start librescoot-pm 2>/dev/null ||
   log "  WARNING: could not start librescoot-pm"
 systemctl restart librescoot-vehicle 2>/dev/null ||
@@ -178,7 +203,7 @@ if [ "$INSTALL_OK" = yes ]; then
     mv -f "$RUN_STATE_FILE.tmp" "$RUN_STATE_FILE"
   log "  wrote the completion record for run $RUN_ID"
 else
-  log "  install did not succeed; settings and service mode restored, not unlocking"
+  log "  install did not succeed; left reachable for a retry, not unlocking"
 fi
 
 sync

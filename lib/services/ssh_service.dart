@@ -87,15 +87,16 @@ if [ -f "$onboot" ] && grep -Fq "$shim" "$onboot"; then
   fi
 fi
 
-# Service mode belongs to settings-service, and a run that armed it and then
-# died leaves it armed on every boot from here on: no hibernation timer, no
-# alarm, handlebar unlocked. Removing the file is the whole disarm.
+# Service mode is deliberately left alone, file and overlay both.
 #
-# The live overlay is deliberately left alone. It is what is holding usb0 up
-# for the session running this, and clearing it here would drop the link on a
-# board whose keycards are already paired. A resumed run arms it again before
-# its own reboot; an abandoned one no longer survives the next one.
-rm -f /data/service-mode.json
+# This runs at the start of a retry, on a board whose last install did not
+# finish, and on that board the overlay is the only thing holding usb0 open:
+# keycards are paired by then, so ending it puts the policy back to auto, the
+# gate closes and the retry is left plugged into a board that does not answer.
+# It is ended in one place, by the finalize phase, on a run that worked.
+#
+# The cost is that a run abandoned for good keeps a scooter with no hibernation
+# timer and no alarm until somebody comes back to it.
 
 for phase in "$scripts"/[0-9][0-9]-*.sh; do
   [ -e "$phase" ] || continue
@@ -108,10 +109,6 @@ if [ -f "$onboot" ] && grep -Fq "$marker" "$onboot"; then
 fi
 if [ -e /data/installer/onboot-tries ]; then
   echo 'the legacy onboot retry counter still exists' >&2
-  exit 1
-fi
-if [ -e /data/service-mode.json ]; then
-  echo 'service mode is still armed' >&2
   exit 1
 fi
 ''';
