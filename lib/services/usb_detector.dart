@@ -109,6 +109,7 @@ class UsbDevice {
 /// Device operating modes
 enum DeviceMode {
   ethernet,     // 0525:A4A2 - SSH access available
+  hijacked,     // 0525:A4A2 present, but another driver holds it (no SSH)
   massStorage,  // 0525:A4A5 - Ready for firmware write
   recoveryDbc,  // 15A2:0061 - DBC i.MX6SL ROM in serial-download mode
   recoveryMdb,  // 15A2:007D - MDB i.MX6UL ROM in serial-download mode
@@ -119,6 +120,23 @@ enum DeviceMode {
 class UsbDetector {
   static const int targetVendorId = 0x0525;
   static const int ethernetPid = 0xA4A2;
+
+  /// Map a Windows PnP setup class onto a device mode.
+  ///
+  /// A device answering on 0525:A4A2 is only reachable over SSH if Windows
+  /// put it in the Net class. When another driver has claimed it the same PnP
+  /// entity is still enumerated, in class Ports and named something like
+  /// "USB Serial Device (COM5)", and reporting that as ethernet sent the
+  /// installer on to an SSH attempt that could never succeed.
+  ///
+  /// An unknown class stays ethernet: the query failing to return a class is
+  /// not evidence that something took the device.
+  @visibleForTesting
+  static DeviceMode modeForPnpClass(String? pnpClass) {
+    final cls = pnpClass?.trim().toLowerCase() ?? '';
+    if (cls.isEmpty) return DeviceMode.ethernet;
+    return cls == 'net' ? DeviceMode.ethernet : DeviceMode.hijacked;
+  }
   static const int massStoragePid = 0xA4A5;
   static const int nxpVendorId = 0x15A2;
   static const int recoveryPidDbc = 0x0061;
@@ -469,67 +487,22 @@ if ($dev) {
     }
   }
 
+  /// Find the MDB's PnP entity on Windows and work out what mode it is in.
+  ///
+  /// The device is enumerated whether or not a usable driver holds it, so the
+  /// setup class is what separates "reachable over SSH" from "some other
+  /// driver has it". See [modeForPnpClass].
   Future<UsbDevice?> _detectWindowsPnpEthernet() async {
-    try {
-      final result = await Process.run(
-        'wmic',
-        [
-          'path',
-          'Win32_PnPEntity',
-          'where',
-          'PNPDeviceID like "%VID_0525&PID_A4A2%"',
-          'get',
-          'Name,PNPDeviceID',
-          '/format:csv',
-        ],
-        // runInShell omitted: avoid cmd.exe mangling '&' in VID/PID strings
-      );
-
-      if (result.exitCode != 0) return null;
-
-      final output = _sanitizeWmicOutput(result.stdout.toString());
-      final lines = output.split('\n').where((l) => l.trim().isNotEmpty).toList();
-      if (lines.length < 2) return null;
-
-      // Header-aware parsing
-      final header = lines[0].split(',');
-      final nameIdx = header.indexOf('Name');
-      final pnpIdIdx = header.indexOf('PNPDeviceID');
-
-      for (var i = 1; i < lines.length; i++) {
-        final parts = lines[i].split(',');
-        final pnpId = pnpIdIdx >= 0 && pnpIdIdx < parts.length ? parts[pnpIdIdx] : '';
-        if (!pnpId.toUpperCase().contains('VID_0525&PID_A4A2')) continue;
-
-        final name = nameIdx >= 0 && nameIdx < parts.length
-            ? parts[nameIdx]
-            : 'Librescoot MDB (USB)';
-
-        return UsbDevice(
-          id: pnpId,
-          name: name,
-          path: pnpId,
-          vendorId: targetVendorId,
-          productId: ethernetPid,
-          mode: DeviceMode.ethernet,
-        );
-      }
-    } catch (_) {}
-
-    return _detectWindowsPnpEthernetPowerShell();
-  }
-
-  Future<UsbDevice?> _detectWindowsPnpEthernetPowerShell() async {
     try {
       final result = await Process.run(
         'powershell',
         [
           '-NoProfile',
           '-Command',
-          r'''
-$dev = Get-CimInstance Win32_PnPEntity | Where-Object { $_.PNPDeviceID -like "*VID_0525&PID_A4A2*" } | Select-Object -First 1 Name,PNPDeviceID
-if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
-''',
+          r"""
+$dev = Get-CimInstance Win32_PnPEntity | Where-Object { $_.PNPDeviceID -like "*VID_0525&PID_A4A2*" } | Select-Object -First 1 Name,PNPDeviceID,PNPClass
+if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)`t$($dev.PNPClass)" }
+""",
         ],
         // runInShell omitted: avoid cmd.exe mangling '&' in VID/PID strings
       );
@@ -541,6 +514,7 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
       final parts = line.split('\t');
       final name = parts.isNotEmpty ? parts[0].trim() : 'Librescoot MDB (USB)';
       final pnpId = parts.length > 1 ? parts[1].trim() : '';
+      final pnpClass = parts.length > 2 ? parts[2].trim() : '';
       if (!pnpId.toUpperCase().contains('VID_0525&PID_A4A2')) return null;
 
       return UsbDevice(
@@ -549,7 +523,7 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
         path: pnpId,
         vendorId: targetVendorId,
         productId: ethernetPid,
-        mode: DeviceMode.ethernet,
+        mode: modeForPnpClass(pnpClass),
       );
     } catch (_) {}
 
@@ -1411,12 +1385,6 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
   }
 
   /// Sanitize WMIC output (remove null bytes and other artifacts)
-  String _sanitizeWmicOutput(String output) {
-    return output
-        .replaceAll('\u0000', '')
-        .replaceAll('\r\n', '\n')
-        .replaceAll('\r', '\n');
-  }
 
   void dispose() {
     stopMonitoring();
