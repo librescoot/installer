@@ -10,6 +10,7 @@ import '../models/region.dart';
 import '../models/substep.dart';
 import '../models/trampoline_status.dart';
 import 'finalize_script.dart';
+import 'install_phase_scripts.dart';
 import 'ssh_service.dart';
 
 typedef ToolAssetLoader = Future<ByteData> Function(String path);
@@ -523,6 +524,11 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     String? dbcBmapLocalPath,
     String? dbcArtifactLocalPath,
     String? dbcTargetVersion,
+
+    /// The MDB's own .mender, already staged on the device. Empty for a plan
+    /// that leaves the MDB alone; the phase is queued either way so the join
+    /// in 80-reboot.sh always has a verdict to read.
+    String mdbArtifactPath = '',
     DeviceFinish finish = DeviceFinish.laptop,
     DashboardMessages messages = DashboardMessages.english,
     String? osmTilesLocalPath,
@@ -809,12 +815,35 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     await _ssh.installOnbootShim();
     debugPrint('Trampoline: script uploaded');
 
-    // Queued only for a run that finishes on the device. On an attended run
-    // the coordinator would reach it at the MDB reboot, which is the moment
-    // the user is being told to swap the cable back, and hand the vehicle back
-    // in the middle of the install. That path uploads it at the finish
-    // instead, and runs it itself.
-    if (finish.onDevice) {
+    // The MDB's own artifact and the reboot that activates it. Queued ahead
+    // of the dashboard phase so its install is already running while the
+    // dashboard is flashed, and ahead of the handover so the vehicle is on
+    // its real image by the time anything unlocks it.
+    await _ssh.uploadFile(
+      Uint8List.fromList(utf8.encode(MdbArtifactScript.render(
+        template: await MdbArtifactScript.loadTemplate(),
+        runId: runId,
+        artifactPath: mdbArtifactPath,
+      ))),
+      MdbArtifactScript.remotePath,
+    );
+    debugPrint('Trampoline: queued ${MdbArtifactScript.phaseName}');
+
+    await _ssh.uploadFile(
+      Uint8List.fromList(utf8.encode(RebootPhaseScript.render(
+        template: await RebootPhaseScript.loadTemplate(),
+        runId: runId,
+      ))),
+      RebootPhaseScript.remotePath,
+    );
+    debugPrint('Trampoline: queued ${RebootPhaseScript.phaseName}');
+
+    // Every run that reaches the trampoline now ends in a reboot, so the
+    // handover always happens on the far side of one and always belongs to
+    // the coordinator. It used to be queued only for a device finish, because
+    // an attended run would otherwise have handed the vehicle back in the
+    // middle of the install, at the MDB reboot that no longer exists.
+    {
       final finalize = FinalizeScript.render(
         template: await FinalizeScript.loadTemplate(),
         mdbAction: finish.mdbAction.name,
