@@ -515,6 +515,10 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     /// Baked into the finalize phase so a device finish files its record under
     /// the same run the laptop started.
     String runId = '',
+
+    /// Recorded alongside it, so a later visit can read what this run was
+    /// asked to install rather than inferring it from what survived.
+    String releaseTag = '',
     String? dbcImageLocalPath,
     String? dbcBmapLocalPath,
     String? dbcArtifactLocalPath,
@@ -820,6 +824,11 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
         channel: finish.otaChannel,
         mdbVersion: finish.mdbTargetVersion,
         dbcVersion: dbcTargetVersion ?? '',
+        dbcAction: dbcArtifactLocalPath != null || dbcImageLocalPath != null
+            ? (upgradeMode ? 'upgrade' : 'cleanInstall')
+            : 'leave',
+        releaseTag: releaseTag,
+        region: region?.slug ?? '',
       );
       await _ssh.uploadFile(
         Uint8List.fromList(utf8.encode(finalize)),

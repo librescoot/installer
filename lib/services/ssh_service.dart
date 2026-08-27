@@ -1361,6 +1361,47 @@ fi
     }
   }
 
+  /// Keep the last few runs and no more.
+  ///
+  /// The logs are small against the hundreds of megabytes a run stages, which
+  /// is why they are kept at all, but a scooter that is installed onto
+  /// repeatedly would otherwise accumulate them forever. Newest first, so what
+  /// survives is what somebody is most likely to be asked about.
+  static const int historyRunsKept = 5;
+
+  /// Trim [installerHistoryDir] to the newest [historyRunsKept] runs.
+  Future<void> trimInstallHistory() async {
+    try {
+      await runCommand(
+        'cd $installerHistoryDir 2>/dev/null && '
+        'ls -1t 2>/dev/null | tail -n +${historyRunsKept + 1} | '
+        'while read -r old; do rm -rf -- "\$old"; done; true',
+      );
+    } catch (e) {
+      debugPrint('SSH: could not trim the install history (ok): \$e');
+    }
+  }
+
+  /// Put the laptop's own log beside the board's, so the two halves of a run
+  /// can be read together.
+  ///
+  /// A snapshot: the file is still being written to, and the lines after this
+  /// are the handover, which the phase logs on the board anyway. Best effort,
+  /// and last, because a run that cannot copy a log has still installed.
+  Future<void> keepInstallerLog({
+    required String runId,
+    required String localPath,
+  }) async {
+    try {
+      final bytes = await File(localPath).readAsBytes();
+      await runCommand('mkdir -p $installerHistoryDir/\$runId');
+      await uploadFile(bytes, '$installerHistoryDir/\$runId/installer.log');
+      debugPrint('SSH: kept the installer log for \$runId on the board');
+    } catch (e) {
+      debugPrint('SSH: could not keep the installer log (ok): \$e');
+    }
+  }
+
   @visibleForTesting
   static const String onbootRetireCommand = r"""
 for phase in /data/installer/scripts/[0-9][0-9]-*.sh; do
@@ -2468,57 +2509,6 @@ echo timeout
     }
   }
 
-  /// Record that a run finished, in the shape the trampoline's own
-  /// write_completion_record writes and [TrampolineStatus.parseCompletionRecord]
-  /// reads: `result:` first, the rest as `key: value` under it.
-  ///
-  /// Only the device finish used to write one. A run the laptop closed out
-  /// left the last thing it wrote standing, which is `stage: finish,
-  /// result: running`, so the next connect read a finished install as one
-  /// that was abandoned at the last step.
-  ///
-  /// All three destinations, same as the device does it: the per-run history
-  /// entry, the current-run pointer, and /data/last-install, which is the one
-  /// a returning installer reads.
-  Future<void> writeCompletionRecord({
-    required String runId,
-    required String mode,
-    String mdbVersion = '',
-    String dbcVersion = '',
-    DateTime? finishedAt,
-  }) async {
-    if (!RegExp(r'^[a-zA-Z0-9._-]+$').hasMatch(runId)) {
-      throw ArgumentError.value(runId, 'runId', 'contains unsafe characters');
-    }
-    final finished = (finishedAt ?? DateTime.now().toUtc())
-        .toIso8601String()
-        .split('.')
-        .first;
-    final record = <String>[
-      'result: success',
-      'run-id: $runId',
-      'finish: complete',
-      'stage: complete',
-      'mode: $mode',
-      'finished: ${finished}Z',
-      'mdb: $mdbVersion',
-      'dbc: $dbcVersion',
-      '',
-    ].join('\n');
-    final runDir = '$installerHistoryDir/$runId';
-    final temp = '$runDir/.record.tmp';
-    await runCommand('mkdir -p $runDir');
-    await uploadFile(Uint8List.fromList(utf8.encode(record)), temp);
-    // Rename into place, then copy out, so a reader never sees a half-written
-    // record at any of the three paths.
-    await runCommand(
-      'mv -f $temp $runDir/record; '
-      'cp $runDir/record $installerDir/.last-install.$runId.tmp && '
-      '  mv -f $installerDir/.last-install.$runId.tmp $installerLastInstall; '
-      'cp $runDir/record $installerDir/.run-state.$runId.tmp && '
-      '  mv -f $installerDir/.run-state.$runId.tmp $installerRunState',
-    );
-  }
 
   Future<void> writeInstallRunState({
     required String runId,

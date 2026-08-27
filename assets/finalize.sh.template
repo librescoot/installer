@@ -29,6 +29,9 @@ RUN_ID="{{RUN_ID}}"
 MODE="{{MODE}}"
 MDB_VERSION="{{MDB_VERSION}}"
 DBC_VERSION="{{DBC_VERSION}}"
+DBC_ACTION="{{DBC_ACTION}}"
+RELEASE_TAG="{{RELEASE_TAG}}"
+TILES_REGION="{{TILES_REGION}}"
 
 log() {
   mkdir -p "$(dirname "$LOG")" 2>/dev/null
@@ -158,6 +161,15 @@ if [ "$INSTALL_OK" = yes ]; then
     echo "finished: $(date -u "+%Y-%m-%dT%H:%M:%S")Z"
     echo "mdb: $MDB_VERSION"
     echo "dbc: $DBC_VERSION"
+    # What the run was asked to do, not just what it ended up with. A record
+    # that says only "success" cannot answer why a scooter is on the channel
+    # it is on, or which region its maps came from.
+    echo "release: $RELEASE_TAG"
+    echo "action-mdb: $MDB_ACTION"
+    echo "action-dbc: $DBC_ACTION"
+    echo "language: $FINISH_LANGUAGE"
+    echo "channel: $FINISH_CHANNEL"
+    echo "region: $TILES_REGION"
   } > "$RUN_HISTORY_DIR/$RUN_ID/.record.tmp"
   mv -f "$RUN_HISTORY_DIR/$RUN_ID/.record.tmp" "$RUN_HISTORY_DIR/$RUN_ID/record"
   cp "$RUN_HISTORY_DIR/$RUN_ID/record" "$INSTALLER_DIR/.last-install.tmp" &&

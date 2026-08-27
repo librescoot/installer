@@ -28,6 +28,9 @@ class FinalizeScript {
     String channel = '',
     String mdbVersion = '',
     String dbcVersion = '',
+    String dbcAction = '',
+    String releaseTag = '',
+    String region = '',
   }) {
     final rendered = template
         .replaceAll('{{MDB_ACTION}}', mdbAction)
@@ -36,7 +39,10 @@ class FinalizeScript {
         .replaceAll('{{RUN_ID}}', runId)
         .replaceAll('{{MODE}}', mode)
         .replaceAll('{{MDB_VERSION}}', mdbVersion)
-        .replaceAll('{{DBC_VERSION}}', dbcVersion);
+        .replaceAll('{{DBC_VERSION}}', dbcVersion)
+        .replaceAll('{{DBC_ACTION}}', dbcAction)
+        .replaceAll('{{RELEASE_TAG}}', releaseTag)
+        .replaceAll('{{TILES_REGION}}', region);
 
     // An unfilled placeholder is valid shell in most of the places one
     // appears, so the script runs and takes the wrong branch rather than

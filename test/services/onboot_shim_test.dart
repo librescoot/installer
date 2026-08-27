@@ -9,6 +9,7 @@ import 'package:librescoot_installer/services/ssh_service.dart';
 void main() {
   group('explicit retirement', retirementTests);
   group('installing it', installTests);
+  group('what a run leaves behind', historyTests);
 
   late Directory root;
   late Directory scripts;
@@ -238,5 +239,74 @@ void installTests() {
     expect(result.exitCode, 0, reason: result.stderr.toString());
     expect(File('${root.path}/installer/onboot.sh.bak').existsSync(), isFalse,
         reason: 'a dead trampoline must not come back as the user\'s script');
+  });
+}
+
+/// A successful install used to delete its own account of itself. What it
+/// leaves behind now, and what stops that growing without bound.
+void historyTests() {
+  test('the sweep keeps the record, the phases and a displaced onboot', () async {
+    final root = await Directory.systemTemp.createTemp('sweep-');
+    addTearDown(() => root.delete(recursive: true));
+    final installer = Directory('${root.path}/installer');
+    for (final d in ['history/run-1', 'scripts', 'fwtools']) {
+      await Directory('${installer.path}/$d').create(recursive: true);
+    }
+    for (final f in [
+      'history/run-1/record',
+      'history/run-1/installer.log',
+      'scripts/90-finalize.sh',
+      'onboot.sh.bak',
+      'last-install',
+      'run-state',
+      'trampoline.log',
+      'librescoot-unu-dbc.sdimg.gz',
+    ]) {
+      await File('${installer.path}/$f').writeAsString('x');
+    }
+
+    final script = File('${root.path}/sweep.sh');
+    await script.writeAsString(
+        SshService.installerSweepCommand.replaceAll('/data/', '${root.path}/'));
+    final result = await Process.run('sh', [script.path]);
+    expect(result.exitCode, 0, reason: result.stderr.toString());
+
+    for (final kept in [
+      'history/run-1/record',
+      'history/run-1/installer.log',
+      'scripts/90-finalize.sh',
+      'onboot.sh.bak',
+      'last-install',
+      'run-state',
+    ]) {
+      expect(File('${installer.path}/$kept').existsSync(), isTrue,
+          reason: '$kept should survive the sweep');
+    }
+    for (final gone in ['trampoline.log', 'librescoot-unu-dbc.sdimg.gz']) {
+      expect(File('${installer.path}/$gone').existsSync(), isFalse,
+          reason: '$gone is staging and should go');
+    }
+    expect(Directory('${installer.path}/fwtools').existsSync(), isFalse);
+  });
+
+  test('the record says what the run was asked to do', () {
+    // "success" alone cannot answer why a scooter is on the channel it is on,
+    // or which region its maps came from.
+    final finalize = File('assets/finalize.sh.template').readAsStringSync();
+    for (final field in [
+      'result: success',
+      'release:',
+      'action-mdb:',
+      'action-dbc:',
+      'language:',
+      'channel:',
+      'region:',
+      'finished:',
+      'mdb:',
+      'dbc:',
+    ]) {
+      expect(finalize, contains('echo "$field'),
+          reason: 'the record should carry $field');
+    }
   });
 }

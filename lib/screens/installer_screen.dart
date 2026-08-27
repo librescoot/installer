@@ -858,6 +858,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           // Only what this run verified. The dashboard is the trampoline's to
           // report, and a run that never handed off has nothing to say.
           dbcVersion: _deviceFinishArmed ? (_dbcState.version ?? '') : '',
+          dbcAction: (_plan?.dbc.action ?? BoardAction.leave).name,
+          releaseTag: _downloadState.releaseTag ?? '',
+          region: _downloadState.selectedRegion?.slug ?? '',
         ))),
         FinalizeScript.remotePath,
       );
@@ -876,6 +879,18 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     } else {
       debugPrint('UI: skipping MDB cleanup (non-release build)');
     }
+
+    // After the sweep, which is selective and keeps the history, but before
+    // the handover, which takes the link down. The board's half of the run is
+    // already in there; this is the laptop's.
+    final logPath = LogService.filePath;
+    if (logPath != null) {
+      await _sshService.keepInstallerLog(
+        runId: _installRunId,
+        localPath: logPath,
+      );
+    }
+    await _sshService.trimInstallHistory();
 
     // Ending service mode, restoring usb0-policy and unlocking go in one
     // detached MDB-side shell. vehicle-service applies the policy change
@@ -6364,6 +6379,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
       await trampolineService.uploadAll(
         runId: _installRunId,
+        releaseTag: _downloadState.releaseTag ?? '',
         dbcImageLocalPath: dbcImagePath,
         dbcBmapLocalPath: needsDbcStage0 ? dbcBmapItem?.localPath : null,
         dbcArtifactLocalPath: dbcArtifactPath,
