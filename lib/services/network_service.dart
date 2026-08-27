@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:librescoot_installer/services/usb_detector.dart';
@@ -86,6 +87,36 @@ class NetworkService {
     return s.contains('file exists') || s.contains('already assigned');
   }
 
+  /// Whether [error] is the host stack refusing to route to the board, as
+  /// opposed to a timeout or a refused connection.
+  static bool isNoRouteToHost(Object error) =>
+      error is SocketException &&
+      isNoRouteToHostCode(
+        error.osError?.errorCode,
+        platform: Platform.operatingSystem,
+      );
+
+  /// Whether [error] is the initial connect finding nothing at the other end:
+  /// no route, or no answer. Both mean the link was not ready, and both are
+  /// worth one more pass at interface discovery before bothering the user.
+  static bool isLinkNotReady(Object error) =>
+      isNoRouteToHost(error) ||
+      error is TimeoutException ||
+      (error is SocketException &&
+          error.message.toLowerCase().contains('timed out'));
+
+  /// EHOSTUNREACH is per-platform: 65 Darwin, 113 Linux, 10065 Windows.
+  @visibleForTesting
+  static bool isNoRouteToHostCode(int? code, {required String platform}) {
+    if (code == null) return false;
+    return switch (platform) {
+      'macos' => code == 65,
+      'linux' => code == 113,
+      'windows' => code == 10065,
+      _ => false,
+    };
+  }
+
   /// Check if MDB is reachable
   Future<bool> isMdbReachable() async {
     try {
@@ -122,6 +153,34 @@ class NetworkService {
     } catch (e) {
       buf.writeln('ip route failed: $e');
     }
+    return buf.toString();
+  }
+
+  /// macOS twin of [gatherLinuxDiagnostics].
+  Future<String> gatherMacOSDiagnostics(String? iface) async {
+    if (!Platform.isMacOS) return '';
+    final buf = StringBuffer();
+
+    Future<void> run(String label, String exe, List<String> args) async {
+      buf.writeln('--- $label ---');
+      try {
+        final r = await Process.run(exe, args);
+        buf.writeln(r.stdout.toString().trim());
+        final err = r.stderr.toString().trim();
+        if (err.isNotEmpty) buf.writeln('stderr: $err');
+      } catch (e) {
+        buf.writeln('failed: $e');
+      }
+    }
+
+    await run('ifconfig ${iface ?? '-a'}', 'ifconfig', [iface ?? '-a']);
+    await run('netstat -rn -f inet', 'netstat', ['-rn', '-f', 'inet']);
+    if (iface != null) {
+      await run('networksetup service for $iface', 'networksetup',
+          ['-listnetworkserviceorder']);
+    }
+    buf.writeln('--- gadget interface lookup ---');
+    buf.writeln(await findMacOSGadgetInterface() ?? '(none)');
     return buf.toString();
   }
 
@@ -226,11 +285,13 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
   /// gives it our static address, which drops the host off its own network and
   /// still never reaches the scooter.
   Future<NetworkInterface?> _findMacOSInterface({
-    Duration timeout = const Duration(seconds: 10),
+    Duration timeout = const Duration(seconds: 25),
   }) async {
     // The network stack attaches a moment after enumeration here as it does on
     // Linux, so a board that is present but has not published an interface yet
-    // is worth waiting for rather than refusing outright.
+    // is worth waiting for rather than refusing outright. Giving up early is
+    // worse: the caller reads "no interface" as "nothing to configure" and
+    // connects with no address on the link.
     final deadline = DateTime.now().add(timeout);
     while (true) {
       final name = await findMacOSGadgetInterface();

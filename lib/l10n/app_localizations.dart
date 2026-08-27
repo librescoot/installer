@@ -1178,6 +1178,30 @@ abstract class AppLocalizations {
   /// **'No target device resolved yet.'**
   String get readyToFlashNoTarget;
 
+  /// No description provided for @macosDiskNotReadable.
+  ///
+  /// In en, this message translates to:
+  /// **'macOS may say the disk is not readable. Click Ignore. Do not click Eject, that disconnects the board mid-install.'**
+  String get macosDiskNotReadable;
+
+  /// No description provided for @macosNoRouteHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'macOS is blocking access to the scooter'**
+  String get macosNoRouteHeading;
+
+  /// No description provided for @macosNoRouteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The USB connection is fine. The scooter answers pings, so this is not a cable problem: macOS is refusing to let the installer reach it.\n\nOpen Privacy & Security > Local Network and switch on access for Librescoot Installer.\n\nThe installer keeps trying and carries on by itself as soon as you do. Nothing else to click here.'**
+  String get macosNoRouteBody;
+
+  /// No description provided for @macosOpenLocalNetworkSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Local Network settings'**
+  String get macosOpenLocalNetworkSettings;
+
   /// No description provided for @beginFlashing.
   ///
   /// In en, this message translates to:

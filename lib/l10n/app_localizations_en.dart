@@ -611,6 +611,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get readyToFlashNoTarget => 'No target device resolved yet.';
 
   @override
+  String get macosDiskNotReadable =>
+      'macOS may say the disk is not readable. Click Ignore. Do not click Eject, that disconnects the board mid-install.';
+
+  @override
+  String get macosNoRouteHeading => 'macOS is blocking access to the scooter';
+
+  @override
+  String get macosNoRouteBody =>
+      'The USB connection is fine. The scooter answers pings, so this is not a cable problem: macOS is refusing to let the installer reach it.\n\nOpen Privacy & Security > Local Network and switch on access for Librescoot Installer.\n\nThe installer keeps trying and carries on by itself as soon as you do. Nothing else to click here.';
+
+  @override
+  String get macosOpenLocalNetworkSettings => 'Open Local Network settings';
+
+  @override
   String get beginFlashing => 'Begin flashing';
 
   @override

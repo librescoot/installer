@@ -91,6 +91,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   // Phase guard flags (prevent auto-start methods from re-firing on rebuild)
   bool _mdbConnectStarted = false;
+  /// EHOSTUNREACH on macOS after the route retries, meaning the link is up
+  /// (the board answers pings) but the app is not allowed to reach it.
+  bool _mdbConnectNoRoute = false;
+  Timer? _noRouteRetry;
 
   /// The last screen that had content, kept so a wait can dim it instead of
   /// replacing it with an empty frame. It is the built widget, not a rebuild:
@@ -488,6 +492,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     unawaited(_blePinPolling.stop());
     unawaited(_bleAdvRearming.stop());
     _keycardToastTimer?.cancel();
+    _noRouteRetry?.cancel();
     final stop = _keycardEventsStop;
     if (stop != null) {
       // Fire-and-forget: dispose can't await, but the SSH session should be
@@ -532,6 +537,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   Future<void> _cleanupBeforeClose() async {
     await runBoundedCleanupActions([
       DriverService.restoreAutoPlay,
+      DiskArbitrationService.disarmWatch,
       if (_btPairingActive ||
           _bleWhitelistDisabled ||
           _pairingVehicleStateChanged)
@@ -2495,6 +2501,31 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       );
     }
 
+    if (_mdbConnectNoRoute && !_isProcessing) {
+      return PhaseLayout(
+        title: l10n.macosNoRouteHeading,
+        actions: [
+          PhaseAction(
+            label: l10n.showLog,
+            icon: Icons.article_outlined,
+            side: ActionSide.back,
+            onPressed: _showLogDialog,
+          ),
+          PhaseAction(
+            label: l10n.macosOpenLocalNetworkSettings,
+            icon: Icons.settings,
+            primary: true,
+            onPressed: _openLocalNetworkSettings,
+          ),
+        ],
+        child: Text(
+          l10n.macosNoRouteBody,
+          style: TextStyle(
+              fontSize: 14, height: 1.5, color: Colors.grey.shade300),
+        ),
+      );
+    }
+
     return _waitingPhase(
       title: l10n.connectingToMdb,
       status: _statusMessage.isEmpty
@@ -2507,12 +2538,38 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             icon: Icons.refresh,
             primary: true,
             onPressed: () {
-              setState(() => _mdbConnectStarted = true);
+              setState(() {
+                _mdbConnectStarted = true;
+                _mdbConnectNoRoute = false;
+              });
               Future.microtask(_autoConnectMdb);
             },
           ),
       ],
     );
+  }
+
+  Future<void> _openLocalNetworkSettings() async {
+    try {
+      await launchUrl(Uri.parse(
+        'x-apple.systempreferences:com.apple.preference.security'
+        '?Privacy_LocalNetwork',
+      ));
+    } catch (e) {
+      debugPrint('UI: could not open Local Network settings: $e');
+    }
+  }
+
+  /// Local Network access takes effect live, so the install can continue the
+  /// moment the user allows it without them touching anything here.
+  void _scheduleNoRouteRetry() {
+    _noRouteRetry?.cancel();
+    _noRouteRetry = Timer(const Duration(seconds: 5), () {
+      if (!mounted || _isProcessing) return;
+      if (_currentPhase != InstallerPhase.mdbConnect) return;
+      _mdbConnectStarted = true;
+      unawaited(_autoConnectMdb());
+    });
   }
 
   /// Waiting on the rider, not on the board.
@@ -2603,9 +2660,48 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
   }
 
+  /// Connect, redoing the network setup if the host refuses to route there.
+  /// The interface can be published after the configure pass already ran,
+  /// which is why restarting the installer fixes it.
+  Future<DeviceInfo> _connectToMdbRetryingRoute(AppLocalizations l10n) async {
+    for (var attempt = 1;; attempt++) {
+      try {
+        return await _sshService.connectToMdb();
+      } catch (e) {
+        if (!NetworkService.isLinkNotReady(e) ||
+            attempt >= _routeRecoveryAttempts) {
+          rethrow;
+        }
+        debugPrint(
+          'SSH: link not ready ($e), redoing network setup '
+          '(attempt $attempt/$_routeRecoveryAttempts)',
+        );
+        _setStatus(l10n.configuringNetwork);
+        await _reconfigureNetworkQuietly();
+        _setStatus(l10n.connectingSsh);
+      }
+    }
+  }
+
+  static const int _routeRecoveryAttempts = 3;
+
+  Future<void> _reconfigureNetworkQuietly() async {
+    final networkService = NetworkService();
+    try {
+      final iface = await networkService.findLibrescootInterface();
+      if (iface != null) await networkService.configureInterface(iface);
+    } catch (e) {
+      debugPrint('Network: reconfigure during route recovery failed: $e');
+    }
+    await Future.delayed(const Duration(seconds: 2));
+  }
+
   Future<void> _autoConnectMdb() async {
     final l10n = AppLocalizations.of(context)!;
-    setState(() => _isProcessing = true);
+    setState(() {
+      _isProcessing = true;
+      _mdbConnectNoRoute = false;
+    });
 
     if (_isDryRun) {
       _setStatus('[DRY RUN] Loading auth assets...');
@@ -2698,7 +2794,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     _setStatus(l10n.connectingSsh);
     try {
       await _sshService.loadDeviceConfig('assets');
-      final info = await _sshService.connectToMdb();
+      final info = await _connectToMdbRetryingRoute(l10n);
       setState(() => _mdbInfo = info);
       debugPrint(
         'SSH: firmware=${info.firmwareVersion}, serial=${info.serialNumber ?? "unknown"}',
@@ -2887,12 +2983,21 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
       await _completeConnectionSetup(l10n);
     } catch (e) {
+      final noRoute = NetworkService.isNoRouteToHost(e);
+      if (noRoute) {
+        final iface = await NetworkService().findLibrescootInterface();
+        debugPrint(await NetworkService().gatherMacOSDiagnostics(iface?.name));
+      }
       _setStatus(l10n.sshConnectionFailed(e.toString()));
       // No auto-retry here: SSH failure means the previous network config
       // didn't actually deliver a reachable MDB. Repeating the same dance
       // every second flickers the UI. The retry button below explicitly
       // re-arms _mdbConnectStarted and re-invokes us.
-      setState(() => _isProcessing = false);
+      setState(() {
+        _isProcessing = false;
+        _mdbConnectNoRoute = noRoute && Platform.isMacOS;
+      });
+      if (_mdbConnectNoRoute) _scheduleNoRouteRetry();
     }
   }
 
@@ -4015,7 +4120,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (!stalled) {
       return _waitPhase(
         title: l10n.configuringMdbBootloader,
-        warning: l10n.dbcFlashDoNotDisconnect,
+        // The claim should keep the dialog away, but it can lose to a helper
+        // that failed to start, and Eject there aborts the install.
+        warning: Platform.isMacOS
+            ? '${l10n.dbcFlashDoNotDisconnect}\n\n${l10n.macosDiskNotReadable}'
+            : l10n.dbcFlashDoNotDisconnect,
       );
     }
     return _waitingPhase(
@@ -4166,6 +4275,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         // Suppress Windows "format this disk" popup before UMS mode
         if (_windowClosing) return;
         await DriverService.suppressAutoPlay();
+        await DiskArbitrationService.armWatch();
         if (_windowClosing) return;
 
         _setStatus(l10n.rebootingMdbUms);
@@ -4190,6 +4300,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     } finally {
       if (!autoPlayHandedToFlash) {
         await DriverService.restoreAutoPlay();
+        await DiskArbitrationService.disarmWatch();
       }
     }
     if (!_ownsMdbToUmsAttempt(generation)) return;
@@ -4297,6 +4408,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 danger: true),
             const SizedBox(height: 8),
             _flashNote(Icons.schedule, l10n.readyToFlashDuration),
+            if (Platform.isMacOS) ...[
+              const SizedBox(height: 8),
+              _flashNote(Icons.info_outline, l10n.macosDiskNotReadable),
+            ],
           ],
         ),
       );
@@ -4519,6 +4634,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
 
     await DriverService.suppressAutoPlay();
+    await DiskArbitrationService.armWatch();
     try {
       bool mdbDownloadsReady() {
         final image = _downloadState.itemOfType(DownloadItemType.mdbFirmware);
@@ -4724,6 +4840,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     } finally {
       try {
         await DriverService.restoreAutoPlay();
+        await DiskArbitrationService.disarmWatch();
       } finally {
         criticalOperation.release();
       }

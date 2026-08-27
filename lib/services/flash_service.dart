@@ -253,11 +253,14 @@ class FlashService {
       // won't auto-mount or pop the "Initialize / Erase / Ignore" dialog
       // for unrecognised partition tables, and authopen no longer hits
       // EPERM on /dev/rdiskN. Falls back gracefully to the cheap force-
-      // unmount path if the helper isn't bundled or fails to claim.
-      final da = DiskArbitrationService();
+      // unmount path if the helper isn't bundled or fails to claim. Usually
+      // the UMS-phase watch already claimed this disk and `claim` just
+      // confirms it; claiming here covers writes that skipped that phase.
+      final leased = DiskArbitrationService.sharedHelper;
+      final da = leased ?? DiskArbitrationService();
+      final leaseOwnsHelper = leased != null;
       var daClaimed = false;
-      final daPath = await DiskArbitrationService.locate();
-      if (daPath != null && await da.start(daPath)) {
+      if (leaseOwnsHelper || await da.ensureStarted()) {
         daClaimed = await da.claim(diskName);
       } else {
         debugPrint('Flash: daclaim helper unavailable, falling back to force-unmount');
@@ -291,7 +294,9 @@ class FlashService {
         }
       } finally {
         if (daClaimed) await da.release(diskName);
-        await da.stop();
+        // Only tear down a helper this call started: the board re-enumerates
+        // after the write, so the leased watch is still needed.
+        if (!leaseOwnsHelper) await da.stop();
       }
     } else {
       // Linux: single pkexec elevation for both dd phases + verify

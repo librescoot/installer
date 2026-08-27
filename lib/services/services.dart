@@ -1,3 +1,4 @@
+export 'disk_arbitration_service.dart';
 export 'download_service.dart';
 export 'driver_service.dart';
 export 'elevation_service.dart';

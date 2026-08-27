@@ -619,6 +619,22 @@ class AppLocalizationsDe extends AppLocalizations {
   String get readyToFlashNoTarget => 'Noch kein Zielgerät ermittelt.';
 
   @override
+  String get macosDiskNotReadable =>
+      'macOS meldet eventuell, dass das Medium nicht gelesen werden kann. Klicke auf „Ignorieren“. Klicke nicht auf „Auswerfen“, das trennt das Board mitten in der Installation.';
+
+  @override
+  String get macosNoRouteHeading =>
+      'macOS blockiert den Zugriff auf den Roller';
+
+  @override
+  String get macosNoRouteBody =>
+      'Die USB-Verbindung steht. Der Roller antwortet auf Pings, es liegt also nicht am Kabel: macOS lässt den Installer nicht durch.\n\nÖffne „Datenschutz & Sicherheit“ > „Lokales Netzwerk“ und aktiviere den Zugriff für Librescoot Installer.\n\nDer Installer versucht es weiter und macht von selbst weiter, sobald du das getan hast. Hier musst du nichts weiter klicken.';
+
+  @override
+  String get macosOpenLocalNetworkSettings =>
+      'Einstellungen „Lokales Netzwerk“ öffnen';
+
+  @override
   String get beginFlashing => 'Flashen starten';
 
   @override
