@@ -1725,6 +1725,17 @@ class AppLocalizationsDe extends AppLocalizations {
       'Einstellungen und Dienste werden zurückgesetzt';
 
   @override
+  String get finishBlockedHeading =>
+      'Die Installation wurde nicht abgeschlossen';
+
+  @override
+  String get finishBlockedBody =>
+      'Die Verbindung zum Roller ist vor dem letzten Schritt abgebrochen, die Firmware wurde also übertragen, aber nicht installiert. Am Roller wurde nichts verändert, du kannst es gefahrlos noch einmal versuchen.\n\nPrüf das USB-Kabel an beiden Enden und klick dann Nochmal versuchen. Wenn das nicht hilft, schließ den Installer und starte ihn neu: er macht da weiter, wo dieser Lauf stehen geblieben ist.';
+
+  @override
+  String get finishBlockedRetry => 'Nochmal versuchen';
+
+  @override
   String get finishHandoverTitle =>
       'Warte darauf, dass der Roller sich entsperrt';
 

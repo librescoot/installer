@@ -1704,6 +1704,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get finishHandoverRestoring => 'Restoring settings and services';
 
   @override
+  String get finishBlockedHeading => 'The install did not finish';
+
+  @override
+  String get finishBlockedBody =>
+      'The connection to the scooter was lost before the last step, so the firmware was copied across but never installed. Nothing on the scooter has been changed and it is safe to try again.\n\nCheck the USB cable at both ends, then use Try again. If that does not work, close the installer and start it once more: it picks up where this run stopped.';
+
+  @override
+  String get finishBlockedRetry => 'Try again';
+
+  @override
   String get finishHandoverTitle => 'Waiting for the scooter to unlock';
 
   @override

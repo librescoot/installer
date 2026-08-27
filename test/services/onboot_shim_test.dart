@@ -78,14 +78,15 @@ void main() {
     expect(await File(order).readAsLines(), ['rescue']);
   });
 
-  test('a phase that keeps failing is dropped after three attempts', () async {
+  test('a phase that keeps failing is dropped after four attempts', () async {
     final tally = '${root.path}/tally';
     await phase('20-dbc.sh', 'echo run >> $tally; exit 1');
     for (var i = 0; i < 5; i++) {
       await boot();
     }
-    expect((await File(tally).readAsLines()).length, 3,
-        reason: 'three attempts, then the phase is given up on');
+    expect((await File(tally).readAsLines()).length, 4,
+        reason: 'three attempts plus the pass that lets the phase run its '
+            'own give-up branch, then it is dropped');
     expect(File('${scripts.path}/20-dbc.sh').existsSync(), isFalse);
   });
 
@@ -174,16 +175,32 @@ void main() {
       expect(File('${root.path}/onboot.sh').existsSync(), isFalse);
     });
 
-    test('a phase that wedged does not count as completed', () async {
-      // Completion is the phase removing itself. One still sitting there
-      // after three attempts was abandoned, not finished.
+    test('a phase that wedged is reported as abandoned, not as never run',
+        () async {
+      // It ran four times; "never ran" would be a lie. But retiring quietly
+      // would leave the status saying nothing went wrong.
       await expectPhases(['10-mdb-artifact.sh']);
       await phase('10-mdb-artifact.sh', 'exit 1');
-      await boot();
-      await boot();
-      await boot();
-      await boot();
+      for (var i = 0; i < 5; i++) {
+        await boot();
+      }
       expect(status(), contains('10-mdb-artifact.sh'));
+      expect(status(), contains('abandoned'));
+      expect(status(), isNot(contains('never ran')));
+    });
+
+    test('a wedged phase cannot bury the error another phase wrote', () async {
+      // The rollback verdict from 90-finalize.sh is more precise than any
+      // abandonment message, and it is the one a person needs to read.
+      await expectPhases(['90-finalize.sh']);
+      await phase('90-finalize.sh',
+          "echo 'error: the installed image failed to boot and was rolled back'"
+          ' > ${root.path}/installer/trampoline-status; exit 1');
+      for (var i = 0; i < 5; i++) {
+        await boot();
+      }
+      expect(status(), contains('rolled back'));
+      expect(status(), isNot(contains('abandoned')));
     });
 
     test('the bookkeeping lives where every sweep spares it', () async {

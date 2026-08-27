@@ -2712,6 +2712,16 @@ if [ -n "$DBC_MENDER" ]; then
       artifact_fail "error: the DBC is still running the bootstrap image ($DBC_ART_AFTER) after the artifact install"
       ;;
   esac
+  # Committed here, after the checks above proved this is the installed slot,
+  # and before anything cuts the power. bootlimit=1 gives the new slot exactly
+  # one tentative boot, this one: u-boot rolls back at the second start before
+  # the kernel loads, so no later boot can commit. The DBC's update-service
+  # does commit at its own start, but it races the power-off below with no
+  # ordering, and on a clean install the rollback target is the bootstrap,
+  # which does not carry it at all. A rolled-back board fails the checks
+  # first, so this never pins the old slot.
+  ssh -y -y root@$DBC_IP 'mender-update commit' >/dev/null 2>&1 ||
+    log "  WARNING: could not commit the DBC slot"
   echo "$DBC_VER" > "$INSTALLER_DIR/dbc-version"
 
   # The reboot above took any Python fallback server with it, and the tile

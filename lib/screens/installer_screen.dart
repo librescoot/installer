@@ -368,6 +368,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// took the port instead of showing a connection error.
   DriverInstallResult? _driverBlocked;
 
+  /// The laptop owed the finish and could not reach the board. On a run with
+  /// no trampoline that means the install never happened, so the screen says
+  /// so instead of congratulating the owner.
+  bool _finishBlocked = false;
+
   Future<void> _loadAvailableRegions() async {
     final regions = await _downloadService.fetchAvailableRegions();
     if (!mounted || regions.isEmpty) return;
@@ -797,13 +802,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final lang = Localizations.localeOf(context).languageCode;
     final handoverL10n = AppLocalizations.of(context)!;
 
-    if (_isDryRun || !_sshService.isConnected) {
-      // Dry-run / no SSH: nothing to hand over, render the success screen
-      // immediately. On the autonomous path this is the normal case — the
-      // laptop is on the dashboard's port, or off the scooter entirely.
+    if (_isDryRun) {
       if (mounted) setState(() => _awaitingFinishHandover = false);
       return;
     }
+    // A dropped link used to return here too, which is right only when a
+    // trampoline is carrying the finish. Without one the laptop owes the whole
+    // install, so finishHandover decides rather than this.
 
 
     // Connected, but the device may have closed the install out itself while
@@ -820,13 +825,46 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // it is up. Everything below needs that link, so there is nothing to do
     // but show the finish screen and let the device close itself out, which
     // is what it was armed to do.
-    final reported = await _deviceReportedFinished();
-    final todo = finishHandover(
+    var reported = await _deviceReportedFinished();
+    var todo = finishHandover(
       dryRun: _isDryRun,
       linkUp: _sshService.isConnected,
       deviceArmed: _deviceFinishArmed,
       deviceReported: reported,
     );
+
+    // Owed but unreachable. The link is the only way to hand it over and a
+    // dropped session is usually momentary, so ask once more before treating
+    // it as lost.
+    if (todo == FinishHandover.blocked) {
+      try {
+        await _sshService.ensureConnected('finish');
+        reported = await _deviceReportedFinished();
+        todo = finishHandover(
+          dryRun: _isDryRun,
+          linkUp: _sshService.isConnected,
+          deviceArmed: _deviceFinishArmed,
+          deviceReported: reported,
+        );
+      } catch (e) {
+        debugPrint('UI: could not reconnect for the finish: $e');
+      }
+    }
+
+    if (todo == FinishHandover.blocked) {
+      // Never the success screen. On this route the finish IS the install:
+      // the artifact is staged, nothing has been queued to install it, and
+      // nothing else will.
+      debugPrint('UI: the finish is owed and the link is gone');
+      if (mounted) {
+        setState(() {
+          _finishBlocked = true;
+          _awaitingFinishHandover = false;
+        });
+      }
+      return;
+    }
+
     if (todo == FinishHandover.none) {
       debugPrint('UI: nothing for the laptop to finish (reported=$reported)');
       if (mounted) setState(() => _awaitingFinishHandover = false);
@@ -873,7 +911,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           mode: (_plan?.needsMdbStage0 ?? false) ? 'flash' : 'upgrade',
           language: (lang == 'en' || lang == 'de') ? lang : '',
           channel: _downloadState.channel.name,
-          mdbVersion: _mdbState.version ?? '',
           // Only what this run verified. The dashboard is the trampoline's to
           // report, and a run that never handed off has nothing to say.
           dbcVersion: _deviceFinishArmed ? (_dbcState.version ?? '') : '',
@@ -9170,6 +9207,34 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       return _waitPhase(
         title: l10n.finishHandoverTitle,
         warning: l10n.finishHandoverBody,
+      );
+    }
+
+    // The laptop owed the finish and could not reach the board. On this route
+    // the finish is the install, so the screen says what happened rather than
+    // congratulating the owner over a scooter that was never installed.
+    if (_finishBlocked) {
+      return PhaseLayout(
+        title: l10n.finishBlockedHeading,
+        actions: [
+          PhaseAction(
+            label: l10n.finishBlockedRetry,
+            icon: Icons.refresh,
+            primary: true,
+            onPressed: () {
+              setState(() {
+                _finishBlocked = false;
+                _awaitingFinishHandover = true;
+              });
+              Future.microtask(_onEnterFinish);
+            },
+          ),
+        ],
+        child: NoticeCard(
+          severity: NoticeSeverity.danger,
+          title: l10n.finishBlockedHeading,
+          body: l10n.finishBlockedBody,
+        ),
       );
     }
     return PhaseLayout(

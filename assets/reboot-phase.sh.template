@@ -44,6 +44,11 @@ retire() {
 case "$RESULT" in
   ok)
     log "asking the coordinator to reboot into the installed images"
+    # The slot being left behind. mender-update install always switches slots,
+    # so coming back up on this one means u-boot rolled the new image back,
+    # and 90-finalize.sh must not call that success.
+    BOOTED_ROOT="$(sed -n 's/.*root=\([^ ]*\).*/\1/p' "${CMDLINE:-/proc/cmdline}")"
+    [ -n "$BOOTED_ROOT" ] && printf '%s\n' "$BOOTED_ROOT" > "$INSTALLER_DIR/previous-root"
     retire
     exit 75
     ;;

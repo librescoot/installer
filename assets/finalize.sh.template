@@ -27,7 +27,6 @@ FINISH_LANGUAGE="{{FINISH_LANGUAGE}}"
 FINISH_CHANNEL="{{FINISH_CHANNEL}}"
 RUN_ID="{{RUN_ID}}"
 MODE="{{MODE}}"
-MDB_VERSION="{{MDB_VERSION}}"
 DBC_VERSION="{{DBC_VERSION}}"
 DBC_ACTION="{{DBC_ACTION}}"
 RELEASE_TAG="{{RELEASE_TAG}}"
@@ -61,6 +60,24 @@ case "$RUNNING_IMAGE_ID" in
     INSTALL_OK=no
     ;;
 esac
+
+# 80-reboot.sh records the slot it reboots away from. Coming back up on that
+# same slot means u-boot rolled the installed image back, and unlike the
+# bootstrap case the rolled-back board is a full image os-release cannot
+# distinguish from a successful one. The slot can. Left in place on a
+# mismatch: a rollback does not heal on later boots, and every retry of this
+# phase must reach the same verdict.
+PREVIOUS_ROOT_FILE="$INSTALLER_DIR/previous-root"
+if [ -f "$PREVIOUS_ROOT_FILE" ]; then
+  BOOTED_ROOT="$(sed -n 's/.*root=\([^ ]*\).*/\1/p' "${CMDLINE:-/proc/cmdline}")"
+  if [ -n "$BOOTED_ROOT" ] && [ "$BOOTED_ROOT" = "$(head -n1 "$PREVIOUS_ROOT_FILE" 2>/dev/null)" ]; then
+    log "  still on $BOOTED_ROOT: u-boot rolled the installed image back"
+    printf 'error: the installed image failed to boot and was rolled back\n' > "$STATUS_FILE"
+    INSTALL_OK=no
+  else
+    rm -f "$PREVIOUS_ROOT_FILE"
+  fi
+fi
 log "finalize starting (install_ok=$INSTALL_OK action=$MDB_ACTION)"
 
 # ---- settings -------------------------------------------------------------
@@ -196,7 +213,7 @@ if [ "$INSTALL_OK" = yes ]; then
     echo "stage: complete"
     echo "mode: $MODE"
     echo "finished: $(date -u "+%Y-%m-%dT%H:%M:%S")Z"
-    echo "mdb: $MDB_VERSION"
+    echo "mdb: $(sed -n 's/^VERSION_ID=//p' "${OS_RELEASE:-/etc/os-release}" 2>/dev/null | tr -d '"')"
     echo "dbc: $DBC_VERSION"
     # What the run was asked to do, not just what it ended up with. A record
     # that says only "success" cannot answer why a scooter is on the channel

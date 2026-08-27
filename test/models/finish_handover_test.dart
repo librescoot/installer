@@ -26,11 +26,18 @@ void main() {
     expect(call(deviceReported: false), FinishHandover.run);
   });
 
-  test('no answer means no link, and the handover needs one', () {
-    // The cable is on the dashboard: the client may still believe it is
-    // connected, but nothing sent over that session arrives.
+  test('no answer means no link, and what that costs depends on the run', () {
+    // Armed: the cable is on the dashboard, the client may still believe it is
+    // connected, and the device closes itself out. Nothing owed.
     expect(call(deviceReported: null), FinishHandover.none);
-    expect(call(deviceReported: null, deviceArmed: false), FinishHandover.none);
+
+    // Not armed: the link never moved, so this is a question that could not be
+    // put rather than a session that was expected to be gone. The finish is
+    // the whole install on this route, and calling it "nothing to do" left the
+    // owner reassembling a scooter with a staged artifact and no phase queued
+    // to install it.
+    expect(call(deviceReported: null, deviceArmed: false),
+        FinishHandover.blocked);
   });
 
   test('a run with no trampoline behind it is the laptop\'s to finish', () {
@@ -38,8 +45,13 @@ void main() {
         FinishHandover.run);
   });
 
-  test('a dry run and a dead link do nothing', () {
+  test('a dry run owes nothing: nothing was staged', () {
     expect(call(dryRun: true), FinishHandover.none);
+    expect(call(dryRun: true, deviceArmed: false), FinishHandover.none);
+  });
+
+  test('a dead link is finished when armed and blocked when not', () {
     expect(call(linkUp: false), FinishHandover.none);
+    expect(call(linkUp: false, deviceArmed: false), FinishHandover.blocked);
   });
 }

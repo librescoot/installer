@@ -10,20 +10,38 @@ enum FinishHandover {
 
   /// Restore what this run changed and wait for the unlock.
   run,
+
+  /// The laptop owes the finish and cannot do it. Distinct from [none],
+  /// because on a run with no trampoline the finish is the whole install:
+  /// the artifact is staged, no phase has been queued and nothing else will
+  /// queue one. Showing the success screen here leaves the owner
+  /// reassembling a scooter that was never installed.
+  blocked,
 }
 
-/// [deviceReported] is null when the completion record could not be read,
-/// which is the ordinary state once the trampoline is running: the cable is
-/// on the dashboard by then, so there is no session to ask over and none to
-/// run the handover over either.
+/// [deviceReported] is null when the completion record could not be read.
+///
+/// What that means depends entirely on [deviceArmed]. With a trampoline
+/// running it is the ordinary state: the cable is on the dashboard, there is
+/// no session to ask over and none to run the handover over either, and the
+/// device closes itself out. Without one it means the question could not be
+/// put, over a link that never moved, and the work is still owed.
 FinishHandover finishHandover({
   required bool dryRun,
   required bool linkUp,
   required bool deviceArmed,
   required bool? deviceReported,
 }) {
-  if (dryRun || !linkUp) return FinishHandover.none;
-  if (deviceReported == null) return FinishHandover.none;
-  if (deviceArmed && deviceReported) return FinishHandover.none;
-  return FinishHandover.run;
+  // Nothing was staged, so there is nothing to owe.
+  if (dryRun) return FinishHandover.none;
+
+  if (deviceArmed) {
+    if (!linkUp) return FinishHandover.none;
+    if (deviceReported == null) return FinishHandover.none;
+    return deviceReported ? FinishHandover.none : FinishHandover.run;
+  }
+
+  if (!linkUp) return FinishHandover.blocked;
+  if (deviceReported == null) return FinishHandover.blocked;
+  return deviceReported ? FinishHandover.none : FinishHandover.run;
 }

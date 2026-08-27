@@ -3014,6 +3014,24 @@ abstract class AppLocalizations {
   /// **'Restoring settings and services'**
   String get finishHandoverRestoring;
 
+  /// No description provided for @finishBlockedHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'The install did not finish'**
+  String get finishBlockedHeading;
+
+  /// No description provided for @finishBlockedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The connection to the scooter was lost before the last step, so the firmware was copied across but never installed. Nothing on the scooter has been changed and it is safe to try again.\n\nCheck the USB cable at both ends, then use Try again. If that does not work, close the installer and start it once more: it picks up where this run stopped.'**
+  String get finishBlockedBody;
+
+  /// No description provided for @finishBlockedRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get finishBlockedRetry;
+
   /// No description provided for @finishHandoverTitle.
   ///
   /// In en, this message translates to:

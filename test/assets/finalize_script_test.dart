@@ -26,7 +26,6 @@ void main() {
         mode: mode,
         language: language,
         channel: channel,
-        mdbVersion: 'v1.2.1',
         dbcVersion: 'v1.2.1',
       );
 
@@ -89,6 +88,8 @@ case "\$1" in is-active) echo active ;; esac
       String serviceModeActive = 'false',
       String runId = 'run-test-1',
       String imageId = '',
+      String bootedRoot = '/dev/mmcblk1p3',
+      String? previousRoot,
     }) async {
       await stubs(serviceModeActive: serviceModeActive);
       await Directory('${root.path}/installer').create(recursive: true);
@@ -102,6 +103,12 @@ case "\$1" in is-active) echo active ;; esac
         render(mdbAction: mdbAction, runId: runId)
             .replaceAll('/data/', '${root.path}/'),
       );
+      if (previousRoot != null) {
+        await File('${root.path}/installer/previous-root')
+            .writeAsString('$previousRoot\n');
+      }
+      final cmdline = File('${root.path}/cmdline');
+      await cmdline.writeAsString('root=$bootedRoot quiet loglevel=5\n');
       final osRelease = File('${root.path}/os-release');
       await osRelease.writeAsString(
         'ID=librescoot-mdb\nVERSION_ID=2.0.0\n'
@@ -113,6 +120,7 @@ case "\$1" in is-active) echo active ;; esac
         'PATH': '${root.path}/bin:${Platform.environment['PATH']}',
         'CALLS': calls,
         'OS_RELEASE': osRelease.path,
+        'CMDLINE': cmdline.path,
       });
     }
 
@@ -184,7 +192,7 @@ case "\$1" in is-active) echo active ;; esac
           .readAsString();
       expect(record, contains('result: success'));
       expect(record, contains('run-id: run-good'));
-      expect(record, contains('mdb: v1.2.1'));
+      expect(record, contains('mdb: 2.0.0'));
       expect(await File('${root.path}/installer/last-install').readAsString(),
           contains('run-id: run-good'));
     });
@@ -279,6 +287,56 @@ case "\$1" in is-active) echo active ;; esac
           File('${root.path}/installer/scripts/90-finalize.sh').existsSync(),
           isFalse,
         );
+      });
+
+      test('coming back on the slot the reboot left is a rollback', () async {
+        // u-boot rolls back an image that fails to boot, and the rolled-back
+        // board is a full image os-release cannot tell from a good one. The
+        // trampoline verdict predates the reboot, so "success" in the status
+        // file proves nothing about what is running now.
+        await run(
+          status: 'success',
+          bootedRoot: '/dev/mmcblk1p2',
+          previousRoot: '/dev/mmcblk1p2',
+        );
+        expect(await callLog(), isNot(contains(contains('scooter:state unlock'))));
+        expect(
+          File('${root.path}/installer/history/run-test-1/record').existsSync(),
+          isFalse,
+          reason: 'a rolled-back install must not write a success record',
+        );
+        expect(
+          await File('${root.path}/installer/trampoline-status').readAsString(),
+          contains('rolled back'),
+        );
+        expect(
+          File('${root.path}/installer/previous-root').existsSync(),
+          isTrue,
+          reason: 'a rollback does not heal, so every retry must see it too',
+        );
+      });
+
+      test('a different slot is the installed image, and the marker goes',
+          () async {
+        await run(
+          status: 'success',
+          bootedRoot: '/dev/mmcblk1p3',
+          previousRoot: '/dev/mmcblk1p2',
+        );
+        expect(await callLog(), contains(contains('scooter:state unlock')));
+        expect(
+          File('${root.path}/installer/previous-root').existsSync(),
+          isFalse,
+          reason: 'left behind it would fail the next run that lands here',
+        );
+      });
+
+      test('no marker means no reboot happened, and no verdict either',
+          () async {
+        // A run with no MDB artifact never reboots and never writes the
+        // marker. The guard has nothing to say about it.
+        await run(status: 'success', previousRoot: null);
+        expect(await callLog(), contains(contains('scooter:state unlock')));
       });
     });
 

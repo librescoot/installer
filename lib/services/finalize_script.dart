@@ -26,7 +26,6 @@ class FinalizeScript {
     required String mode,
     String language = '',
     String channel = '',
-    String mdbVersion = '',
     String dbcVersion = '',
     String dbcAction = '',
     String releaseTag = '',
@@ -38,7 +37,6 @@ class FinalizeScript {
         .replaceAll('{{FINISH_CHANNEL}}', channel)
         .replaceAll('{{RUN_ID}}', runId)
         .replaceAll('{{MODE}}', mode)
-        .replaceAll('{{MDB_VERSION}}', mdbVersion)
         .replaceAll('{{DBC_VERSION}}', dbcVersion)
         .replaceAll('{{DBC_ACTION}}', dbcAction)
         .replaceAll('{{RELEASE_TAG}}', releaseTag)

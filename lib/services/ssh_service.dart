@@ -1323,8 +1323,21 @@ run_one() {
   n=$(cat "$tries" 2>/dev/null || echo 0)
   n=$((n + 1))
   echo "$n" > "$tries"
-  if [ "$n" -gt 3 ]; then
+  # Three real attempts, then one more pass so a phase can run its own
+  # give-up branch and put back whatever it masked. Dropping it at the third
+  # made that branch unreachable, and 20-dbc.sh's left keycard, bluetooth and
+  # ums masked on a board nobody was watching.
+  if [ "$n" -gt 4 ]; then
     rm -f "$1" "$tries"
+    # It ran, four times; "never ran" would be a lie and would bury whatever
+    # the phase said about why it kept failing. An error already in the status
+    # file is that phase's own verdict and stays; anything else becomes the
+    # abandonment.
+    echo "${1##*/}" >> "$COMPLETED"
+    case "$(head -n1 "$STATUS" 2>/dev/null)" in
+      error*) ;;
+      *) echo "error: ${1##*/} was abandoned after repeated failures" > "$STATUS" ;;
+    esac
     return 0
   fi
   sh "$1"

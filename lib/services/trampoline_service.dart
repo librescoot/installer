@@ -848,7 +848,6 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
         mode: upgradeMode ? 'upgrade' : 'flash',
         language: finish.language,
         channel: finish.otaChannel,
-        mdbVersion: finish.mdbTargetVersion,
         dbcVersion: dbcTargetVersion ?? '',
         dbcAction: dbcArtifactLocalPath != null || dbcImageLocalPath != null
             ? (upgradeMode ? 'upgrade' : 'cleanInstall')
