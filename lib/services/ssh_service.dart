@@ -71,12 +71,26 @@ elif [ -f "$onboot" ] && grep -Fq "$marker" "$onboot"; then
 fi
 rm -f "$tries"
 
+# Service mode belongs to settings-service, and a run that armed it and then
+# died leaves it armed on every boot from here on: no hibernation timer, no
+# alarm, handlebar unlocked. Removing the file is the whole disarm.
+#
+# The live overlay is deliberately left alone. It is what is holding usb0 up
+# for the session running this, and clearing it here would drop the link on a
+# board whose keycards are already paired. A resumed run arms it again before
+# its own reboot; an abandoned one no longer survives the next one.
+rm -f /data/service-mode.json
+
 if [ -f "$onboot" ] && grep -Fq "$marker" "$onboot"; then
   echo 'installer onboot script is still armed' >&2
   exit 1
 fi
 if [ -e "$tries" ]; then
   echo 'installer onboot retry counter still exists' >&2
+  exit 1
+fi
+if [ -e /data/service-mode.json ]; then
+  echo 'service mode is still armed' >&2
   exit 1
 fi
 ''';
@@ -1189,97 +1203,117 @@ done
     debugPrint('SSH: bootloader configured for mass storage mode');
   }
 
-  /// The one-shot `/data/onboot.sh` that keeps usb0 up across the reboot into
-  /// the freshly installed image.
+  /// Where settings-service persists whether its service overlay is active.
+  ///
+  /// Writing another service's state file is a coupling, and it is the one
+  /// that works. The file is the only part of service mode that outlives a
+  /// reboot, and the board doing the arming is frequently not running
+  /// settings-service at all: on a clean install it is stage 0, which has
+  /// redis but no settings-service to take an `apply:service` command.
+  static const String serviceModeStatePath = '/data/service-mode.json';
+
+  /// Arm settings-service's service overlay for the reboot into the freshly
+  /// installed image.
   ///
   /// The image that boots next has vehicle-service, which the stage-0 image
-  /// did not, and its default usb0 policy hands the link to dashboard_power.
-  /// The dashboard is off here, so the board withdraws the installer's only
-  /// route in at the moment it has to check that the install took. Setting the
-  /// policy is what holds the link, and a script on the board is the only
-  /// thing that can: the setting is transient, so it cannot be written before
-  /// the reboot, and writing it after one needs the link it is there to keep.
+  /// did not. Its usb0 gate closes once enough keycards are paired, and by
+  /// this point in a run they are, so the board withdraws the installer's
+  /// only route in at the moment it has to check that the install took.
+  /// `scooter.usb0-policy = always-on` short-circuits that gate open, and the
+  /// setting is transient: it cannot be written before the reboot, and
+  /// writing it after one needs the link it is there to keep.
   ///
-  /// librescoot-onboot.service runs this on the next boot
-  /// (ConditionPathExists=/data/onboot.sh), and /data survives the artifact
-  /// install, which is what puts it on the far side of the reboot.
-  @visibleForTesting
-  static const String usb0KeeperOnboot = r'''#!/bin/sh
-# Written by the Librescoot installer before the reboot into the new image.
-# One shot, so it removes itself, and it does that first rather than last.
-# Everything below can block: the redis wait runs to a minute, and systemd
-# kills a oneshot that outruns its start timeout. Removed last, a keeper that
-# got killed there would still be on disk, and would run again on the next
-# boot, and the one after, pinning usb0-policy on every future boot of a
-# scooter nobody is installing. Removing it first costs a keeper that dies
-# mid-run its second chance, which it does not have anyway: by then the
-# installer has moved on.
-#
-# It also has to be gone before the trampoline looks. The trampoline backs up
-# an onboot.sh it finds and restores it when it retires, so a keeper still
-# sitting there would come back as a permanent one.
-rm -f /data/onboot.sh
-ip link set usb0 up 2>/dev/null || ifconfig usb0 up 2>/dev/null
-# A board that rolled back is on stage 0 again, with no lsc and no redis to set
-# a policy in. It also has no vehicle-service to take usb0 down, so the line
-# above is all that board needs.
-if command -v lsc >/dev/null 2>&1; then
-  # Wait for settings-service, not for redis. redis answers early;
-  # settings-service starts later and stamps the whole settings hash from its
-  # schema, which erases a policy written before it got there. Measured on a
-  # bench run: this script set always-on and exited at +8s, settings-service
-  # loaded its defaults at +9s, vehicle-service read auto at +12s and took
-  # usb0 down at +16s. The script had succeeded and changed nothing.
-  #
-  # So: only write once settings-service is up, and read it back, because a
-  # write that does not survive is the whole failure being fixed here.
-  i=0
-  while [ $i -lt 60 ]; do
-    if [ "$(systemctl is-active librescoot-settings 2>/dev/null)" = active ]; then
-      lsc set scooter.usb0-policy always-on >/dev/null 2>&1
-      [ "$(redis-cli --raw hget settings scooter.usb0-policy 2>/dev/null)" = always-on ] && break
-    fi
-    i=$((i+1))
-    sleep 1
-  done
-  # vehicle-service raises the link itself when it sees the policy change, but
-  # it may already have lowered it by now, and this costs nothing if it did not.
-  ip link set usb0 up 2>/dev/null || ifconfig usb0 up 2>/dev/null
-fi
-''';
-
-  /// Install [usb0KeeperOnboot] as `/data/onboot.sh`, unless something already
-  /// occupies that path.
+  /// settings-service re-applies the overlay from this file on its next
+  /// start, after loading the base settings and before it signals readiness,
+  /// and its unit is ordered `Before=librescoot-vehicle.service`. So the
+  /// policy is already in the settings hash the first time vehicle-service
+  /// reads it. That ordering is the whole reason for preferring this to a
+  /// boot script: a script races the settings load and has to poll for it,
+  /// and one that guessed wrong wrote a policy that was overwritten a second
+  /// later.
+  ///
+  /// The overlay parks auto-standby, the hibernation timer and the alarm
+  /// alongside the policy, which is what the installer wants for the length
+  /// of a run anyway. It also forces `scooter.handlebar-unlocked`, which the
+  /// install does not care about either way.
+  ///
+  /// A board that rolls back is on stage 0 again with no settings-service to
+  /// read this, and equally no vehicle-service to take usb0 down, so there is
+  /// nothing for it to lose.
   ///
   /// Best effort: a board this could not be written to still gets its reboot,
   /// and the reconnect afterwards is what reports whether it came back.
-  ///
-  /// Never overwrites. An onboot.sh already there belongs to a trampoline run
-  /// that has not finished, and that one has a dashboard install behind it;
-  /// losing it to hold a link open trades the install for the diagnosis of it.
-  Future<void> installUsb0KeeperOnboot() async {
+  Future<void> armServiceMode() async {
     try {
-      final existing = await runCommand(
-        'test -f /data/onboot.sh && echo yes || echo no',
-      );
-      if (existing.trim() == 'yes') {
-        debugPrint(
-          'SSH: /data/onboot.sh is already taken, no usb0 keeper for this '
-          'reboot',
-        );
-        return;
-      }
-      await runCommand(
-        "cat > /data/onboot.sh << 'LSIUSB0'\n"
-        '$usb0KeeperOnboot'
-        'LSIUSB0\n'
-        'chmod +x /data/onboot.sh; sync',
-      );
-      debugPrint('SSH: installed the one-shot usb0 keeper as /data/onboot.sh');
+      await runCommand(serviceModeArmCommand);
+      debugPrint('SSH: armed service mode for the reboot');
     } catch (e) {
-      debugPrint('SSH: could not install the usb0 keeper (ok): $e');
+      debugPrint('SSH: could not arm service mode (ok): $e');
     }
   }
+
+  /// Through a temporary file, so a board that loses power mid-write cannot
+  /// leave half a JSON object behind. settings-service reads an unparseable
+  /// file as inactive, which is the safe direction to fail in, but losing the
+  /// link is the failure this exists to prevent.
+  @visibleForTesting
+  static const String serviceModeArmCommand = r"""
+tmp=/data/.service-mode.json.installer
+printf '%s\n' '{"active":true,"name":"service"}' > "$tmp"
+sync
+mv -f "$tmp" /data/service-mode.json
+sync
+""";
+
+  /// Hand the vehicle back: end service mode, let usb0 follow the dashboard
+  /// again, and unlock.
+  ///
+  /// Detached, because it severs the transport it runs over. Restoring the
+  /// policy makes vehicle-service tear down the USB gadget synchronously, so
+  /// a command that is not detached dies there and takes the unlock with it.
+  Future<void> runFinishHandover() async {
+    await runCommand(
+      "nohup sh -c '$finishHandoverScript' >/dev/null 2>&1 </dev/null &",
+    );
+  }
+
+  /// The order matters more than it looks.
+  ///
+  /// `clear:service` is consumed off a list, so it lands some time after the
+  /// push. Until it does, the overlay is still forcing the policy, and
+  /// settings-service treats a write of anything else to an overlaid key as a
+  /// user edit and re-asserts its own value over the top. Setting the policy
+  /// before the clear had landed would therefore pin `always-on` for the rest
+  /// of the boot, which is the opposite of handing the vehicle back.
+  ///
+  /// Waiting on the published status field rather than on a fixed sleep also
+  /// costs nothing on an image with no service overlay at all: the field is
+  /// absent, the loop breaks on its first pass, and `lsc set` does the work
+  /// on its own the way it always did.
+  ///
+  /// The file is removed rather than trusted to the clear, so a clear that
+  /// never landed cannot come back on the next boot.
+  ///
+  /// The unlock is the success signal: a scooter that unlocks itself is a
+  /// clearer message than an LED the owner has to find and interpret. The
+  /// sleep gives vehicle-service its state machine back before asking it for
+  /// a transition, or the unlock arrives before it is listening.
+  @visibleForTesting
+  static const String finishHandoverScript = r"""
+redis-cli -h localhost lpush settings:overlay clear:service >/dev/null 2>&1
+i=0
+while [ $i -lt 15 ]; do
+  active=$(redis-cli -h localhost --raw hget settings dashboard.service-mode-active 2>/dev/null)
+  [ "$active" = true ] || break
+  i=$((i+1))
+  sleep 1
+done
+rm -f /data/service-mode.json
+lsc set scooter.usb0-policy auto
+sleep 5
+redis-cli -h localhost lpush scooter:state unlock
+sync
+""";
 
   /// Reboot the device
   Future<void> reboot() async {

@@ -953,23 +953,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       debugPrint('UI: could not write the completion record: $e');
     }
 
-    // usb0-policy and the unlock go in one detached MDB-side shell.
-    // vehicle-service applies the policy change synchronously: with the DBC
-    // powered off and keycards paired, usb0AutoEffective() returns true and
-    // SetUsb0Enabled(false) tears down the USB gadget — the SSH transport
-    // we're sitting on. nohup lets the shell outlive that disconnect.
-    //
-    // The unlock is the success signal: a scooter that unlocks itself is a
-    // clearer message than an LED the owner has to find and interpret. The
-    // sleep gives vehicle-service its state machine back before asking for a
-    // transition, or the unlock lands before it is listening.
+    // Ending service mode, restoring usb0-policy and unlocking go in one
+    // detached MDB-side shell. vehicle-service applies the policy change
+    // synchronously: with the DBC powered off and keycards paired, the usb0
+    // gate is closed and SetUsb0Enabled(false) tears down the USB gadget —
+    // the SSH transport we're sitting on. See SshService.finishHandoverScript
+    // for why the order inside it is what it is.
     try {
-      await _sshService.runCommand(
-        "nohup sh -c 'lsc set scooter.usb0-policy auto; sleep 5; "
-        "redis-cli -h localhost lpush scooter:state unlock; sync' "
-        '>/dev/null 2>&1 </dev/null &',
-      );
-      debugPrint('UI: queued policy reset + unlock on MDB');
+      await _sshService.runFinishHandover();
+      debugPrint('UI: queued service-mode clear + policy reset + unlock');
     } catch (e) {
       debugPrint('UI: failed to queue the finish handover: $e');
     }
@@ -5817,8 +5809,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       }
       // The image on the other side of this reboot has vehicle-service and
       // takes usb0 down with the dashboard, so the reconnect below has to be
-      // arranged from the board before it goes. See installUsb0KeeperOnboot.
-      await _sshService.installUsb0KeeperOnboot();
+      // arranged from the board before it goes. See armServiceMode.
+      await _sshService.armServiceMode();
       await _sshService.reboot();
       _expectMinimalMdb = false;
       await _reconnectAfterReboot(l10n);
