@@ -1259,10 +1259,15 @@ done
   /// One definition because there are three callers: the laptop's cleanup, the
   /// trampoline's own, and the finalize. An rm -rf in any of them would delete
   /// the history the other two are careful to keep.
+  /// mdb-artifact.result survives because 80-reboot.sh joins on it, and both
+  /// the trampoline's sweep and the laptop's run before that phase does. A
+  /// swept result reads as "the install never finished", which stops the
+  /// reboot and strands the board on the bootstrap image.
   static const String installerSweepCommand =
       'find $installerDir -mindepth 1 -maxdepth 1 '
       '! -name history ! -name scripts ! -name onboot.sh.bak '
       '! -name last-install ! -name run-state '
+      '! -name mdb-artifact.result '
       '-exec rm -rf {} + 2>/dev/null || true';
 
   /// The scripts the board runs on its own: the trampoline's two halves, the
@@ -1570,16 +1575,26 @@ done
 echo timeout
 """;
 
-  /// Hand the vehicle back: end service mode, let usb0 follow the dashboard
-  /// again, and unlock.
+  /// Hand the rest of the install to the board and let go of it.
   ///
-  /// Detached, because it severs the transport it runs over. Restoring the
-  /// policy makes vehicle-service tear down the USB gadget synchronously, so
-  /// a command that is not detached dies there and takes the unlock with it.
-  Future<void> runFinalizePhase() async {
+  /// Runs the coordinator now rather than waiting for a boot, the same way
+  /// the trampoline does when it restores gadget mode: the queued phases
+  /// install the MDB's artifact, reboot once, and hand the vehicle back on
+  /// the far side.
+  ///
+  /// Detached, because it severs the transport it runs over. The reboot in
+  /// 80-reboot.sh takes the link down, and so does restoring usb0-policy in
+  /// 90-finalize.sh, so a command that is not detached dies partway and takes
+  /// the rest of the run with it.
+  ///
+  /// Its own transient unit rather than this session's scope: the caller is
+  /// about to lose the link, and the phases outlive it by minutes.
+  Future<void> startInstallPhasesDetached() async {
     await runCommand(
-      'nohup sh $installerScriptsDir/90-finalize.sh '
-      '>/dev/null 2>&1 </dev/null &',
+      'systemctl stop librescoot-onboot-inline 2>/dev/null; '
+      'systemd-run --unit=librescoot-onboot-inline --collect --quiet '
+      '--slice=system.slice /bin/sh /data/onboot.sh '
+      '|| (nohup sh /data/onboot.sh >/dev/null 2>&1 </dev/null &)',
     );
   }
 

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/services/install_phase_scripts.dart';
+import 'package:librescoot_installer/services/ssh_service.dart';
 
 void main() {
   late String artifactTemplate;
@@ -130,6 +131,39 @@ void main() {
           greaterThan(0));
       expect(RebootPhaseScript.phaseName.compareTo('90-finalize.sh'),
           lessThan(0));
+    });
+  });
+
+  group('the join file survives long enough to be read', () {
+    // 80-reboot.sh joins on mdb-artifact.result, and both sweeps run before
+    // it does. A swept result reads as an install that never finished, which
+    // stops the reboot and leaves the board on the bootstrap image with a
+    // fully flashed dashboard.
+    test('the shared sweep spares it', () {
+      expect(SshService.installerSweepCommand,
+          contains('! -name mdb-artifact.result'));
+    });
+
+    test("the trampoline's own sweep spares it", () {
+      final trampoline =
+          File('assets/trampoline.sh.template').readAsStringSync();
+      final sweeps = RegExp(r'find "\$INSTALLER_DIR" -mindepth 1')
+          .allMatches(trampoline)
+          .length;
+      expect(sweeps, greaterThan(0), reason: 'the sweep moved or changed');
+      expect(trampoline, contains('! -name mdb-artifact.result'));
+    });
+
+    test('the reboot phase clears it once the join is done', () {
+      final s = RebootPhaseScript.render(
+        template: File('assets/reboot-phase.sh.template').readAsStringSync(),
+        runId: 'r',
+      );
+      final clear = s.indexOf(r'rm -f "$RESULT_FILE"');
+      final reboot = s.indexOf('reboot &');
+      expect(clear, greaterThan(0));
+      expect(clear, lessThan(reboot),
+          reason: 'it must not survive into the next boot');
     });
   });
 }

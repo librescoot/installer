@@ -37,6 +37,7 @@ import '../services/artifact_service.dart';
 import '../services/critical_operation_coordinator.dart';
 import '../services/data_partition_service.dart';
 import '../services/finalize_script.dart';
+import '../services/install_phase_scripts.dart';
 import '../services/serial_polling_loop.dart';
 import '../services/services.dart';
 import '../services/window_close_coordinator.dart';
@@ -879,8 +880,33 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         FinalizeScript.remotePath,
       );
       debugPrint('UI: staged ${FinalizeScript.phaseName}');
+
+      // A run that never handed off to the trampoline has nothing queued yet,
+      // and its MDB artifact is staged but not installed. Queue the same two
+      // phases the trampoline would have, so a dashboard-less plan finishes
+      // the same way: install, one reboot, hand back.
+      final mdbItem = _downloadState.artifactFor(Board.mdb);
+      await _sshService.uploadFile(
+        Uint8List.fromList(utf8.encode(MdbArtifactScript.render(
+          template: await MdbArtifactScript.loadTemplate(),
+          runId: _installRunId,
+          artifactPath: mdbItem == null
+              ? ''
+              : artifactSeedPath(Board.mdb, mdbItem.filename),
+        ))),
+        MdbArtifactScript.remotePath,
+      );
+      await _sshService.uploadFile(
+        Uint8List.fromList(utf8.encode(RebootPhaseScript.render(
+          template: await RebootPhaseScript.loadTemplate(),
+          runId: _installRunId,
+        ))),
+        RebootPhaseScript.remotePath,
+      );
+      debugPrint('UI: staged ${MdbArtifactScript.phaseName} and '
+          '${RebootPhaseScript.phaseName}');
     } catch (e) {
-      debugPrint('UI: could not stage the finalize phase: $e');
+      debugPrint('UI: could not stage the install phases: $e');
     }
 
     // Wipe installer staging from /data before we hand the vehicle back, so
@@ -906,17 +932,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
     await _sshService.trimInstallHistory();
 
-    // Ending service mode, restoring usb0-policy and unlocking go in one
-    // detached MDB-side shell. vehicle-service applies the policy change
-    // synchronously: with the DBC powered off and keycards paired, the usb0
-    // gate is closed and SetUsb0Enabled(false) tears down the USB gadget —
-    // the SSH transport we're sitting on. See assets/finalize.sh.template
-    // for why the order inside it is what it is.
+    // Hand the rest to the board. The coordinator installs the MDB artifact,
+    // reboots once to activate it, and hands the vehicle back on the far
+    // side. All three take the link down in turn, which is why it is detached
+    // and why nothing below can rely on SSH surviving.
     try {
-      await _sshService.runFinalizePhase();
-      debugPrint('UI: launched ${FinalizeScript.phaseName}');
+      await _sshService.startInstallPhasesDetached();
+      debugPrint('UI: handed off to the coordinator');
     } catch (e) {
-      debugPrint('UI: failed to launch the finalize phase: $e');
+      debugPrint('UI: failed to start the install phases: $e');
     }
 
     // The screen is waiting on the unlock, so watch for the unlock. Either
@@ -5769,27 +5793,18 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         throw _LocalizedInstallException(_preflightMessage(l10n, preflight));
       }
 
+      // Upload only. mender runs on the far side of the cable swap, as
+      // 10-mdb-artifact.sh, so the upload is the whole of this bar.
       await artifacts.stage(
         board: Board.mdb,
         localPath: item.localPath!,
         onProgress: (sent, total) {
           if (mounted && total > 0) {
-            // Upload is the first half of the bar, mender the second.
-            setState(() => _mdbStageProgress = (sent / total) * 0.5);
+            setState(() => _mdbStageProgress = sent / total);
           }
         },
       );
       if (!mounted) return;
-
-      await artifacts.install(
-        board: Board.mdb,
-        assetName: item.filename,
-        onProgress: (pct) {
-          if (mounted) {
-            setState(() => _mdbStageProgress = 0.5 + (pct / 100) * 0.5);
-          }
-        },
-      );
       if (mounted) {
         setState(() {
           _mdbStageDone = true;
@@ -5980,12 +5995,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           ),
         );
 
-        await artifacts.install(
-          board: Board.mdb,
-          assetName: item.filename,
-          onProgress: (pct) =>
-              _setStatus(l10n.artifactInstalling(pct), progress: pct / 100),
-        );
       }
 
       // The dashboard image and the map tiles upload in the background behind
@@ -6021,63 +6030,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       } catch (e) {
         debugPrint('UI: install state write did not settle before reboot: $e');
       }
-      // The image on the other side of this reboot has vehicle-service and
-      // takes usb0 down with the dashboard, so the reconnect below has to be
-      // arranged from the board before it goes. See armServiceMode.
-      await _sshService.armServiceMode();
-      await _sshService.reboot();
-      _expectMinimalMdb = false;
-      await _reconnectAfterReboot(l10n);
-      if (!mounted) return;
-
-      _setStatus(l10n.artifactVerifying);
-      final after = await _detectMdbState();
-      if (!mounted) return;
-      setState(() {
-        _mdbState = after;
-        _mdbStackMissing = after.isMinimalImage;
-        if (after.isMinimalImage) _mdbStack = ServiceStack.none;
-      });
-
-      // A board that answers SSH has not proven anything on its own: u-boot
-      // rolls back a rootfs that never commits, and the rolled-back board
-      // answers just as happily on the old version. On the clean-install
-      // route it comes back on stage 0, with no valkey, no lsc and no
-      // python3, and starting the trampoline there fails an hour later with
-      // a red LED. Both readings therefore have to be checked, not just
-      // taken. The error panel offers Retry and the full-image fall-back.
-      if (after.isMinimalImage) {
-        throw _LocalizedInstallException(l10n.artifactStillMinimal);
-      }
-      final target =
-          _downloadState.releaseTag ??
-          _versionFromArtifactFilename(item.filename);
-      if (!InstallPlan.versionsMatch(after.version, target)) {
-        throw _LocalizedInstallException(
-          l10n.artifactVersionMismatch(
-            after.version?.trim().isNotEmpty == true
-                ? after.version!.trim()
-                : l10n.unknown,
-            target ?? l10n.unknown,
-          ),
-        );
-      }
-
-      // Only now: on a stage-0 image there was no redis for these to reach.
-      try {
-        await _sshService.runCommand('lsc set scooter.usb0-policy always-on');
-        debugPrint('UI: scooter.usb0-policy=always-on (post-artifact)');
-      } catch (e) {
-        debugPrint(
-          'UI: failed to set scooter.usb0-policy=always-on at post-artifact (ok): $e',
-        );
-      }
-      // The board that answered at connect is not the one answering now, so
-      // ask this one. A clean install in particular reformatted /data under
-      // the connect-time answer.
-      await _sshService.enableServiceMode();
-      await _disableInstallerHazards(label: 'post-artifact');
-
+      // No reboot here any more, and so no verification against a running
+      // version: the board stays on the bootstrap image until 80-reboot.sh,
+      // and staying there is what lets the user leave at the cable swap.
+      // mender-update exiting 0 is the verdict, checksum included.
+      //
+      // Nothing arms service mode either. That existed because the image on
+      // the far side of this reboot runs vehicle-service, which takes usb0
+      // down with the dashboard. The bootstrap image has no vehicle-service,
+      // so the gate never closes while anything is talking to the board.
       _setPhase(_phaseAfterMdbInstall);
     } catch (e) {
       if (!mounted) return;
@@ -6658,6 +6619,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         osmTilesLocalPath: installTiles ? osmItem?.localPath : null,
         valhallaTilesLocalPath: installTiles ? valhallaItem?.localPath : null,
         region: installTiles ? _downloadState.selectedRegion : null,
+        mdbArtifactPath: () {
+          final mdbItem = _downloadState.artifactFor(Board.mdb);
+          return mdbItem == null
+              ? ''
+              : artifactSeedPath(Board.mdb, mdbItem.filename);
+        }(),
         finish: _buildDeviceFinish(),
         messages: _buildDashboardMessages(),
         onProgress: (status, progress) {

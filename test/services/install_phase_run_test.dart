@@ -96,9 +96,16 @@ void main() {
     final r = await boot();
     expect(r.exitCode, 0, reason: r.stderr.toString());
 
+    // The join read it, so the reboot phase cleared it: nothing should find
+    // this run's verdict on the far side of the reboot.
     expect(
-      await File('${root.path}/installer/mdb-artifact.result').readAsString(),
-      startsWith('ok'),
+      await File('${root.path}/installer/history/run-test/reboot.log')
+          .readAsString(),
+      contains('MDB artifact: ok'),
+    );
+    expect(
+      File('${root.path}/installer/mdb-artifact.result').existsSync(),
+      isFalse,
     );
     // The dashboard phase runs while the MDB write is still going, the
     // reboot follows it, and the handover is on the far side of the reboot.
@@ -185,8 +192,9 @@ void main() {
     await boot();
 
     expect(
-      await File('${root.path}/installer/mdb-artifact.result').readAsString(),
-      startsWith('skipped'),
+      await File('${root.path}/installer/history/run-test/reboot.log')
+          .readAsString(),
+      contains('MDB artifact: skipped'),
     );
     expect(await File('${root.path}/reboots').readAsString(),
         contains('reboot'));

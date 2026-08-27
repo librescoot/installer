@@ -54,6 +54,9 @@ esac
 # the vehicle reboots forever.
 log "retiring this phase"
 rm -f "$SCRIPTS_DIR/80-reboot.sh" "$SCRIPTS_DIR/80-reboot.sh.tries"
+# The join is over, and the sweeps deliberately spare this file. Nothing
+# should find it on the far side of the reboot and read it as this run's.
+rm -f "$RESULT_FILE"
 sync
 
 log "rebooting to activate the installed images"

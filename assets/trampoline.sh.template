@@ -2211,9 +2211,13 @@ device_finish() {
       # Selective: the record, the logs, the queued phases and a displaced
       # onboot.sh all live under $INSTALLER_DIR now, and an rm -rf takes the
       # account of the run with it along with the phase that has not run yet.
+      # mdb-artifact.result survives: 80-reboot.sh joins on it and runs
+      # after this sweep. Losing it reads as an install that never finished,
+      # which stops the reboot and strands the board on the bootstrap image.
       find "$INSTALLER_DIR" -mindepth 1 -maxdepth 1 \
         ! -name history ! -name scripts ! -name onboot.sh.bak \
         ! -name last-install ! -name run-state \
+        ! -name mdb-artifact.result \
         -exec rm -rf {} + 2>/dev/null || true
       LOG="$RUN_HISTORY_DIR/$RUN_ID/trampoline.log"
       log "  kept this log at $LOG"
