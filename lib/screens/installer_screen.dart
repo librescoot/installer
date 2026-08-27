@@ -117,6 +117,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// build from auto-starting the flash again and shows the manual controls.
   bool _mdbFlashBlocked = false;
   final PhaseAttempt _mdbBootAttempt = PhaseAttempt();
+  final PhaseAttempt _reconnectAttempt = PhaseAttempt();
   bool _dbcPrepStarted = false;
   bool _dbcUploadReady = false; // upload done, waiting for "Begin flashing DBC"
 
@@ -3319,7 +3320,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// reaches ethernet mode no matter how long anyone waits.
   Future<bool> _waitForRndisWithTimeout(
     AppLocalizations l10n,
-    void Function(String, SubstepState, {String? detail}) setStep, {
+    void Function(String, SubstepState, {String? detail}) setStep,
+    int generation, {
     Duration timeout = const Duration(minutes: 15),
   }) async {
     if (_isDryRun) {
@@ -3329,8 +3331,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final start = DateTime.now();
     var repairAttempted = false;
     while (_device?.mode != DeviceMode.ethernet) {
-      if (!mounted) return false;
-      if (_currentPhase != InstallerPhase.reconnect) return false;
+      // Covers a retry superseding this run as well as the user leaving: the
+      // phase stays reconnect across a retry, so phase alone would leave the
+      // older run waiting here forever.
+      if (!_ownsReconnect(generation)) return false;
 
       final elapsed = DateTime.now().difference(start);
       if (elapsed >= timeout) {
@@ -4940,6 +4944,18 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (generation == null) return;
     setState(() => _isProcessing = true);
     unawaited(_waitForMdbBoot(generation));
+  }
+
+  /// Whether this reconnect run is still the live one.
+  ///
+  /// Retrying supersedes rather than queues: the newer run owns _isProcessing
+  /// and the substep list, so a superseded run returns without touching
+  /// either. Without this, offering a retry during the wait would let two
+  /// runs write the same substeps and share one SSH session.
+  bool _ownsReconnect(int generation) {
+    return mounted &&
+        _currentPhase == InstallerPhase.reconnect &&
+        _reconnectAttempt.isCurrent(generation);
   }
 
   bool _ownsMdbBootAttempt(int generation) {
@@ -6989,7 +7005,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     return PhaseLayout(
       title: l10n.verifyingDbcInstallation,
       actions: [
-        if (!_isProcessing) ...[
+        // Hidden while a run is going normally, so nobody interrupts a working
+        // reconnect. Once the diagnostic panel is up the wait has already
+        // failed to explain itself, and the comment further down promising the
+        // user can keep waiting, retry or skip has to become true.
+        if (!_isProcessing || _reconnectShowDiagnostics) ...[
           // Redoing the dashboard install means going back through the prep
           // phase, so it belongs on the leaving side; the checks and the way
           // out of this screen stay on the right.
@@ -7200,6 +7220,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   Future<void> _verifyDbcFlash() async {
     final l10n = AppLocalizations.of(context)!;
+    // reset() bumps the generation, so starting a second run sends any run
+    // already in flight home at its next guard.
+    _reconnectAttempt.reset();
+    final generation = _reconnectAttempt.begin();
+    if (generation == null) return;
     setState(() {
       _isProcessing = true;
       _reconnectShowDiagnostics = false;
@@ -7271,9 +7296,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     setStep('rndis', SubstepState.active);
     _setStatus(l10n.waitingForRndisDevice);
     _reconnectRndisWaitStart = DateTime.now();
-    final rndisOk = await _waitForRndisWithTimeout(l10n, setStep);
+    final rndisOk = await _waitForRndisWithTimeout(l10n, setStep, generation);
     _reconnectRndisWaitStart = null;
     if (!rndisOk) return;
+    if (!_ownsReconnect(generation)) return;
     setStep('rndis', SubstepState.done);
     // RNDIS came back: pop the timeout panel even if it was showing.
     if (_reconnectShowDiagnostics) {
@@ -7288,6 +7314,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // Same re-enumeration risk as the post-reboot reconnect above.
     await _ensureDriverBinding();
     final iface = await NetworkService().findLibrescootInterface();
+    if (!_ownsReconnect(generation)) return;
     if (iface != null) {
       try {
         await NetworkService().configureInterface(iface);
@@ -7316,6 +7343,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       });
       return;
     }
+    if (!_ownsReconnect(generation)) return;
     setStep('ssh', SubstepState.done);
 
     setStep('hazards', SubstepState.active);
@@ -7325,6 +7353,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // vibration, and auto-standby drops the link we just spent minutes
     // waiting for. Park both again for whatever is left of the run.
     await _disableInstallerHazards(label: 'reconnect');
+    if (!_ownsReconnect(generation)) return;
     setStep('hazards', SubstepState.done);
 
     setStep('status', SubstepState.active);
@@ -7372,9 +7401,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         break;
       }
       await Future.delayed(const Duration(seconds: 5));
-      if (!mounted) return;
-      if (_currentPhase != InstallerPhase.reconnect) return;
+      if (!_ownsReconnect(generation)) return;
     }
+    if (!_ownsReconnect(generation)) return;
     _reconnectStatusWaitStart = null;
     setStep('status', SubstepState.done);
 
@@ -7392,6 +7421,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // the cue has done its job — stop it now instead of letting it run
       // decoratively through pairing + keycard setup.
       await _stopBootLedBlink();
+      if (!_ownsReconnect(generation)) return;
       // Say which version actually landed when the trampoline reported one.
       // It is absent on a tiles-only job and on any status file written
       // before the field existed, so the bare verdict stays the fallback.
@@ -7402,6 +7432,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             : l10n.dbcInstallSuccessfulVersion(landedVersion),
       );
       await Future.delayed(const Duration(seconds: 2));
+      if (!_ownsReconnect(generation)) return;
       _setPhase(InstallerPhase.finish);
     } else if (status.result == TrampolineResult.error) {
       // Quiet the failure indicators (red blink + hazards) now that we're
