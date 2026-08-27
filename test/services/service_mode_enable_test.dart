@@ -109,50 +109,25 @@ case "$*" in *"hget settings dashboard.service-mode-active"*) echo false ;; esac
   });
 
   group('the finish leaves configured values alone', () {
-    test('the laptop finish skips the manual restore when the overlay is live',
-        () {
-      // _resetPersistedSettings has a last resort that writes the schema
-      // defaults for the two parked keys. Against a live overlay,
-      // settings-service reads those as a deliberate edit to an overlaid key,
-      // moves its captured base to them, and hands the owner 900 and true at
-      // the clear instead of whatever they had configured.
-      final source =
-          File('lib/screens/installer_screen.dart').readAsStringSync();
-      final start = source.indexOf('Future<void> _onEnterFinish() async {');
-      final end = source.indexOf('\n  /// Whether the device wrote', start);
-      expect(start, isNot(-1));
-      expect(end, isNot(-1));
-      final finish = source
-          .substring(start, end)
-          .split('\n')
-          .where((l) => !l.trimLeft().startsWith('//'))
-          .join('\n');
-
-      final guard = finish.indexOf('if (_serviceModeLive) {');
-      expect(guard, isNot(-1), reason: 'the restore runs unconditionally');
-      expect(finish.indexOf('_resetPersistedSettings()'), greaterThan(guard),
-          reason: 'the restore has to sit in the else arm');
-    });
-
-    test('the trampoline guards the same last resort', () {
-      final template = File('assets/trampoline.sh.template').readAsStringSync();
+    test('the finalize guards the same last resort', () {
+      final template = File('assets/finalize.sh.template').readAsStringSync();
       final guard = template.indexOf(
           'hget settings dashboard.service-mode-active 2>/dev/null)" = true ]; then');
       final defaults =
           template.indexOf('lsc set scooter.auto-standby-seconds 900');
       expect(guard, isNot(-1),
-          reason: 'the device finish writes the same two defaults');
+          reason: 'the finalize writes the same two defaults');
       expect(defaults, greaterThan(guard));
     });
 
-    test('the trampoline ends service mode before restoring the policy', () {
-      // Without this a device-finished install hands the owner a scooter still
-      // in service mode: no hibernation timer and no alarm, on every boot.
-      final template = File('assets/trampoline.sh.template').readAsStringSync();
+    test('the finalize ends service mode before restoring the policy', () {
+      // Without this an install hands the owner a scooter still in service
+      // mode: no hibernation timer and no alarm, on every boot.
+      final template = File('assets/finalize.sh.template').readAsStringSync();
       final clear = template.indexOf('lpush settings:overlay clear:service');
       final removal = template.indexOf('rm -f /data/service-mode.json');
       final policy = template.indexOf('lsc set scooter.usb0-policy auto');
-      expect(clear, isNot(-1), reason: 'the device finish never clears it');
+      expect(clear, isNot(-1), reason: 'the finalize never clears it');
       expect(policy, greaterThan(clear),
           reason: 'a policy write before the clear lands gets re-asserted');
       expect(removal, greaterThan(clear));

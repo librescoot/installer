@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show kReleaseMode;
@@ -35,6 +36,7 @@ import '../models/trampoline_status.dart';
 import '../services/artifact_service.dart';
 import '../services/critical_operation_coordinator.dart';
 import '../services/data_partition_service.dart';
+import '../services/finalize_script.dart';
 import '../services/serial_polling_loop.dart';
 import '../services/services.dart';
 import '../services/window_close_coordinator.dart';
@@ -166,13 +168,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// reconnect the device has already done all three.
   bool _deviceFinishArmed = false;
 
-  /// True while settings-service is holding the installer's overrides in its
-  /// service overlay rather than the installer holding them by hand.
-  ///
-  /// Re-probed after the reboot into the new image: the board that answered at
-  /// connect is not necessarily the one that answers afterwards, and on a
-  /// clean install it certainly is not.
-  bool _serviceModeLive = false;
   final String _installRunId = createInstallRunId();
   Future<void> _installStateWriteQueue = Future.value();
   int _installStateSequence = 0;
@@ -772,66 +767,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
   }
 
-  /// Drop the installer-only overrides (auto-standby=0, alarm.enabled=false)
-  /// so they don't leak into the user's daily-driver state. Called before we
-  /// re-apply the user's actual choices in [_onEnterFinish].
-  ///
-  /// How that is done depends on what happened to /data. A clean install or
-  /// a full image reformatted it, so the file on disk is ours and deleting
-  /// it restores the shipped defaults. An upgrade kept /data on purpose, and
-  /// the plan screen promises in both languages that it keeps settings,
-  /// keycards, maps and trips: `settings.schema.json` persists around sixty
-  /// keys there, including the cellular APN and SIM PIN, the dual-battery
-  /// hardware flag and the whole alarm group. Deleting the file would
-  /// silently undo the reason the user picked Upgrade, so restore the
-  /// pre-install copy instead.
-  Future<void> _resetPersistedSettings() async {
-    if (_isDryRun || !_sshService.isConnected) return;
-
-    // No plan means the legacy full-image route, which wipes /data anyway.
-    final action = _plan?.mdb.action;
-    final dataWasErased =
-        action == BoardAction.cleanInstall ||
-        action == BoardAction.fullImage ||
-        action == null;
-
-    try {
-      if (dataWasErased) {
-        await _sshService.runCommand(
-          'rm -f /data/settings.toml $_settingsBackupPath && '
-          'systemctl restart librescoot-settings',
-        );
-        debugPrint(
-          'UI: wiped /data/settings.toml + restarted librescoot-settings',
-        );
-      } else {
-        // With no backup, the write-once snapshot is the next best source:
-        // the board's settings as the first installer run found them. With
-        // neither, reset only the two keys we park, to the shipped defaults
-        // from settings.schema.json. Deleting the file is the one thing that
-        // must not happen on any of the three.
-        await _sshService.runCommand(
-          'if [ -f $_settingsBackupPath ]; then '
-          'mv -f $_settingsBackupPath /data/settings.toml; '
-          'elif [ -f $_settingsDefaultPath ]; then '
-          'cp -f $_settingsDefaultPath /data/settings.toml; '
-          'else '
-          "lsc set scooter.auto-standby-seconds 900 >/dev/null 2>&1 || true; "
-          "lsc set alarm.enabled true >/dev/null 2>&1 || true; "
-          'fi; '
-          'systemctl restart librescoot-settings',
-        );
-        debugPrint(
-          'UI: restored pre-install settings + restarted librescoot-settings',
-        );
-      }
-      // Give settings-service a moment to come back and re-publish defaults
-      // before we HSET into the settings hash again.
-      await Future.delayed(const Duration(seconds: 2));
-    } catch (e) {
-      debugPrint('UI: failed to reset persisted settings (ok): $e');
-    }
-  }
 
   /// Persist the user's installer choices on the MDB: dashboard language
   /// (so the UI matches what they used here) and OTA channel (so future
@@ -901,92 +836,58 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // blinking green until someone power-cycles it.
     await _stopBootLedBlink();
 
-    // Undo our overrides first, then re-apply the user's choices on top, so
-    // the scooter behaves normally on next boot.
+    // Everything from here is 90-finalize.sh: the settings restore, the
+    // owner's choices, ending service mode, restoring usb0-policy, restarting
+    // what the install stopped, the unlock and the completion record. The
+    // laptop used to do all of that itself, in a different order from the
+    // trampoline's copy of the same work, and the two had drifted.
     //
-    // Only when the installer is the one holding them. With service mode live
-    // the overrides were never written to /data/settings.toml at all, and
-    // clearing the overlay in the handover puts back what settings-service
-    // captured before it applied them. Running the manual restore over the top
-    // of that is worse than redundant: its last resort writes the schema
-    // defaults for auto-standby and the alarm, settings-service reads those as
-    // a deliberate edit to an overlaid key, and the clear then hands the owner
-    // 900 and true instead of whatever they had configured.
-    if (_serviceModeLive) {
-      debugPrint(
-        'UI: service mode is live, the overlay clear owns the settings restore',
-      );
-    } else {
-      await _resetPersistedSettings();
-    }
-
-    if (lang == 'en' || lang == 'de') {
-      try {
-        await _sshService.runCommand("lsc set dashboard.language '$lang'");
-        debugPrint('UI: persisted dashboard.language=$lang');
-      } catch (e) {
-        debugPrint('UI: failed to persist dashboard.language: $e');
-      }
-    }
-
-    final channel = _downloadState.channel.name;
+    // Uploaded before the cleanup below, deliberately. A queued phase makes
+    // the coordinator decline to retire, so a detached run that dies takes the
+    // scooter's next boot to finish rather than leaving it half handed back.
     try {
-      await _sshService.runCommand('lsc ota channel $channel');
-      debugPrint('UI: persisted ota channel=$channel');
+      await _sshService.uploadFile(
+        Uint8List.fromList(utf8.encode(FinalizeScript.render(
+          template: await FinalizeScript.loadTemplate(),
+          mdbAction: (_plan?.mdb.action ?? BoardAction.cleanInstall).name,
+          runId: _installRunId,
+          mode: (_plan?.needsMdbStage0 ?? false) ? 'flash' : 'upgrade',
+          language: (lang == 'en' || lang == 'de') ? lang : '',
+          channel: _downloadState.channel.name,
+          mdbVersion: _mdbState.version ?? '',
+          // Only what this run verified. The dashboard is the trampoline's to
+          // report, and a run that never handed off has nothing to say.
+          dbcVersion: _deviceFinishArmed ? (_dbcState.version ?? '') : '',
+        ))),
+        FinalizeScript.remotePath,
+      );
+      debugPrint('UI: staged ${FinalizeScript.phaseName}');
     } catch (e) {
-      debugPrint('UI: failed to persist ota channel: $e');
+      debugPrint('UI: could not stage the finalize phase: $e');
     }
 
     // Wipe installer staging from /data before we hand the vehicle back, so
     // the user doesn't carry a few hundred MB of leftover image/tile files
-    // around forever. Skipped in non-release builds so devs can poke at
-    // the trampoline state after a failed run.
+    // around forever. Selective now: the record and both halves' logs live in
+    // there too. Skipped in non-release builds so devs can poke at the
+    // trampoline state after a failed run.
     if (kReleaseMode) {
       await _cleanupMdb();
     } else {
       debugPrint('UI: skipping MDB cleanup (non-release build)');
     }
 
-    // Put the vehicle back together without a reboot, the same way the
-    // trampoline's autonomous finish does. The install path leaves
-    // librescoot-pm stopped (every connect stops it, nothing else starts it)
-    // and leaves the four blinker PWM channels deactivated, so restarting
-    // vehicle-service is what re-claims them.
-    try {
-      await _sshService.runCommand('systemctl start librescoot-pm');
-      await _sshService.runCommand('systemctl restart librescoot-vehicle');
-      debugPrint('UI: restarted power manager + vehicle-service');
-    } catch (e) {
-      debugPrint('UI: failed to restore services on finish: $e');
-    }
-
-    // Before the handover, not after: the unlock tears down the USB gadget
-    // this is written over, and a record written after that never lands.
-    try {
-      await _sshService.writeCompletionRecord(
-        runId: _installRunId,
-        mode: (_plan?.needsMdbStage0 ?? false) ? 'flash' : 'upgrade',
-        mdbVersion: _mdbState.version ?? '',
-        // Only what this run verified. The dashboard is the trampoline's to
-        // report, and on a run that never handed off there is nothing to say.
-        dbcVersion: _deviceFinishArmed ? (_dbcState.version ?? '') : '',
-      );
-      debugPrint('UI: wrote the completion record for $_installRunId');
-    } catch (e) {
-      debugPrint('UI: could not write the completion record: $e');
-    }
-
     // Ending service mode, restoring usb0-policy and unlocking go in one
     // detached MDB-side shell. vehicle-service applies the policy change
     // synchronously: with the DBC powered off and keycards paired, the usb0
     // gate is closed and SetUsb0Enabled(false) tears down the USB gadget —
-    // the SSH transport we're sitting on. See SshService.finishHandoverScript
+    // the SSH transport we're sitting on. See assets/finalize.sh.template
     // for why the order inside it is what it is.
     try {
-      await _sshService.runFinishHandover();
-      debugPrint('UI: queued service-mode clear + policy reset + unlock');
+      await _sshService.runFinalizePhase();
+      debugPrint('UI: launched ${FinalizeScript.phaseName}');
     } catch (e) {
-      debugPrint('UI: failed to queue the finish handover: $e');
+      debugPrint('UI: failed to launch the finalize phase: $e');
     }
 
     // The screen is waiting on the unlock, so watch for the unlock. Either
@@ -1036,7 +937,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   Future<bool?> _deviceReportedFinished() async {
     try {
       final out = await _sshService
-          .runCommand('cat /data/last-install 2>/dev/null; true')
+          .runCommand('cat ${SshService.installerLastInstall} 2>/dev/null || '
+              'cat ${SshService.legacyLastInstall} 2>/dev/null; true')
           .timeout(const Duration(seconds: 10));
       return TrampolineStatus.parseCompletionRecord(
         out,
@@ -2777,7 +2679,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         // Written by a finish that ran on the device, where nobody was here to
         // read the outcome. Surfacing it is the whole point of writing it.
         final record = (await _sshService.runCommand(
-          'cat /data/last-install 2>/dev/null; true',
+          'cat ${SshService.installerLastInstall} 2>/dev/null || '
+          'cat ${SshService.legacyLastInstall} 2>/dev/null; true',
         )).trim();
         if (record.isNotEmpty) {
           previousRun = record;
@@ -2914,7 +2817,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // put them. What follows is then a no-op on the keys the overlay covers:
     // it forces the same values, so settings-service reads those writes as its
     // own and leaves its captured base alone.
-    _serviceModeLive = await _sshService.enableServiceMode();
+    await _sshService.enableServiceMode();
 
     // Keep MDB USB gadget powered while the scooter is locked so we don't
     // lose RNDIS mid-flash. Best-effort: the key may not exist on older
@@ -5892,7 +5795,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // The board that answered at connect is not the one answering now, so
       // ask this one. A clean install in particular reformatted /data under
       // the connect-time answer.
-      _serviceModeLive = await _sshService.enableServiceMode();
+      await _sshService.enableServiceMode();
       await _disableInstallerHazards(label: 'post-artifact');
 
       _setPhase(_phaseAfterMdbInstall);
@@ -6460,6 +6363,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       }
 
       await trampolineService.uploadAll(
+        runId: _installRunId,
         dbcImageLocalPath: dbcImagePath,
         dbcBmapLocalPath: needsDbcStage0 ? dbcBmapItem?.localPath : null,
         dbcArtifactLocalPath: dbcArtifactPath,
@@ -9377,19 +9281,28 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // Echoes what it actually copied, because a run with no trampoline
       // behind it has nothing to preserve and the directory is never made.
       final preserved = await _sshService.runCommand(
-        'if [ -d /data/installer ]; then '
-        '  rm -rf /data/last-install-log; mkdir -p /data/last-install-log; '
-        '  for f in trampoline.log trampoline-status trampoline-journal.log; do '
-        r'    [ -f "/data/installer/$f" ] && cp "/data/installer/$f" /data/last-install-log/ && echo "$f"; '
+        'if [ -d ${SshService.installerDir} ]; then '
+        '  mkdir -p ${SshService.installerHistoryDir}/$_installRunId; '
+        '  for f in trampoline.log trampoline-status trampoline-journal.log '
+        '           finalize.log; do '
+        r'    [ -f "' '${SshService.installerDir}' r'/$f" ] && '
+        r'      cp "' '${SshService.installerDir}' r'/$f" '
+        '      ${SshService.installerHistoryDir}/$_installRunId/ && '
+        r'      echo "$f"; '
         '  done; '
-        '  rmdir /data/last-install-log 2>/dev/null; '
+        '  rmdir ${SshService.installerHistoryDir}/$_installRunId 2>/dev/null; '
         'fi; true',
       );
       // Before the sweep, which deletes the directory a displaced onboot.sh is
       // saved in. It declines while a phase is still queued.
       await _sshService.retireOnbootCoordinator();
       await _sshService.runCommand(
-        'rm -rf /data/installer; '
+        // Selective, because the record and the logs now live in here too.
+        // See SshService.installerSweepCommand for what survives and why.
+        '${SshService.installerSweepCommand}; '
+        // Leftovers from installers that wrote straight to /data. Harmless
+        // once those versions are gone, cheap to keep for now so upgraders do
+        // not accumulate orphans.
         'rm -f /data/librescoot-unu-*.sdimg.gz /data/librescoot-unu-*.sdimg.bmap '
         '/data/tiles_*.mbtiles /data/valhalla_tiles_*.tar '
         '/data/trampoline.sh /data/trampoline.log /data/trampoline-status '
@@ -9397,7 +9310,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         '/data/stop-error-signals.sh /data/librescoot-flasher '
         '/data/onboot.sh.bak '
         '/data/test-trampoline-*.sh /data/test-step*.log; '
-        'rm -rf /data/fwtools',
+        'rm -rf /data/fwtools /data/last-install-log',
       );
       debugPrint('Cleanup: removed installer staging from MDB');
       // Keep the small diagnostic files on the device too. They cost a few
@@ -9409,7 +9322,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       final kept = preserved.trim();
       debugPrint(kept.isEmpty
           ? 'Cleanup: nothing to preserve, this run had no trampoline'
-          : 'Cleanup: preserved at /data/last-install-log: '
+          : 'Cleanup: kept in ${SshService.installerHistoryDir}/$_installRunId: '
               '${kept.split(RegExp(r"\s+")).join(", ")}');
     } catch (e) {
       debugPrint('Cleanup: MDB cleanup failed: $e');

@@ -9,6 +9,7 @@ import '../models/install_plan.dart';
 import '../models/region.dart';
 import '../models/substep.dart';
 import '../models/trampoline_status.dart';
+import 'finalize_script.dart';
 import 'ssh_service.dart';
 
 typedef ToolAssetLoader = Future<ByteData> Function(String path);
@@ -511,6 +512,9 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
   /// [onSubsteps] is the structured form used by the UI to render a
   /// checklist (✓/⟳/○ per step). Both are called; passing only one is fine.
   Future<void> uploadAll({
+    /// Baked into the finalize phase so a device finish files its record under
+    /// the same run the laptop started.
+    String runId = '',
     String? dbcImageLocalPath,
     String? dbcBmapLocalPath,
     String? dbcArtifactLocalPath,
@@ -800,6 +804,29 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     // whether the run got far enough to arrange its own recovery.
     await _ssh.installOnbootShim();
     debugPrint('Trampoline: script uploaded');
+
+    // Queued only for a run that finishes on the device. On an attended run
+    // the coordinator would reach it at the MDB reboot, which is the moment
+    // the user is being told to swap the cable back, and hand the vehicle back
+    // in the middle of the install. That path uploads it at the finish
+    // instead, and runs it itself.
+    if (finish.onDevice) {
+      final finalize = FinalizeScript.render(
+        template: await FinalizeScript.loadTemplate(),
+        mdbAction: finish.mdbAction.name,
+        runId: runId,
+        mode: upgradeMode ? 'upgrade' : 'flash',
+        language: finish.language,
+        channel: finish.otaChannel,
+        mdbVersion: finish.mdbTargetVersion,
+        dbcVersion: dbcTargetVersion ?? '',
+      );
+      await _ssh.uploadFile(
+        Uint8List.fromList(utf8.encode(finalize)),
+        FinalizeScript.remotePath,
+      );
+      debugPrint('Trampoline: queued ${FinalizeScript.phaseName}');
+    }
     setStep('script', SubstepState.done);
 
     onProgress?.call(l.complete, 1.0);
@@ -820,7 +847,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       "pkill -f 'installer/scripts/[t]rampoline.sh' 2>/dev/null; true",
     );
     await _ssh.runCommand(
-      'rm -f /data/last-install; '
+      'rm -f ${SshService.installerLastInstall}; '
       'mkdir -p /data/installer; '
       "printf '%s\\n' '$runId' > /data/installer/.run-id.tmp; "
       'mv -f /data/installer/.run-id.tmp /data/installer/run-id',

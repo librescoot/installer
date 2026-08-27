@@ -127,14 +127,15 @@ void main() {
     // and a reboot would come back locked, so each of those has to be done
     // directly. Any one of them dropped is silent: no power management on a
     // parked scooter, or blinkers that stay dark.
-    expect(onboot, contains('systemctl start librescoot-pm'),
+    final finalize = File('assets/finalize.sh.template').readAsStringSync();
+    expect(finalize, contains('systemctl start librescoot-pm'),
         reason: 'pm-service is stopped on every connect and started by '
             'nothing else');
-    expect(onboot, contains('systemctl restart librescoot-vehicle'),
+    expect(finalize, contains('systemctl restart librescoot-vehicle'),
         reason: 'vehicle-service has to re-claim the PWM channels the '
             'progress bar borrowed, or the blinkers stay dark');
-    expect(onboot, contains('lsc set scooter.usb0-policy auto'));
-    expect(onboot, contains('lpush scooter:state unlock'),
+    expect(finalize, contains('lsc set scooter.usb0-policy auto'));
+    expect(finalize, contains('lpush scooter:state unlock'),
         reason: 'the unlock is the success signal');
     expect(outer.contains('if restore_gadget; then'), isTrue,
         reason: 'the mid-flash handover should restore the role, not reboot');
@@ -295,28 +296,30 @@ void main() {
   });
 
   test('run progress survives staging cleanup in per-run state files', () {
-    expect(onboot, contains(r'RUN_HISTORY_DIR="/data/installer-runs"'));
-    expect(onboot, contains(r'RUN_STATE_FILE="/data/installer-run-state"'));
+    expect(onboot, contains(r'RUN_HISTORY_DIR="$INSTALLER_DIR/history"'));
+    expect(onboot, contains(r'RUN_STATE_FILE="$INSTALLER_DIR/run-state"'));
     expect(onboot, contains('write_run_state()'));
     expect(onboot, contains(r'echo "run-id: $RUN_ID"'));
-    expect(onboot, contains(r'mv -f "$history_tmp" "$RUN_HISTORY_DIR/$RUN_ID"'));
+    expect(onboot,
+        contains(r'mv -f "$history_tmp" "$RUN_HISTORY_DIR/$RUN_ID/record"'));
   });
 
-  test('completion is atomic and written after the handover actions', () {
-    final finishStart = onboot.indexOf('device_finish()');
-    final finishEnd =
-        onboot.indexOf('\n}\n\nif [ "\$ONBOOT_TRIES"', finishStart);
-    expect(finishStart, greaterThanOrEqualTo(0));
-    expect(finishEnd, greaterThan(finishStart));
-    final finish = onboot.substring(finishStart, finishEnd);
-    final completionCall = finish.indexOf('write_completion_record; then');
-    expect(completionCall, greaterThan(finish.indexOf('systemctl start librescoot-ums')));
-    expect(completionCall, greaterThan(finish.indexOf('lsc set scooter.usb0-policy auto')));
-    expect(completionCall, greaterThan(finish.indexOf('systemctl start librescoot-pm')));
-    expect(completionCall, greaterThan(finish.indexOf('systemctl restart librescoot-vehicle')));
-    expect(completionCall, greaterThan(finish.indexOf('lpush scooter:state unlock')));
-    expect(onboot, contains(r'mv -f "$last_tmp" /data/last-install'));
-    expect(onboot, isNot(contains('} > /data/last-install')));
+  test('completion is written after the handover actions', () {
+    // The record is what a returning laptop reads as the verdict, so it must
+    // not land before the things it is a verdict on.
+    final finalize = File('assets/finalize.sh.template').readAsStringSync();
+    final record = finalize.indexOf('result: success');
+    for (final earlier in [
+      'lsc set scooter.usb0-policy auto',
+      'systemctl start librescoot-pm',
+      'systemctl restart librescoot-vehicle',
+      'lpush scooter:state unlock',
+    ]) {
+      expect(finalize.indexOf(earlier), isNot(-1), reason: earlier);
+      expect(record, greaterThan(finalize.indexOf(earlier)), reason: earlier);
+    }
+    expect(finalize, contains(r'mv -f "$INSTALLER_DIR/.last-install.tmp"'),
+        reason: 'a reader must never see a half-written record');
   });
 
   test('a board left alone gets its parked settings back', () {
@@ -324,10 +327,11 @@ void main() {
     // any plan exists, so a leave plan has modified settings and a backup to
     // restore from. Treating leave as "untouched" strands the alarm off; the
     // wildcard arm deletes settings on a board this install never wrote to.
-    expect(onboot, contains('upgrade|leave)'),
+    final finalize = File('assets/finalize.sh.template').readAsStringSync();
+    expect(finalize, contains('upgrade|leave)'),
         reason: 'leave keeps /data like upgrade and must restore, not wipe '
             'and not skip');
-    expect(onboot, isNot(contains('        leave)')),
+    expect(finalize, isNot(contains('        leave)')),
         reason: 'leave must not have its own do-nothing arm');
   });
 
@@ -361,13 +365,15 @@ void main() {
     final finishEnd =
         onboot.indexOf('\n}\n\nif [ "\$ONBOOT_TRIES"', finishStart);
     final finish = onboot.substring(finishStart, finishEnd);
-    final copy = finish.indexOf(r'cp "$LOG" "$RUN_HISTORY_DIR/$RUN_ID.log"');
-    final sweep = finish.indexOf(r'rm -rf "$INSTALLER_DIR"');
+    final copy =
+        finish.indexOf(r'cp "$LOG" "$RUN_HISTORY_DIR/$RUN_ID/trampoline.log"');
+    final sweep = finish.indexOf(r'find "$INSTALLER_DIR" -mindepth 1');
     expect(copy, greaterThanOrEqualTo(0), reason: 'the log is not kept');
     expect(sweep, greaterThan(copy), reason: 'the sweep runs before the copy');
     // And the rest of the finish has somewhere to write: appending to a path
     // under a directory that no longer exists loses every line silently.
-    final repoint = finish.indexOf(r'LOG="$RUN_HISTORY_DIR/$RUN_ID.log"');
+    final repoint =
+        finish.indexOf(r'LOG="$RUN_HISTORY_DIR/$RUN_ID/trampoline.log"');
     expect(repoint, greaterThan(sweep));
   });
 

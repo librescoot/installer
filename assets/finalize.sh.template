@@ -18,9 +18,9 @@
 
 INSTALLER_DIR="/data/installer"
 STATUS_FILE="$INSTALLER_DIR/trampoline-status"
-RUN_HISTORY_DIR="/data/installer-runs"
-RUN_STATE_FILE="/data/installer-run-state"
-LOG="$INSTALLER_DIR/finalize.log"
+RUN_HISTORY_DIR="$INSTALLER_DIR/history"
+RUN_STATE_FILE="$INSTALLER_DIR/run-state"
+LOG="$INSTALLER_DIR/history/{{RUN_ID}}/finalize.log"
 
 MDB_ACTION="{{MDB_ACTION}}"
 FINISH_LANGUAGE="{{FINISH_LANGUAGE}}"
@@ -148,7 +148,7 @@ if [ "$INSTALL_OK" = yes ]; then
 
   # Written last, and atomically, so no reader ever sees a half-written record
   # at any of the three paths.
-  mkdir -p "$RUN_HISTORY_DIR"
+  mkdir -p "$RUN_HISTORY_DIR/$RUN_ID"
   {
     echo "result: success"
     echo "run-id: $RUN_ID"
@@ -158,11 +158,11 @@ if [ "$INSTALL_OK" = yes ]; then
     echo "finished: $(date -u "+%Y-%m-%dT%H:%M:%S")Z"
     echo "mdb: $MDB_VERSION"
     echo "dbc: $DBC_VERSION"
-  } > "$RUN_HISTORY_DIR/.$RUN_ID.tmp"
-  mv -f "$RUN_HISTORY_DIR/.$RUN_ID.tmp" "$RUN_HISTORY_DIR/$RUN_ID"
-  cp "$RUN_HISTORY_DIR/$RUN_ID" /data/.last-install.tmp &&
-    mv -f /data/.last-install.tmp /data/last-install
-  cp "$RUN_HISTORY_DIR/$RUN_ID" "$RUN_STATE_FILE.tmp" &&
+  } > "$RUN_HISTORY_DIR/$RUN_ID/.record.tmp"
+  mv -f "$RUN_HISTORY_DIR/$RUN_ID/.record.tmp" "$RUN_HISTORY_DIR/$RUN_ID/record"
+  cp "$RUN_HISTORY_DIR/$RUN_ID/record" "$INSTALLER_DIR/.last-install.tmp" &&
+    mv -f "$INSTALLER_DIR/.last-install.tmp" "$INSTALLER_DIR/last-install"
+  cp "$RUN_HISTORY_DIR/$RUN_ID/record" "$RUN_STATE_FILE.tmp" &&
     mv -f "$RUN_STATE_FILE.tmp" "$RUN_STATE_FILE"
   log "  wrote the completion record for run $RUN_ID"
 else

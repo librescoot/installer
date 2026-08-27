@@ -12,8 +12,8 @@ STATUS_FILE="$INSTALLER_DIR/trampoline-status"
 LOG_FILE="$INSTALLER_DIR/trampoline.log"
 PHASE_FILE="$INSTALLER_DIR/trampoline-phase"
 RUN_ID="$(cat "$INSTALLER_DIR/run-id" 2>/dev/null)"
-RUN_HISTORY_DIR="/data/installer-runs"
-RUN_STATE_FILE="/data/installer-run-state"
+RUN_HISTORY_DIR="$INSTALLER_DIR/history"
+RUN_STATE_FILE="$INSTALLER_DIR/run-state"
 MODE="{{MODE}}"                        # flash = write the stage-0 image first, upgrade = artifact only
 DBC_IMAGE="{{DBC_IMAGE_PATH}}"
 DBC_MENDER="{{DBC_MENDER_PATH}}"       # .mender staged on the MDB, empty when the DBC gets no artifact
@@ -47,9 +47,9 @@ write_run_state() {
   local stage="$1"
   local result="${2:-running}"
   local finish="${3:-pending}"
-  local history_tmp="$RUN_HISTORY_DIR/.$RUN_ID.tmp"
-  local current_tmp="/data/.installer-run-state.$RUN_ID.tmp"
-  mkdir -p "$RUN_HISTORY_DIR"
+  local history_tmp="$RUN_HISTORY_DIR/$RUN_ID/.record.tmp"
+  local current_tmp="$INSTALLER_DIR/.run-state.$RUN_ID.tmp"
+  mkdir -p "$RUN_HISTORY_DIR/$RUN_ID"
   {
     echo "run-id: $RUN_ID"
     echo "actor: trampoline"
@@ -58,8 +58,8 @@ write_run_state() {
     echo "finish: $finish"
     echo "updated: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
   } > "$history_tmp" &&
-    mv -f "$history_tmp" "$RUN_HISTORY_DIR/$RUN_ID" &&
-    cp "$RUN_HISTORY_DIR/$RUN_ID" "$current_tmp" &&
+    mv -f "$history_tmp" "$RUN_HISTORY_DIR/$RUN_ID/record" &&
+    cp "$RUN_HISTORY_DIR/$RUN_ID/record" "$current_tmp" &&
     mv -f "$current_tmp" "$RUN_STATE_FILE"
 }
 
@@ -937,8 +937,8 @@ STATUS_TMP="$STATUS.$RUN_ID.tmp"
   echo "stage: host-mode-watchdog"
   cat "$LOG"
 } > "$STATUS_TMP" && mv -f "$STATUS_TMP" "$STATUS"
-mkdir -p /data/installer-runs
-RUN_TMP="/data/installer-runs/.$RUN_ID.tmp"
+mkdir -p "$INSTALLER_DIR/history/$RUN_ID"
+RUN_TMP="$INSTALLER_DIR/history/$RUN_ID/.record.tmp"
 {
   echo "run-id: $RUN_ID"
   echo "actor: trampoline"
@@ -946,9 +946,9 @@ RUN_TMP="/data/installer-runs/.$RUN_ID.tmp"
   echo "result: error"
   echo "finish: pending"
   echo "updated: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-} > "$RUN_TMP" && mv -f "$RUN_TMP" "/data/installer-runs/$RUN_ID"
-cp "/data/installer-runs/$RUN_ID" "/data/.installer-run-state.$RUN_ID.tmp" &&
-  mv -f "/data/.installer-run-state.$RUN_ID.tmp" /data/installer-run-state
+} > "$RUN_TMP" && mv -f "$RUN_TMP" "$INSTALLER_DIR/history/$RUN_ID/record"
+cp "$INSTALLER_DIR/history/$RUN_ID/record" "$INSTALLER_DIR/.run-state.$RUN_ID.tmp" &&
+  mv -f "$INSTALLER_DIR/.run-state.$RUN_ID.tmp" "$INSTALLER_DIR/run-state"
 sync &
 sleep 5
 
@@ -1502,17 +1502,17 @@ DBC_IP="192.168.7.2"
 STATUS_FILE="$INSTALLER_DIR/trampoline-status"
 PHASE_FILE="$INSTALLER_DIR/trampoline-phase"
 RUN_ID="$(cat "$INSTALLER_DIR/run-id" 2>/dev/null)"
-RUN_HISTORY_DIR="/data/installer-runs"
-RUN_STATE_FILE="/data/installer-run-state"
+RUN_HISTORY_DIR="$INSTALLER_DIR/history"
+RUN_STATE_FILE="$INSTALLER_DIR/run-state"
 mkdir -p "$INSTALLER_DIR"
 
 write_run_state() {
   local stage="$1"
   local result="${2:-running}"
   local finish="${3:-pending}"
-  local history_tmp="$RUN_HISTORY_DIR/.$RUN_ID.tmp"
-  local current_tmp="/data/.installer-run-state.$RUN_ID.tmp"
-  mkdir -p "$RUN_HISTORY_DIR"
+  local history_tmp="$RUN_HISTORY_DIR/$RUN_ID/.record.tmp"
+  local current_tmp="$INSTALLER_DIR/.run-state.$RUN_ID.tmp"
+  mkdir -p "$RUN_HISTORY_DIR/$RUN_ID"
   {
     echo "run-id: $RUN_ID"
     echo "actor: trampoline"
@@ -1521,8 +1521,8 @@ write_run_state() {
     echo "finish: $finish"
     echo "updated: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
   } > "$history_tmp" &&
-    mv -f "$history_tmp" "$RUN_HISTORY_DIR/$RUN_ID" &&
-    cp "$RUN_HISTORY_DIR/$RUN_ID" "$current_tmp" &&
+    mv -f "$history_tmp" "$RUN_HISTORY_DIR/$RUN_ID/record" &&
+    cp "$RUN_HISTORY_DIR/$RUN_ID/record" "$current_tmp" &&
     mv -f "$current_tmp" "$RUN_STATE_FILE"
 }
 
@@ -1546,10 +1546,10 @@ write_status() {
 }
 
 write_completion_record() {
-  local history_tmp="$RUN_HISTORY_DIR/.$RUN_ID.complete"
-  local last_tmp="/data/.last-install.$RUN_ID.tmp"
-  local current_tmp="/data/.installer-run-state.$RUN_ID.complete"
-  mkdir -p "$RUN_HISTORY_DIR"
+  local history_tmp="$RUN_HISTORY_DIR/$RUN_ID/.record.complete"
+  local last_tmp="$INSTALLER_DIR/.last-install.$RUN_ID.tmp"
+  local current_tmp="$INSTALLER_DIR/.run-state.$RUN_ID.complete"
+  mkdir -p "$RUN_HISTORY_DIR/$RUN_ID"
   {
     echo "result: success"
     echo "run-id: $RUN_ID"
@@ -1560,10 +1560,10 @@ write_completion_record() {
     echo "mdb: $MDB_TARGET"
     echo "dbc: ${DBC_COMPLETED_VERSION:-}"
   } > "$history_tmp" || return 1
-  mv -f "$history_tmp" "$RUN_HISTORY_DIR/$RUN_ID" || return 1
-  cp "$RUN_HISTORY_DIR/$RUN_ID" "$last_tmp" &&
-    mv -f "$last_tmp" /data/last-install || return 1
-  cp "$RUN_HISTORY_DIR/$RUN_ID" "$current_tmp" &&
+  mv -f "$history_tmp" "$RUN_HISTORY_DIR/$RUN_ID/record" || return 1
+  cp "$RUN_HISTORY_DIR/$RUN_ID/record" "$last_tmp" &&
+    mv -f "$last_tmp" "$INSTALLER_DIR/last-install" || return 1
+  cp "$RUN_HISTORY_DIR/$RUN_ID/record" "$current_tmp" &&
     mv -f "$current_tmp" "$RUN_STATE_FILE" || return 1
 }
 ONBOOT
@@ -2137,66 +2137,11 @@ device_finish() {
     #
     # Order matters: restore the settings first, then write the user's choices
     # on top. Reversed, the restore clobbers the choices.
-    if [ "$FINISH_ON_DEVICE" = "true" ]; then
-      log "Finishing on device"
-
-      # Mirrors the installer's own branch. An upgrade promised to keep the
-      # user's settings, so the pre-install copy goes back. A clean install or
-      # a full image erased /data by design, so there is nothing to keep and
-      # the file must go rather than carry stale values into a fresh system.
-      # With no backup on an upgrade, fall back to settings.toml.default, the
-      # write-once snapshot the installer takes the first time it ever touches
-      # a board, and only then to the two shipped defaults. Deleting the file
-      # is the one thing that must not happen on that path.
-      # Leave alone keeps /data exactly as upgrade does, and both had their
-      # settings parked by the installer at connect time: auto-standby off and
-      # the alarm disabled, written before any plan existed. Restoring is the
-      # only thing that puts those back, so both take the same arm. Doing
-      # nothing here hands back a scooter with its alarm silently off.
-      case "$MDB_ACTION" in
-        upgrade|leave)
-          if [ -f /data/settings.toml.preinstall ]; then
-            mv -f /data/settings.toml.preinstall /data/settings.toml
-            log "  restored the pre-install settings"
-          elif [ -f /data/settings.toml.default ]; then
-            cp -f /data/settings.toml.default /data/settings.toml
-            log "  no backup, restored the first-install snapshot"
-          elif [ "$(redis-cli -h localhost --raw hget settings dashboard.service-mode-active 2>/dev/null)" = true ]; then
-            # Both keys are overlaid while service mode is live, and writing
-            # anything other than the overlay's own value to an overlaid key
-            # tells settings-service the owner changed it. It would re-assert
-            # the overlay now and hand back 900 and true on the clear, over
-            # whatever was actually configured. The clear already restores
-            # what it captured, so there is nothing to do here.
-            log "  no backup, leaving the parked keys to the service-mode clear"
-          else
-            lsc set scooter.auto-standby-seconds 900 >/dev/null 2>&1 || true
-            lsc set alarm.enabled true >/dev/null 2>&1 || true
-            log "  no backup found, reset the two parked keys to defaults"
-          fi
-          ;;
-        *)
-          rm -f /data/settings.toml /data/settings.toml.preinstall
-          log "  wiped settings (action=$MDB_ACTION erased /data anyway)"
-          ;;
-      esac
-      systemctl restart librescoot-settings 2>/dev/null || true
-      # Let settings-service come back and republish before writing into it.
-      sleep 2
-
-      [ -n "$FINISH_LANGUAGE" ] && {
-        lsc set dashboard.language "$FINISH_LANGUAGE" >/dev/null 2>&1 &&
-          log "  dashboard.language=$FINISH_LANGUAGE" ||
-          log "  WARNING: could not persist dashboard.language"
-      }
-      [ -n "$FINISH_CHANNEL" ] && {
-        lsc ota channel "$FINISH_CHANNEL" >/dev/null 2>&1 &&
-          log "  ota channel=$FINISH_CHANNEL" ||
-          log "  WARNING: could not persist the OTA channel"
-      }
-
-    fi
-
+    # The settings restore, the owner's choices, ending service mode, the
+    # unlock and the completion record are all 90-finalize.sh now, queued by
+    # the installer and run by the coordinator after this phase. They were
+    # written twice, here and across the installer's finish, and the two had
+    # drifted.
     if [ "$FINISH_ON_DEVICE" != "true" ]; then
       write_status "success" "mode: $MODE" "mdb: $MDB_TARGET" \
         "dbc: $DBC_COMPLETED_VERSION" \
@@ -2247,89 +2192,38 @@ device_finish() {
 
     if [ "$FINISH_ON_DEVICE" = "true" ]; then
       # Sweep after the last staging consumer, so nothing below can mistake
-      # leftover upload data for work still in progress. The completion record
-      # lives outside this directory and is written only after the handover
-      # actions below. /data/ota remains as the later OTA delta base.
+      # leftover upload data for work still in progress. /data/ota remains as
+      # the later OTA delta base.
+      #
       # Retire before the sweep: retiring removes this phase from the scripts
       # directory, and the coordinator reads that directory afterwards to
-      # decide whether it is done. Sweeping first would take the phase with it
-      # and leave the tries file behind in a directory that no longer exists.
-      log "  retiring the onboot script"
+      # decide what to run next. 90-finalize.sh is still in there, which is
+      # what keeps the coordinator alive to run it.
+      log "  retiring this phase"
       retire_onboot
       # The sweep takes the log with it, and this is the run whose log nobody
       # can ever produce: a failure keeps $INSTALLER_DIR for the installer to
       # read, a success is the one that deletes its own account of itself, so
       # a user reporting a successful install has only the laptop's half of
-      # it. Keep a copy beside the run record, which lives outside the swept
-      # directory, and keep writing to that copy for the rest of the finish.
-      mkdir -p "$RUN_HISTORY_DIR"
-      cp "$LOG" "$RUN_HISTORY_DIR/$RUN_ID.log" 2>/dev/null
-      rm -rf "$INSTALLER_DIR"
-      LOG="$RUN_HISTORY_DIR/$RUN_ID.log"
+      # it. Keep it beside the run record and keep writing to that copy.
+      mkdir -p "$RUN_HISTORY_DIR/$RUN_ID"
+      cp "$LOG" "$RUN_HISTORY_DIR/$RUN_ID/trampoline.log" 2>/dev/null
+      # Selective: the record, the logs, the queued phases and a displaced
+      # onboot.sh all live under $INSTALLER_DIR now, and an rm -rf takes the
+      # account of the run with it along with the phase that has not run yet.
+      find "$INSTALLER_DIR" -mindepth 1 -maxdepth 1 \
+        ! -name history ! -name scripts ! -name onboot.sh.bak \
+        ! -name last-install ! -name run-state \
+        -exec rm -rf {} + 2>/dev/null || true
+      LOG="$RUN_HISTORY_DIR/$RUN_ID/trampoline.log"
       log "  kept this log at $LOG"
-      # The reboot restores librescoot-pm, which is stopped on every connect and
-      # by this script and started by nothing else; applies usb0-policy in a
-      # shell that survives the gadget teardown it causes; and tears down the
-      # transient green-blink unit, which is what bounds the LED without a timer.
-      #
-      # It gets its own unit for the same reason every other detached loop here
-      # does: this script is about to exit, and a backgrounded subshell dies
-      # with the service cgroup that started it. Losing it means pm-service
-      # never comes back, usb0-policy is never applied, and the LED blinks
-      # green until someone pulls the power.
-      # Success is signalled by the scooter becoming usable. An LED the owner
-      # has to find and interpret is a worse message than a vehicle that
-      # unlocks, and it cannot be left blinking at nobody.
-      #
-      # This used to reboot, which restored pm-service, applied the usb0
-      # policy and tore down the blink unit in one go. A reboot comes back
-      # locked, so each of those is done directly instead. Restarting
-      # vehicle-service also re-claims the PWM channels the progress bar
-      # borrowed, without which the blinkers stay dark.
-      bootled_blink_stop
-      # End service mode before restoring the policy, not after. clear:service
-      # is consumed off a list, and until it lands settings-service re-asserts
-      # the overlay over any other write to an overlaid key, so a policy write
-      # that jumped the queue would pin always-on for the rest of the boot.
-      # An image without the overlay has no status field, so the loop ends on
-      # its first pass and this costs that board nothing.
-      #
-      # The file goes either way: a clear that never landed must not come back
-      # on the next boot and leave the owner with no hibernation timer and no
-      # alarm.
-      redis-cli -h localhost lpush settings:overlay clear:service >/dev/null 2>&1
-      sm_wait=0
-      while [ $sm_wait -lt 15 ]; do
-        [ "$(redis-cli -h localhost --raw hget settings dashboard.service-mode-active 2>/dev/null)" = true ] || break
-        sm_wait=$((sm_wait+1))
-        sleep 1
-      done
-      rm -f /data/service-mode.json
-      log "  service mode ended"
-      lsc set scooter.usb0-policy auto >/dev/null 2>&1 ||
-        log "  WARNING: could not restore usb0-policy"
-      systemctl start librescoot-pm 2>/dev/null ||
-        log "  WARNING: could not start librescoot-pm"
-      systemctl restart librescoot-vehicle 2>/dev/null ||
-        log "  WARNING: could not restart vehicle-service"
-      sync
-      # Give vehicle-service its state machine back before asking for a
-      # transition, or the unlock lands before it is listening.
-      sleep 5
-      if redis-cli -h localhost lpush scooter:state unlock >/dev/null 2>&1; then
-        dbc_say ""
-        dbc_say "{{MSG_DONE}}"
-        log "  unlocked: the install is done and the scooter is usable"
-      else
-        log "  WARNING: could not unlock, the owner has to use a keycard"
-      fi
-
-      CURRENT_STAGE="complete"
-      if ! write_completion_record; then
-        write_status "error: could not persist the completion record"
-        return 1
-      fi
-      log "  wrote atomic completion record for run $RUN_ID"
+      CURRENT_STAGE="handing-back"
+      # Said here rather than from the finalize, which has no link to the
+      # dashboard and runs seconds later: the DBC work is over, and this is the
+      # last chance to put anything on a screen the owner is watching.
+      dbc_say ""
+      dbc_say "{{MSG_DONE}}"
+      log "  leaving the handover to 90-finalize.sh"
     else
       retire_onboot
     fi

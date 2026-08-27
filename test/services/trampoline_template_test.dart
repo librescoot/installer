@@ -94,8 +94,11 @@ void main() {
       // /data/ota holds the artifact update-service resolves a delta base
       // from. Deleting it would trade a smaller install for a device that can
       // never take a delta OTA.
-      final sweep = template.indexOf(r'rm -rf "$INSTALLER_DIR"');
-      expect(sweep, greaterThan(0));
+      final sweep = template.indexOf(r'find "$INSTALLER_DIR" -mindepth 1');
+      expect(sweep, greaterThan(0),
+          reason: 'the sweep must stay scoped to the installer directory');
+      expect(template, isNot(contains(r'rm -rf "$INSTALLER_DIR"')),
+          reason: 'that would take the record and the queued phases too');
       expect(template, isNot(contains('rm -rf /data/ota')));
     });
 

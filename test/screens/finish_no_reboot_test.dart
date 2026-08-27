@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:librescoot_installer/services/ssh_service.dart';
 
 /// The laptop-attended finish hands the vehicle back without rebooting it.
 ///
@@ -45,20 +44,27 @@ void main() {
   });
 
   test('the attended finish restores what the install stopped', () {
-    expect(finish, contains('systemctl start librescoot-pm'),
-        reason: 'pm-service is stopped on every connect and started nowhere '
-            'else, so without this the scooter never suspends again');
-    expect(finish, contains('systemctl restart librescoot-vehicle'),
-        reason: 'vehicle-service has to re-claim the blinker PWM channels, '
-            'which are left deactivated by the progress bar');
-    expect(finish, contains('runFinishHandover()'),
+    // The work itself is 90-finalize.sh now, run by the laptop here and by
+    // the coordinator on an unattended install. What this checks is that the
+    // laptop still stages it and still launches it.
+    expect(finish, contains('FinalizeScript.render('),
+        reason: 'the finish has to stage the phase it is about to run');
+    expect(finish, contains('runFinalizePhase()'),
         reason: 'usb0-policy is forced to always-on at connect and service '
             'mode holds it there across the reboot, so something has to put '
             'the vehicle back');
+    final finalize = File('assets/finalize.sh.template').readAsStringSync();
+    expect(finalize, contains('systemctl start librescoot-pm'),
+        reason: 'pm-service is stopped on every connect and started nowhere '
+            'else, so without this the scooter never suspends again');
+    expect(finalize, contains('systemctl restart librescoot-vehicle'),
+        reason: 'vehicle-service has to re-claim the blinker PWM channels, '
+            'which are left deactivated by the progress bar');
   });
 
   test('the attended finish unlocks the scooter as its success signal', () {
-    expect(SshService.finishHandoverScript, contains('lpush scooter:state unlock'),
+    final finalize = File('assets/finalize.sh.template').readAsStringSync();
+    expect(finalize, contains('lpush scooter:state unlock'),
         reason: 'a scooter that unlocks itself is the signal the install '
             'worked; an LED the owner has to interpret is not');
   });
@@ -68,12 +74,12 @@ void main() {
     // synchronously, which is the SSH transport the command arrived on. A
     // command that is not detached dies there, taking the unlock with it.
     final source = File('lib/services/ssh_service.dart').readAsStringSync();
-    final start = source.indexOf('Future<void> runFinishHandover() async {');
-    expect(start, isNot(-1), reason: 'runFinishHandover not found');
+    final start = source.indexOf('Future<void> runFinalizePhase() async {');
+    expect(start, isNot(-1), reason: 'runFinalizePhase not found');
     final body = source.substring(start, source.indexOf('}', start));
     expect(body, contains('nohup'),
-        reason: 'the handover must run in a detached shell, or the gadget '
+        reason: 'the phase must run in a detached shell, or the gadget '
             'teardown kills it mid-flight');
-    expect(body, contains('finishHandoverScript'));
+    expect(body, contains('90-finalize.sh'));
   });
 }

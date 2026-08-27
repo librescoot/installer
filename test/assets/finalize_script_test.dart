@@ -172,12 +172,13 @@ case "\$1" in is-active) echo active ;; esac
       expect(result.exitCode, 0, reason: result.stderr.toString());
       expect((await callLog()).any((l) => l.contains('scooter:state unlock')),
           isTrue);
-      final record =
-          await File('${root.path}/installer-runs/run-good').readAsString();
+      final record = await File(
+              '${root.path}/installer/history/run-good/record')
+          .readAsString();
       expect(record, contains('result: success'));
       expect(record, contains('run-id: run-good'));
       expect(record, contains('mdb: v1.2.1'));
-      expect(await File('${root.path}/last-install').readAsString(),
+      expect(await File('${root.path}/installer/last-install').readAsString(),
           contains('run-id: run-good'));
     });
 
@@ -192,7 +193,9 @@ case "\$1" in is-active) echo active ;; esac
       expect(log.any((l) => l.contains('usb0-policy auto')), isTrue);
       expect(log.any((l) => l.contains('scooter:state unlock')), isFalse,
           reason: 'unlocking contradicts the error the user is looking at');
-      expect(Directory('${root.path}/installer-runs').existsSync(), isFalse,
+      expect(
+          File('${root.path}/installer/history/run-test-1/record').existsSync(),
+          isFalse,
           reason: 'no success record for a run that did not succeed');
     });
 

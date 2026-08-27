@@ -1236,6 +1236,38 @@ done
   /// Everything the installer stages lives under this one directory.
   static const String installerDir = '/data/installer';
 
+  /// What a finished run leaves behind, one directory per run: the record, and
+  /// the logs from both halves of it.
+  ///
+  /// Under [installerDir] like everything else, which is what makes the sweep
+  /// at the end of a run selective rather than an rm -rf. That is a footgun in
+  /// exchange for one place to look, so there is exactly one definition of what
+  /// a sweep keeps: [installerSweepCommand].
+  static const String installerHistoryDir = '$installerDir/history';
+
+  /// The last run's record, and the current run's progress. Pointers into
+  /// [installerHistoryDir] rather than the record itself.
+  static const String installerLastInstall = '$installerDir/last-install';
+  static const String installerRunState = '$installerDir/run-state';
+
+  /// Where those three lived before everything moved under one directory. Read
+  /// as a fallback so an installer meeting a board an older one touched can
+  /// still tell what happened to it; never written.
+  static const String legacyHistoryDir = '/data/installer-runs';
+  static const String legacyLastInstall = '/data/last-install';
+  static const String legacyRunState = '/data/installer-run-state';
+
+  /// Clear the staging a run leaves behind without taking the record with it.
+  ///
+  /// One definition because there are three callers: the laptop's cleanup, the
+  /// trampoline's own, and the finalize. An rm -rf in any of them would delete
+  /// the history the other two are careful to keep.
+  static const String installerSweepCommand =
+      'find $installerDir -mindepth 1 -maxdepth 1 '
+      '! -name history ! -name scripts ! -name onboot.sh.bak '
+      '! -name last-install ! -name run-state '
+      '-exec rm -rf {} + 2>/dev/null || true';
+
   /// The scripts the board runs on its own: the trampoline's two halves, the
   /// cleanup, and a rescue payload when an emergency reboot leaves one.
   static const String installerScriptsDir = '$installerDir/scripts';
@@ -1506,49 +1538,13 @@ echo timeout
   /// Detached, because it severs the transport it runs over. Restoring the
   /// policy makes vehicle-service tear down the USB gadget synchronously, so
   /// a command that is not detached dies there and takes the unlock with it.
-  Future<void> runFinishHandover() async {
+  Future<void> runFinalizePhase() async {
     await runCommand(
-      "nohup sh -c '$finishHandoverScript' >/dev/null 2>&1 </dev/null &",
+      'nohup sh $installerScriptsDir/90-finalize.sh '
+      '>/dev/null 2>&1 </dev/null &',
     );
   }
 
-  /// The order matters more than it looks.
-  ///
-  /// `clear:service` is consumed off a list, so it lands some time after the
-  /// push. Until it does, the overlay is still forcing the policy, and
-  /// settings-service treats a write of anything else to an overlaid key as a
-  /// user edit and re-asserts its own value over the top. Setting the policy
-  /// before the clear had landed would therefore pin `always-on` for the rest
-  /// of the boot, which is the opposite of handing the vehicle back.
-  ///
-  /// Waiting on the published status field rather than on a fixed sleep also
-  /// costs nothing on an image with no service overlay at all: the field is
-  /// absent, the loop breaks on its first pass, and `lsc set` does the work
-  /// on its own the way it always did.
-  ///
-  /// The file is removed rather than trusted to the clear, so a clear that
-  /// never landed cannot come back on the next boot.
-  ///
-  /// The unlock is the success signal: a scooter that unlocks itself is a
-  /// clearer message than an LED the owner has to find and interpret. The
-  /// sleep gives vehicle-service its state machine back before asking it for
-  /// a transition, or the unlock arrives before it is listening.
-  @visibleForTesting
-  static const String finishHandoverScript = r"""
-redis-cli -h localhost lpush settings:overlay clear:service >/dev/null 2>&1
-i=0
-while [ $i -lt 15 ]; do
-  active=$(redis-cli -h localhost --raw hget settings dashboard.service-mode-active 2>/dev/null)
-  [ "$active" = true ] || break
-  i=$((i+1))
-  sleep 1
-done
-rm -f /data/service-mode.json
-lsc set scooter.usb0-policy auto
-sleep 5
-redis-cli -h localhost lpush scooter:state unlock
-sync
-""";
 
   /// Reboot the device
   Future<void> reboot() async {
@@ -2394,7 +2390,8 @@ sync
       }
 
       final currentState = await runCommand(
-        'cat /data/installer-run-state 2>/dev/null; true',
+        'cat $installerRunState 2>/dev/null || '
+        'cat $legacyRunState 2>/dev/null; true',
       );
       if (currentState.trim().isNotEmpty) {
         final state = InstallRunState.parse(currentState);
@@ -2408,7 +2405,10 @@ sync
       // finished the install on its own sweeps that directory as its last act.
       // Its completion record is what survives, and a run that got far enough
       // to write one is a run that succeeded.
-      final record = await runCommand('cat /data/last-install 2>/dev/null');
+      final record = await runCommand(
+        'cat $installerLastInstall 2>/dev/null || '
+        'cat $legacyLastInstall 2>/dev/null',
+      );
       if (record.trim().isNotEmpty) {
         final status = TrampolineStatus.parseCompletionRecord(record);
         if (expectedRunId == null) {
@@ -2428,7 +2428,8 @@ sync
   Future<InstallRunState?> readInstallRunState() async {
     try {
       final content = await runCommand(
-        'cat /data/installer-run-state 2>/dev/null; true',
+        'cat $installerRunState 2>/dev/null || '
+        'cat $legacyRunState 2>/dev/null; true',
       );
       if (content.trim().isEmpty) return null;
       return InstallRunState.parse(content);
@@ -2504,18 +2505,18 @@ sync
       'dbc: $dbcVersion',
       '',
     ].join('\n');
-    const historyDir = '/data/installer-runs';
-    final temp = '$historyDir/.$runId.complete';
-    await runCommand('mkdir -p $historyDir');
+    final runDir = '$installerHistoryDir/$runId';
+    final temp = '$runDir/.record.tmp';
+    await runCommand('mkdir -p $runDir');
     await uploadFile(Uint8List.fromList(utf8.encode(record)), temp);
     // Rename into place, then copy out, so a reader never sees a half-written
     // record at any of the three paths.
     await runCommand(
-      'mv -f $temp $historyDir/$runId; '
-      'cp $historyDir/$runId /data/.last-install.$runId.tmp && '
-      '  mv -f /data/.last-install.$runId.tmp /data/last-install; '
-      'cp $historyDir/$runId /data/.installer-run-state.$runId.tmp && '
-      '  mv -f /data/.installer-run-state.$runId.tmp /data/installer-run-state',
+      'mv -f $temp $runDir/record; '
+      'cp $runDir/record $installerDir/.last-install.$runId.tmp && '
+      '  mv -f $installerDir/.last-install.$runId.tmp $installerLastInstall; '
+      'cp $runDir/record $installerDir/.run-state.$runId.tmp && '
+      '  mv -f $installerDir/.run-state.$runId.tmp $installerRunState',
     );
   }
 
@@ -2526,16 +2527,16 @@ sync
     if (!RegExp(r'^[a-zA-Z0-9._-]+$').hasMatch(runId)) {
       throw ArgumentError.value(runId, 'runId', 'contains unsafe characters');
     }
-    const historyDir = '/data/installer-runs';
-    final historyPath = '$historyDir/$runId';
-    final historyTemp = '$historyDir/.$runId.tmp';
-    final currentTemp = '/data/.installer-run-state.$runId.tmp';
-    await runCommand('mkdir -p $historyDir');
+    final runDir = '$installerHistoryDir/$runId';
+    final historyPath = '$runDir/record';
+    final historyTemp = '$runDir/.record.tmp';
+    final currentTemp = '$installerDir/.run-state.$runId.tmp';
+    await runCommand('mkdir -p $runDir');
     await uploadFile(Uint8List.fromList(utf8.encode(content)), historyTemp);
     await runCommand(
       'mv -f $historyTemp $historyPath; '
       'cp $historyPath $currentTemp; '
-      'mv -f $currentTemp /data/installer-run-state',
+      'mv -f $currentTemp $installerRunState',
     );
   }
 }
