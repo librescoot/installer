@@ -351,6 +351,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// explains where to get it instead of reporting a login failure.
   bool _rootPasswordUnknown = false;
 
+  /// Set when the RNDIS driver could not be put on the device, because
+  /// something else on the machine holds it or because Windows wants a
+  /// restart to finish. Carries the diagnosis so the screen can name what
+  /// took the port instead of showing a connection error.
+  DriverInstallResult? _driverBlocked;
+
   Future<void> _loadAvailableRegions() async {
     final regions = await _downloadService.fetchAvailableRegions();
     if (!mounted || regions.isEmpty) return;
@@ -2368,6 +2374,116 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     );
   }
 
+  /// Re-check the Windows driver binding before leaning on the network again.
+  ///
+  /// A board that reboots or gets replugged comes back on a fresh device node
+  /// and Windows ranks it from scratch, so a binding that was right at connect
+  /// time is not still right afterwards. Repairs it in place where it can;
+  /// the caller keeps going either way, because the waits and the diagnostic
+  /// panel are a better place to stall than a half-finished reconnect.
+  Future<bool> _ensureDriverBinding() async {
+    if (!Platform.isWindows) return true;
+
+    final diagnosis = await DriverService.diagnoseBinding();
+    if (diagnosis.state == DriverBinding.correct ||
+        diagnosis.state == DriverBinding.notPresent) {
+      return true;
+    }
+
+    debugPrint('Driver: binding drifted to ${diagnosis.state.name}, '
+        'reinstalling before using the network');
+    final result = await DriverService.installDriver();
+    if (result.success && !result.rebootRequired) return true;
+
+    debugPrint('Driver: reinstall did not take: ${result.error}');
+    if (mounted) setState(() => _driverBlocked = result);
+    return false;
+  }
+
+  /// Something else on the machine holds the scooter's USB port, or Windows
+  /// wants a restart before the driver it just staged goes live.
+  Widget _buildDriverBlocked(AppLocalizations l10n, DriverInstallResult r) {
+    final diagnosis = r.diagnosis;
+    final details = diagnosis == null
+        ? (r.error ?? '')
+        : DriverService.describeForSupport(diagnosis);
+
+    return PhaseLayout(
+      title: r.rebootRequired
+          ? l10n.driverNeedsRebootHeading
+          : l10n.driverClaimedHeading,
+      actions: [
+        PhaseAction(
+          label: l10n.driverRecheck,
+          icon: Icons.refresh,
+          primary: true,
+          onPressed: () {
+            setState(() {
+              _driverBlocked = null;
+              _mdbConnectStarted = true;
+            });
+            Future.microtask(_autoConnectMdb);
+          },
+        ),
+        if (details.isNotEmpty)
+          PhaseAction(
+            label: l10n.copyToClipboard,
+            icon: Icons.copy,
+            onPressed: () =>
+                Clipboard.setData(ClipboardData(text: details)),
+          ),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            r.rebootRequired
+                ? l10n.driverNeedsRebootBody
+                : l10n.driverClaimedBody(
+                    diagnosis == null
+                        ? 'another driver'
+                        : DriverService.describeHolder(diagnosis),
+                  ),
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.5,
+              color: Colors.grey.shade300,
+            ),
+          ),
+          if (details.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Text(
+              l10n.driverClaimedDetailsLabel,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade500,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.black26,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: SelectableText(
+                details,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                  height: 1.4,
+                  color: Colors.grey.shade400,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildMdbConnect(AppLocalizations l10n) {
     if (!_mdbConnectStarted && !_isProcessing) {
       _mdbConnectStarted = true;
@@ -2376,6 +2492,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
     if (_awaitingUnlockState != null) {
       return _buildAwaitingUnlock(l10n);
+    }
+
+    // A driver we cannot displace is a dead end for this run, but one with an
+    // answer, so the screen carries the answer rather than a connection error.
+    if (_driverBlocked != null) {
+      return _buildDriverBlocked(l10n, _driverBlocked!);
     }
 
     // While it is running it is a wait; a stall gets the frame back so the
@@ -2555,14 +2677,27 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
     // RNDIS mode: normal flow.
     //
-    // Always run installDriver() rather than gating on isDriverInstalled():
-    // the driver may be in the driver store from a prior run while the device
-    // is currently bound to usbser. installDriver() short-circuits internally
+    // Always run installDriver() rather than gating on what is in the driver
+    // store: the driver may be staged from a prior run while the device is
+    // currently bound to usbser. installDriver() short-circuits internally
     // when the binding is already correct, and pnputil /add-driver is
     // idempotent.
     if (Platform.isWindows) {
       _setStatus(l10n.checkingRndisDriver);
-      await DriverService.installDriver();
+      final driver = await DriverService.installDriver();
+      if (!driver.success || driver.rebootRequired) {
+        // Stop here. Carrying on reaches findLibrescootInterface(), which
+        // queries Win32_NetworkAdapter and finds nothing for a device sitting
+        // in class Ports, so network config is skipped without comment and
+        // the run ends on a generic SSH failure with the actual cause,
+        // already diagnosed, thrown away.
+        debugPrint('Driver: blocked: ${driver.error ?? 'reboot required'}');
+        setState(() {
+          _driverBlocked = driver;
+          _isProcessing = false;
+        });
+        return;
+      }
     }
 
     _setStatus(l10n.configuringNetwork);
@@ -4912,6 +5047,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // enxXXXX) doesn't carry our prior unmanaged flag or 192.168.7.50, so pings
     // would never succeed without redoing the static config. configureInterface
     // no-ops if the MDB is already reachable.
+    //
+    // The board came back on a fresh device node, so Windows ranked its
+    // drivers again from scratch and anything that outranks ours has just
+    // won. Put the binding back before assuming there is an interface.
+    await _ensureDriverBinding();
+    if (!_ownsMdbBootAttempt(generation)) return;
+
     final networkService = NetworkService();
     final iface = await networkService.findLibrescootInterface();
     if (!_ownsMdbBootAttempt(generation)) return;
@@ -7153,6 +7295,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
     setStep('net', SubstepState.active);
     _setStatus(l10n.configuringNetwork);
+    // Same re-enumeration risk as the post-reboot reconnect above.
+    await _ensureDriverBinding();
     final iface = await NetworkService().findLibrescootInterface();
     if (iface != null) {
       try {

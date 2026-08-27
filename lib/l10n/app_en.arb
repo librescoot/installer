@@ -92,6 +92,19 @@
   "waitingForUsbDevice": "Waiting for USB device...",
   "waitingForRndis": "Waiting for USB device... Make sure your laptop is connected to the MDB via USB.",
   "checkingRndisDriver": "Checking RNDIS driver...",
+  "driverClaimedHeading": "Another program has claimed the USB port",
+  "driverClaimedBody": "Windows has handed the scooter's USB connection to {driver} instead of the network driver the installer needs. That program installed itself over the top, so the installer cannot take it back on its own.\n\nOpen Device Manager, find the scooter under Ports (COM & LPT), right-click it and choose Uninstall device. Tick \"Attempt to remove the driver for this device\" if it is offered, then unplug the scooter and plug it in again.\n\nNothing on the scooter has been changed and it is safe to close the installer.",
+  "@driverClaimedBody": {
+    "placeholders": {
+      "driver": {
+        "type": "String"
+      }
+    }
+  },
+  "driverClaimedDetailsLabel": "Details for a bug report",
+  "driverNeedsRebootHeading": "Windows needs a restart to finish",
+  "driverNeedsRebootBody": "The network driver installed, but Windows could not swap it in while the scooter was plugged in. Restart your computer and run the installer again.\n\nNothing on the scooter has been changed.",
+  "driverRecheck": "Check again",
   "configuringNetwork": "Configuring network...",
   "connectingSsh": "Connecting via SSH...",
   "waitingForUnlock": "Unlock the scooter to continue...",

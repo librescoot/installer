@@ -92,6 +92,19 @@
   "waitingForUsbDevice": "Warte auf USB-Gerät...",
   "waitingForRndis": "Warte auf USB-Gerät... Stelle sicher, dass dein Laptop per USB mit dem MDB verbunden ist.",
   "checkingRndisDriver": "RNDIS-Treiber wird geprüft...",
+  "driverClaimedHeading": "Ein anderes Programm belegt den USB-Anschluss",
+  "driverClaimedBody": "Windows hat die USB-Verbindung des Rollers an {driver} vergeben statt an den Netzwerktreiber, den der Installer braucht. Das Programm hat sich darübergelegt, deshalb bekommt der Installer sie nicht von allein zurück.\n\nÖffne den Geräte-Manager, such den Roller unter Anschlüsse (COM & LPT), klick ihn mit der rechten Maustaste an und wähle Gerät deinstallieren. Setz den Haken bei „Die Treibersoftware für dieses Gerät löschen\", wenn er angeboten wird, zieh den Roller danach ab und steck ihn wieder an.\n\nAm Roller wurde nichts verändert, du kannst den Installer gefahrlos schließen.",
+  "@driverClaimedBody": {
+    "placeholders": {
+      "driver": {
+        "type": "String"
+      }
+    }
+  },
+  "driverClaimedDetailsLabel": "Details für einen Fehlerbericht",
+  "driverNeedsRebootHeading": "Windows braucht einen Neustart",
+  "driverNeedsRebootBody": "Der Netzwerktreiber wurde installiert, aber Windows konnte ihn nicht wechseln, solange der Roller angesteckt war. Starte den Computer neu und starte den Installer danach noch einmal.\n\nAm Roller wurde nichts verändert.",
+  "driverRecheck": "Erneut prüfen",
   "configuringNetwork": "Netzwerk wird konfiguriert...",
   "connectingSsh": "SSH-Verbindung wird aufgebaut...",
   "waitingForUnlock": "Roller entsperren, um fortzufahren...",

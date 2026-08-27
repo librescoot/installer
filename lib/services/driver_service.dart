@@ -663,6 +663,61 @@ Write-Output "PRESENT`t$($d.InstanceId)`t$($d.Class)`t$svc`t$pc`t$inf"
   /// device restart or a driver search stretches that well past ten seconds.
   static const Duration _rebindBudget = Duration(seconds: 45);
 
+  /// Short name for whatever is holding the device, for the sentence on the
+  /// recovery screen.
+  static String describeHolder(DriverDiagnosis d) {
+    final held = d.report?.incumbent;
+    if (held != null) {
+      final provider = held.provider;
+      if (provider != null && provider.isNotEmpty) {
+        return '$provider (${held.infName})';
+      }
+      return held.infName;
+    }
+    return d.boundInf ?? d.currentService ?? 'another driver';
+  }
+
+  /// Copy-pasteable diagnostic block for a bug report or a forum post.
+  ///
+  /// Deliberately not translated: it is meant to be pasted verbatim, and the
+  /// person reading it may not share the reporter's language.
+  static String describeForSupport(DriverDiagnosis d) {
+    final b = StringBuffer();
+    b.writeln('Device:  ${d.instanceId ?? _hardwareId}');
+    final problem =
+        d.problemCode != 0 ? ' (problem code ${d.problemCode})' : '';
+    b.writeln('State:   ${d.state.name}$problem');
+    b.writeln('Class:   ${d.currentClass ?? '?'}');
+    b.writeln('Service: ${d.currentService ?? '?'}');
+
+    final held = d.report?.incumbent;
+    if (held != null) {
+      b.writeln('Bound:   ${_describeCandidate(held)}');
+    } else if (d.boundInf != null) {
+      b.writeln('Bound:   ${d.boundInf}');
+    }
+
+    final best = d.report?.bestRanked;
+    if (best != null && best.infName != held?.infName) {
+      b.writeln('Best:    ${_describeCandidate(best)}');
+    }
+
+    b.write('Check:   pnputil /enum-devices /deviceid "$_hardwareId" /drivers');
+    return b.toString();
+  }
+
+  static String _describeCandidate(DriverCandidate c) {
+    final parts = <String>[c.infName];
+    if (c.provider != null) parts.add('(${c.provider})');
+    if (c.driverVersion != null) parts.add(c.driverVersion!);
+    parts.add('rank ${_hex(c.rank)}');
+    if (c.matchingDeviceId != null) parts.add('via ${c.matchingDeviceId}');
+    return parts.join(' ');
+  }
+
+  static String _hex(int v) =>
+      '0x${v.toRadixString(16).padLeft(8, '0').toUpperCase()}';
+
   /// One line saying what is holding the device, for logs and for the screen
   /// the user ends up on.
   static String _describeFailure(DriverDiagnosis d) {
