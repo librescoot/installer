@@ -2210,6 +2210,12 @@ abstract class AppLocalizations {
   /// **'{count, plural, =0{No keycards tapped yet} one{1 keycard tapped} other{{count} keycards tapped}}'**
   String keycardLearningTapped(int count);
 
+  /// No description provided for @keycardCardsChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking registered cards...'**
+  String get keycardCardsChecking;
+
   /// No description provided for @keycardStartLearning.
   ///
   /// In en, this message translates to:

@@ -408,6 +408,7 @@
       }
     }
   },
+  "keycardCardsChecking": "Registrierte Karten werden gepr\u00fcft...",
   "keycardStartLearning": "Starten",
   "keycardAddMore": "Weitere Karten anlernen",
   "keycardLearningActive": "Anlernmodus aktiv",

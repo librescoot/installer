@@ -526,6 +526,7 @@
       }
     }
   },
+  "keycardCardsChecking": "Checking registered cards...",
   "keycardStartLearning": "Start",
   "keycardAddMore": "Add more cards",
   "keycardLearningActive": "Learning mode active",

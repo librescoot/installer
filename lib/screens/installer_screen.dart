@@ -269,8 +269,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   // learn:master:start / reset / keycard:events), false = old service (only
   // the original learn:start/learn:stop/set-master commands).
   bool? _keycardServiceCanMaster;
-  int _keycardMasterCount = 0;
-  int _keycardAuthorizedCount = 0;
+  /// Null until the counts have been read. A zero meant both "none
+  /// registered" and "not asked yet", and the screen showed the second as the
+  /// first while it was still looking.
+  int? _keycardMasterCount;
+  int? _keycardAuthorizedCount;
   Future<void> Function()? _keycardEventsStop;
   StreamSubscription<String>? _keycardEventsSub;
   String? _keycardToastMessage;
@@ -8010,8 +8013,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _keycardMasterLearning = false;
       _keycardStage = _KeycardStage.loading;
       _keycardServiceCanMaster = null;
-      _keycardMasterCount = 0;
-      _keycardAuthorizedCount = 0;
+      _keycardMasterCount = null;
+      _keycardAuthorizedCount = null;
       _keycardSessionTapCount = 0;
       _keycardToastMessage = null;
     });
@@ -8170,7 +8173,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       final canMaster = capability == KeycardCapability.current;
       _keycardServiceCanMaster = canMaster;
       if (canMaster &&
-          (_keycardMasterCount > 0 || _keycardAuthorizedCount > 0)) {
+          ((_keycardMasterCount ?? 0) > 0 ||
+              (_keycardAuthorizedCount ?? 0) > 0)) {
         _keycardStage = _KeycardStage.alreadyConfigured;
       } else {
         _keycardStage = _KeycardStage.cards;
@@ -8254,8 +8258,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       );
       if (!mounted) return;
       setState(() {
-        _keycardMasterCount = int.tryParse(m ?? '') ?? 0;
-        _keycardAuthorizedCount = int.tryParse(a ?? '') ?? 0;
+        // Null when absent or unparseable: the panel has to tell "not read"
+        // apart from "none".
+        _keycardMasterCount = int.tryParse(m ?? '');
+        _keycardAuthorizedCount = int.tryParse(a ?? '');
       });
     } catch (e) {
       debugPrint('UI: failed to read keycard counts: $e');
@@ -8319,7 +8325,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (_isDryRun) {
       // Carry the previous session's count forward so "Add more" simulates
       // the additive semantics of the real service.
-      _keycardAuthorizedCountBefore = _keycardAuthorizedCount;
+      _keycardAuthorizedCountBefore = _keycardAuthorizedCount ?? 0;
     } else {
       try {
         final raw = await _sshService.redisHget(
@@ -8413,7 +8419,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (!_isDryRun || !_keycardLearning) return;
     setState(() {
       _keycardSessionTapCount += 1;
-      _keycardAuthorizedCount += 1;
+      _keycardAuthorizedCount = (_keycardAuthorizedCount ?? 0) + 1;
     });
   }
 
@@ -8480,7 +8486,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       if (_keycardLearning) {
         setState(() {
           _keycardSessionTapCount += 1;
-          _keycardAuthorizedCount += 1;
+          _keycardAuthorizedCount = (_keycardAuthorizedCount ?? 0) + 1;
         });
       }
     } else if (payload.startsWith('card-duplicate:')) {
@@ -8515,7 +8521,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (!_isDryRun) return;
     if (payload.startsWith('master-learned:')) {
       setState(() {
-        _keycardMasterCount += 1;
+        _keycardMasterCount = (_keycardMasterCount ?? 0) + 1;
       });
     }
     _handleKeycardEvent(payload);
@@ -8581,8 +8587,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     setState(() {
       _keycardSessionTapCount = 0;
       if (_isDryRun) {
-        _keycardMasterCount = 0;
-        _keycardAuthorizedCount = 0;
+        _keycardMasterCount = null;
+        _keycardAuthorizedCount = null;
       }
       _keycardStage = _KeycardStage.cards;
     });
@@ -8713,8 +8719,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   Widget _buildKeycardAlreadyConfigured(AppLocalizations l10n) => Text(
         l10n.keycardEntryAlreadyConfiguredBody(
-          _keycardMasterCount,
-          _keycardAuthorizedCount,
+          _keycardMasterCount ?? 0,
+          _keycardAuthorizedCount ?? 0,
         ),
         style: TextStyle(fontSize: 14, color: Colors.grey.shade300),
       );
@@ -8730,7 +8736,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         const SizedBox(height: 16),
         // Nothing to show before the first card: the action bar already
         // carries Start, and having it here too made one screen ask twice.
-        if (_keycardLearning || _keycardAuthorizedCount > 0) ...[
+        if (_keycardLearning || (_keycardAuthorizedCount ?? 0) > 0) ...[
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
@@ -8830,9 +8836,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // where that is higher, which is the case on a board that already had
     // cards before the installer touched it.
     final session = _keycardAuthorizedCountBefore + _keycardSessionTapCount;
-    final cards = session > _keycardAuthorizedCount
-        ? session
-        : _keycardAuthorizedCount;
+    final stored = _keycardAuthorizedCount;
+    // Null while the stored count has not come back and nothing has been
+    // tapped: the panel said "0 cards" and offered "register at least one"
+    // before it had asked, which reads as an answer rather than a question.
+    final int? cards = stored == null
+        ? (_keycardSessionTapCount > 0 ? session : null)
+        : (session > stored ? session : stored);
     final masters = _keycardMasterCount;
 
     Widget line(String text) => Padding(
@@ -8869,10 +8879,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               ),
             ],
           ),
-          line(l10n.keycardCardsTaught(cards)),
+          line(cards == null
+              ? l10n.keycardCardsChecking
+              : l10n.keycardCardsTaught(cards)),
           // Only when one exists: a scooter with no master card is the
           // ordinary case and a zero here would read as something missing.
-          if (masters > 0) line(l10n.keycardMastersRegistered(masters)),
+          if ((masters ?? 0) > 0)
+            line(l10n.keycardMastersRegistered(masters!)),
           if (cards == 0 && !unreachable) ...[
             const SizedBox(height: 12),
             Text(
@@ -8888,7 +8901,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   List<PhaseAction> _keycardCardsActions(AppLocalizations l10n) {
     // A tap this session counts even before the hash catches up: learn:stop
     // can take seconds to settle on a freshly flashed eMMC.
-    final taught = _keycardAuthorizedCount > 0 || _keycardSessionTapCount > 0;
+    final taught =
+        (_keycardAuthorizedCount ?? 0) > 0 || _keycardSessionTapCount > 0;
     return [
       if (!_keycardLearning && (_keycardServiceCanMaster ?? false))
         PhaseAction(
@@ -8989,7 +9003,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           icon: const Icon(Icons.nfc, size: 18),
           label: Text(l10n.keycardAddMore),
         ),
-        if (canMaster && _keycardAuthorizedCount > 0) ...[
+        if (canMaster && (_keycardAuthorizedCount ?? 0) > 0) ...[
           const SizedBox(height: 8),
           TextButton.icon(
             onPressed: _keycardStartMasterStage,

@@ -1234,6 +1234,9 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get keycardCardsChecking => 'Registrierte Karten werden geprüft...';
+
+  @override
   String get keycardStartLearning => 'Starten';
 
   @override
