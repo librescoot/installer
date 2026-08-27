@@ -54,6 +54,7 @@ void main() {
     // Records into the same order file so the sequence around it is visible.
     // A stub cannot halt the coordinator the way a real reboot does, so the
     // finalize phase still runs here; on a vehicle it runs on the far side.
+    await stub('sleep', 'exit 0');
     await stub('reboot',
         'echo "reboot \$@" >> ${root.path}/order; '
         'echo "reboot \$@" >> ${root.path}/reboots');
@@ -80,7 +81,6 @@ void main() {
         template: rebootTemplate,
         runId: 'run-test',
         artifactWait: wait,
-        rebootFallback: const Duration(seconds: 1),
       ),
     );
     await writePhase('90-finalize.sh',
@@ -107,24 +107,22 @@ void main() {
       File('${root.path}/installer/mdb-artifact.result').existsSync(),
       isFalse,
     );
-    // The dashboard phase runs while the MDB write is still going, the
-    // reboot follows it, and the handover is on the far side of the reboot.
+    // The dashboard phase runs while the MDB write is still going, then the
+    // coordinator reboots and this pass ends: the handover is on the far side.
     final order = await File('${root.path}/order').readAsLines();
     expect(order.first, '20');
-    expect(order.last, '90');
-    final firstReboot = order.indexWhere((l) => l.startsWith('reboot'));
-    expect(firstReboot, greaterThan(-1), reason: 'it never rebooted');
-    expect(firstReboot, lessThan(order.indexOf('90')),
-        reason: 'the vehicle must be on its real image before it unlocks');
-    // Graceful first; the forced one is only the fallback for a wedged sync,
-    // and on a vehicle the graceful reboot ends the run before it is reached.
-    expect(order[firstReboot].trim(), 'reboot');
-    expect(order.where((l) => l.trim() == 'reboot -f').length, lessThan(2));
-    // Retired before rebooting, or the next boot reboots again, forever.
+    expect(order.any((l) => l.startsWith('reboot')), isTrue);
+    expect(order, isNot(contains('90')),
+        reason: 'the handover must not run before the reboot it waits on');
     expect(
       File('${scripts.path}/${RebootPhaseScript.phaseName}').existsSync(),
       isFalse,
+      reason: 'retired, or the next boot reboots again forever',
     );
+
+    // The next boot is where the vehicle is handed back.
+    await boot();
+    expect(await File('${root.path}/order').readAsLines(), contains('90'));
   });
 
   test('the dashboard phase does not wait for the MDB write', () async {
@@ -184,8 +182,10 @@ void main() {
     expect(File('${root.path}/reboots').existsSync(), isFalse);
   });
 
-  test('a plan that leaves the MDB alone still reboots for the dashboard',
-      () async {
+  test('a plan that leaves the MDB alone does not reboot it', () async {
+    // Nothing was installed on this board, so there is nothing to activate.
+    // The dashboard was powered off when its work finished and the unlock in
+    // the handover brings it back up on the image it just installed.
     await stub('mender-update', 'exit 0');
     await queueAll(artifactPath: '');
 
@@ -196,8 +196,15 @@ void main() {
           .readAsString(),
       contains('MDB artifact: skipped'),
     );
-    expect(await File('${root.path}/reboots').readAsString(),
-        contains('reboot'));
+    expect(File('${root.path}/reboots').existsSync(), isFalse,
+        reason: 'it rebooted a board the plan promised to leave alone');
+    // The handover still has to run, or the vehicle never unlocks.
+    expect(await File('${root.path}/order').readAsLines(), contains('90'));
+    // And the phase still retires, or it re-runs at every boot.
+    expect(
+      File('${scripts.path}/${RebootPhaseScript.phaseName}').existsSync(),
+      isFalse,
+    );
   });
 
   test('the artifact phase retires, so the next boot does not reinstall',
@@ -240,5 +247,29 @@ void main() {
     await boot();
     expect((await File('${root.path}/order').readAsLines())
         .where((l) => l == '90'), hasLength(2));
+  });
+
+  test('a rebooting phase is still recorded as having run', () async {
+    // The coordinator records completion after a phase returns, and the
+    // reboot phase never returns. Left to that, every successful install
+    // finished with a false "install phases never ran: 80-reboot.sh" in the
+    // status file, and the next connect opened on a phantom unfinished run.
+    final artifact = File('${root.path}/a.mender');
+    await artifact.writeAsString('x');
+    await stub('mender-update', 'exit 0');
+    await File('${scripts.path}/.expected').writeAsString(
+        '10-mdb-artifact.sh\n80-reboot.sh\n90-finalize.sh\n');
+    await queueAll(artifactPath: artifact.path);
+
+    await boot();
+
+    final completed =
+        await File('${scripts.path}/.completed').readAsLines();
+    expect(completed, contains('80-reboot.sh'));
+    final status = File('${root.path}/installer/trampoline-status');
+    if (status.existsSync()) {
+      expect(await status.readAsString(), isNot(contains('never ran')),
+          reason: 'a successful run must not report a missing phase');
+    }
   });
 }

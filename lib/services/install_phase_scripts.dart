@@ -54,7 +54,9 @@ class MdbArtifactScript {
       rootBundle.loadString('assets/mdb-artifact.sh.template');
 }
 
-/// The single reboot, once both boards have their images.
+/// Decides whether the run needs its one reboot, and asks the coordinator for
+/// it rather than doing it: a phase that reboots never returns to be recorded
+/// as having run, and the reboot belongs between phases anyway.
 class RebootPhaseScript {
   /// After the dashboard work, before the handover: 90-finalize.sh unlocks,
   /// and the vehicle should be on its real image when that happens.
@@ -68,25 +70,16 @@ class RebootPhaseScript {
   /// has genuinely wedged.
   static const Duration defaultArtifactWait = Duration(minutes: 30);
 
-  /// How long a graceful reboot gets before the forced one. A wedged sync on
-  /// eMMC can hang `reboot` itself, which is what the fallback is for.
-  static const Duration defaultRebootFallback = Duration(seconds: 20);
-
   static String render({
     required String template,
     required String runId,
     Duration artifactWait = defaultArtifactWait,
-    Duration rebootFallback = defaultRebootFallback,
   }) {
     final rendered = template
         .replaceAll('{{RUN_ID}}', runId)
         .replaceAll(
           '{{MDB_ARTIFACT_WAIT_SECONDS}}',
           '${artifactWait.inSeconds}',
-        )
-        .replaceAll(
-          '{{REBOOT_FALLBACK_SECONDS}}',
-          '${rebootFallback.inSeconds}',
         );
     final left = unresolvedPlaceholders(rendered);
     if (left.isNotEmpty) {

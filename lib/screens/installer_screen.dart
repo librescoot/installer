@@ -864,7 +864,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // Uploaded before the cleanup below, deliberately. A queued phase makes
     // the coordinator decline to retire, so a detached run that dies takes the
     // scooter's next boot to finish rather than leaving it half handed back.
-    await _armInstallPhases();
     try {
       await _sshService.uploadFile(
         Uint8List.fromList(utf8.encode(FinalizeScript.render(
@@ -940,6 +939,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // side. All three take the link down in turn, which is why it is detached
     // and why nothing below can rely on SSH surviving.
     try {
+      await _armInstallPhases();
       await _sshService.startInstallPhasesDetached();
       debugPrint('UI: handed off to the coordinator');
     } catch (e) {
@@ -3968,9 +3968,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// Continue for it).
   /// Put the coordinator on the board and tell it what this plan owes it.
   ///
-  /// Called where phases are queued rather than at plan time: a clean install
-  /// reformats /data, so anything written before the bootstrap flash is gone,
-  /// and on the stock image the write fails outright.
+  /// Immediately before the phases are run, not when they are staged. A
+  /// coordinator is what makes queued phases run at boot, so installing it
+  /// early opens a window where an unattended MDB reboot would install the
+  /// artifact, reboot and unlock a scooter whose dashboard was never touched.
+  /// Queued phases with no coordinator are inert, which is the state to be in
+  /// while the user is still being asked to swap the cable.
+  ///
+  /// Also after the bootstrap flash rather than at plan time: a clean install
+  /// reformats /data, and on the stock image the write fails outright.
   ///
   /// 20-dbc.sh is the trampoline's to write and only exists when there is
   /// dashboard work. The other three are expected on every plan, including one
@@ -6560,7 +6566,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         return;
       }
 
-      await _armInstallPhases();
       await trampolineService.uploadAll(
         runId: _installRunId,
         releaseTag: _downloadState.releaseTag ?? '',
@@ -6663,6 +6668,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     try {
       _setStatus(l10n.startingTrampoline);
       await _installStateWriteQueue;
+      await _armInstallPhases();
       await TrampolineService(_sshService).start(runId: _installRunId);
       _deviceFinishArmed = true;
       criticalOperation.release();

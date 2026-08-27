@@ -1328,18 +1328,33 @@ run_one() {
     return 0
   fi
   sh "$1"
+  rc=$?
   # A phase removes itself when it is done, so the file being gone is the only
   # evidence of completion there is. One that is still here either wedged or
-  # wants another attempt, and neither is a completion.
+  # wants another attempt, and neither is a completion. Recorded before the
+  # exit code is acted on, so a phase that asks for a reboot still counts as
+  # having run.
   [ -f "$1" ] || echo "${1##*/}" >> "$COMPLETED"
+  return "$rc"
 }
 
+# A phase asks for a reboot by exiting 75; it does not reboot itself. The
+# reboot belongs between phases, which is something only this loop knows about,
+# and a phase that reboots never returns to be recorded as having run.
 for phase in "$SCRIPTS"/[0-9][0-9]-*.sh; do
   # Re-checked inside the loop, not just at the top: the glob was expanded
   # before the first phase ran, and a phase that abandons the run deletes the
   # ones after it.
   [ -f "$phase" ] || continue
   run_one "$phase"
+  if [ "$?" -eq 75 ]; then
+    sync
+    reboot &
+    # A wedged sync can hang reboot itself, so the forced one is the fallback.
+    sleep 20
+    reboot -f
+    exit 0
+  fi
 done
 
 # Each phase removes itself when it is done, so no phases left is the signal

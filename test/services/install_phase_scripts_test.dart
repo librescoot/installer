@@ -83,42 +83,76 @@ void main() {
       expect(unresolvedPlaceholders(s), isEmpty);
     });
 
-    test('retires itself before rebooting, never at the top', () {
+    test('retires before asking for the reboot', () {
       // A reboot that lands with the phase still queued runs it again on the
       // next boot, and the vehicle reboots forever.
       final s = RebootPhaseScript.render(
         template: rebootTemplate,
         runId: 'r',
       );
-      final retire = s.indexOf("rm -f \"\$SCRIPTS_DIR/80-reboot.sh\"");
-      final reboot = s.indexOf('reboot &');
-      expect(retire, greaterThan(0));
-      expect(reboot, greaterThan(retire),
-          reason: 'the retire must precede the reboot');
+      expect(s.indexOf('retire'), lessThan(s.indexOf('exit 75')));
     });
 
-    test('does not reboot when the MDB artifact failed', () {
-      // u-boot would roll back to the image already running and the run would
-      // read as successful.
+    test('only the ok arm reboots', () {
+      // case arms are mutually exclusive, so what matters is each arm's
+      // contents rather than their order. Rebooting on a failed install would
+      // land back on the same image via u-boot's rollback and read as success;
+      // rebooting on a skipped one takes a vehicle dark for nothing.
       final s = RebootPhaseScript.render(
         template: rebootTemplate,
         runId: 'r',
       );
-      final guard = s.indexOf('not rebooting:');
-      final reboot = s.indexOf('reboot &');
-      expect(guard, greaterThan(0));
-      expect(guard, lessThan(reboot),
-          reason: 'the failure branch must exit before the reboot');
-      expect(s, contains('exit 1'));
+      final body = s.substring(s.indexOf(r'case "$RESULT" in'));
+      final arms = <String, String>{};
+      String? current;
+      final buf = StringBuffer();
+      for (final line in body.split('\n')) {
+        final t = line.trim();
+        if (RegExp(r'^(ok|skipped|\*)\)$').hasMatch(t)) {
+          if (current != null) arms[current] = buf.toString();
+          current = t.substring(0, t.length - 1);
+          buf.clear();
+        } else if (t == ';;') {
+          if (current != null) arms[current] = buf.toString();
+          current = null;
+          buf.clear();
+        } else if (current != null && !t.startsWith('#')) {
+          // Comments in these arms legitimately discuss rebooting; only the
+          // commands are under test.
+          buf.writeln(t);
+        }
+      }
+      expect(arms.keys, containsAll(['ok', 'skipped', '*']));
+      // The phase asks; it never reboots. A phase that reboots never returns
+      // to be recorded as having run, which made every successful install end
+      // with a false "install phases never ran: 80-reboot.sh".
+      final invokesReboot = RegExp(r'^reboot\b', multiLine: true);
+      for (final arm in arms.values) {
+        expect(invokesReboot.hasMatch(arm), isFalse,
+            reason: 'the reboot belongs to the coordinator');
+      }
+      expect(arms['ok'], contains('exit 75'));
+      expect(arms['skipped'], contains('exit 0'));
+      expect(arms['skipped'], contains('retire'),
+          reason: 'it must still retire or it re-runs at every boot');
+      expect(arms['*'], contains('exit 1'));
     });
 
-    test('skipped counts as a reason to reboot', () {
-      // A dashboard-only plan still has to activate the dashboard image.
+    test('nothing installed here means nothing to reboot for', () {
+      // A dashboard-only or tiles-only plan changes nothing on this board. The
+      // dashboard was powered off when its work finished and the unlock brings
+      // it back on its new image, so a reboot would only take the vehicle dark
+      // for a minute.
       final s = RebootPhaseScript.render(
         template: rebootTemplate,
         runId: 'r',
       );
-      expect(s, contains('ok|skipped)'));
+      final skipped = s.indexOf('  skipped)');
+      final reboot = s.indexOf('reboot &');
+      expect(skipped, greaterThan(0));
+      expect(skipped, greaterThan(reboot),
+          reason: 'the skipped arm must not fall into the reboot arm');
+      expect(s, contains('no reboot is needed'));
     });
 
     test('the phase numbers order the run correctly', () {
@@ -159,10 +193,8 @@ void main() {
         template: File('assets/reboot-phase.sh.template').readAsStringSync(),
         runId: 'r',
       );
-      final clear = s.indexOf(r'rm -f "$RESULT_FILE"');
-      final reboot = s.indexOf('reboot &');
-      expect(clear, greaterThan(0));
-      expect(clear, lessThan(reboot),
+      expect(s.indexOf(r'rm -f "$RESULT_FILE"'),
+          lessThan(s.indexOf('exit 75')),
           reason: 'it must not survive into the next boot');
     });
   });
