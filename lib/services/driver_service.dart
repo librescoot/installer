@@ -93,6 +93,104 @@ class _ForceInstallOutcome {
   _ForceInstallOutcome(this.ok, this.rebootRequired, this.detail);
 }
 
+/// One driver package Windows considers a candidate for the device, as
+/// reported by `pnputil /enum-devices ... /drivers /format xml`.
+class DriverCandidate {
+  final String infName;
+  final String? originalName;
+  final String? provider;
+  final String? className;
+  final String? driverVersion;
+  final String? signer;
+  final String? matchingDeviceId;
+
+  /// Windows' driver rank. Lower is better. The low bits carry the index of
+  /// the matching ID within the device's own ID list, and bit 0x2000 marks a
+  /// match against a *compatible* ID rather than a hardware ID.
+  final int rank;
+
+  const DriverCandidate({
+    required this.infName,
+    required this.rank,
+    this.originalName,
+    this.provider,
+    this.className,
+    this.driverVersion,
+    this.signer,
+    this.matchingDeviceId,
+  });
+
+  /// Whether this package matched a compatible ID. A compatible-ID match can
+  /// never outrank a hardware-ID match no matter how new its DriverVer is,
+  /// because DriverVer only breaks ties within one rank.
+  bool get isCompatMatch => (rank & 0x2000) != 0;
+
+  /// Position of the matching ID in the device's hardware/compatible ID list.
+  int get matchIndex => rank & 0xFFF;
+
+  @override
+  String toString() => 'DriverCandidate($infName, rank=0x'
+      '${rank.toRadixString(16).padLeft(8, '0').toUpperCase()}, '
+      'id=$matchingDeviceId)';
+}
+
+/// What Windows thinks about the device and every driver competing for it.
+///
+/// Built only from locale-independent data: the bound INF name, and integer
+/// ranks. pnputil's `Driver Status` text ("Best Ranked / Installed") comes
+/// from pnputil.exe.mui and is translated, so nothing here reads it.
+class DeviceDriverReport {
+  final String? instanceId;
+  final String? description;
+
+  /// Device setup class, e.g. `Net` when correctly bound, `Ports` when a
+  /// serial driver has claimed it.
+  final String? className;
+
+  /// INF currently bound to the device, e.g. `oem76.inf`.
+  final String? boundInf;
+
+  final List<DriverCandidate> candidates;
+
+  const DeviceDriverReport({
+    required this.candidates,
+    this.instanceId,
+    this.description,
+    this.className,
+    this.boundInf,
+  });
+
+  /// The candidate that is actually bound right now.
+  DriverCandidate? get incumbent {
+    if (boundInf == null) return null;
+    final target = boundInf!.toLowerCase();
+    for (final c in candidates) {
+      if (c.infName.toLowerCase() == target) return c;
+    }
+    return null;
+  }
+
+  /// The candidate Windows would pick if it ranked the device fresh.
+  DriverCandidate? get bestRanked {
+    if (candidates.isEmpty) return null;
+    var best = candidates.first;
+    for (final c in candidates) {
+      if (c.rank < best.rank) best = c;
+    }
+    return best;
+  }
+
+  /// Something bound a worse-ranked driver than the one that should have won.
+  /// Windows only does that when an installer forces it, so this is the
+  /// signature of another program having claimed the device on purpose.
+  bool get isHijacked {
+    final held = incumbent;
+    final best = bestRanked;
+    if (held == null || best == null) return false;
+    return held.rank > best.rank;
+  }
+}
+
 typedef AutoPlayProcessRunner = Future<ProcessResult> Function(
   String executable,
   List<String> arguments,
@@ -187,6 +285,74 @@ class DriverService {
   /// enumeration matching and as the target of forced INF installs.
   static const String _hardwareId = r'USB\VID_0525&PID_A4A2';
   static final AutoPlayServiceLease _autoPlay = AutoPlayServiceLease();
+
+  /// Parse `pnputil /enum-devices /deviceid <id> /drivers /format xml`.
+  ///
+  /// Returns null when the output does not describe a device, so an empty or
+  /// failed query can never be mistaken for a healthy one.
+  @visibleForTesting
+  static DeviceDriverReport? parseEnumDevicesXml(String xml) {
+    final device = RegExp(
+      r'<Device\s+InstanceId="([^"]*)"\s*>([\s\S]*?)</Device>',
+    ).firstMatch(xml);
+    if (device == null) return null;
+
+    final instanceId = _decodeXmlEntities(device.group(1) ?? '');
+    final body = device.group(2) ?? '';
+
+    // Split at <MatchingDrivers> before reading anything. The candidate blocks
+    // reuse the DriverName and ClassName element names, so a search over the
+    // whole body would report a candidate's values as the device's.
+    final split = body.indexOf('<MatchingDrivers>');
+    final head = split >= 0 ? body.substring(0, split) : body;
+    final tail = split >= 0 ? body.substring(split) : '';
+
+    final candidates = <DriverCandidate>[];
+    for (final block in RegExp(
+      r'<DriverName\s+DriverName="([^"]*)"\s*>([\s\S]*?)</DriverName>',
+    ).allMatches(tail)) {
+      final infName = _decodeXmlEntities(block.group(1) ?? '');
+      final fields = block.group(2) ?? '';
+      final rank = int.tryParse(_xmlTag(fields, 'Rank') ?? '', radix: 16);
+      if (infName.isEmpty || rank == null) continue;
+      candidates.add(DriverCandidate(
+        infName: infName,
+        rank: rank,
+        originalName: _xmlTag(fields, 'OriginalName'),
+        provider: _xmlTag(fields, 'ProviderName'),
+        className: _xmlTag(fields, 'ClassName'),
+        driverVersion: _xmlTag(fields, 'DriverVersion'),
+        signer: _xmlTag(fields, 'SignerName'),
+        matchingDeviceId: _xmlTag(fields, 'MatchingDeviceId'),
+      ));
+    }
+
+    return DeviceDriverReport(
+      instanceId: instanceId.isEmpty ? null : instanceId,
+      description: _xmlTag(head, 'DeviceDescription'),
+      className: _xmlTag(head, 'ClassName'),
+      boundInf: _xmlTag(head, 'DriverName'),
+      candidates: candidates,
+    );
+  }
+
+  /// Text of the first `<name>...</name>` element, entity-decoded. Null when
+  /// the element is absent or empty.
+  static String? _xmlTag(String source, String name) {
+    final m = RegExp('<$name>([^<]*)</$name>').firstMatch(source);
+    if (m == null) return null;
+    final value = _decodeXmlEntities(m.group(1) ?? '').trim();
+    return value.isEmpty ? null : value;
+  }
+
+  /// `&amp;` is decoded last so an encoded entity such as `&amp;lt;` does not
+  /// get decoded twice.
+  static String _decodeXmlEntities(String s) => s
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&apos;', "'")
+      .replaceAll('&amp;', '&');
 
   /// Check if an RNDIS driver is already installed.
   ///
