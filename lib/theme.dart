@@ -114,6 +114,10 @@ ThemeData librescootTheme() {
 
   return ThemeData(
     useMaterial3: true,
+    // Bundled, so the same screen renders the same everywhere. Monospace is
+    // deliberately left to the platform: Inter has no mono face, and the only
+    // monospace text is diagnostics meant to be copied out.
+    fontFamily: 'Inter',
     colorScheme: kColorScheme,
     scaffoldBackgroundColor: kBgPrimary,
     // Material 3 washes a rising surface with the seed colour. Every surface

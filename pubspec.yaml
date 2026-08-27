@@ -94,6 +94,15 @@ flutter:
     - assets/tools/
     - assets/images/
 
+  # One variable file rather than four static weights: it is smaller than the
+  # weights it replaces (880 KB against ~1.7 MB) and covers the ones in
+  # between. Bundled so a screen looks the same on all three platforms; the
+  # host fonts differ enough to change where German strings wrap.
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/InterVariable.ttf
+
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
 

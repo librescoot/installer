@@ -20,6 +20,14 @@ Future<void> loadRealFonts() async {
   final path = candidates.firstWhere((p) => File(p).existsSync(),
       orElse: () => throw StateError('no system font found for goldens'));
   final bytes = File(path).readAsBytesSync();
+  // Everything the app renders in is Inter now, so the goldens have to use
+  // the real file or they measure a face that never ships.
+  final inter = File('assets/fonts/InterVariable.ttf').readAsBytesSync();
+  await (FontLoader('Inter')
+        ..addFont(Future.value(ByteData.view(inter.buffer))))
+      .load();
+  // The system face still stands in for the families the app leaves to the
+  // platform, monospace being the one that matters.
   for (final family in ['Roboto', 'monospace', 'IBM Plex Sans']) {
     final loader = FontLoader(family)
       ..addFont(Future.value(ByteData.view(bytes.buffer)));
