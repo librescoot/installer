@@ -8,7 +8,7 @@ import 'package:librescoot_installer/services/usb_detector.dart';
 /// legacy name still exits 0 but reports nothing), and the replacement
 /// reporter no longer emits "BSD Name" entries at all. The detector therefore
 /// resolves identity from ioreg instead. These tests pin that parser, since a
-/// wrong answer here either stalls the installer forever or — worse — points
+/// wrong answer here either stalls the installer forever or, worse, points
 /// the flasher at somebody else's disk.
 void main() {
   final detector = UsbDetector();
