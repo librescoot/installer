@@ -282,8 +282,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   bool _keycardMasterLearning = false;
   String? _keycardMasterStartError;
   int _keycardAuthorizedCountBefore = 0; // captured at Start, compared at Done
-  // The cards the board had when the laptop connected. A clean install wipes
-  // /data and them with it; the keycard step puts them back.
+  // The cards the board had when the laptop connected. Re-added at the
+  // keycard step only on a plan that keeps /data.
   List<String> _keycardCapturedUids = const [];
   int _keycardSessionTapCount = 0; // driven by card-learned events
   // Substage of the keycardSetup phase. The phase is rendered as a small
@@ -8389,6 +8389,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final uids = keycardsToAdd(
       preset: launchArgs.keycards,
       captured: _keycardCapturedUids,
+      // A clean install wipes the cards deliberately and they stay gone;
+      // an upgrade keeps /data and with it the cards, so this is at most a
+      // no-op there. No plan yet means nothing was decided about /data.
+      dataKept: _plan?.mdb.action == BoardAction.upgrade ||
+          _plan?.mdb.action == BoardAction.leave,
     );
     if (uids.isEmpty || _isDryRun) return;
     if (capability != KeycardCapability.current) {

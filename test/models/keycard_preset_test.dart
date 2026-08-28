@@ -32,8 +32,20 @@ void main() {
       keycardsToAdd(
         preset: ['AABBCCDD'],
         captured: ['46DCC300', 'aabbccdd'],
+        dataKept: true,
       ),
       ['AABBCCDD', '46DCC300'],
+    );
+  });
+
+  test('a clean install does not get its wiped cards back', () {
+    expect(
+      keycardsToAdd(
+        preset: ['AABBCCDD'],
+        captured: ['46DCC300'],
+        dataKept: false,
+      ),
+      ['AABBCCDD'],
     );
   });
 }

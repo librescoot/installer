@@ -43,9 +43,12 @@ List<String> parseKeycardUidFile(String content) => normalizeKeycardUids(
     );
 
 /// What the keycard step should add: the preset first, then the captured
-/// cards, minus anything named twice.
+/// cards, minus anything named twice. The captured cards only count when
+/// the install kept /data: a clean install erases them on purpose, and
+/// putting them back would undo the one thing it was asked to do.
 List<String> keycardsToAdd({
   required Iterable<String> preset,
   required Iterable<String> captured,
+  required bool dataKept,
 }) =>
-    normalizeKeycardUids([...preset, ...captured]);
+    normalizeKeycardUids([...preset, if (dataKept) ...captured]);
