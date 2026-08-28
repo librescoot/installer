@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+version: 2.0.0-beta.13+1
 
 environment:
   sdk: ^3.9.0
@@ -63,6 +63,7 @@ dependencies:
   crypto: ^3.0.0
   flutter_svg: ^2.2.4
   url_launcher: ^6.3.0
+  window_manager: ^0.5.2
 
 dev_dependencies:
   flutter_test:
@@ -92,6 +93,15 @@ flutter:
     - assets/drivers/
     - assets/tools/
     - assets/images/
+
+  # One variable file rather than four static weights: it is smaller than the
+  # weights it replaces (880 KB against ~1.7 MB) and covers the ones in
+  # between. Bundled so a screen looks the same on all three platforms; the
+  # host fonts differ enough to change where German strings wrap.
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/InterVariable.ttf
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
