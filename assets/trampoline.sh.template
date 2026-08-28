@@ -2028,14 +2028,15 @@ if [ -n "$DBC_MENDER" ]; then
   # firmware being installed on top may predate any tool the upload needs,
   # zstd included.
   #
-  # It runs alongside the artifact install rather than before it: the two touch
-  # different partitions, the artifact write is the long pole at roughly a
-  # minute and a half, and the upload is about twenty seconds of that. Only the
-  # reboot afterwards has to wait, because a dashboard that restarts mid-upload
-  # takes a truncated tile set with it.
-  rm -f "$INSTALLER_DIR/tile-errors"
-  install_tiles &
-  TILES_JOB=$!
+  # It runs alongside the artifact install, and starts only once the artifact
+  # has landed: the link to the dashboard is the bottleneck at about 11 MB/s,
+  # and three transfers sharing it held the artifact back by the time the
+  # tiles took. With the artifact alone on the link the install, the long
+  # pole at roughly a minute and a half, begins that much sooner, and the
+  # tiles then stream in beside it. Only the reboot afterwards has to wait,
+  # because a dashboard that restarts mid-upload takes a truncated tile set
+  # with it.
+  TILES_JOB=""
 
   DBC_ART_NAME=$(basename "$DBC_MENDER")
   DBC_ART_PATH="/data/ota/dbc/$DBC_ART_NAME"
@@ -2072,6 +2073,12 @@ if [ -n "$DBC_MENDER" ]; then
   if ! upload_to_dbc "$DBC_MENDER" "/ota/dbc/$DBC_ART_NAME" "DBC artifact"; then
     artifact_fail "error: failed to transfer the DBC artifact"
   fi
+
+  # The artifact is on the dashboard; the tiles get the link now, beside the
+  # install that follows.
+  rm -f "$INSTALLER_DIR/tile-errors"
+  install_tiles &
+  TILES_JOB=$!
 
   DBC_OTA_OK="no"
   if [ "$MODE" = "upgrade" ]; then
@@ -2163,7 +2170,7 @@ if [ -n "$DBC_MENDER" ]; then
   # The upload has to be finished before the dashboard goes down under it.
   if [ -n "${TILES_JOB:-}" ]; then
     log "  waiting for the tile upload to finish before rebooting"
-    wait "$TILES_JOB" 2>/dev/null || true
+    [ -n "$TILES_JOB" ] && { wait "$TILES_JOB" 2>/dev/null || true; }
     TILES_JOB=""
     TILE_ERRORS=$(cat "$INSTALLER_DIR/tile-errors" 2>/dev/null || echo 0)
     case "$TILE_ERRORS" in ''|*[!0-9]*) TILE_ERRORS=0 ;; esac
