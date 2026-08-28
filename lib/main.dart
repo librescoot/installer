@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:window_manager/window_manager.dart';
 import 'l10n/app_localizations.dart';
 import 'screens/installer_screen.dart';
 import 'services/log_service.dart';
@@ -32,7 +33,7 @@ final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
 
 /// Append an unhandled error to the installer log and show a non-blocking
 /// SnackBar so the user knows something went wrong but the app keeps running.
-/// Native crashes (FFI, signals) can't be caught here — only Dart errors.
+/// Native crashes (FFI, signals) can't be caught here, only Dart errors.
 void reportUnhandledError(Object error, StackTrace? stack, {String? from}) {
   final origin = from != null ? ' [$from]' : '';
   appendLog('ERROR$origin: $error');
@@ -145,6 +146,11 @@ class LaunchArgs {
 
   bool get hasLocalImages => mdbImage != null || dbcImage != null;
 
+  /// Local images and nothing else: no channel to resolve, so the queue is
+  /// only what was passed. With a channel the images stand in for that
+  /// board's entry in the release's queue instead of replacing all of it.
+  bool get hasLocalImagesOnly => hasLocalImages && channel == null;
+
   /// Build the args to relaunch with after the user has clicked Start
   /// and made selections in the welcome screen. Pulls from the live
   /// state, not from the original CLI args, so the elevated child
@@ -180,6 +186,10 @@ const String appVersion = String.fromEnvironment('APP_VERSION', defaultValue: 'd
 void main(List<String> args) async {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+    if (Platform.isLinux || Platform.isMacOS || Platform.isWindows) {
+      await windowManager.ensureInitialized();
+      await windowManager.setPreventClose(true);
+    }
 
     // Flutter framework errors (build/layout/paint exceptions). Without this,
     // a release build can end up in an unrecoverable state.
@@ -188,7 +198,7 @@ void main(List<String> args) async {
     };
 
     // Async errors that escape the framework (microtasks, untriaged Futures).
-    // Returning true tells the engine we handled it — keep the app alive.
+    // Returning true tells the engine we handled it, keep the app alive.
     PlatformDispatcher.instance.onError = (error, stack) {
       reportUnhandledError(error, stack, from: 'platform');
       return true;
@@ -270,21 +280,7 @@ class LibrescootInstaller extends StatelessWidget {
         locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: kAccent,
-            brightness: Brightness.dark,
-          ).copyWith(
-            primary: kAccent,
-            onPrimary: kOnAccent,
-            secondary: kAccent,
-            onSecondary: kOnAccent,
-            surface: kBgPrimary,
-            onSurface: kTextPrimary,
-          ),
-          scaffoldBackgroundColor: kBgPrimary,
-          useMaterial3: true,
-        ),
+        theme: librescootTheme(),
         home: const InstallerScreen(),
       ),
     );
