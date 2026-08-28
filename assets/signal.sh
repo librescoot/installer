@@ -89,10 +89,6 @@ led_activate() {
   [ -n "$SIGNAL_IOCTL" ] || return 0
   "$SIGNAL_IOCTL" "/dev/pwm_led$1" 0x00007549 -v 1 2>/dev/null
 }
-led_deactivate() {
-  [ -n "$SIGNAL_IOCTL" ] || return 0
-  "$SIGNAL_IOCTL" "/dev/pwm_led$1" 0x00007549 -v 0 2>/dev/null
-}
 led_duty() {
   [ -n "$SIGNAL_IOCTL" ] || return 0
   "$SIGNAL_IOCTL" "/dev/pwm_led$1" 0x0000754A -v "$2" 2>/dev/null
@@ -113,10 +109,6 @@ led_release() {
   led_duty "$1" 0
 }
 
-led_off() {
-  led_duty "$1" 0
-  led_deactivate "$1"
-}
 
 # --- the front light: "the main board is waiting for the dashboard" --------
 # Its own state, deliberately separate from the bar. It runs from the moment
@@ -163,9 +155,14 @@ front_pulse_start() {
     ' sh "$SIGNAL_IOCTL" "$FRONT_LED" 2>/dev/null
 }
 
+# Released, not deactivated: the finalize runs this on the new image with
+# vehicle-service already up, and a channel deactivated behind its init stays
+# dead until it restarts. The ring went dark in parked on every finished
+# install that way. Duty 0 with the channel active is the same darkness and
+# leaves the ring vehicle-service's to light.
 front_pulse_stop() {
   systemctl stop "$FRONT_PULSE_UNIT.service" 2>/dev/null
-  led_off "$FRONT_LED"
+  led_release "$FRONT_LED"
 }
 
 # --- the blinker bar -------------------------------------------------------

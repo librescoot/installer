@@ -115,7 +115,17 @@ echo "systemd-run $unit$args" >> "$CALLS"''',
           'systemd-run librescoot-progress-breathe ${bin.path}/ioctl 4');
     });
 
-    test('with the curve files present the loops play the vehicle fades', () async {
+    test('stopping the ring pulse hands the channel back active', () async {
+      // The finalize stops the pulse with vehicle-service already running on
+      // the new image. Deactivating the channel there leaves the front ring
+      // dark in parked until the service restarts; duty 0 is the same
+      // darkness and keeps it vehicle-service's to light.
+      await run('front_pulse_start\nfront_pulse_stop');
+      expect(calls(), contains('ioctl /dev/pwm_led1 0x0000754A -v 0'));
+      expect(calls(), isNot(contains('0x00007549 -v 0')));
+    });
+
+  test('with the curve files present the loops play the vehicle fades', () async {
       // fade4/fade9 for the bar and fade0/fade1 for the ring, the way the
       // earlier installer breathed; the duty loops are only the fallback for
       // an image without the curves.
