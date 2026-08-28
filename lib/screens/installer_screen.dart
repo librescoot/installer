@@ -903,6 +903,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // the coordinator decline to retire, so a detached run that dies takes the
     // scooter's next boot to finish rather than leaving it half handed back.
     try {
+      // Before the first upload, not as part of the coordinator install that
+      // follows it. uploadFile does not create directories, so without this
+      // the first phase fails its chmod and the catch below swallows the rest
+      // of the staging with it.
+      await _sshService.runCommand('mkdir -p ${SshService.installerScriptsDir}');
       await _sshService.uploadFile(
         Uint8List.fromList(utf8.encode(FinalizeScript.render(
           template: await FinalizeScript.loadTemplate(),

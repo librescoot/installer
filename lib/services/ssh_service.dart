@@ -1485,11 +1485,11 @@ fi
   }) async {
     try {
       final bytes = await File(localPath).readAsBytes();
-      await runCommand('mkdir -p $installerHistoryDir/\$runId');
-      await uploadFile(bytes, '$installerHistoryDir/\$runId/installer.log');
-      debugPrint('SSH: kept the installer log for \$runId on the board');
+      await runCommand('mkdir -p $installerHistoryDir/$runId');
+      await uploadFile(bytes, '$installerHistoryDir/$runId/installer.log');
+      debugPrint('SSH: kept the installer log for $runId on the board');
     } catch (e) {
-      debugPrint('SSH: could not keep the installer log (ok): \$e');
+      debugPrint('SSH: could not keep the installer log (ok): $e');
     }
   }
 
