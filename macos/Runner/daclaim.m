@@ -1,30 +1,46 @@
 // daclaim — macOS Disk Arbitration helper.
 //
-// Long-lived subprocess that pre-claims block devices via the DiskArbitration
-// framework so macOS Finder/DiskUtility doesn't auto-mount them or pop the
-// "Initialize / Erase / Ignore" dialog when an unrecognised partition table
-// shows up (e.g. the MDB's Linux eMMC layout). With a claim held, even the
+// Long-lived subprocess that keeps macOS off a block device we are about to
+// write (e.g. the MDB's Linux eMMC layout), so Finder does not auto-mount it
+// or pop the "Initialize / Eject / Ignore" dialog. With a claim held, the
 // kernel-level EPERM that authopen normally hits on /dev/rdiskN goes away.
+//
+// A claim alone does not stop the automounter (measured: claim granted, macOS
+// mounted anyway), so `watch` also registers a mount-approval dissenter.
 //
 // Protocol: line-based plain text on stdin/stdout.
 //   claim <bsdname>     -> "ok" or "error: ..."
 //   release <bsdname>   -> "ok" or "error: ..."
+//   watch <vid> <pid>   -> "ok" or "error: ..."
+//   unwatch             -> "ok"
 //   ping                -> "pong"
 //   quit                -> exits cleanly (also: stdin EOF)
 // <bsdname> is the BSD name without leading /dev/ — e.g. "disk8".
+// <vid>/<pid> are USB ids, decimal or 0x-prefixed hex.
+//
+// `claim` needs the disk to already exist, which loses the race: macOS pops
+// the dialog within milliseconds of enumeration, long before the caller's next
+// poll. `watch` claims from a DA peek callback instead, which runs before the
+// disk is probed. Arm it before the board reboots into mass-storage mode.
 //
 // On exit (clean or otherwise) all held claims are released. The DA framework
 // also drops the claim if the helper crashes since the session goes away.
 
 #import <Foundation/Foundation.h>
 #import <DiskArbitration/DiskArbitration.h>
+#import <IOKit/IOKitLib.h>
 #import <stdatomic.h>
 #import <stdio.h>
+#import <stdlib.h>
 #import <string.h>
 
 static DASessionRef gSession;
 static dispatch_queue_t gDAQueue;
 static NSMutableDictionary<NSString *, NSValue *> *gClaims; // bsdName -> DADiskRef pointer
+
+static bool gWatching;
+static long gWatchVendor;
+static long gWatchProduct;
 
 // Returned to anyone else trying to claim/mount/probe the disk while we hold it.
 // kDAReturnNotPermitted produces a clean rejection rather than a flapping retry.
@@ -132,6 +148,185 @@ static NSString *doClaim(NSString *bsdName) {
     return @"ok";
 }
 
+// ---- watch ----
+
+// Whether [media] sits underneath a USB device carrying [vendor]/[product].
+// idVendor/idProduct live on the IOUSBHostDevice node, several nubs above the
+// IOMedia, so walk up the service plane. Depth-limited: an unterminated walk
+// would hang the DA queue.
+static bool mediaIsUnderUsbDevice(io_service_t media, long vendor, long product) {
+    io_service_t node = media;
+    IOObjectRetain(node);
+
+    for (int depth = 0; depth < 24 && node != IO_OBJECT_NULL; depth++) {
+        CFNumberRef v = IORegistryEntryCreateCFProperty(
+            node, CFSTR("idVendor"), kCFAllocatorDefault, 0);
+        CFNumberRef p = IORegistryEntryCreateCFProperty(
+            node, CFSTR("idProduct"), kCFAllocatorDefault, 0);
+
+        bool decided = false;
+        bool match = false;
+        if (v && p &&
+            CFGetTypeID(v) == CFNumberGetTypeID() &&
+            CFGetTypeID(p) == CFNumberGetTypeID()) {
+            long gotV = 0, gotP = 0;
+            CFNumberGetValue(v, kCFNumberLongType, &gotV);
+            CFNumberGetValue(p, kCFNumberLongType, &gotP);
+            // First node publishing both ids wins; walking past it would test
+            // the hub's identity instead.
+            decided = true;
+            match = (gotV == vendor && gotP == product);
+        }
+        if (v) CFRelease(v);
+        if (p) CFRelease(p);
+        if (decided) {
+            IOObjectRelease(node);
+            return match;
+        }
+
+        io_registry_entry_t parent = IO_OBJECT_NULL;
+        kern_return_t kr =
+            IORegistryEntryGetParentEntry(node, kIOServicePlane, &parent);
+        IOObjectRelease(node);
+        if (kr != KERN_SUCCESS) return false;
+        node = parent;
+    }
+
+    if (node != IO_OBJECT_NULL) IOObjectRelease(node);
+    return false;
+}
+
+static bool diskIsWholeMedia(DADiskRef disk) {
+    CFDictionaryRef desc = DADiskCopyDescription(disk);
+    if (!desc) return false;
+    CFBooleanRef whole = CFDictionaryGetValue(desc, kDADiskDescriptionMediaWholeKey);
+    bool result = (whole != NULL && CFBooleanGetValue(whole));
+    CFRelease(desc);
+    return result;
+}
+
+// Unlike doClaim's completion this one must not block: it shares the DA queue
+// with the peek callback that submitted it.
+static void watchClaimCallback(DADiskRef disk, DADissenterRef dissenter, void *ctx) {
+    NSString *bsdName = (__bridge_transfer NSString *)ctx;
+    if (!dissenter) {
+        fprintf(stderr, "daclaim: watch claimed %s\n", [bsdName UTF8String]);
+        return;
+    }
+
+    // Drop the optimistic entry made at submit time, so a later explicit
+    // claim retries instead of being told it is already held.
+    DADiskRef held = NULL;
+    @synchronized (gClaims) {
+        NSValue *boxed = gClaims[bsdName];
+        if (boxed) {
+            held = (DADiskRef)[boxed pointerValue];
+            [gClaims removeObjectForKey:bsdName];
+        }
+    }
+    if (held) CFRelease(held);
+    fprintf(stderr, "daclaim: watch claim %s dissented 0x%x\n",
+            [bsdName UTF8String], (unsigned)DADissenterGetStatus(dissenter));
+}
+
+// Claim [disk] if it is ours and not already held. Returns without waiting.
+static void watchConsider(DADiskRef disk) {
+    if (!gWatching) return;
+
+    const char *name = DADiskGetBSDName(disk);
+    if (!name) return;
+    NSString *bsdName = @(name);
+
+    if (!diskIsWholeMedia(disk)) return;
+
+    io_service_t media = DADiskCopyIOMedia(disk);
+    if (media == IO_OBJECT_NULL) return;
+    bool mine = mediaIsUnderUsbDevice(media, gWatchVendor, gWatchProduct);
+    IOObjectRelease(media);
+    if (!mine) return;
+
+    @synchronized (gClaims) {
+        if (gClaims[bsdName]) return;
+        // Recorded before the grant so peek-then-appeared can't double-submit.
+        CFRetain(disk);
+        gClaims[bsdName] = [NSValue valueWithPointer:disk];
+    }
+
+    fprintf(stderr, "daclaim: watch matched %s, claiming\n", name);
+    DADiskClaim(disk, kDADiskClaimOptionDefault, onClaimAttempt, NULL,
+                watchClaimCallback, (__bridge_retained void *)bsdName);
+}
+
+// Runs before the disk is probed. Everything that pops the dialog reacts to
+// the probe, so this is the callback that beats it.
+static void peekCallback(DADiskRef disk, void *ctx) {
+    watchConsider(disk);
+}
+
+// A claim does not stop the automounter; this is what refuses the mount.
+// No whole-media filter here: the mountable node is a child of the disk we
+// claimed.
+static DADissenterRef mountApprovalCallback(DADiskRef disk, void *ctx) {
+    if (!gWatching) return NULL;
+
+    io_service_t media = DADiskCopyIOMedia(disk);
+    if (media == IO_OBJECT_NULL) return NULL;
+    bool mine = mediaIsUnderUsbDevice(media, gWatchVendor, gWatchProduct);
+    IOObjectRelease(media);
+    if (!mine) return NULL;
+
+    const char *name = DADiskGetBSDName(disk);
+    fprintf(stderr, "daclaim: refusing mount of %s\n", name ? name : "(unnamed)");
+    return DADissenterCreate(kCFAllocatorDefault, kDAReturnNotPermitted,
+                             CFSTR("Held by librescoot-installer"));
+}
+
+// Covers a disk already attached when the watch armed: its probe is long over,
+// so no peek callback is coming.
+static void appearedCallback(DADiskRef disk, void *ctx) {
+    watchConsider(disk);
+}
+
+static void disappearedCallback(DADiskRef disk, void *ctx) {
+    const char *name = DADiskGetBSDName(disk);
+    if (!name) return;
+    NSString *bsdName = @(name);
+    DADiskRef held = NULL;
+    @synchronized (gClaims) {
+        NSValue *boxed = gClaims[bsdName];
+        if (boxed) {
+            held = (DADiskRef)[boxed pointerValue];
+            [gClaims removeObjectForKey:bsdName];
+        }
+    }
+    if (held) {
+        fprintf(stderr, "daclaim: %s disappeared, dropping claim\n", name);
+        CFRelease(held);
+    }
+}
+
+static NSString *doWatch(long vendor, long product) {
+    if (gWatching) return @"already watching";
+    gWatchVendor = vendor;
+    gWatchProduct = product;
+    gWatching = true;
+    DARegisterDiskPeekCallback(gSession, NULL, 0, peekCallback, NULL);
+    DARegisterDiskAppearedCallback(gSession, NULL, appearedCallback, NULL);
+    DARegisterDiskDisappearedCallback(gSession, NULL, disappearedCallback, NULL);
+    DARegisterDiskMountApprovalCallback(gSession, NULL, mountApprovalCallback, NULL);
+    return @"ok";
+}
+
+static NSString *doUnwatch(void) {
+    if (!gWatching) return @"not watching";
+    gWatching = false;
+    DAUnregisterCallback(gSession, peekCallback, NULL);
+    DAUnregisterCallback(gSession, appearedCallback, NULL);
+    DAUnregisterCallback(gSession, disappearedCallback, NULL);
+    DAUnregisterApprovalCallback(gSession, mountApprovalCallback, NULL);
+    return @"ok";
+}
+
 static NSString *doRelease(NSString *bsdName) {
     DADiskRef disk = NULL;
     @synchronized (gClaims) {
@@ -179,12 +374,25 @@ int main(int argc, const char *argv[]) {
             if (nl) *nl = '\0';
             char *cmd = strtok(line, " ");
             char *arg = strtok(NULL, " ");
+            char *arg2 = strtok(NULL, " ");
             NSString *result;
 
             if (cmd && strcmp(cmd, "claim") == 0 && arg) {
                 result = doClaim(@(arg));
             } else if (cmd && strcmp(cmd, "release") == 0 && arg) {
                 result = doRelease(@(arg));
+            } else if (cmd && strcmp(cmd, "watch") == 0 && arg && arg2) {
+                // Base 0: accepts 1317 and 0x525 alike, as ioreg prints both.
+                char *endV = NULL, *endP = NULL;
+                long vendor = strtol(arg, &endV, 0);
+                long product = strtol(arg2, &endP, 0);
+                if (endV == arg || *endV != '\0' || endP == arg2 || *endP != '\0') {
+                    result = @"error: bad vid/pid";
+                } else {
+                    result = doWatch(vendor, product);
+                }
+            } else if (cmd && strcmp(cmd, "unwatch") == 0) {
+                result = doUnwatch();
             } else if (cmd && strcmp(cmd, "ping") == 0) {
                 result = @"pong";
             } else if (cmd && strcmp(cmd, "quit") == 0) {
