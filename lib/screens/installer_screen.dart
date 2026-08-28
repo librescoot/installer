@@ -2748,9 +2748,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     );
   }
 
-  Future<bool> _waitForUnlock() async {
+  Future<bool> _waitForUnlock(AppLocalizations l10n) async {
     final completer = Completer<bool>();
     _unlockCompleter = completer;
+    var asked = false;
 
     Future<void> poll() async {
       while (!completer.isCompleted) {
@@ -2769,8 +2770,17 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           completer.complete(true);
           return;
         }
-        if (state != null && state != _awaitingUnlockState && mounted) {
-          setState(() => _awaitingUnlockState = state);
+        // Not parked, or not answering: this is the moment to ask, and to
+        // ask with the full overlay rather than a status line. An unreadable
+        // state is shown as the plain unlock ask; the poll keeps going and
+        // the overlay follows the state once it can be read.
+        if (!asked) {
+          asked = true;
+          _setStatus(l10n.waitingForUnlock);
+        }
+        final shown = state ?? 'stand-by';
+        if (shown != _awaitingUnlockState && mounted) {
+          setState(() => _awaitingUnlockState = shown);
         }
         await Future.delayed(const Duration(seconds: 1));
       }
@@ -3126,8 +3136,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
       // Wait for scooter to be in parked state (or user-overridden
       // ready-to-drive)
-      _setStatus(l10n.waitingForUnlock);
-      final ok = await _waitForUnlock();
+      // The status and the overlay come from the wait itself, once it has
+      // read a state that is not parked. Set here, "unlock the scooter to
+      // continue" flashed at every scooter that was already parked.
+      final ok = await _waitForUnlock(l10n);
       if (!ok) {
         // User cancelled, or widget went away.
         if (mounted) {
