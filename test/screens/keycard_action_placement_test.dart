@@ -28,6 +28,14 @@ void main() {
     }
   });
 
+  test('cards without a master enter the review stage', () {
+    final start = source.indexOf('Future<void> _onEnterKeycardSetup()');
+    final end = source.indexOf('Future<void> _keycardAddKnownCards(', start);
+    final entry = source.substring(start, end);
+    expect(entry, contains('canMaster && cards > 0 && masters == 0'));
+    expect(entry, contains('_keycardStage = _KeycardStage.cardsReview;'));
+  });
+
   test('it still offers all four choices', () {
     final start = source.indexOf('List<PhaseAction> _keycardCardsReviewActions(');
     final end = source.indexOf('\n  }', start);

@@ -8418,9 +8418,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _keycardCapability = capability;
       final canMaster = capability == KeycardCapability.current;
       _keycardServiceCanMaster = canMaster;
-      if (canMaster &&
-          ((_keycardMasterCount ?? 0) > 0 ||
-              (_keycardAuthorizedCount ?? 0) > 0)) {
+      final masters = _keycardMasterCount ?? 0;
+      final cards = _keycardAuthorizedCount ?? 0;
+      if (canMaster && cards > 0 && masters == 0) {
+        // Cards on file do not make setup complete: the Add master action
+        // lives on the review stage. Sending this route to the generic
+        // "already configured" stage hid that action and let the user leave
+        // without ever seeing master teach-in.
+        _keycardStage = _KeycardStage.cardsReview;
+      } else if (canMaster && (masters > 0 || cards > 0)) {
         _keycardStage = _KeycardStage.alreadyConfigured;
       } else {
         _keycardStage = _KeycardStage.cards;
