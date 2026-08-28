@@ -1514,13 +1514,28 @@ epoch_to_iso() {
 #
 # The bound is applied here and not on the dashboard: its image has no timeout
 # binary, so wrapping the remote command in one fails instantly with "timeout:
-# not found" and takes the install with it. This side is the MDB, which has
-# one. $1 is seconds, the rest is the command.
+# not found" and takes the install with it. Neither does the MDB's bootstrap
+# image, which is where this runs for a clean install, so the bound is a
+# background ssh watched from here rather than a timeout binary. $1 is
+# seconds, the rest is the command.
 dbc_ssh_bounded() {
   local secs="$1"; shift
-  local t=0
+  local t=0 pid waited
   while [ $t -lt 3 ]; do
-    timeout "$secs" ssh -y -y root@$DBC_IP "$@" && return 0
+    ssh -y -y root@$DBC_IP "$@" &
+    pid=$!
+    waited=0
+    while kill -0 "$pid" 2>/dev/null && [ "$waited" -lt "$secs" ]; do
+      sleep 1
+      waited=$((waited + 1))
+    done
+    if kill -0 "$pid" 2>/dev/null; then
+      log "  remote command still running after ${secs}s, giving up on it"
+      kill "$pid" 2>/dev/null
+      wait "$pid" 2>/dev/null
+    elif wait "$pid"; then
+      return 0
+    fi
     t=$((t+1)); sleep 3
   done
   return 1
