@@ -45,7 +45,9 @@ class Region {
     'italy-nord-ovest': (name: 'Italien (Nordwest)', country: 'Italien'),
   };
 
-  /// Map ipwho.is country_code -> region_code -> our slug. Keyed on the ISO
+  /// Map the provider's countryCode -> ISO 3166-2 subdivision code -> our
+  /// slug. Keyed on the subdivision code rather than the English region name,
+  /// which is stable across the provider's localisation. Keyed on the ISO
   /// 3166-2 subdivision code rather than the English region name, which is
   /// stable across the provider's localisation. Both Berlin (BE) and
   /// Brandenburg (BB) collapse to the combined berlin_brandenburg region.
@@ -106,23 +108,30 @@ class Region {
       .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
       .join(' ');
 
-  /// Try to detect the user's region from their IP via ipwho.is (HTTPS).
-  /// Returns the region slug, or null if detection fails or the location is
-  /// not a region we map. The caller matches the slug against the regions it
-  /// actually offers before preselecting.
+  /// Try to detect the user's region from their IP via ip-api.com.
+  ///
+  /// The free tier is HTTP-only and non-commercial. That is acceptable here:
+  /// the worst a spoofed answer can do is preselect a dropdown entry the user
+  /// can change, and the HTTPS provider we tried instead placed German
+  /// consumer lines in the wrong state more often.
+  ///
+  /// Geo-IP is a weak signal for German consumer ISPs generally, so treat the
+  /// result as a suggestion. Returns the region slug, or null if detection
+  /// fails or the location is not a region we map. The caller matches the slug
+  /// against the regions it actually offers before preselecting.
   static Future<String?> detectSlugFromIp({http.Client? client}) async {
     try {
       final c = client ?? http.Client();
       final response = await c
           .get(Uri.parse(
-              'https://ipwho.is/?fields=success,country_code,region_code'))
+              'http://ip-api.com/json/?fields=status,countryCode,region'))
           .timeout(const Duration(seconds: 5));
       if (client == null) c.close();
       if (response.statusCode != 200) return null;
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      if (data['success'] != true) return null;
-      final countryCode = data['country_code'] as String?;
-      final regionCode = data['region_code'] as String?;
+      if (data['status'] != 'success') return null;
+      final countryCode = data['countryCode'] as String?;
+      final regionCode = data['region'] as String?;
       if (countryCode == null) return null;
       return _geoMap[countryCode]?[regionCode] ?? _countryDefault[countryCode];
     } catch (_) {
@@ -131,14 +140,12 @@ class Region {
   }
 
   String get osmTilesFilename => 'tiles_$slug.mbtiles';
-  String get osmTilesChecksumFilename => 'tiles_$slug.mbtiles.sha256';
   String get valhallaTilesFilename => 'valhalla_tiles_$slug.tar';
 
   /// The zstd form of the routing tiles, about a third the size. The DBC
   /// decompresses it, so preferring this shrinks both the download and the
   /// upload over the vehicle's own network.
   String get valhallaTilesCompressedFilename => 'valhalla_tiles_$slug.tar.zst';
-  String get valhallaTilesChecksumFilename => 'valhalla_tiles_$slug.tar.sha256';
 
   /// Known regions, used as the offline fallback when the published tile list
   /// can't be fetched. Identity is by slug, so a Region built here compares
