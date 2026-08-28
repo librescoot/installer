@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:librescoot_installer/services/usb_detector.dart';
 
 /// Network interface information
 class NetworkInterface {
@@ -70,6 +72,83 @@ class NetworkService {
     return result;
   }
 
+  /// Whether `ip addr add` refused because the address is already on the
+  /// interface, which means the interface is configured and the call has
+  /// nothing left to do.
+  ///
+  /// iproute2 words this two ways: the kernel's EEXIST surfaces as
+  /// "RTNETLINK answers: File exists", and its own validation reports
+  /// "Error: ipv4: Address already assigned." A reconnect after the board
+  /// reboots hits the second one, and reading it as a failure makes a
+  /// correctly configured link look unconfigured.
+  @visibleForTesting
+  static bool addressAlreadyAssigned(String stderr) {
+    final s = stderr.toLowerCase();
+    return s.contains('file exists') || s.contains('already assigned');
+  }
+
+  /// Whether [error] is the host stack refusing to route to the board, as
+  /// opposed to a timeout or a refused connection.
+  static bool isNoRouteToHost(Object error) =>
+      error is SocketException &&
+      isNoRouteToHostCode(
+        error.osError?.errorCode,
+        platform: Platform.operatingSystem,
+      );
+
+  /// Whether [error] is the initial connect finding nothing at the other end:
+  /// no route, or no answer. Both mean the link was not ready, and both are
+  /// worth one more pass at interface discovery before bothering the user.
+  static bool isLinkNotReady(Object error) =>
+      isNoRouteToHost(error) ||
+      error is TimeoutException ||
+      (error is SocketException &&
+          error.message.toLowerCase().contains('timed out'));
+
+  /// EHOSTUNREACH is per-platform: 65 Darwin, 113 Linux, 10065 Windows.
+  ///
+  /// The platform is a parameter rather than a lookup so the connect-failure
+  /// classifier can be exercised for every host from any host.
+  static bool isNoRouteToHostCode(int? code, {required String platform}) {
+    if (code == null) return false;
+    return switch (platform) {
+      'macos' => code == 65,
+      'linux' => code == 113,
+      'windows' => code == 10065,
+      _ => false,
+    };
+  }
+
+  /// ECONNREFUSED is per-platform: 61 Darwin, 111 Linux, 10061 Windows.
+  ///
+  /// Refused is not the same answer as unreachable or silent: something at
+  /// the other end sent a rejection back, so the link works and only the
+  /// service is missing.
+  static bool isConnectionRefusedCode(int? code, {required String platform}) {
+    if (code == null) return false;
+    return switch (platform) {
+      'macos' => code == 61,
+      'linux' => code == 111,
+      'windows' => code == 10061,
+      _ => false,
+    };
+  }
+
+  /// A connect that ran out of time.
+  ///
+  /// Two errnos mean this. Dart reports its own connect timeout as 110 on
+  /// every platform, and the OS reports ETIMEDOUT as 60 Darwin, 110 Linux,
+  /// 10060 Windows. Reading only the platform one misses the commoner half.
+  static bool isTimedOutCode(int? code, {required String platform}) {
+    if (code == null) return false;
+    if (code == 110) return true;
+    return switch (platform) {
+      'macos' => code == 60,
+      'windows' => code == 10060,
+      _ => false,
+    };
+  }
+
   /// Check if MDB is reachable
   Future<bool> isMdbReachable() async {
     try {
@@ -109,6 +188,34 @@ class NetworkService {
     return buf.toString();
   }
 
+  /// macOS twin of [gatherLinuxDiagnostics].
+  Future<String> gatherMacOSDiagnostics(String? iface) async {
+    if (!Platform.isMacOS) return '';
+    final buf = StringBuffer();
+
+    Future<void> run(String label, String exe, List<String> args) async {
+      buf.writeln('--- $label ---');
+      try {
+        final r = await Process.run(exe, args);
+        buf.writeln(r.stdout.toString().trim());
+        final err = r.stderr.toString().trim();
+        if (err.isNotEmpty) buf.writeln('stderr: $err');
+      } catch (e) {
+        buf.writeln('failed: $e');
+      }
+    }
+
+    await run('ifconfig ${iface ?? '-a'}', 'ifconfig', [iface ?? '-a']);
+    await run('netstat -rn -f inet', 'netstat', ['-rn', '-f', 'inet']);
+    if (iface != null) {
+      await run('networksetup service for $iface', 'networksetup',
+          ['-listnetworkserviceorder']);
+    }
+    buf.writeln('--- gadget interface lookup ---');
+    buf.writeln(await findMacOSGadgetInterface() ?? '(none)');
+    return buf.toString();
+  }
+
   Future<NetworkInterface?> _findWindowsInterface() async {
     try {
       // Use PowerShell to find RNDIS network adapter: avoids cmd.exe '&'
@@ -127,21 +234,39 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
 
       if (result.exitCode != 0) return null;
 
-      final line = result.stdout.toString().trim();
-      if (line.isEmpty) return null;
-
-      final parts = line.split('\t');
-      final name = parts.isNotEmpty ? parts[0].trim() : 'USB Ethernet';
-      final netConn = parts.length > 1 ? parts[1].trim() : '';
-      final isUp = parts.length > 2 && parts[2].trim().toLowerCase() == 'true';
-
-      return NetworkInterface(
-        name: netConn,
-        displayName: name,
-        isUp: isUp,
-      );
+      return parseWindowsAdapter(result.stdout.toString());
     } catch (_) {}
     return null;
+  }
+
+  /// One tab-separated adapter row: Name, NetConnectionID, NetEnabled.
+  ///
+  /// Null where there is no usable interface yet. netsh addresses an interface
+  /// by its connection name, so an adapter without one cannot be configured,
+  /// and Windows creates the adapter before the connection object: an empty
+  /// NetConnectionID is the ordinary state for the first seconds after the
+  /// board re-enumerates. The callers poll, so not-found is the answer that
+  /// gets retried; a name of '' is one netsh cannot match.
+  @visibleForTesting
+  static NetworkInterface? parseWindowsAdapter(String stdout) {
+    final line = stdout.trim();
+    if (line.isEmpty) return null;
+
+    final parts = line.split('\t');
+    final name = parts.isNotEmpty && parts[0].trim().isNotEmpty
+        ? parts[0].trim()
+        : 'USB Ethernet';
+    final netConn = parts.length > 1 ? parts[1].trim() : '';
+    final isUp = parts.length > 2 && parts[2].trim().toLowerCase() == 'true';
+
+    if (netConn.isEmpty) {
+      debugPrint(
+        'Network: adapter "$name" has no connection name yet, not ready',
+      );
+      return null;
+    }
+
+    return NetworkInterface(name: netConn, displayName: name, isUp: isUp);
   }
 
   Future<bool> _configureWindows(NetworkInterface iface) async {
@@ -181,94 +306,150 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
     }
   }
 
-  Future<NetworkInterface?> _findMacOSInterface() async {
-    try {
-      // List network services
-      final result = await Process.run('networksetup', ['-listallhardwareports']);
-
-      if (result.exitCode != 0) return null;
-
-      final output = result.stdout.toString();
-      final lines = output.split('\n');
-
-      // Look for USB or RNDIS interface
-      String? currentPort;
-      String? currentDevice;
-
-      for (final line in lines) {
-        if (line.startsWith('Hardware Port:')) {
-          currentPort = line.substring('Hardware Port:'.length).trim();
-        } else if (line.startsWith('Device:')) {
-          currentDevice = line.substring('Device:'.length).trim();
-
-          // Check if this looks like the USB ethernet
-          if (currentPort != null &&
-              (currentPort.toLowerCase().contains('usb') ||
-                  currentPort.toLowerCase().contains('rndis') ||
-                  currentDevice.startsWith('en') && await _isUsbInterface(currentDevice))) {
-            return NetworkInterface(
-              name: currentDevice,
-              displayName: currentPort,
-            );
-          }
-        }
-      }
-
-      // Fallback: look for any new interface
-      return _findMacOSNewInterface();
-    } catch (_) {}
-    return null;
-  }
-
-  Future<bool> _isUsbInterface(String device) async {
-    try {
-      final result = await Process.run('ifconfig', [device]);
-      if (result.exitCode != 0) return false;
-
-      // Check if it's up but has no IP (likely our device)
-      final output = result.stdout.toString();
-      return output.contains('status: active') && !output.contains('inet ');
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<NetworkInterface?> _findMacOSNewInterface() async {
-    try {
-      // Get list of interfaces without IPs
-      final result = await Process.run('ifconfig', ['-a']);
-      if (result.exitCode != 0) return null;
-
-      final output = result.stdout.toString();
-      final interfaces = <String>[];
-
-      // Parse ifconfig output
-      String? currentInterface;
-      for (final line in output.split('\n')) {
-        if (line.isNotEmpty && !line.startsWith('\t') && !line.startsWith(' ')) {
-          final match = RegExp(r'^(\w+):').firstMatch(line);
-          if (match != null) {
-            currentInterface = match.group(1);
-          }
-        } else if (currentInterface != null &&
-            line.contains('status: active') &&
-            !output.contains('inet ') &&
-            currentInterface.startsWith('en')) {
-          interfaces.add(currentInterface);
-        }
-      }
-
-      if (interfaces.isNotEmpty) {
-        // Pick the highest numbered en interface (likely the newest)
-        interfaces.sort();
-        final iface = interfaces.last;
+  /// Find the MDB's interface on macOS.
+  ///
+  /// Identity decides, the same way it does on Linux. The interface has to be
+  /// the one macOS published beneath a USB device carrying our vendor and
+  /// product id. A hardware-port name containing "usb", and "an en that is up
+  /// with no IPv4 of its own", were the previous signals, and both describe a
+  /// dock's gigabit port or a Thunderbolt bridge still waiting on DHCP just as
+  /// well as they describe the MDB. Picking one of those sets it unmanaged and
+  /// gives it our static address, which drops the host off its own network and
+  /// still never reaches the scooter.
+  Future<NetworkInterface?> _findMacOSInterface({
+    Duration timeout = const Duration(seconds: 25),
+  }) async {
+    // The network stack attaches a moment after enumeration here as it does on
+    // Linux, so a board that is present but has not published an interface yet
+    // is worth waiting for rather than refusing outright. Giving up early is
+    // worse: the caller reads "no interface" as "nothing to configure" and
+    // connects with no address on the link.
+    final deadline = DateTime.now().add(timeout);
+    while (true) {
+      final name = await findMacOSGadgetInterface();
+      if (name != null) {
         return NetworkInterface(
-          name: iface,
-          displayName: 'USB Ethernet ($iface)',
+          name: name,
+          displayName: 'USB Ethernet ($name)',
+        );
+      }
+      if (!DateTime.now().isBefore(deadline)) break;
+      await Future.delayed(const Duration(seconds: 1));
+    }
+
+    // Say what was refused and what the old rule would have taken. On a host
+    // where this returns nothing the difference between "no board attached"
+    // and "board attached, interface not published" is the whole diagnosis,
+    // and the second line is what tells us whether dropping the heuristic
+    // changed the answer on a real Mac.
+    debugPrint('Network: no interface published under USB '
+        '${_hex(UsbDetector.targetVendorId)}:${_hex(UsbDetector.ethernetPid)}');
+    try {
+      final ifconfig = await Process.run('ifconfig', ['-a']);
+      if (ifconfig.exitCode == 0) {
+        final output = ifconfig.stdout.toString();
+        debugPrint(
+          'Network: unconfigured candidates were '
+          '${unconfiguredActiveInterfaces(output)}, the previous rule would '
+          'have taken ${newestUnconfiguredEthernet(output) ?? '(none)'}',
         );
       }
     } catch (_) {}
     return null;
+  }
+
+  static String _hex(int id) =>
+      id.toRadixString(16).toUpperCase().padLeft(4, '0');
+
+  /// The BSD name macOS gave the interface published beneath our ethernet
+  /// gadget, or null when no such interface exists.
+  @visibleForTesting
+  Future<String?> findMacOSGadgetInterface() async {
+    try {
+      final output = await _runIoreg();
+      if (output == null) return null;
+      return UsbDetector.parseIoregEthernetInterface(output);
+    } catch (e) {
+      debugPrint('Network: ioreg lookup failed: $e');
+      return null;
+    }
+  }
+
+  /// The same invocation the USB detector uses to find the gadget's disk. The
+  /// default IOService plane is what matters: `-p IOUSB` shows the USB nubs
+  /// alone, without the driver stack that publishes the interface.
+  Future<String?> _runIoreg() async {
+    for (final command in const ['/usr/sbin/ioreg', 'ioreg']) {
+      try {
+        final result = await Process.run(
+          command,
+          const ['-r', '-c', 'IOUSBHostDevice', '-l', '-w', '0'],
+        );
+        if (result.exitCode == 0) return result.stdout.toString();
+      } catch (_) {
+        continue;
+      }
+    }
+    return null;
+  }
+
+  /// Interfaces in `ifconfig -a` output that are up and carry no IPv4 address
+  /// of their own, which is what a USB gadget looks like before it is given
+  /// one.
+  ///
+  /// Each block is judged on its own lines. Testing the whole dump instead is
+  /// what broke this: lo0 always carries 127.0.0.1, so a global "no inet"
+  /// test is false on every machine and no candidate ever qualified.
+  @visibleForTesting
+  static List<String> unconfiguredActiveInterfaces(String ifconfigOutput) {
+    final found = <String>[];
+    String? name;
+    var active = false;
+    var hasIpv4 = false;
+
+    void closeBlock() {
+      final current = name;
+      if (current != null && active && !hasIpv4) found.add(current);
+    }
+
+    for (final line in ifconfigOutput.split('\n')) {
+      final isHeader =
+          line.isNotEmpty && !line.startsWith('\t') && !line.startsWith(' ');
+      if (isHeader) {
+        closeBlock();
+        name = RegExp(r'^([\w.]+):').firstMatch(line)?.group(1);
+        active = false;
+        hasIpv4 = false;
+        continue;
+      }
+      if (name == null) continue;
+      if (line.contains('status: active')) active = true;
+      // The trailing space is load-bearing. An unconfigured interface still
+      // gets an inet6 link-local address, and matching that would rule out
+      // every candidate this is meant to find.
+      if (line.trimLeft().startsWith('inet ')) hasIpv4 = true;
+    }
+    closeBlock();
+
+    return found;
+  }
+
+  /// The highest-numbered unconfigured `en` interface, taken as the most
+  /// recently attached one.
+  ///
+  /// Ordered by the number rather than the string: sorting text puts en10
+  /// before en2, so a Mac that has reached double digits, which any dock or
+  /// Thunderbolt chain does, would never have en10 chosen.
+  @visibleForTesting
+  static String? newestUnconfiguredEthernet(String ifconfigOutput) {
+    final candidates = unconfiguredActiveInterfaces(
+      ifconfigOutput,
+    ).where((name) => name.startsWith('en')).toList();
+    if (candidates.isEmpty) return null;
+
+    int number(String name) => int.tryParse(name.substring(2)) ?? -1;
+    candidates.sort((a, b) => number(a).compareTo(number(b)));
+    return candidates.last;
   }
 
   Future<bool> _configureMacOS(NetworkInterface iface) async {
@@ -278,34 +459,30 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
         return true;
       }
 
-      // First, try to find the network service name
-      final serviceResult = await Process.run('networksetup', ['-listallhardwareports']);
-      String? serviceName;
-
-      if (serviceResult.exitCode == 0) {
-        final lines = serviceResult.stdout.toString().split('\n');
-        for (var i = 0; i < lines.length; i++) {
-          if (lines[i].contains('Device: ${iface.name}') && i > 0) {
-            final portLine = lines[i - 1];
-            if (portLine.startsWith('Hardware Port:')) {
-              serviceName = portLine.substring('Hardware Port:'.length).trim();
-              break;
-            }
-          }
-        }
-      }
+      final serviceName = await macOSServiceNameFor(iface.name);
 
       if (serviceName != null) {
         // Use networksetup for named services
+        debugPrint('Network: networksetup -setmanual "$serviceName" $targetIp');
         final result = await Process.run(
           'networksetup',
           ['-setmanual', serviceName, targetIp, subnetMask],
         );
+        final out = result.stdout.toString().trim();
+        final err = result.stderr.toString().trim();
+        // Logged either way. This step deciding not to work is what sends the
+        // run into the ifconfig fallback, and a run that ends there with no
+        // record of why cannot be diagnosed from the log the user hands over.
+        debugPrint('Network: networksetup exit=${result.exitCode}'
+            '${out.isEmpty ? '' : ' stdout=$out'}'
+            '${err.isEmpty ? '' : ' stderr=$err'}');
 
         if (result.exitCode == 0) {
           await Future.delayed(const Duration(seconds: 2));
           return await isMdbReachable();
         }
+      } else {
+        debugPrint('Network: no macOS network service owns ${iface.name}');
       }
 
       // Fallback: use ifconfig directly
@@ -315,16 +492,105 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
       );
 
       if (result.exitCode != 0) {
-        debugPrint('ifconfig failed: ${result.stderr}');
+        final denied = result.stderr
+            .toString()
+            .toLowerCase()
+            .contains('permission denied');
+        // A machine that has run a successful install before carries a saved
+        // service configuration for this gadget, and macOS reapplies it when
+        // the interface returns. So the board can already be reachable and
+        // nothing here was needed. That is not a rescue and there is no DHCP
+        // lease behind it: `ipconfig getpacket` returns nothing on this link.
+        //
+        // On a machine that has never installed, there is no saved
+        // configuration to reapply and this is the only route, so a denial is
+        // the whole failure and the user has to be told what to do about it.
+        await Future.delayed(const Duration(seconds: 2));
+        if (await isMdbReachable()) {
+          debugPrint(
+            'Network: ifconfig not permitted, but the board is already '
+            'reachable on an existing address',
+          );
+          return true;
+        }
+        if (denied) {
+          throw const NetworkPrivilegeException(
+            'Configuring the USB network interface on macOS requires '
+            'administrator rights. Quit and relaunch the installer with: '
+            'sudo <path-to-installer>',
+          );
+        }
+        debugPrint('Network: ifconfig failed: ${result.stderr}');
         return false;
       }
 
       await Future.delayed(const Duration(seconds: 2));
       return await isMdbReachable();
+    } on NetworkPrivilegeException {
+      // The generic catch below would turn this into a plain false, and the
+      // caller reads false as "not reachable yet" and keeps pinging. The
+      // whole point of the exception is that no amount of waiting fixes it,
+      // so it has to leave this function intact. _configureLinux does the
+      // same thing for the same reason.
+      rethrow;
     } catch (e) {
       debugPrint('Failed to configure macOS interface: $e');
       return false;
     }
+  }
+
+  /// The macOS *network service* that owns [device], or null if none does.
+  ///
+  /// `networksetup -setmanual` addresses a service, and the hardware port is a
+  /// different name that only usually matches it: rename a service in System
+  /// Settings, or plug in a second adapter of the same model, and the port name
+  /// stops resolving. The service order listing prints both together, so read
+  /// the pairing there and keep the port name as the fallback.
+  @visibleForTesting
+  Future<String?> macOSServiceNameFor(String device) async {
+    try {
+      final order =
+          await Process.run('networksetup', ['-listnetworkserviceorder']);
+      if (order.exitCode == 0) {
+        final name = parseServiceOrder(order.stdout.toString(), device);
+        if (name != null) return name;
+      }
+
+      final ports =
+          await Process.run('networksetup', ['-listallhardwareports']);
+      if (ports.exitCode == 0) {
+        final lines = ports.stdout.toString().split('\n');
+        for (var i = 1; i < lines.length; i++) {
+          if (lines[i].trim() != 'Device: $device') continue;
+          final portLine = lines[i - 1];
+          if (portLine.startsWith('Hardware Port:')) {
+            return portLine.substring('Hardware Port:'.length).trim();
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Network: service lookup failed for $device: $e');
+    }
+    return null;
+  }
+
+  /// The service named above the `(Hardware Port: ..., Device: en5)` line in
+  /// `networksetup -listnetworkserviceorder` output.
+  ///
+  /// Enabled services are numbered "(1)", disabled ones are marked "(*)", and
+  /// both name a service that -setmanual accepts.
+  @visibleForTesting
+  static String? parseServiceOrder(String output, String device) {
+    final lines = output.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      if (!lines[i].contains('Device: $device)')) continue;
+      for (var j = i - 1; j >= 0; j--) {
+        final match =
+            RegExp(r'^\((?:\*|\d+)\)\s+(.+)$').firstMatch(lines[j].trim());
+        if (match != null) return match.group(1)!.trim();
+      }
+    }
+    return null;
   }
 
   Future<bool> _isMacOSInterfaceConfigured(String interfaceName) async {
@@ -342,32 +608,35 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
   Future<NetworkInterface?> _findLinuxInterface({
     Duration timeout = const Duration(seconds: 10),
   }) async {
-    // The cdc_ether driver binds asynchronously after USB enumeration —
+    // The cdc_ether driver binds asynchronously after USB enumeration , 
     // the interface can take up to ~1s to appear on slow hubs. Poll until
     // it's there or we hit the timeout.
     final deadline = DateTime.now().add(timeout);
     NetworkInterface? iface;
     while (true) {
-      iface = await _findLinuxInterfaceOnce();
+      iface = await findLinuxInterfaceOnce();
       if (iface != null) return iface;
       if (!DateTime.now().isBefore(deadline)) return null;
       await Future.delayed(const Duration(seconds: 1));
     }
   }
 
-  Future<NetworkInterface?> _findLinuxInterfaceOnce() async {
+  @visibleForTesting
+  Future<NetworkInterface?> findLinuxInterfaceOnce({
+    String sysRoot = '/sys',
+  }) async {
     try {
-      final dir = Directory('/sys/class/net');
+      final dir = Directory('$sysRoot/class/net');
       if (!await dir.exists()) return null;
       // Walk every interface; don't rely on name patterns. systemd predictable
       // naming gives us enx<MAC>, but legacy/biosdevname/init=no setups use
-      // usb0, eth1, etc. Match on USB VID:PID via uevent first, fall back to
-      // driver name.
+      // usb0, eth1, etc. Sorted so that a host with several candidates always
+      // gets the same answer instead of one that depends on readdir order.
       final entries = await dir.list(followLinks: false).toList();
-      for (final entry in entries) {
-        final name = entry.path.split('/').last;
+      final names = entries.map((e) => e.path.split('/').last).toList()..sort();
+      for (final name in names) {
         if (name == 'lo') continue;
-        if (await _isLibrescootInterface(name)) {
+        if (await isLibrescootInterface(name, sysRoot: sysRoot)) {
           return NetworkInterface(
             name: name,
             displayName: 'USB Ethernet ($name)',
@@ -375,48 +644,84 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
         }
       }
     } catch (e) {
-      debugPrint('Network: _findLinuxInterfaceOnce error: $e');
+      debugPrint('Network: findLinuxInterfaceOnce error: $e');
     }
     return null;
   }
 
   /// Decide whether the given iface is the Librescoot USB gadget.
-  /// Primary check: USB MODALIAS in uevent contains v0525pA4A2.
-  /// Fallback: driver symlink basename is cdc_ether or rndis_host.
-  Future<bool> _isLibrescootInterface(String name) async {
+  ///
+  /// Only the device's own identity counts, read from either of the two places
+  /// the kernel publishes it: the USB interface uevent
+  /// (`MODALIAS=usb:v0525pA4A2...`, or `PRODUCT=525/a4a2/...`, which drops
+  /// leading zeros), and idVendor/idProduct on the USB device one level up.
+  ///
+  /// The driver name is deliberately not evidence. cdc_ether, rndis_host,
+  /// cdc_ncm and cdc_subset are the generic CDC drivers every USB dock, phone
+  /// tether and no-name adapter binds to, so trusting them means an unrelated
+  /// interface can be picked, set unmanaged and given our static address. That
+  /// takes down the host's own network and still never reaches the MDB. When
+  /// the identity cannot be read, the honest answer is no.
+  @visibleForTesting
+  Future<bool> isLibrescootInterface(
+    String name, {
+    String sysRoot = '/sys',
+  }) async {
+    final device = '$sysRoot/class/net/$name/device';
+
     try {
-      final uevent = File('/sys/class/net/$name/device/uevent');
+      final uevent = File('$device/uevent');
       if (await uevent.exists()) {
-        final content = await uevent.readAsString();
-        // MODALIAS line for our gadget: usb:v0525pA4A2d... (case-insensitive hex)
-        if (RegExp(r'MODALIAS=usb:v0525p[Aa]4[Aa]2', caseSensitive: false)
-            .hasMatch(content)) {
-          return true;
-        }
+        if (ueventIdentifiesGadget(await uevent.readAsString())) return true;
       }
     } catch (_) {}
 
-    // Fallback: read the driver symlink target. /sys/class/net/<iface>/device/driver
-    // is a symlink to /sys/bus/usb/drivers/<driver>; the previous code used
-    // `ls` here, which lists the *contents* of the driver dir, not its name —
-    // so the cdc_ether check always failed.
     try {
-      final result = await Process.run(
-        'readlink',
-        ['/sys/class/net/$name/device/driver'],
-      );
-      if (result.exitCode == 0) {
-        final driver = result.stdout.toString().trim().split('/').last;
-        if (driver == 'cdc_ether' ||
-            driver == 'rndis_host' ||
-            driver == 'cdc_ncm' ||
-            driver == 'cdc_subset') {
+      final vendor = File('$device/../idVendor');
+      final product = File('$device/../idProduct');
+      if (await vendor.exists() && await product.exists()) {
+        if (usbIdsIdentifyGadget(
+          await vendor.readAsString(),
+          await product.readAsString(),
+        )) {
           return true;
         }
       }
     } catch (_) {}
 
     return false;
+  }
+
+  /// USB ids of the MDB's ethernet gadget, the same pair the USB detector and
+  /// the Windows driver installer match on.
+  static const int gadgetVendorId = 0x0525;
+  static const int gadgetProductId = 0xA4A2;
+
+  /// True when a USB interface uevent names our gadget. Both lines it can come
+  /// from are checked: MODALIAS pads the ids to four hex digits, PRODUCT does
+  /// not (`PRODUCT=525/a4a2/612` on a live gadget).
+  @visibleForTesting
+  static bool ueventIdentifiesGadget(String uevent) {
+    if (RegExp(
+      r'MODALIAS=usb:v0525p[Aa]4[Aa]2',
+      caseSensitive: false,
+    ).hasMatch(uevent)) {
+      return true;
+    }
+    return RegExp(
+      r'^PRODUCT=0*525/0*a4a2(/|$)',
+      multiLine: true,
+      caseSensitive: false,
+    ).hasMatch(uevent);
+  }
+
+  /// True when sysfs idVendor/idProduct are our gadget's. Both are hex without
+  /// a 0x prefix, so they are parsed as hex rather than compared as strings.
+  @visibleForTesting
+  static bool usbIdsIdentifyGadget(String idVendor, String idProduct) {
+    final vendor = int.tryParse(idVendor.trim(), radix: 16);
+    final product = int.tryParse(idProduct.trim(), radix: 16);
+    return vendor == gadgetVendorId && product == gadgetProductId;
   }
 
   Future<bool> _configureLinux(NetworkInterface iface) async {
@@ -447,7 +752,7 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
         ['addr', 'add', '$targetIp/24', 'dev', iface.name],
       );
       if (result.exitCode != 0 &&
-          !result.stderr.toString().contains('File exists')) {
+          !addressAlreadyAssigned(result.stderr.toString())) {
         debugPrint('Network: ip addr add failed: ${result.stderr}');
         return false;
       }

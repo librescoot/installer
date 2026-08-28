@@ -7,32 +7,17 @@ import 'package:path/path.dart' as path;
 
 import '../l10n/app_localizations.dart';
 import 'disk_arbitration_service.dart';
+import 'usb_detector.dart' show SystemDiskVerdict;
 
 /// Progress callback for flashing operations
-typedef ProgressCallback = void Function(double progress, String status);
-
-/// Result of a flash operation
-class FlashResult {
-  final bool success;
-  final String? error;
-  final String? checksum;
-
-  FlashResult({
-    required this.success,
-    this.error,
-    this.checksum,
-  });
-}
 
 /// Safety validation result
 class SafetyCheck {
   final bool passed;
-  final List<String> warnings;
   final List<String> errors;
 
   SafetyCheck({
     required this.passed,
-    this.warnings = const [],
     this.errors = const [],
   });
 }
@@ -41,82 +26,23 @@ class SafetyCheck {
 class FlashService {
   AppLocalizations? l10n;
 
-  /// Build the command(s) that would be used for flashing without executing.
-  Future<String> buildFlashPlan(
-    String imagePath,
-    String devicePath,
-  ) async {
-    final isCompressed = imagePath.endsWith('.gz');
+  /// User area of the eMMC every MDB carries: 15269888 sectors of 512 bytes.
+  /// Matched exactly. Every platform supplies the raw device size, and a host
+  /// that cannot reports none, which is handled separately rather than
+  /// compared as a wrong number.
+  static const int mdbEmmcBytes = 7818182656;
 
-    if (Platform.isWindows) {
-      final diskMatch = RegExp(r'PHYSICALDRIVE(\d+)').firstMatch(devicePath);
-      final diskNumber = diskMatch?.group(1) ?? '?';
-      final ddPath = await _getDdPath() ?? '<dd.exe-not-found>';
+  /// An eMMC that has lost its user area reports a few tens of MB.
+  static const int failedEmmcCeilingBytes = 64 * 1024 * 1024;
 
-      if (isCompressed) {
-        return [
-          'diskpart: select disk $diskNumber',
-          'diskpart: offline disk',
-          'diskpart: clean',
-          'powershell: decompress "$imagePath" -> "$devicePath"',
-          'diskpart: select disk $diskNumber',
-          'diskpart: online disk',
-        ].join('\n');
-      }
+  static String _gib(int bytes) =>
+      (bytes / (1024 * 1024 * 1024)).toStringAsFixed(2);
 
-      return [
-        'diskpart: select disk $diskNumber',
-        'diskpart: offline disk',
-        'diskpart: clean',
-        '$ddPath if=$imagePath of=$devicePath bs=4M',
-        'diskpart: select disk $diskNumber',
-        'diskpart: online disk',
-      ].join('\n');
-    }
-
-    if (Platform.isMacOS) {
-      final diskName = devicePath.replaceFirst('/dev/rdisk', '/dev/disk');
-      if (isCompressed) {
-        return [
-          'diskutil unmountDisk $diskName',
-          'gunzip -c "$imagePath" | diskwriter $devicePath',
-          '# diskwriter uses macOS Authorization Services for raw disk access',
-          'sync',
-          'diskutil eject $diskName',
-        ].join('\n');
-      }
-
-      return [
-        'diskutil unmountDisk $diskName',
-        'cat $imagePath | diskwriter $devicePath',
-        '# diskwriter uses macOS Authorization Services for raw disk access',
-        'sync',
-        'diskutil eject $diskName',
-      ].join('\n');
-    }
-
-    if (Platform.isLinux) {
-      if (isCompressed) {
-        return [
-          'umount <partitions of $devicePath>',
-          'gunzip -c "$imagePath" | sudo dd of="$devicePath" bs=4M iflag=fullblock oflag=direct status=progress',
-          'sync',
-        ].join('\n');
-      }
-
-      return [
-        'umount <partitions of $devicePath>',
-        'sudo dd if=$imagePath of=$devicePath bs=4M oflag=direct status=progress',
-        'sync',
-      ].join('\n');
-    }
-
-    return 'Unsupported platform';
-  }
+  static String _mib(int bytes) => (bytes / (1024 * 1024)).toStringAsFixed(1);
 
   /// Validate that a device is safe to flash
   ///
-  /// Returns a SafetyCheck with any warnings or errors.
+  /// Returns a SafetyCheck with any errors.
   /// Flashing should ONLY proceed if passed is true.
   SafetyCheck validateDevice({
     required String devicePath,
@@ -125,9 +51,24 @@ class FlashService {
     required bool isSystemDisk,
     required int vendorId,
     required int productId,
+    SystemDiskVerdict systemDiskVerdict = SystemDiskVerdict.unknown,
+    String? detectedPath,
   }) {
     final errors = <String>[];
-    final warnings = <String>[];
+
+    // devicePath is the only argument describing the disk to be written; the
+    // others come from the detected device object, which the caller reads
+    // separately. Windows reassigns a freed disk number to the next device,
+    // so the two can name different disks. Every check below reads the
+    // object, so this is the only one that ties the identity to the path.
+    if (detectedPath != null &&
+        detectedPath.isNotEmpty &&
+        detectedPath != devicePath) {
+      errors.add(
+        'Device identity does not match the target path: detected on '
+        '$detectedPath, about to write to $devicePath',
+      );
+    }
 
     // CRITICAL: Never flash system disk
     if (isSystemDisk) {
@@ -144,25 +85,39 @@ class FlashService {
       errors.add('Wrong product ID: 0x${productId.toRadixString(16)} (expected 0xa4a5)');
     }
 
-    // Size sanity check
+    // One value, not a range: a range wide enough for "any small disk" also
+    // admits the SD cards and sticks the detector's match pattern can adopt.
     if (sizeBytes != null) {
-      const minSize = 1 * 1024 * 1024 * 1024; // 1 GB
-      const maxSize = 16 * 1024 * 1024 * 1024; // 16 GB
-
-      if (sizeBytes < minSize) {
-        errors.add('Device too small: ${(sizeBytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB (minimum 1 GB)');
+      if (sizeBytes <= failedEmmcCeilingBytes) {
+        errors.add(
+          'eMMC reports only ${_mib(sizeBytes)} MB. The eMMC on this board '
+          'has failed; it cannot be flashed.',
+        );
+      } else if (sizeBytes != mdbEmmcBytes) {
+        errors.add(
+          'Unexpected device size: ${_gib(sizeBytes)} GB, expected '
+          '${_gib(mdbEmmcBytes)} GB. This is not an MDB eMMC.',
+        );
       }
-      if (sizeBytes > maxSize) {
-        errors.add('Device too large: ${(sizeBytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB (maximum 16 GB)');
-      }
+    } else if (Platform.isWindows) {
+      // Windows supplies the size from Get-Disk, which answers for any disk
+      // the storage stack can see. No size means that stack cannot answer,
+      // which is the state to stop in rather than write through.
+      errors.add(
+        'Could not determine the device size. The storage stack did not '
+        'answer for this disk.',
+      );
     } else {
-      warnings.add('Could not determine device size');
+      // Off Windows the size is resolved separately and may not have landed
+      // yet. The identity checks above stand on their own, so this is logged
+      // and the flash continues.
+      debugPrint('Flash: could not determine device size for $devicePath');
     }
 
-    // Warn if not detected as removable (but don't block).
-    // macOS often reports USB gadget media as non-removable.
-    if (!isRemovable && !Platform.isMacOS) {
-      warnings.add('Device not detected as removable media');
+    // Removability is one signal among several and the identity checks decide
+    // the case, so it is logged rather than enforced.
+    if (!isRemovable) {
+      debugPrint('Flash: $devicePath is not detected as removable media');
     }
 
     // Path sanity checks
@@ -172,7 +127,9 @@ class FlashService {
       }
       // Never allow PHYSICALDRIVE0
       if (devicePath.contains('PHYSICALDRIVE0')) {
-        errors.add('DANGER: Cannot flash PHYSICALDRIVE0 (system disk)');
+        // Index 0 does not identify the system disk. Refused because the
+        // scooter is never index 0.
+        errors.add('DANGER: Cannot flash PHYSICALDRIVE0');
       }
     } else if (Platform.isMacOS) {
       if (devicePath.trim().isEmpty || !devicePath.startsWith('/dev/')) {
@@ -183,15 +140,25 @@ class FlashService {
         errors.add('DANGER: Cannot flash disk0 (system disk)');
       }
       if (RegExp(r'/r?disk1($|s\d+)').hasMatch(devicePath)) {
-        warnings.add('disk1 may be the system disk - verify carefully');
+        // disk1 is often the internal APFS container. The VID, PID, size and
+        // detected-path checks decide the case; the name alone does not.
+        debugPrint('Flash: $devicePath is disk1, which is commonly internal');
       }
     } else if (Platform.isLinux) {
       if (devicePath.trim().isEmpty || !devicePath.startsWith('/dev/')) {
         errors.add('Invalid Linux device path: $devicePath');
       }
-      // Never allow sda (typically system)
-      if (devicePath.endsWith('/dev/sda') || devicePath == '/dev/sda') {
-        errors.add('DANGER: Cannot flash /dev/sda (likely system disk)');
+      // sda is not inherently the system disk. On a laptop that boots from
+      // NVMe it is simply the first USB disk attached, which is what the
+      // scooter enumerates as, so refusing it outright blocked the only
+      // device the user was trying to flash. It is refused when the storage
+      // stack could not be asked (systemDiskVerdict unknown), because then
+      // the name is the only evidence there is; a disk with anything mounted
+      // on it is refused above regardless of name.
+      if (devicePath == '/dev/sda' &&
+          systemDiskVerdict != SystemDiskVerdict.notSystem) {
+        errors.add('DANGER: /dev/sda could not be confirmed as the scooter. '
+            'Refusing, because it is commonly the system disk.');
       }
       // Never allow nvme0n1 (system NVMe)
       if (devicePath.contains('nvme0n1')) {
@@ -201,131 +168,8 @@ class FlashService {
 
     return SafetyCheck(
       passed: errors.isEmpty,
-      warnings: warnings,
       errors: errors,
     );
-  }
-
-  /// Write a firmware image to the target device
-  ///
-  /// [imagePath] - Path to the firmware image (.wic or .wic.gz)
-  /// [devicePath] - Device path (e.g., /dev/rdisk2, \\.\PHYSICALDRIVE1)
-  /// [onProgress] - Optional callback for progress updates
-  Future<FlashResult> writeImage(
-    String imagePath,
-    String devicePath, {
-    ProgressCallback? onProgress,
-  }) async {
-    onProgress?.call(0.0, 'Preparing...');
-
-    // Validate paths
-    final imageFile = File(imagePath);
-    if (!await imageFile.exists()) {
-      return FlashResult(success: false, error: 'Image file not found: $imagePath');
-    }
-
-    // Check if image is compressed
-    final isCompressed = imagePath.endsWith('.gz');
-
-    try {
-      if (Platform.isWindows) {
-        return _writeWindows(imagePath, devicePath, isCompressed, onProgress);
-      } else if (Platform.isMacOS) {
-        return _writeMacOS(imagePath, devicePath, isCompressed, onProgress);
-      } else if (Platform.isLinux) {
-        return _writeLinux(imagePath, devicePath, isCompressed, onProgress);
-      }
-
-      return FlashResult(success: false, error: 'Unsupported platform');
-    } catch (e) {
-      return FlashResult(success: false, error: e.toString());
-    }
-  }
-
-  Future<FlashResult> _writeWindows(
-    String imagePath,
-    String devicePath,
-    bool isCompressed,
-    ProgressCallback? onProgress,
-  ) async {
-    onProgress?.call(0.1, 'Taking disk offline...');
-
-    // Extract disk number from path like \\.\PHYSICALDRIVE1
-    final diskMatch = RegExp(r'PHYSICALDRIVE(\d+)').firstMatch(devicePath);
-    if (diskMatch == null) {
-      return FlashResult(success: false, error: 'Invalid device path: $devicePath');
-    }
-    final diskNumber = diskMatch.group(1);
-
-    // Take disk offline with diskpart
-    final offlineResult = await _runDiskpart([
-      'select disk $diskNumber',
-      'offline disk',
-      'clean',
-    ]);
-
-    if (!offlineResult) {
-      return FlashResult(success: false, error: 'Failed to prepare disk');
-    }
-
-    onProgress?.call(0.2, 'Writing image...');
-
-    // Use dd.exe from assets
-    final ddPath = await _getDdPath();
-    if (ddPath == null) {
-      return FlashResult(success: false, error: 'dd.exe not found in assets');
-    }
-
-    ProcessResult result;
-    if (isCompressed) {
-      // Decompress and write in one pipeline
-      // PowerShell: [System.IO.Compression.GZipStream] for decompression
-      result = await Process.run(
-        'powershell',
-        [
-          '-Command',
-          '''
-          \$input = [System.IO.File]::OpenRead("$imagePath")
-          \$gzip = New-Object System.IO.Compression.GZipStream(\$input, [System.IO.Compression.CompressionMode]::Decompress)
-          \$output = [System.IO.File]::OpenWrite("$devicePath")
-          \$gzip.CopyTo(\$output)
-          \$output.Close()
-          \$gzip.Close()
-          \$input.Close()
-          ''',
-        ],
-        runInShell: true,
-      );
-    } else {
-      // Direct write with dd
-      result = await Process.run(
-        ddPath,
-        [
-          'if=$imagePath',
-          'of=$devicePath',
-          'bs=4M',
-        ],
-        runInShell: true,
-      );
-    }
-
-    if (result.exitCode != 0) {
-      // Try to bring disk online before returning error
-      await _runDiskpart(['select disk $diskNumber', 'online disk']);
-      return FlashResult(success: false, error: 'Write failed: ${result.stderr}');
-    }
-
-    onProgress?.call(0.9, 'Bringing disk online...');
-
-    // Bring disk back online
-    await _runDiskpart([
-      'select disk $diskNumber',
-      'online disk',
-    ]);
-
-    onProgress?.call(1.0, 'Complete');
-
-    return FlashResult(success: true);
   }
 
   /// Windows entry point for the Go flasher. Uses the bmap fast path when
@@ -345,119 +189,6 @@ class FlashService {
     await _writeWithGoFlasher(flasherPath, imagePath, devicePath, bmapPath, true, onProgress);
   }
 
-  Future<bool> _runDiskpart(List<String> commands) async {
-    // Create temp script file
-    final tempDir = Directory.systemTemp;
-    final scriptFile = File(path.join(tempDir.path, 'diskpart_script.txt'));
-    await scriptFile.writeAsString(commands.join('\n'));
-
-    try {
-      debugPrint('Flash: diskpart script: ${commands.join("; ")}');
-      debugPrint('Flash: diskpart script file: ${scriptFile.path}');
-      final result = await Process.run(
-        r'C:\Windows\System32\diskpart.exe',
-        ['/s', scriptFile.path],
-      );
-      debugPrint('Flash: diskpart exit=${result.exitCode} stdout=${result.stdout} stderr=${result.stderr}');
-      return result.exitCode == 0;
-    } finally {
-      try { await scriptFile.delete(); } catch (_) {}
-    }
-  }
-
-  Future<String?> _getDdPath() async {
-    // Look for dd.exe in assets/tools/
-    final candidates = [
-      path.join(Directory.current.path, 'assets', 'tools', 'dd.exe'),
-      path.join(Platform.resolvedExecutable, '..', 'data', 'flutter_assets', 'assets', 'tools', 'dd.exe'),
-    ];
-
-    for (final candidate in candidates) {
-      if (await File(candidate).exists()) {
-        return candidate;
-      }
-    }
-    return null;
-  }
-
-  Future<FlashResult> _writeMacOS(
-    String imagePath,
-    String devicePath,
-    bool isCompressed,
-    ProgressCallback? onProgress,
-  ) async {
-    onProgress?.call(0.1, 'Unmounting disk...');
-
-    final rawDevice = !devicePath.contains('rdisk')
-        ? devicePath.replaceFirst('/dev/disk', '/dev/rdisk')
-        : devicePath;
-    final diskName = rawDevice.replaceFirst('/dev/rdisk', '/dev/disk');
-
-    for (var attempt = 1; attempt <= 3; attempt++) {
-      debugPrint('Flash(_writeMacOS): unmounting $diskName (attempt $attempt/3, force)');
-      final r = await Process.run('diskutil', ['unmountDisk', 'force', diskName]);
-      debugPrint('Flash(_writeMacOS): unmount exit=${r.exitCode} stdout=${(r.stdout as String).trim()} stderr=${(r.stderr as String).trim()}');
-      if (r.exitCode == 0) break;
-      if (attempt < 3) await Future.delayed(const Duration(milliseconds: 500));
-    }
-
-    onProgress?.call(0.2, 'Writing image...');
-
-    final diskwriterPath = await _getDiskwriterPath();
-    if (diskwriterPath == null) {
-      return FlashResult(success: false, error: 'diskwriter binary not found in app bundle');
-    }
-
-    final imageSize = await _estimateImageSizeBytes(imagePath, isCompressed);
-
-    // Use diskwriter for authorized raw disk access
-    final String command;
-    if (isCompressed) {
-      command = 'gunzip -c "$imagePath" | "$diskwriterPath" $rawDevice';
-    } else {
-      command = 'cat "$imagePath" | "$diskwriterPath" $rawDevice';
-    }
-
-    final process = await Process.start('/bin/sh', ['-c', command]);
-    final stderrBuffer = StringBuffer();
-    int? lastBytesWritten;
-
-    process.stdout.listen((_) {});
-    await for (final chunk in process.stderr.transform(utf8.decoder)) {
-      stderrBuffer.write(chunk);
-      // Parse diskwriter progress: "PROGRESS:<bytes>"
-      for (final line in chunk.split('\n')) {
-        final progressMatch = RegExp(r'PROGRESS:(\d+)').firstMatch(line);
-        if (progressMatch != null) {
-          final bytes = int.tryParse(progressMatch.group(1)!);
-          if (bytes != null && bytes != lastBytesWritten) {
-            lastBytesWritten = bytes;
-            if (imageSize != null && imageSize > 0) {
-              final fraction = (bytes / imageSize).clamp(0.0, 1.0);
-              onProgress?.call(0.2 + (0.7 * fraction), 'Writing image... ${(fraction * 100).toStringAsFixed(1)}%');
-            } else {
-              final mb = bytes / (1024 * 1024);
-              final mbStr = mb.toStringAsFixed(1);
-              final base = l10n?.flashProgressMb(mbStr) ?? '$mbStr MB written';
-              onProgress?.call(0.2, 'Writing image... $base');
-            }
-          }
-        }
-      }
-    }
-
-    final exitCode = await process.exitCode;
-    if (exitCode != 0) {
-      return FlashResult(success: false, error: 'Write failed: ${stderrBuffer.toString().trim()}');
-    }
-
-    onProgress?.call(0.9, 'Syncing...');
-    await Process.run('sync', []);
-
-    onProgress?.call(1.0, 'Complete');
-    return FlashResult(success: true);
-  }
-
   Future<int?> _estimateImageSizeBytes(String imagePath, bool isCompressed) async {
     try {
       if (!isCompressed) {
@@ -475,57 +206,6 @@ class FlashService {
       }
     } catch (_) {}
     return null;
-  }
-
-  Future<FlashResult> _writeLinux(
-    String imagePath,
-    String devicePath,
-    bool isCompressed,
-    ProgressCallback? onProgress,
-  ) async {
-    onProgress?.call(0.1, 'Unmounting partitions...');
-
-    // Unmount any partitions before writing
-    final partitions = await _findLinuxPartitions(devicePath);
-    for (final partition in partitions) {
-      await Process.run('umount', [partition]);
-    }
-
-    onProgress?.call(0.2, 'Writing image...');
-
-    ProcessResult result;
-    if (isCompressed) {
-      result = await Process.run(
-        'sh',
-        [
-          '-c',
-          'gunzip -c "$imagePath" | dd of="$devicePath" bs=4M iflag=fullblock oflag=direct status=progress',
-        ],
-      );
-    } else {
-      result = await Process.run(
-        'dd',
-        [
-          'if=$imagePath',
-          'of=$devicePath',
-          'bs=4M',
-          'oflag=direct',
-          'status=progress',
-        ],
-      );
-    }
-
-    if (result.exitCode != 0) {
-      return FlashResult(success: false, error: 'Write failed: ${result.stderr}');
-    }
-
-    onProgress?.call(0.9, 'Syncing...');
-
-    await Process.run('sync', []);
-
-    onProgress?.call(1.0, 'Complete');
-
-    return FlashResult(success: true);
   }
 
   Future<List<String>> _findLinuxPartitions(String devicePath) async {
@@ -553,12 +233,32 @@ class FlashService {
   /// Two-phase flash: write partitions first (safe), then boot sector (commits).
   /// If [bmapPath] is provided and the Go flasher binary is available, uses
   /// bmap-based sparse writes (much faster for images with empty space).
+  /// A bmap maps one image's blocks. Paired with a different image the write
+  /// skips whatever the two disagree about, exits zero, and leaves a board
+  /// that cannot boot with nothing in the log to say why, so a pair that do
+  /// not name the same image is refused and the image is written whole.
+  static String? bmapFor(String imagePath, String? bmapPath) {
+    if (bmapPath == null) return null;
+    final image = imagePath.split(Platform.pathSeparator).last;
+    final bmap = bmapPath.split(Platform.pathSeparator).last;
+    final stem = image
+        .replaceFirst(RegExp(r'\.gz$'), '')
+        .replaceFirst(RegExp(r'\.sdimg$'), '');
+    if (bmap.startsWith(stem)) return bmapPath;
+    debugPrint(
+      'Flash: ignoring bmap $bmap, it does not belong to $image; '
+      'writing the image whole',
+    );
+    return null;
+  }
+
   Future<void> writeTwoPhase(
     String imagePath,
     String devicePath, {
     String? bmapPath,
     void Function(double progress, String message)? onProgress,
   }) async {
+    bmapPath = bmapFor(imagePath, bmapPath);
     final isCompressed = imagePath.endsWith('.gz');
 
     if (Platform.isWindows) {
@@ -573,11 +273,14 @@ class FlashService {
       // won't auto-mount or pop the "Initialize / Erase / Ignore" dialog
       // for unrecognised partition tables, and authopen no longer hits
       // EPERM on /dev/rdiskN. Falls back gracefully to the cheap force-
-      // unmount path if the helper isn't bundled or fails to claim.
-      final da = DiskArbitrationService();
+      // unmount path if the helper isn't bundled or fails to claim. Usually
+      // the UMS-phase watch already claimed this disk and `claim` just
+      // confirms it; claiming here covers writes that skipped that phase.
+      final leased = DiskArbitrationService.sharedHelper;
+      final da = leased ?? DiskArbitrationService();
+      final leaseOwnsHelper = leased != null;
       var daClaimed = false;
-      final daPath = await DiskArbitrationService.locate();
-      if (daPath != null && await da.start(daPath)) {
+      if (leaseOwnsHelper || await da.ensureStarted()) {
         daClaimed = await da.claim(diskName);
       } else {
         debugPrint('Flash: daclaim helper unavailable, falling back to force-unmount');
@@ -611,35 +314,14 @@ class FlashService {
         }
       } finally {
         if (daClaimed) await da.release(diskName);
-        await da.stop();
+        // Only tear down a helper this call started: the board re-enumerates
+        // after the write, so the leased watch is still needed.
+        if (!leaseOwnsHelper) await da.stop();
       }
     } else {
       // Linux: single pkexec elevation for both dd phases + verify
       await _writeTwoPhaseLinux(imagePath, devicePath, isCompressed, onProgress, bmapPath: bmapPath);
     }
-  }
-
-  /// Locate the diskwriter binary in the macOS app bundle
-  Future<String?> _getDiskwriterPath() async {
-    // When running from Xcode / flutter run, the binary is in the app's Resources
-    final execDir = path.dirname(Platform.resolvedExecutable);
-    final candidates = [
-      // App bundle: .app/Contents/Resources/diskwriter
-      path.join(execDir, '..', 'Resources', 'diskwriter'),
-      // Development fallback: compiled in project directory
-      path.join(Directory.current.path, 'macos', 'Runner', 'diskwriter_bin'),
-    ];
-
-    for (final candidate in candidates) {
-      final file = File(candidate);
-      if (await file.exists()) {
-        debugPrint('Flash: found diskwriter at $candidate');
-        return candidate;
-      }
-    }
-
-    debugPrint('Flash: diskwriter not found, searched: $candidates');
-    return null;
   }
 
   /// Locate the Go flasher binary for the current host platform.
@@ -648,9 +330,15 @@ class FlashService {
   /// (Xcode build phase / CMake install), so no chmod is needed at runtime.
   /// Windows bundles it via Flutter assets (no execute bit needed).
   /// macOS dd fallback for hosts without a matching librescoot-flasher
-  /// binary in the bundle. Single-phase, no bmap, no two-phase safety —
-  /// strictly a "get the bits there" path. We're root via self-elevation,
-  /// so writing to /dev/rdiskN works without authopen.
+  /// binary in the bundle. Single-phase, no bmap, no two-phase safety:
+  /// strictly a "get the bits there" path.
+  ///
+  /// This used to run dd as itself, on the reasoning that the app had
+  /// self-elevated. It no longer does on macOS, and /dev/rdiskN is root-owned,
+  /// so that dd could only ever end in "Permission denied" with no prompt
+  /// anywhere for the user to answer. dd goes through `sudo -A` and the
+  /// osascript askpass now, and where there is no way to ask, this refuses
+  /// instead of starting a write that cannot land.
   Future<void> _writeMacOSDdFallback(
     String imagePath,
     String rawDevice,
@@ -661,26 +349,53 @@ class FlashService {
     final totalMb = totalBytes / (1024 * 1024);
     onProgress?.call(0.0, 'dd fallback (no Go flasher for this CPU)...');
 
+    // Only dd needs the privileges, so sudo wraps dd alone and gunzip stays on
+    // this side of the pipe as the user.
+    final env = <String, String>{};
+    var dd = 'dd';
+    final isRoot =
+        (await Process.run('id', ['-u'])).stdout.toString().trim() == '0';
+    if (!isRoot) {
+      final askpass = await _findAskpass();
+      if (askpass == null) {
+        throw Exception(
+          'This build has no flasher for ${Abi.current()} and no way to ask '
+          'for the administrator password, so the card cannot be written. '
+          'Download the installer again from downloads.librescoot.org.',
+        );
+      }
+      env['SUDO_ASKPASS'] = askpass;
+      dd = 'sudo -A dd';
+      onProgress?.call(0.0, 'Waiting for authorization...');
+    }
+
     // macOS /bin/sh is bash, which supports pipefail: without it, a gunzip
     // I/O error would be swallowed and only dd's (successful) exit code
     // would count, leaving a truncated write reported as success.
     final cmd = isCompressed
-        ? 'set -o pipefail; gunzip -c "$imagePath" | dd of=$rawDevice bs=4m'
-        : 'dd if="$imagePath" of=$rawDevice bs=4m';
+        ? 'set -o pipefail; gunzip -c "$imagePath" | $dd of=$rawDevice bs=4m'
+        : '$dd if="$imagePath" of=$rawDevice bs=4m';
 
-    final process = await Process.start('/bin/sh', ['-c', cmd]);
+    debugPrint('Flash: dd fallback: $cmd');
+    final process = await Process.start('/bin/sh', ['-c', cmd],
+        environment: env.isEmpty ? null : env);
 
-    // macOS dd prints status only on SIGINFO. Poke it every 2s so the
-    // user sees something move.
-    final ticker = Timer.periodic(const Duration(seconds: 2), (_) async {
-      try {
-        final r = await Process.run('pgrep', ['-P', '${process.pid}', 'dd']);
-        final ddPid = int.tryParse(r.stdout.toString().trim());
-        if (ddPid != null) {
-          await Process.run('kill', ['-INFO', '$ddPid']);
-        }
-      } catch (_) {}
-    });
+    // macOS dd prints status only on SIGINFO. Poke it every 2s so the user
+    // sees something move. Only while we are root: under sudo the dd belongs
+    // to root and a signal from this uid bounces off it, so there is nothing
+    // to poke and the write runs without a byte counter.
+    final ticker = isRoot
+        ? Timer.periodic(const Duration(seconds: 2), (_) async {
+            try {
+              final r =
+                  await Process.run('pgrep', ['-P', '${process.pid}', 'dd']);
+              final ddPid = int.tryParse(r.stdout.toString().trim());
+              if (ddPid != null) {
+                await Process.run('kill', ['-INFO', '$ddPid']);
+              }
+            } catch (_) {}
+          })
+        : null;
 
     final stderrBuf = StringBuffer();
     process.stdout.listen((_) {});
@@ -701,7 +416,7 @@ class FlashService {
         }
       }
     }
-    ticker.cancel();
+    ticker?.cancel();
 
     final exit = await process.exitCode;
     if (exit != 0) {
@@ -774,7 +489,7 @@ class FlashService {
     ];
 
     // When we run from an AppImage, the bundled flasher lives inside a per-user
-    // FUSE mount (/tmp/.mount_*) that root can't read — so `pkexec <flasher>`
+    // FUSE mount (/tmp/.mount_*) that root can't read, so `pkexec <flasher>`
     // fails with "Error accessing ...: Permission denied" (exit 127). Copy it
     // out to a normal path root can exec.
     flasherPath = await _ensureFlasherRunnableAsRoot(flasherPath);
@@ -880,10 +595,70 @@ class FlashService {
       if (exitCode == 126) {
         throw Exception('Authorization was dismissed: flash incomplete');
       }
-      throw Exception('Flash failed: $out');
+      throw Exception('Flash failed: ${_humanFlashError(out)}');
     }
 
+    await _flushDevice(devicePath);
     onProgress?.call(1.0, 'Flash complete');
+  }
+
+  /// Push what the write left in host buffers down to the device, before
+  /// anything cuts its power.
+  ///
+  /// The dd path has always ended in `sync`; this one ended at "Flash
+  /// complete". So the two disagreed about whether the write was durable at
+  /// the moment the user is told to restart the scooter, and the restart on
+  /// this path is a power cut rather than a shutdown: whatever has not reached
+  /// the eMMC by then is gone. A board that comes up without the last of its
+  /// bootloader finds nothing to start and drops into its boot ROM.
+  ///
+  /// Best-effort by design. A flush that cannot be issued is not a reason to
+  /// fail a write that succeeded, but it is worth saying so in the log,
+  /// because it changes what a boot failure afterwards means.
+  Future<void> _flushDevice(String devicePath) async {
+    try {
+      if (Platform.isLinux) {
+        // blockdev asks the block layer to flush and pass a cache sync to the
+        // device; the bare sync afterwards covers anything still queued
+        // elsewhere. Both are cheap against a write measured in minutes.
+        final r = await Process.run('blockdev', ['--flushbufs', devicePath]);
+        if (r.exitCode != 0) {
+          debugPrint('Flash: blockdev --flushbufs said: ${r.stderr}');
+        }
+        await Process.run('sync', []);
+        debugPrint('Flash: flushed $devicePath');
+      } else if (Platform.isMacOS) {
+        await Process.run('sync', []);
+        debugPrint('Flash: flushed $devicePath');
+      } else {
+        // Windows writes to \\.\PHYSICALDRIVE without going through a
+        // filesystem cache, and there is no equivalent flush to call from
+        // here. Named so a reader does not take the silence for an omission.
+        debugPrint('Flash: no host flush needed on this platform');
+      }
+    } catch (e) {
+      debugPrint('Flash: could not flush $devicePath (ok): $e');
+    }
+  }
+
+  /// Strip the flasher's machine-readable protocol lines out of a failure.
+  ///
+  /// The raw output carries a `Bmap: … (14% of …)` line describing how much of
+  /// the image is mapped, which people read as "it failed at 14%". It is not
+  /// progress, and the percentage that matters is already spelled out by the
+  /// explanation below. Keeps the ERROR line and anything that is not one of
+  /// the protocol markers.
+  @visibleForTesting
+  static String humanFlashErrorForTest(String raw) => _humanFlashError(raw);
+
+  static String _humanFlashError(String raw) {
+    final kept = raw
+        .split('\n')
+        .where((l) => !RegExp(r'^\s*(TOTAL:|PHASE:|PROGRESS:|Bmap:)').hasMatch(l))
+        .map((l) => l.trimRight())
+        .where((l) => l.isNotEmpty)
+        .toList();
+    return kept.isEmpty ? raw.trim() : kept.join('\n');
   }
 
   /// Copy the flasher out of an AppImage's per-user FUSE mount (which a
@@ -935,6 +710,12 @@ class FlashService {
     if (fromEnv != null && fromEnv.isNotEmpty && await File(fromEnv).exists()) {
       return fromEnv;
     }
+    // macOS ships none of the X11 helpers below, and the app does not
+    // self-elevate there, so without one `sudo` runs in a GUI with no
+    // terminal: it fails before it asks anything and the user is told the
+    // flash failed, having never been offered a password box. One is written
+    // on demand instead.
+    if (Platform.isMacOS) return _writeMacOsAskpass();
     const candidates = [
       '/usr/bin/ssh-askpass',
       '/usr/bin/ksshaskpass',
@@ -947,6 +728,45 @@ class FlashService {
       if (await File(c).exists()) return c;
     }
     return null;
+  }
+
+  /// The helper `sudo -A` runs: ask through osascript, print what was typed.
+  ///
+  /// A cancelled dialog makes osascript exit non-zero with nothing on stdout,
+  /// which sudo reads as an empty password and refuses, so cancelling ends the
+  /// flash rather than starting one nobody authorised.
+  @visibleForTesting
+  static const String macOsAskpassScript = '#!/bin/sh\n'
+      'osascript'
+      ' -e \'display dialog "Librescoot Installer needs your administrator'
+      ' password to write to the card." with title "Librescoot Installer"'
+      ' default answer "" with hidden answer with icon caution\''
+      ' -e \'text returned of result\'\n';
+
+  /// An askpass helper for macOS: a script that asks through osascript and
+  /// prints what was typed, which is the contract `sudo -A` expects.
+  ///
+  /// It lives in a directory made by mkdtemp rather than at a fixed path,
+  /// because a predictable world-writable path is one another local user can
+  /// pre-create and have root run.
+  Future<String?>? _macOsAskpassPath;
+
+  Future<String?> _writeMacOsAskpass() async {
+    // One per flash service: sudo may ask more than once, and rewriting the
+    // script under a running prompt is not worth the risk.
+    return _macOsAskpassPath ??= () async {
+      try {
+        final dir =
+            await Directory.systemTemp.createTemp('librescoot_askpass_');
+        final script = File(path.join(dir.path, 'askpass.sh'));
+        await script.writeAsString(macOsAskpassScript);
+        await Process.run('chmod', ['0700', script.path]);
+        return script.path;
+      } catch (e) {
+        debugPrint('Flash: could not write the askpass helper ($e)');
+        return null;
+      }
+    }();
   }
 
   /// Linux two-phase flash: single pkexec auth, both phases + verify in one script.

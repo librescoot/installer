@@ -13,7 +13,23 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 
+import 'package:librescoot_installer/services/usb_detector.dart';
+
 class DiskArbitrationService {
+  static final DiskWatchLease _watch = DiskWatchLease();
+
+  /// Arm the peek watch for the MDB's mass-storage gadget. Call *before* the
+  /// board is rebooted into UMS mode, not after the disk shows up.
+  static Future<void> armWatch() => _watch.arm(
+        UsbDetector.targetVendorId,
+        UsbDetector.massStoragePid,
+      );
+
+  /// Release the watch and every claim the helper holds.
+  static Future<void> disarmWatch() => _watch.disarm();
+
+  static DiskArbitrationService? get sharedHelper => _watch.helper;
+
   Process? _process;
   StreamSubscription<String>? _stdoutSub;
   Completer<String>? _pendingReply;
@@ -40,7 +56,7 @@ class DiskArbitrationService {
     return null;
   }
 
-  /// Start the helper subprocess. Safe to call multiple times — second call
+  /// Start the helper subprocess. Safe to call multiple times, second call
   /// is a no-op if already running.
   Future<bool> start(String helperPath) async {
     if (_process != null) return true;
@@ -73,12 +89,49 @@ class DiskArbitrationService {
     }
   }
 
+  /// Locate and start the helper in one step. Returns false when the helper
+  /// isn't in the bundle, which is the signal to fall back to force-unmount.
+  Future<bool> ensureStarted() async {
+    if (_process != null) return true;
+    final helperPath = await locate();
+    if (helperPath == null) {
+      debugPrint('daclaim: helper not found in bundle');
+      return false;
+    }
+    return start(helperPath);
+  }
+
   /// Claim `/dev/diskN`. Pass either "diskN", "/dev/diskN", or "/dev/rdiskN".
   Future<bool> claim(String disk) async {
     final bsd = _bsdName(disk);
     final reply = await _send('claim $bsd');
-    final ok = reply == 'ok';
+    final ok = isClaimHeld(reply);
     debugPrint('daclaim claim $bsd: $reply');
+    return ok;
+  }
+
+  /// Whether a `claim` reply means the disk is ours now. With the watch armed
+  /// the disk is normally claimed before the flash path asks, so
+  /// "already claimed" is the success case, not a failure.
+  @visibleForTesting
+  static bool isClaimHeld(String reply) =>
+      reply == 'ok' || reply == 'already claimed';
+
+  /// Claim any whole disk that appears under USB [vendorId]:[productId],
+  /// before macOS probes it, until [unwatch].
+  Future<bool> watch(int vendorId, int productId) async {
+    final v = '0x${vendorId.toRadixString(16)}';
+    final p = '0x${productId.toRadixString(16)}';
+    final reply = await _send('watch $v $p');
+    final ok = reply == 'ok' || reply == 'already watching';
+    debugPrint('daclaim watch $v:$p: $reply');
+    return ok;
+  }
+
+  Future<bool> unwatch() async {
+    final reply = await _send('unwatch');
+    final ok = reply == 'ok' || reply == 'not watching';
+    debugPrint('daclaim unwatch: $reply');
     return ok;
   }
 
@@ -150,6 +203,61 @@ class DiskArbitrationService {
     if (s.startsWith('/dev/')) s = s.substring('/dev/'.length);
     if (s.startsWith('r')) s = s.substring(1); // rdiskN -> diskN
     return s;
+  }
+}
+
+/// Process-wide lease over the DA peek watch. Armed before the UMS reboot and
+/// held until the flash is over, so it outlives any single call: same shape as
+/// [AutoPlayServiceLease], serialised so disarm can't race arm.
+class DiskWatchLease {
+  DiskWatchLease({DiskArbitrationService? service, bool? isMacOS})
+      : _service = service ?? DiskArbitrationService(),
+        _isMacOS = isMacOS ?? Platform.isMacOS;
+
+  final DiskArbitrationService _service;
+  final bool _isMacOS;
+  Future<void> _operations = Future<void>.value();
+  bool _armed = false;
+
+  /// The running helper, or null. The flash path reuses it rather than
+  /// starting a second one, whose claim the first would refuse.
+  DiskArbitrationService? get helper => _service.isRunning ? _service : null;
+
+  bool get isArmed => _armed;
+
+  Future<void> arm(int vendorId, int productId) => _enqueue(() async {
+        if (!_isMacOS || _armed) return;
+        try {
+          if (!await _service.ensureStarted()) {
+            debugPrint('daclaim: no helper, disk dialog will not be suppressed');
+            return;
+          }
+          _armed = await _service.watch(vendorId, productId);
+        } catch (error) {
+          debugPrint('daclaim: failed to arm watch: $error');
+        }
+      });
+
+  Future<void> disarm() => _enqueue(() async {
+        if (!_isMacOS || !_armed) return;
+        try {
+          await _service.unwatch();
+        } catch (error) {
+          debugPrint('daclaim: failed to disarm watch: $error');
+        }
+        _armed = false;
+        // Stopping releases every claim held, so only disarm after the write.
+        try {
+          await _service.stop();
+        } catch (error) {
+          debugPrint('daclaim: failed to stop helper: $error');
+        }
+      });
+
+  Future<void> _enqueue(Future<void> Function() operation) {
+    final result = _operations.then((_) => operation());
+    _operations = result.catchError((_) {});
+    return result;
   }
 }
 

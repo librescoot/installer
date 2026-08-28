@@ -17,6 +17,25 @@ import 'package:path/path.dart' as path;
 import 'package:win32/win32.dart';
 
 class LogService {
+
+  /// How to reach the logged-in user's clipboard on macOS, with the locale
+  /// pbcopy needs.
+  ///
+  /// pbcopy interprets its input in the current locale and falls back to Mac
+  /// OS Roman when LC_CTYPE says nothing, which a GUI app's environment does
+  /// not. The log is UTF-8, so without this every umlaut in it reaches the
+  /// clipboard as the Mac OS Roman reading of its bytes: "aufgelöst" pasted
+  /// into a bug report as "aufgel√∂st".
+  ///
+  /// The launchctl hop is for the elevated case, where the process is root
+  /// and root's pasteboard is not the one the user pastes from.
+  static (String, List<String>, Map<String, String>) pbcopyCommand(String uid) =>
+      (
+        'launchctl',
+        ['asuser', uid, 'pbcopy'],
+        const {'LC_CTYPE': 'UTF-8', 'LANG': 'en_US.UTF-8'},
+      );
+
   /// Subfolder the log files live in, so nothing is dumped loose into the
   /// user's documents.
   static const _folderName = 'Librescoot Installer';

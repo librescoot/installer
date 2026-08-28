@@ -1,7 +1,5 @@
 {
   "@@locale": "de",
-  "appTitle": "Librescoot Installer",
-  "elevationWarning": "Ohne Administratorrechte gestartet. Einige Funktionen sind ggf. Eingeschränkt.",
   "phaseWelcomeTitle": "Willkommen",
   "phaseWelcomeDescription": "Voraussetzungen und Firmware-Auswahl",
   "phaseNoticesTitle": "Hinweise",
@@ -10,49 +8,52 @@
   "phasePhysicalPrepDescription": "Fußraum öffnen, USB verbinden",
   "phaseMdbConnectTitle": "MDB verbinden",
   "phaseMdbConnectDescription": "Gerät erkennen und SSH aufbauen",
-  "phaseResumeDetectedTitle": "Fortsetzen",
+  "phaseResumeDetectedTitle": "Vorheriger Versuch",
   "phaseResumeDetectedDescription": "Unterbrochene Installation gefunden",
   "phaseHealthCheckTitle": "Statusprüfung",
   "phaseHealthCheckDescription": "Roller-Bereitschaft prüfen",
-  "phaseBatteryRemovalTitle": "Akku entfernen",
-  "phaseBatteryRemovalDescription": "Sitzbank öffnen, Fahrakku entnehmen",
   "phaseMdbToUmsTitle": "MDB → UMS",
   "phaseMdbToUmsDescription": "Bootloader für Flashen konfigurieren",
   "phaseMdbFlashTitle": "MDB flashen",
   "phaseMdbFlashDescription": "Firmware auf MDB schreiben",
-  "phaseScooterPrepTitle": "Roller vorbereiten",
+  "phaseScooterPrepTitle": "Strom trennen",
   "phaseScooterPrepDescription": "CBB und AUX trennen",
   "phaseMdbBootTitle": "MDB-Boot",
   "phaseMdbBootDescription": "AUX wieder anschließen, auf Boot warten",
   "phaseCbbReconnectTitle": "CBB anschließen",
   "phaseCbbReconnectDescription": "CBB für DBC-Flash wieder anschließen",
   "phaseDbcPrepTitle": "DBC vorbereiten",
-  "phaseDbcPrepDescription": "DBC-Image und Karten hochladen",
+  "phaseDbcPrepDescription": "DBC-Bootstrap und Karten hochladen",
   "phaseDbcFlashTitle": "DBC flashen",
   "phaseDbcFlashDescription": "Autonome DBC-Installation",
-  "phaseReconnectTitle": "Verbinden",
+  "phaseReconnectTitle": "Prüfen",
   "phaseReconnectDescription": "DBC-Installation prüfen",
   "phaseBluetoothPairingTitle": "Bluetooth",
   "phaseBluetoothPairingDescription": "Handy oder andere Geräte koppeln",
   "phaseFinishTitle": "Fertig",
   "phaseFinishDescription": "Zusammenbau und Abschluss",
-  "majorStepPrepare": "Vorbereitung",
+  "majorStepPrepare": "Einrichten",
   "majorStepConnect": "Verbinden",
-  "majorStepMdbFlash": "MDB flashen",
-  "majorStepDbcFlash": "DBC flashen",
+  "majorStepMdbFlash": "MDB vorbereiten",
+  "majorStepPairing": "Koppeln & Karten",
+  "majorStepMdbInstall": "MDB installieren",
+  "majorStepDbcFlash": "DBC installieren",
   "majorStepFinish": "Abschluss",
   "majorStepSkippedSuffix": "übersprungen",
   "welcomeHeading": "Willkommen beim Librescoot Installer",
   "welcomeSubheading": "Dieser Assistent führt dich durch die Installation der Librescoot-Firmware auf deinem Roller.",
   "whatYouNeed": "Was du brauchst:",
-  "prerequisiteScrewdriverPH2": "PH2-Kreuz- oder H4-Innensechskantschraubendreher für die vier Fußbrettschrauben",
+  "prerequisiteScrewdriverPH2": "PH2-Kreuz- oder H4-Innensechskantschraubendreher für die vier Schrauben der Fußraumabdeckung",
   "prerequisiteScrewdriverFlat": "Schlitz- oder PH1-Schraubendreher für das USB-Kabel",
   "prerequisiteUsbCable": "USB-Kabel (Laptop zu Mini-B)",
   "prerequisiteTime": "Ungefähr 20 Minuten Zeit",
   "reliabilityWarningTitle": "Bevor du startest",
   "reliabilityWarningBody": "Das Flashen dauert mehrere Minuten, und jeder USB-Wackler oder Laptop-Standby mittendrin hinterlässt das MDB in einem inkonsistenten Zustand. Bitte prüfen:\n• Ein zuverlässiges USB-Kabel, an beiden Enden fest eingesteckt. Wackelkontakte sind die häufigste Ursache für gescheiterte Installationen\n• Laptop am Netzteil oder vollgeladen. Energiesparmodus / Standby unterbricht den Flash\n• Möglichst direkter USB-Port, kein USB-Hub\n• Während des Flashens nichts umstecken oder bewegen",
   "noPowerCycleWarningTitle": "Während der Installation NICHTS vom Strom trennen oder neu starten",
-  "noPowerCycleWarningBody": "Wenn irgendwas hängt, keine Rückmeldung gibt oder komisch aussieht: erstmal PAUSE und im Discord nachfragen. Nicht den AUX-Akku ziehen, nicht die CBB abklemmen, nicht USB rausreißen, weder Roller noch Laptop neu starten. Der Installer kann aus fast jedem Zustand wieder rauskommen. Aber nur, wenn du nicht reingrätschst. Mittendrin den Strom trennen ist das, was Roller bricked.",
+  "noPowerCycleWarningBody": "Wenn etwas hängt, keine Rückmeldung gibt oder sich merkwürdig verhält: halt an und frag im Discord nach, bevor du etwas anderes tust.\n• Den AUX-Akku nicht abziehen\n• Die CBB nicht abklemmen\n• Kein USB-Kabel abziehen\n• Weder Roller noch Laptop neu starten\nDer Installer kommt aus fast jedem Zustand wieder heraus, solange ihn nichts unterbricht. Strom mitten im Flash zu trennen ist das, was Roller unbrauchbar macht.",
+  "downloadsFailedHeading": "Download-Server nicht erreichbar",
+  "downloadsFailedBody": "Prüf die Internetverbindung des Laptops und versuch es nochmal. Offline weitermachen geht auch, wenn die Firmware schon im Cache liegt.",
+  "downloadsRetry": "Nochmal versuchen",
   "noticesHeading": "Vor dem Weitermachen lesen",
   "noticesSubheading": "Zwei Dinge, die deine Installation retten, wenn du sie ernst nimmst.",
   "noticesAcknowledgeButton": "Gelesen, weitermachen",
@@ -63,29 +64,30 @@
   "elevationRequiredBody": "Der Librescoot Installer benötigt Administratorrechte, um auf den Speicher des Rollers zu schreiben und das Netzwerk-Interface zu konfigurieren. Die Berechtigungsanfrage wurde abgelehnt oder konnte nicht angezeigt werden.\n\nKlicke auf Weiter, um den Dialog zu schließen, und versuche es erneut. Wenn du die Anfrage immer wieder ablehnst, kann der Installer nicht fortfahren.",
   "elevationNoticeWelcome": "Beim Klick auf Installation starten fragt dein System nach Administratorrechten. Der Installer braucht sie, um auf den Speicher des Rollers zu schreiben und das Netzwerk zu konfigurieren.",
   "requestingAdminPrivileges": "Administratorrechte werden angefragt...",
-  "quitButton": "Beenden",
   "firmwareChannel": "Firmware-Kanal",
   "channelStable": "Stabil",
   "channelTesting": "Testing",
   "channelNightly": "Nightly",
   "channelStableDesc": "Getestet und zuverlässig",
-  "channelTestingDesc": "Neueste Features, evtl. noch ungeschliffen",
+  "channelTestingDesc": "Neueste Features, evtl. Noch ungeschliffen",
   "channelNightlyDesc": "Täglich aus main gebaut, für Entwickler",
   "channelNoReleases": "Keine Releases verfügbar",
+  "manifestBundledNotice": "Offline: Diese Versionen stammen aus der im Installer hinterlegten Liste und sind womöglich veraltet.",
   "loadingChannels": "Verfügbare Kanäle werden geladen...",
   "region": "Region",
   "selectRegion": "Region auswählen",
   "startInstallation": "Installation starten",
   "selectRegionError": "Bitte wähle eine Region für die Offline-Karten",
   "resolvingReleases": "Releases werden aufgelöst...",
+  "preparingDownloads": "Downloads werden vorbereitet...",
   "physicalPrepHeading": "Physische Vorbereitung",
   "physicalPrepSubheading": "Bereite deinen Roller für die USB-Verbindung vor.",
+  "keepScooterAwake": "Roller wach halten",
+  "keepScooterAwakeDesc": "Entsperre den Roller, oder setz einen Fahrakku in den vorderen Schacht. Ohne das eine oder andere geht er mitten in der Installation in den Ruhezustand und nimmt die USB-Verbindung mit.",
   "removeFootwellCover": "Fußraumabdeckung entfernen",
   "removeFootwellCoverDesc": "Vier Schrauben lösen. Ab Werk PH2 Kreuzschrauben, bei guten Werkstätten H4 Innensechskant oder Torx.",
-  "removeFootwellCoverImage": "[Foto: Fußraumabdeckung mit markierten Schraubenpositionen]",
   "unscrewUsbCable": "USB-Kabel vom MDB lösen",
   "unscrewUsbCableDesc": "Trenne das interne DBC-USB-Kabel vom MDB-Board. Verwende einen Schlitz- oder PH1-Schraubendreher.",
-  "unscrewUsbCableImage": "[Foto: USB-Mini-B-Anschluss am MDB, Nahaufnahme]",
   "connectLaptopUsb": "Laptop-USB-Kabel anschließen",
   "connectLaptopUsbDesc": "Stecke dein USB-Kabel in den MDB-Port und verbinde das andere Ende mit deinem Laptop.",
   "doneDetectDevice": "Fertig. Gerät erkennen",
@@ -93,23 +95,84 @@
   "waitingForUsbDevice": "Warte auf USB-Gerät...",
   "waitingForRndis": "Warte auf USB-Gerät... Stelle sicher, dass dein Laptop per USB mit dem MDB verbunden ist.",
   "checkingRndisDriver": "RNDIS-Treiber wird geprüft...",
-  "installingRndisDriver": "RNDIS-Treiber wird installiert...",
+  "driverClaimedHeading": "Ein anderes Programm belegt den USB-Anschluss",
+  "driverClaimedBody": "Windows hat die USB-Verbindung des Rollers an {driver} vergeben statt an den Netzwerktreiber, den der Installer braucht. Das Programm hat sich darübergelegt, deshalb bekommt der Installer sie nicht von allein zurück.\n\nÖffne den Geräte-Manager, such den Roller unter Anschlüsse (COM & LPT), klick ihn mit der rechten Maustaste an und wähle Gerät deinstallieren. Setz den Haken bei „Die Treibersoftware für dieses Gerät löschen“, wenn er angeboten wird, zieh den Roller danach ab und steck ihn wieder an.\n\nAm Roller wurde nichts verändert, du kannst den Installer gefahrlos schließen.",
+  "@driverClaimedBody": {
+    "placeholders": {
+      "driver": {
+        "type": "String"
+      }
+    }
+  },
+  "driverClaimedDetailsLabel": "Details für einen Fehlerbericht",
+  "driverNeedsRebootHeading": "Windows braucht einen Neustart",
+  "driverNeedsRebootBody": "Der Netzwerktreiber wurde installiert, aber Windows konnte ihn nicht wechseln, solange der Roller angesteckt war. Starte den Computer neu und starte den Installer danach noch einmal.\n\nAm Roller wurde nichts verändert.",
+  "driverRecheck": "Erneut prüfen",
+  "connectFailedWhatToCheck": "Was du prüfen kannst",
+  "connectFailedDetailsLabel": "Technische Details",
+  "connectFailedNoDeviceHeading": "Es ist kein USB-Gerät aufgetaucht",
+  "connectFailedNoDeviceBody": "Das MDB meldet sich als Netzwerkgerät, sobald es angesteckt und wach ist. Bisher ist am USB überhaupt nichts aufgetaucht.\n• Das Kabel gehört in den MDB-Port, aus dem du das interne Kabel gezogen hast. Prüf, ob es an beiden Enden fest sitzt\n• Steck direkt in den Laptop, nicht über einen Hub oder eine Dockingstation\n• Probier ein anderes Kabel. Reine Ladekabel übertragen Strom und keine Daten\n• Der Roller muss wach sein. Ohne Fahrakku im vorderen Schacht schläft er von allein ein\nDer Installer schaut weiter nach und macht von allein weiter, sobald sich das MDB meldet. Hier musst du nichts weiter klicken.",
+  "connectFailedDeviceVanishedHeading": "Das USB-Gerät ist verschwunden",
+  "connectFailedDeviceVanishedBody": "Das MDB war eben noch am USB und ist jetzt weg. Entweder hat sich das Kabel bewegt, oder der Roller ist eingeschlafen und hat die Verbindung mitgenommen.\n• Prüf das USB-Kabel an beiden Enden. Ein Stecker, der wackelt, reicht schon\n• Entsperre den Roller, oder setz einen Fahrakku in den vorderen Schacht. Ohne das eine oder andere geht er mittendrin in den Ruhezustand\n• Lass AUX-Akku und CBB angeschlossen\nAm Roller wurde nichts verändert. Versuch es noch einmal, sobald sich das MDB wieder meldet.",
+  "connectFailedNoRouteHeading": "Der Roller hängt am USB, ist aber nicht erreichbar",
+  "connectFailedNoRouteBody": "Das MDB ist am Bus, und dieser Rechner kommt nicht zu ihm durch. Die USB-Netzwerkschnittstelle ist ohne die Adresse hochgekommen, die der Installer gesetzt hat. Unter Linux übernimmt meistens der NetworkManager die Schnittstelle.\n• Versuch es noch einmal. Der Installer setzt die Adresse bei jedem Anlauf neu\n• Unter Linux die Schnittstelle im NetworkManager auf „nicht verwaltet“ stellen, oder IPv6 dafür abschalten\n• Zieh das Kabel ab und steck es wieder an, damit die Schnittstelle neu angelegt wird\nIm Log stehen die Schnittstelle und die Route, die der Installer gefunden hat.",
+  "connectFailedRefusedHeading": "Der Roller hat die Verbindung abgewiesen",
+  "connectFailedRefusedBody": "Das MDB hat im Netzwerk geantwortet und die Verbindung abgewiesen. Die Verbindung steht also, und der Teil, mit dem der Installer spricht, ist noch nicht gestartet. In der ersten Minute nach dem Einschalten ist das normal.\n• Gib ihm ein paar Sekunden und versuch es noch einmal\n• Wenn es nach ein paar Minuten immer noch abweist: technische Details aufklappen, kopieren und im Librescoot-Discord fragen\nAm Roller wurde nichts verändert, du kannst den Installer gefahrlos schließen.",
+  "connectFailedTimeoutHeading": "Keine Antwort vom Roller",
+  "connectFailedTimeoutBody": "Das MDB hängt am USB, der Installer hat eine Verbindung dorthin aufgemacht, und bis zum Ablauf der Zeit kam nichts zurück. Meistens fährt das Board noch hoch, manchmal steht die Verbindung nur auf dieser Seite.\n• Versuch es noch einmal. Ein Board, das noch startet, antwortet beim zweiten oder dritten Anlauf\n• Prüf das USB-Kabel an beiden Enden und steck direkt in den Laptop, nicht über einen Hub\n• Der Roller muss wach sein und der AUX-Akku angeschlossen\nAm Roller wurde nichts verändert.",
+  "connectFailedDroppedHeading": "Die Verbindung ist beim Aufbau abgebrochen",
+  "connectFailedDroppedBody": "Der Roller hat die Verbindung angenommen und wieder losgelassen, bevor sie fertig war. Ein Board, das gerade neu startet, macht genau das, und eines, das mittendrin einschläft, auch.\n• Entsperre den Roller, oder setz einen Fahrakku in den vorderen Schacht. Ohne das eine oder andere geht er von allein in den Ruhezustand\n• Prüf das USB-Kabel an beiden Enden\n• Warte, bis das Board fertig hochgefahren ist, und versuch es dann noch einmal\nAm Roller wurde nichts verändert.",
+  "connectFailedAuthHeading": "Der Roller lässt den Installer nicht herein",
+  "connectFailedAuthBody": "Die Verbindung steht, und jede Anmeldung, die der Installer kennt, wurde abgelehnt. Bei einem Serienroller heißt das meistens, dass das Root-Passwort geändert wurde, zum Beispiel in einer Werkstatt.\n• Versuch es noch einmal. Fragt der Roller nach einem Passwort, bietet dir der Installer ein Feld dafür an\n• Frag denjenigen, der den Roller zuletzt offen hatte, ob dort ein Root-Passwort gesetzt wurde\n• Sonst frag im Librescoot-Discord und nimm die technischen Details von unten mit\nAm Roller wurde nichts verändert, du kannst den Installer gefahrlos schließen.",
+  "connectFailedUnknownHeading": "Der Installer erreicht den Roller nicht",
+  "connectFailedUnknownBody": "Die Verbindung ist aus einem Grund gescheitert, zu dem der Installer nichts zu sagen hat. Die technischen Details unten sind das, was ein Fehlerbericht braucht.\n• Prüf das USB-Kabel an beiden Enden und steck direkt in den Laptop, nicht über einen Hub\n• Der Roller muss wach sein und der AUX-Akku angeschlossen\n• Versuch es noch einmal, einiges davon erledigt sich von selbst\nAm Roller wurde nichts verändert, du kannst den Installer gefahrlos schließen.",
   "configuringNetwork": "Netzwerk wird konfiguriert...",
   "connectingSsh": "SSH-Verbindung wird aufgebaut...",
   "waitingForUnlock": "Roller entsperren, um fortzufahren...",
   "unfinishedInstallDetected": "Unvollständige Installation erkannt, Entsperren wird übersprungen...",
   "waitingForBatteryData": "Warte auf AUX/CBB-Batteriedaten...",
   "resumeFoundHeading": "Unterbrochene Installation gefunden",
-  "resumeFoundBody": "Eine frühere Installation auf diesem Roller wurde nicht abgeschlossen. Der Entsperr-Schritt wurde übersprungen und deaktivierte Dienste wurden wieder aktiviert. Die Installation beginnt anschließend von vorn.",
+  "resumeFoundBody": "Der Roller ist nicht beschädigt. Eine Installation wurde unterbrochen, und dieser Schritt räumt ihre Reste auf, bevor es von vorn losgeht.",
+  "resumeWhatHappensHeading": "Was beim Weitermachen passiert",
+  "resumeWhatHappensCleanup": "Die Reste werden aufgeräumt: das zurückgelassene Onboot-Skript wird entschärft, gestoppte Dienste werden wieder gestartet.",
+  "resumeWhatHappensRestart": "Die Installation läuft komplett von vorn. Es wird nichts fortgesetzt, kein halbfertiger Schritt wird übernommen.",
+  "resumeWhatHappensKeep": "Es geht nichts zusätzlich verloren. Was der vorherige Durchlauf geändert hat, hat er bereits geändert; ein Neustart kostet das nicht noch einmal.",
+  "resumeTakesAsLong": "Es dauert so lange wie eine normale Installation, ungefähr 20 Minuten.",
+  "resumeClearingLeftovers": "Reste der vorherigen Installation werden aufgeräumt...",
+  "resumeCleanupFailed": "Die vorige Installation konnte nicht sicher aufgeräumt werden: {error}\n\nEs wird nichts weiter ausgeführt, bis das Aufräumen erfolgreich war.",
+  "@resumeCleanupFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "resumeFoundLastError": "Letzter aufgezeichneter Fehler:",
-  "unlockTimeout": "Zeitlimit beim Warten auf Entsperrung. Roller entsperren und erneut versuchen.",
+  "resumeRunningHeading": "Auf dem Roller läuft noch eine Installation",
+  "resumeRunningBody": "Der Roller arbeitet die vorige Installation noch ab. Hier wird nichts angefasst, solange sie läuft.",
+  "resumeRunningWait": "Warte, bis der Roller fertig ist. Danach geht es hier automatisch weiter.",
+  "resumeStageLabel": "Zuletzt: {stage}",
+  "@resumeStageLabel": {
+    "placeholders": {
+      "stage": {
+        "type": "String"
+      }
+    }
+  },
+  "resumeActorScooter": "auf dem Roller",
+  "resumeActorInstaller": "im Installer",
+  "resumeLogHeading": "Letzte Zeilen aus dem Log des Rollers",
   "awaitingUnlockHeading": "Roller entsperren",
-  "awaitingUnlockDetail": "Bitte entsperre deinen Roller, um fortzufahren. Halte deine Schlüsselkarte an den Leser oder benutze ein gekoppeltes Handy.",
+  "awaitingUnlockDetail": "Entsperre den Roller, damit der Installer weitermachen kann.",
+  "awaitingUnlockHintKeycard": "Schlüsselkarte an den Leser am Lenker halten",
+  "awaitingUnlockHintPhone": "Oder ein gekoppeltes Handy benutzen",
+  "awaitingUnlockWatching": "Der Installer macht automatisch weiter, sobald der Roller entsperrt ist.",
+  "awaitingParkWatching": "Der Installer macht automatisch weiter, sobald der Roller geparkt ist.",
   "awaitingParkHeading": "Roller parken",
   "awaitingParkDetail": "Bitte parke deinen Roller (Seitenständer ausklappen), um fortzufahren.",
   "awaitingParkContinueAnyway": "Trotzdem weiter",
   "lockingScooter": "Roller wird für das Flashen gesperrt...",
-  "connected": "Verbunden!",
+  "connected": "Verbunden",
   "sshConnectionFailed": "SSH-Verbindung fehlgeschlagen: {error}. Kabel prüfen und erneut versuchen.",
   "manualPasswordTitle": "Root-Passwort erforderlich",
   "manualPasswordPrompt": "Das Root-Passwort konnte nicht automatisch ermittelt werden. Bitte gib das Root-Passwort für dieses Gerät ein.",
@@ -117,18 +180,28 @@
   "manualPasswordPromptRetry": "Das Passwort war falsch. Bitte erneut versuchen (noch {remaining} Versuche).",
   "manualPasswordFieldLabel": "Passwort",
   "manualPasswordSubmit": "Verbinden",
+  "manualPasswordUnknown": "Ich kenne es nicht",
+  "manualPasswordUnknownHeading": "Der Roller will ein Passwort, das niemand hat",
+  "manualPasswordUnknownBody": "Normalerweise antworten Roller mit einem Passwort, das der Installer schon kennt. Dieser tut das nicht, meistens heißt das, dass es geändert wurde.\n\nWar der Roller in einer Werkstatt, frag dort nach, ob ein Root-Passwort gesetzt wurde. Das ist der häufigste Grund.\n\nSonst frag im Librescoot-Discord und nenne die oben angezeigte Firmware-Version.\n\nAm Roller wurde nichts verändert, du kannst den Installer gefahrlos schließen.",
   "untestedFirmwareHeading": "Ungetestete Firmware-Version",
-  "untestedFirmwareBody": "Die Installation auf Firmware-Versionen älter als 1.12.0 ist nicht getestet (deine: {version}). Der Installer sollte trotzdem funktionieren. Über Feedback im Librescoot-Discord freuen wir uns.",
+  "untestedFirmwareBody": "Die Installation auf Firmware-Versionen älter als 1.12.0 ist nicht getestet (deine: {version}). Der Installer sollte trotzdem funktionieren. Probleme bitte im Librescoot-Discord melden.",
   "@untestedFirmwareBody": {
-    "placeholders": { "version": { "type": "String" } }
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
   },
   "openLibrescootDiscord": "Librescoot-Discord öffnen",
   "healthCheckHeading": "Statusprüfung",
   "verifyingReadiness": "Roller-Bereitschaft wird geprüft...",
-  "incompleteImageStatus": "Unvollständiges Firmware-Image erkannt. Neuflashen zur Wiederherstellung...",
+  "incompleteImageStatus": "Unvollständiges Firmware-Image erkannt. Neu flashen zur Wiederherstellung...",
   "incompleteImageHeading": "Unvollständiges Firmware-Image",
-  "incompleteImageBody": "Dieser Roller läuft mit einem minimalen Wiederherstellungs-Image ohne Batterie-Telemetrie. Das kann passieren, wenn eine frühere Installation das falsche Image geschrieben hat. Fahre fort, um die vollständige Firmware neu zu flashen und die Einrichtung abzuschließen.",
+  "incompleteImageBody": "Dieser Roller läuft mit einem minimalen Wiederherstellungs-Image. Es bootet und antwortet, hat aber keine der Fahrzeugdienste. Das kann passieren, wenn eine frühere Installation nicht abgeschlossen wurde. Fahre fort, um die vollständige Firmware neu zu flashen und die Einrichtung abzuschließen.",
   "reflashToRecover": "Neu flashen zur Wiederherstellung",
+  "stockFirmwareStatus": "Original-Firmware erkannt. Bereit für die Librescoot-Installation...",
+  "stockFirmwareHeading": "Original-Firmware",
+  "stockFirmwareBody": "Dieser Roller läuft mit seiner Original-Firmware. Damit ist alles in Ordnung. Fahre fort, um Librescoot zu installieren.",
   "continueButton": "Weiter",
   "retryButton": "Erneut versuchen",
   "proceedAtOwnRisk": "Auf eigenes Risiko fortfahren",
@@ -138,20 +211,12 @@
   "mainBattery": "Fahrakku",
   "present": "vorhanden",
   "notPresent": "nicht vorhanden",
-  "riskAuxLow": "Niedrige 12V-Batterie könnte MDB oder DBC während des Flashens abschalten. LED-Anzeigen könnten ebenfalls ausfallen. Sitzbank mit eingesetztem Fahrakku schließen und warten, bis sie geladen ist.",
+  "healthValueUnknown": "nicht auslesbar",
+  "riskAuxLow": "Niedrige AUX-Batterie könnte MDB oder DBC während des Flashens abschalten. LED-Anzeigen könnten ebenfalls ausfallen. Sitzbank mit eingesetztem Fahrakku schließen und warten, bis sie geladen ist.",
   "riskCbbSoh": "Schlechter CBB-Zustand kann zu unzuverlässiger Stromversorgung während des Flashens führen.",
-  "riskCbbCharge": "Niedriger CBB-Ladezustand erhöht das Risiko eines Stromausfalls beim DBC-Flash. Sitzbank mit eingesetztem Fahrakku schließen und warten, bis die CBB geladen ist.",
-  "riskNoBattery": "Ohne den Fahrakku entlädt sich die 12V-Hilfsbatterie schneller. Der Roller könnte bei längeren Vorgängen herunterfahren.",
-  "batteryRemovalHeading": "Akku entfernen",
-  "seatboxOpening": "Sitzbank wird geöffnet...",
-  "seatboxOpeningDesc": "Die Sitzbank öffnet sich automatisch.",
-  "removeMainBattery": "Fahrakku entnehmen",
-  "removeMainBatteryDesc": "Hebe den Fahrakku aus der Sitzbank.",
+  "riskCbbCharge": "Niedrige CBB-Ladung erhöht das Risiko eines Stromausfalls beim DBC-Flash. Sitzbank mit eingesetztem Fahrakku schließen und warten, bis die CBB geladen ist.",
+  "riskNoBattery": "Ohne den Fahrakku entlädt sich die AUX-Batterie schneller. Der Roller könnte bei längeren Vorgängen herunterfahren.",
   "openSeatbox": "Sitzbank öffnen",
-  "mainBatteryAlreadyRemoved": "Fahrakku bereits entnommen",
-  "openingSeatbox": "Sitzbank wird geöffnet...",
-  "waitingForBatteryRemoval": "Warte auf Akku-Entnahme...",
-  "batteryRemoved": "Akku entnommen!",
   "configuringMdbBootloader": "MDB-Bootloader wird konfiguriert",
   "preparing": "Vorbereitung...",
   "uploadingBootloaderTools": "Bootloader-Tools werden hochgeladen...",
@@ -159,82 +224,113 @@
   "waitingForUmsDevice": "Warte auf UMS-Gerät...",
   "readyToFlash": "Bereit zum Flashen",
   "readyToFlashHint": "Das Gerät ist im Flash-Modus. Du kannst das Gerät mounten, um vor dem Fortfahren manuelle Backups zu erstellen.",
+  "readyToFlashTargetLabel": "Ziel",
+  "readyToFlashImageLabel": "Zu schreibendes Image",
+  "readyToFlashErases": "Das löscht das Hauptboard. Alles, was aktuell darauf ist, wird ersetzt.",
+  "readyToFlashDuration": "Das Schreiben dauert etwa eine Minute. Trenne währenddessen weder USB noch Strom.",
+  "readyToFlashNoTarget": "Noch kein Zielgerät ermittelt.",
+  "macosDiskNotReadable": "macOS meldet eventuell, dass das Medium nicht gelesen werden kann. Klicke auf „Ignorieren“. Klicke nicht auf „Auswerfen“, das trennt das Board mitten in der Installation.",
+  "macosNoRouteHeading": "macOS blockiert den Zugriff auf den Roller",
+  "macosNoRouteBody": "Die USB-Verbindung steht. Der Roller antwortet auf Pings, es liegt also nicht am Kabel: macOS lässt den Installer nicht durch.\n\nÖffne „Datenschutz & Sicherheit“ > „Lokales Netzwerk“ und aktiviere den Zugriff für Librescoot Installer.\n\nDer Installer versucht es weiter und macht von selbst weiter, sobald du das getan hast. Hier musst du nichts weiter klicken.",
+  "macosOpenLocalNetworkSettings": "Einstellungen „Lokales Netzwerk“ öffnen",
   "beginFlashing": "Flashen starten",
   "flashingMdb": "MDB wird geflasht",
   "flashingMdbSubheading": "Zweiphasiges Schreiben: erst Partitionen, dann Bootsektor.",
+  "flashAwaitingAuthorisation": "macOS fragt vor dem Schreiben nach deinem Passwort oder Touch ID. Achte auf einen Systemdialog, er kann hinter diesem Fenster liegen. Solange du nicht bestätigst, wird nichts geschrieben.",
   "waitingForMdbFirmware": "Warte auf MDB-Firmware-Download...",
-  "noDevicePath": "Fehler: kein Gerätepfad verfügbar",
-  "mdbFlashComplete": "MDB-Flash abgeschlossen!",
-
+  "mdbFlashComplete": "MDB-Flash abgeschlossen",
   "flashProgressMb": "{mb} MB geschrieben",
   "flashProgressMbOfTotal": "{mb} / {total} MB geschrieben",
   "flashProgressEta": "noch {minutes} Min. {seconds} Sek.",
   "flashProgressBootSector": "Bootsektor: {mb} MB geschrieben",
-
   "scooterPrepHeading": "Roller vorbereiten",
   "scooterPrepSubheading": "MDB-Firmware wurde geschrieben. Jetzt für den Neustart vorbereiten.",
   "disconnectCbb": "CBB trennen",
-  "disconnectCbbDesc": "Der Fahrakku muss bereits entnommen sein, bevor du die CBB trennst. Bei falscher Reihenfolge droht ein elektrischer Schaden.",
+  "disconnectCbbDesc": "Erst die CBB, dann der AUX-Pol. Der Fahrakku ist zu diesem Zeitpunkt schon aus: das MDB steht im Flash-Modus und spricht nicht mehr mit ihm. Ausbauen musst du ihn nicht.",
   "disconnectAuxPole": "Einen AUX-Pol trennen",
-  "disconnectAuxPoleDesc": "Entferne NUR den Pluspol (außen, rotes Kabel und Pol), um eine Verpolung zu vermeiden. Dadurch wird das MDB stromlos; die USB-Verbindung geht verloren.",
-  "disconnectAuxPoleImage": "[Foto: AUX-Batteriepole, Pluspol (rot/außen) markiert]",
-  "auxDisconnectWarning": "Die USB-Verbindung geht verloren, wenn du AUX trennst. Das ist normal. Der Installer wartet auf den Neustart des MDB.",
-  "doneCbbAuxDisconnected": "Fertig. CBB und AUX getrennt",
+  "disconnectAuxPoleDesc": "Entferne nur den Pluspol (außen, rotes Kabel und Pol), um eine Verpolung zu vermeiden. Dadurch wird das MDB stromlos und die USB-Verbindung geht verloren.",
+  "auxDisconnectWarning": "Die USB-Verbindung geht verloren, wenn du AUX trennst. Das ist normal. Schließe den AUX-Pol im nächsten Schritt wieder an, um das MDB zu starten.",
+  "doneCbbAuxDisconnected": "Fertig, der Roller wurde neu gestartet",
+  "doneAuxDisconnected": "Fertig, AUX ist getrennt",
+  "brakeResetHeading": "Roller neu starten",
+  "brakeResetIntro": "Beide Bremshebel ziehen und halten. Alle zehn Sekunden den rechten Hebel etwa eine Sekunde loslassen und wieder ziehen. Nach dem vierten Halten einfach loslassen. Der Roller startet neu.",
+  "brakeResetAfterNote": "Die USB-Verbindung verschwindet während des Neustarts. Das ist normal, der Installer wartet auf das MDB.",
+  "brakePacerStart": "Timer starten",
+  "brakePacerStop": "Abbrechen",
+  "brakePacerRestart": "Nochmal",
+  "brakePacerDone": "Das ist das Muster. Jetzt einfach loslassen. Der Roller startet ein paar Sekunden später von allein neu.",
+  "brakeDiagramBlipLegend": "Rechter Hebel etwa eine Sekunde los",
+  "brakeDiagramEndLegend": "Bei {seconds} Sekunden einfach loslassen",
+  "brakeBandBothHeld": "Linker Hebel bleibt durchgehend gezogen",
+  "brakeBlipRight": "Rechten Hebel jetzt los",
+  "brakeLeftStaysHint": "Der linke Hebel bleibt die ganze Zeit gezogen.",
+  "brakeLeadInLabel": "Beide Bremsen ziehen",
+  "brakeLeadInHint": "Geh zum Lenker und leg die Hände an die Bremshebel.",
+  "brakeKeepHolding": "Beide Bremsen halten",
+  "@brakeDiagramEndLegend": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "scooterPrepManualFallback": "Oder den Strom von Hand trennen",
+  "deactivatingMainBattery": "Fahrakku wird abgeschaltet...",
   "waitingForMdbBoot": "Warte auf MDB-Boot",
-  "reconnectAuxPole": "AUX-Pol wieder anschließen",
-  "reconnectAuxPoleDesc": "Schließe den positiven AUX-Pol wieder an. Das MDB startet und bootet Librescoot.",
+  "mdbBootRestartingNote": "Der Roller startet von allein neu. Das dauert ein, zwei Minuten.",
+  "reconnectAuxPole": "Nur den AUX-Pol wieder anschließen",
+  "reconnectAuxPoleDesc": "Schließe den positiven AUX-Pol wieder an. Die CBB bleibt vorerst getrennt, sie kommt erst später wieder dran, vor dem DBC-Flash. Das MDB startet und bootet Librescoot.",
   "dbcLedHint": "DBC-LED: orange = startet, grün = bootet, aus = läuft",
   "mdbStillUms": "MDB immer noch im UMS-Modus. Flash war möglicherweise nicht erfolgreich. Neuer Versuch...",
+  "waitingForMdbRestart": "Warte auf den Neustart des Rollers...",
   "mdbDetectedNetwork": "MDB im Netzwerkmodus erkannt. Warte auf stabile Verbindung...",
   "pingStable": "Ping stabil: {count}/10",
   "waitingStableConnection": "Warte auf stabile Verbindung...",
   "stableConnectionStallHint": "Verbindung noch instabil. Die USB-Netzwerkschnittstelle hat eventuell ihre IP verloren. Auf Linux: NetworkManager stört möglicherweise (IPv6 deaktivieren kann helfen). Details im Log.",
   "reconnectingSsh": "SSH wird neu verbunden...",
   "sshReconnectionFailed": "SSH-Neuverbindung fehlgeschlagen: {error}",
-  "reconnectCbbHeading": "CBB & Batterie wieder anschließen",
-  "reconnectCbb": "Hauptbatterie einsetzen und CBB wieder anschließen",
-  "reconnectCbbDesc": "Setze die Hauptbatterie wieder in die Sitzbank ein und stecke das CBB-Kabel wieder ein. Der Roller braucht volle Leistung für den DBC-Flash.",
+  "reconnectCbbHeading": "CBB wieder anschließen",
   "verifyCbbConnection": "CBB-Verbindung prüfen",
   "verifyBatteryPresence": "Akku prüfen",
+  "turningMainBatteryOff": "Fahrakku wird zuerst abgeschaltet...",
+  "turningMainBatteryOn": "Fahrakku wird wieder eingeschaltet...",
   "checkingCbb": "CBB wird geprüft...",
-  "cbbConnected": "CBB verbunden!",
   "waitingForCbb": "Warte auf CBB... ({attempts})",
   "cbbNotDetected": "CBB nicht erkannt. Bitte Verbindung prüfen.",
   "cbbDetectionMayTakeMinutes": "Das kann mehrere Minuten dauern, bitte etwas Geduld.",
   "preparingDbcFlash": "DBC-Flash wird vorbereitet",
+  "preparingDbcFlashSubtitle": "Alles, was das Display braucht, wandert zuerst auf das MDB.",
+  "preparingDbcFlashExplainer": "Das DBC hängt am MDB, nicht am Laptop. Der Installer kopiert deshalb Image, Firmware und Offline-Karten auf das MDB und legt dort ein Skript ab, das den Rest übernimmt. Erst danach kommt der Kabeltausch: Laptop ab, DBC-Kabel wieder ans MDB. Von da an flasht das MDB das Display allein weiter.",
+  "preparingMapTransfer": "Karten werden übertragen",
+  "preparingMapTransferSubtitle": "Die Offline-Karten wandern zuerst auf das MDB.",
+  "preparingMapTransferExplainer": "Das DBC hängt am MDB, nicht am Laptop. Der Installer kopiert deshalb die Offline-Karten auf das MDB und legt dort ein Skript ab, das den Rest übernimmt. Es wird keine Display-Firmware geschrieben: du hast das DBC auf unverändert gestellt. Danach kommt der Kabeltausch, Laptop ab und DBC-Kabel wieder ans MDB, und die Karten wandern von allein hinüber.",
+  "skipMapTransfer": "Karten überspringen",
+  "majorStepDbcMaps": "Karten",
+  "phaseDbcPrepTitleMaps": "Karten hochladen",
+  "phaseDbcPrepDescriptionMaps": "Offline-Karten hochladen",
+  "phaseDbcFlashTitleMaps": "Übertragen",
+  "phaseDbcFlashDescriptionMaps": "Der Roller kopiert sie selbst",
+  "dbcReadyButtonMaps": "Kartenübertragung starten",
   "waitingForDownloads": "Warte auf Abschluss der Downloads...",
   "startingTrampoline": "Trampoline-Skript wird gestartet...",
   "uploadError": "Upload-Fehler: {error}",
   "dbcReadyButton": "DBC-Flashen beginnen",
   "dbcFlashInProgress": "DBC wird geflasht",
   "dbcFlashSwapCablesTitle": "USB auf das DBC umstecken",
+  "dbcFlashSwapCablesDeadline": "Der Roller wartet schon auf das Display. Nach ein paar Minuten gibt er auf, mach es also jetzt und nicht später. Die Schrauben können warten.",
   "disconnectUsbFromLaptop": "Laptop-USB-Kabel vom MDB abziehen",
   "disconnectUsbFromLaptopDesc": "Ziehe das Laptop-USB-Kabel vom MDB ab, damit der Port für das DBC-Kabel frei wird.",
   "reconnectDbcUsbToMdb": "DBC-USB-Kabel mit MDB verbinden",
   "reconnectDbcUsbToMdbDesc": "Stecke das interne DBC-USB-Kabel in den MDB-Port. Noch nicht festschrauben.",
-  "mdbFlashingDbcAutonomously": "Das MDB flasht jetzt selbstständig das DBC.",
-  "watchLightsForProgress": "Beobachte die Rollerbeleuchtung für den Fortschritt:",
-  "ledFrontRingPulse": "Frontring atmet",
-  "ledFrontRingPulseMeaning": "DBC wird vorbereitet (Bootloader, Verbindung)",
-  "ledFrontRingSolid": "Frontring leuchtet kurz",
-  "ledFrontRingSolidMeaning": "Flash abgeschlossen. Erfolg!",
-  "disconnectCbbImage": "[Foto: CBB-Stecker im Fußraum]",
   "ledBlinkerProgress": "Blinker leuchten reihum auf",
-  "ledBlinkerProgressMeaning": "Gesamt-Fortschritt: Vorbereitung → Flash → Neustart → Karten",
   "blinkerPosFL": "vorne links",
   "blinkerPosFR": "vorne rechts",
   "blinkerPosBR": "hinten rechts",
   "blinkerPosBL": "hinten links",
   "blinkerStepPrep": "DBC vorbereiten",
   "blinkerStepFlash": "DBC flashen",
-  "blinkerStepRestart": "MDB & DBC neu starten",
+  "blinkerStepRestart": "DBC neu starten",
   "blinkerStepMaps": "Karten laden",
-  "ledBootGreen": "Tacho-LED blinkt grün",
-  "ledBootGreenMeaning": "Erfolgreich. Laptop wieder verbinden",
-  "ledRearLightSolid": "Alle vier Blinker (Warnblinker) blinken",
-  "ledRearLightSolidMeaning": "Fehler. Laptop verbinden für Log; Blinker und LED gehen aus, sobald du verbunden bist",
-  "bootLedGreenReconnect": "LED blinkt grün",
-  "rearLightCheckError": "LED blinkt rot, Warnblinker an",
   "verifyingDbcInstallation": "DBC-Installation wird geprüft",
   "reconnectUsbToLaptop": "USB wieder mit Laptop verbinden...",
   "waitingForRndisDevice": "Warte auf RNDIS-Gerät...",
@@ -242,16 +338,23 @@
   "readingTrampolineStatusElapsed": "Trampoline-Status wird gelesen… ({elapsed}s)",
   "@readingTrampolineStatusElapsed": {
     "placeholders": {
-      "elapsed": { "type": "int" }
+      "elapsed": {
+        "type": "int"
+      }
     }
   },
-  "dbcFlashSuccessful": "DBC-Flash erfolgreich!",
+  "dbcFlashSuccessful": "DBC-Flash abgeschlossen",
+  "dbcInstallSuccessfulVersion": "DBC-Installation erfolgreich, läuft jetzt {version}",
   "dbcFlashFailed": "DBC-Flash fehlgeschlagen: {message}",
   "dbcFlashError": "DBC-Flash-Fehler",
   "closeButton": "Schließen",
   "trampolineStatusUnknown": "Trampoline-Status unbekannt. Prüfe /data/trampoline.log auf dem MDB.",
-  "welcomeToLibrescoot": "Willkommen bei Librescoot!",
+  "welcomeToLibrescoot": "Willkommen bei Librescoot",
   "finalSteps": "Letzte Schritte:",
+  "finishNextHeading": "Was als Nächstes passiert",
+  "finishNextDbcFlash": "Sobald du das DBC-Kabel wieder ansteckst, installiert der Roller das Display von allein. Das dauert etwa 20 Minuten. Lass den Strom dran und lass ihn fertig werden; das Boot-Licht zeigt, dass er arbeitet.",
+  "finishNextOnDevice": "Sobald du das DBC-Kabel wieder ansteckst, erledigt der Roller den Rest von allein. Du musst den Laptop nicht noch einmal anstecken.",
+  "finishNextNothing": "Das Hauptboard ist fertig, auf dem Roller läuft nichts mehr. Bau ihn wieder zusammen und fahr los.",
   "disconnectUsbFromLaptopFinal": "Laptop-USB-Kabel vom MDB abziehen",
   "disconnectUsbFromLaptopFinalDesc": "Ziehe das Laptop-USB-Kabel vom MDB ab. Dort kommt gleich das DBC-Kabel wieder hinein.",
   "reconnectDbcUsbCable": "DBC-USB-Kabel anschließen",
@@ -260,158 +363,122 @@
   "closeSeatboxAndFootwellDesc": "Klipse zuerst die Metallbügel wieder ein, setze dann die Fußraumabdeckung auf und schraube sie fest.",
   "unlockScooter": "Roller entsperren",
   "unlockScooterDesc": "Nutze eine der angelernten Schlüsselkarten oder entsperre über Bluetooth.",
-  "deleteCachedDownloads": "Heruntergeladene Dateien löschen ({sizeMb} MB)",
   "deletedCache": "{sizeMb} MB gelöscht",
   "downloads": "Downloads",
   "downloadsFinished": "Downloads abgeschlossen",
   "downloadsFinishedHint": "Du kannst jetzt offline weitermachen.",
+  "assetChipMdbArtifact": "MDB-Artefakt",
+  "assetChipDbcArtifact": "DBC-Artefakt",
+  "assetChipMdbImage": "MDB-Bootstrap",
+  "assetChipDbcImage": "DBC-Bootstrap",
+  "assetChipMaps": "Karten",
+  "assetChipRoutes": "Routen",
   "downloadMdbFirmware": "MDB-Firmware",
   "downloadDbcFirmware": "DBC-Firmware",
   "downloadMapTiles": "Kartenkacheln",
   "downloadRoutingTiles": "Routing-Kacheln",
-  "homeAppTitle": "Librescoot Installer",
-  "notElevated": "Keine Adminrechte",
-  "selectFirmwareStep": "Firmware wählen",
-  "connectDeviceStep": "Gerät verbinden",
-  "configureNetworkStep": "Netzwerk",
-  "prepareDeviceStep": "Vorbereiten",
-  "flashFirmwareStep": "Flashen",
-  "completeStep": "Fertig",
-  "selectFirmwareImage": "Firmware-Image auswählen",
-  "selectFirmwareHint": "Wähle eine .sdimg.gz-, .sdimg-, .wic.gz-, .wic- oder .img-Firmware-Datei",
-  "selectFile": "Datei auswählen",
-  "changeFile": "Andere Datei",
-  "deviceConnected": "Gerät verbunden",
-  "connectYourDevice": "Gerät verbinden",
-  "connectMdbViaUsb": "Verbinde das MDB per USB und warte auf die Erkennung",
-  "configuringNetworkHeading": "Netzwerk wird konfiguriert",
-  "settingUpNetwork": "Netzwerkschnittstelle wird eingerichtet...",
-  "readyToConfigureNetwork": "Bereit, das Netzwerk für die Gerätekommunikation zu konfigurieren",
-  "configureNetworkButton": "Netzwerk konfigurieren",
-  "preparingDevice": "Gerät wird vorbereitet",
-  "readyToPrepare": "Bereit zur Vorbereitung",
-  "prepareForFlashing": "Für Flashen vorbereiten",
-  "flashingFirmware": "Firmware wird geflasht",
-  "startFlashing": "Flashen starten",
-  "installationComplete": "Installation abgeschlossen!",
-  "installationCompleteDesc": "Dein Gerät wurde erfolgreich geflasht.\nEs startet automatisch neu.",
-  "flashAnotherDevice": "Weiteres Gerät flashen",
-  "flashDryRun": "Flash-Probelauf",
   "safetyCheckFailed": "Sicherheitsprüfung fehlgeschlagen",
   "cannotFlashSafety": "Dieses Gerät kann aus Sicherheitsgründen nicht geflasht werden:",
-  "okButton": "OK",
-  "confirmFlashOperation": "Flash-Vorgang bestätigen",
-  "aboutToWriteFirmware": "Du schreibst gleich Firmware auf:",
-  "deviceLabel": "Gerät",
-  "pathLabel": "Pfad",
-  "sizeLabel": "Größe",
-  "firmwareLabel": "Firmware:",
-  "warningsLabel": "Warnungen:",
-  "eraseWarning": "Dadurch werden ALLE DATEN auf dem Gerät GELÖSCHT. Diese Aktion kann nicht rückgängig gemacht werden.",
   "cancelButton": "Abbrechen",
   "confirmFlashTargetTitle": "Ziel-Laufwerk bestätigen",
-  "confirmFlashTargetBody": "Windows konnte nicht bestätigen, dass dieses Laufwerk nicht dein Systemlaufwerk ist. Prüfe das Ziel vor dem Flashen.",
+  "confirmFlashTargetBody": "Der Installer konnte nicht bestätigen, dass dieses Laufwerk nicht deine Systemplatte ist. Prüfe das Ziel vor dem Flashen.",
   "confirmFlashTargetDetected": "Erkanntes Librescoot-Gerät",
   "confirmFlashTargetOthers": "Weitere USB-Laufwerke an diesem Rechner:",
   "confirmFlashTargetInternalHidden": "Interne Laufwerke werden nicht angezeigt.",
   "confirmFlashTargetAccept": "Dieses Laufwerk flashen",
   "flashTargetNotConfirmed": "Flashen abgebrochen: Das Ziel-Laufwerk wurde nicht bestätigt.",
-  "flashDeviceButton": "Gerät flashen",
-  "installingUsbDriver": "USB-Treiber wird installiert...",
-  "usbDriverInstalled": "USB-Treiber erfolgreich installiert",
-  "driverInstallFailed": "Treiber-Installation fehlgeschlagen: {error}",
-  "autoLoadedFirmware": "Firmware automatisch aus dem aktuellen Verzeichnis geladen",
-  "deviceDisconnected": "Gerät getrennt. Neu verbinden oder auf Mass-Storage-Modus warten.",
-  "waitingForMdbNetwork": "Warte auf MDB-Netzwerkstabilisierung...",
-  "findingNetworkInterface": "Netzwerkschnittstelle wird gesucht...",
-  "couldNotFindInterface": "USB-Netzwerkschnittstelle nicht gefunden",
-  "networkConfigured": "Netzwerk erfolgreich konfiguriert",
-  "selectFirmwareFileError": "Bitte wähle eine .sdimg.gz-, .sdimg-, .wic.gz-, .wic- oder .img-Datei",
-  "errorOpeningFilePicker": "Fehler beim Öffnen der Dateiauswahl: {error}",
-  "configuringBootloader": "Bootloader wird für Mass-Storage-Modus konfiguriert...",
-  "rebootingDevice": "Gerät wird neu gestartet...",
-  "waitingForMassStorage": "Warte auf Neustart im Mass-Storage-Modus...",
-  "deviceReadyForFlashing": "Gerät bereit zum Flashen",
-  "selectFirmwareDialogTitle": "Firmware-Image auswählen",
-  "connectedTo": "Verbunden mit: {host}\nFirmware: {firmware}\nSeriennummer: {serial}",
-  "connectedToFirmware": "Verbunden mit {version}",
   "unknown": "Unbekannt",
-  "modeLabel": "Modus: {mode}",
   "backingUpConfig": "Gerätekonfiguration wird gesichert...",
   "configBackedUp": "Gerätekonfiguration gesichert",
-  "noConfigFound": "Keine Gerätekonfiguration zum Sichern gefunden",
   "restoringConfig": "Gerätekonfiguration wird wiederhergestellt...",
   "healthCheckFailed": "Statusprüfung fehlgeschlagen: {error}",
-  "flashError": "Flash-Fehler: {error}",
-  "flashComplete": "Flash abgeschlossen!",
   "errorPrefix": "Fehler: {error}",
-  "regionHint": "Für Offline-Karten und Navigationsunterstützung",
-  "skipOfflineMaps": "Offline-Karten überspringen",
-  "skipOfflineMapsHint": "Karten können später durch erneutes Ausführen des Installers installiert werden",
+  "regionHint": "Welche Offline-Karten heruntergeladen werden. Ob sie installiert werden, wird später mit dem Rest des Plans entschieden",
+  "skipOfflineMaps": "Offline-Karten nicht herunterladen",
   "bluetoothPairingHeading": "Bluetooth-Kopplung",
   "bluetoothPairingHint": "Koppele dein Handy oder andere Bluetooth-Geräte mit dem Roller.",
   "bleMacLabel": "BLE-Adresse",
-  "startPairing": "Entsperren und Kopplung starten",
+  "startPairing": "Kopplung starten",
+  "blePreparingRadio": "Bluetooth-Funk startet neu, bitte vor dem Koppeln abwarten.",
   "skipPairing": "Überspringen",
-  "pairingActive": "Roller entsperrt",
+  "pairingActive": "Bereit zum Koppeln",
   "pairingActiveHint": "Suche den Roller in den Bluetooth-Einstellungen deines Handys und koppele ihn. Drücke Fertig wenn du fertig bist.",
   "pairingDone": "Fertig",
   "blePinHint": "Gib diese PIN auf deinem Gerät ein, um die Kopplung abzuschließen.",
-  "bleAlreadyConnected": "Ein Gerät ist bereits verbunden",
-  "bleAlreadyConnectedHint": "Du kannst weitere Geräte koppeln oder auf Fertig drücken.",
+  "blePairedHeading": "Gerät gekoppelt",
+  "blePairedHint": "Um ein weiteres Gerät zu koppeln, trenne die Verbindung zuerst auf diesem Gerät. Der Roller hält immer nur eine Bluetooth-Verbindung.",
+  "bleLinkHeldHeading": "Ein Gerät belegt die Verbindung",
+  "bleLinkHeldHint": "Der Roller hält immer nur eine Bluetooth-Verbindung und sendet nicht, solange eine besteht. Trenne sie auf dem verbundenen Gerät, bevor du ein neues koppelst.",
   "keycardLearningHeading": "Schlüsselkarten einrichten",
   "keycardLearningBody": "Lerne die NFC-Karten an, mit denen du den Roller ent- und verriegeln möchtest. Klicke auf Starten, halte dann nacheinander jede Karte an den Leser, und klicke anschließend auf Fertig.",
   "keycardLearnedAck": "{count, plural, one{1 Schlüsselkarte angelernt} other{{count} Schlüsselkarten angelernt}}. Klicke auf Weiter zum Abschließen, oder lerne weitere Karten an.",
   "@keycardLearnedAck": {
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "keycardLearningTapped": "{count, plural, =0{Noch keine Karte erfasst} one{1 Karte erfasst} other{{count} Karten erfasst}}",
   "@keycardLearningTapped": {
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
+  "keycardCardsChecking": "Registrierte Karten werden gepr\u00fcft...",
   "keycardStartLearning": "Starten",
-  "keycardAddMore": "Weitere Karten anlernen",
+  "keycardAddMore": "Starten",
   "keycardLearningActive": "Anlernmodus aktiv",
   "keycardLearningActiveHint": "Halte jede Karte an den Leser. Klicke auf Fertig, wenn du fertig bist.",
   "keycardStopLearning": "Fertig",
+  "keycardStopScanning": "Stoppen",
+  "keycardSkipConfirmTitle": "Ohne Schlüsselkarte überspringen?",
+  "keycardSkipConfirmBody": "Es wird keine Karte angelernt. Der Roller lässt sich dann nicht mit einer Karte entsperren, nur per Handy.",
+  "keycardSkipConfirmAction": "Trotzdem überspringen",
   "keycardStartLearningFailed": "Kartenanlernung konnte nicht gestartet werden: {error}",
   "@keycardStartLearningFailed": {
-    "placeholders": { "error": { "type": "String" } }
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   },
-
   "keycardEntryAlreadyConfiguredHeading": "Schlüsselkarten sind bereits eingerichtet",
-  "keycardEntryAlreadyConfiguredBody": "{master, plural, =0{Es ist keine Masterkarte gesetzt} one{1 Masterkarte ist gesetzt} other{{master} Masterkarten sind gesetzt}} und {authorized, plural, =0{keine Schlüsselkarten sind angelernt} one{1 Schlüsselkarte ist angelernt} other{{authorized} Schlüsselkarten sind angelernt}}. Du kannst diesen Zustand behalten, oder alles zurücksetzen und neu beginnen.",
+  "keycardEntryAlreadyConfiguredBody": "{master, plural, =0{Es ist keine Anlernkarte gesetzt} one{1 Anlernkarte ist gesetzt} other{{master} Anlernkarten sind gesetzt}} und {authorized, plural, =0{keine Schlüsselkarten sind angelernt} one{1 Schlüsselkarte ist angelernt} other{{authorized} Schlüsselkarten sind angelernt}}. Du kannst diesen Zustand behalten, oder alles zurücksetzen und neu beginnen.",
   "@keycardEntryAlreadyConfiguredBody": {
     "placeholders": {
-      "master": { "type": "int" },
-      "authorized": { "type": "int" }
+      "master": {
+        "type": "int"
+      },
+      "authorized": {
+        "type": "int"
+      }
     }
   },
   "keycardEntryContinueButton": "Weiter",
   "keycardStartOverButton": "Von vorn beginnen",
   "keycardStartOverConfirmTitle": "Alle Schlüsselkarten löschen?",
-  "keycardStartOverConfirmBody": "Damit werden die Masterkarte und alle angelernten Schlüsselkarten auf dem Roller gelöscht. Du musst sie danach erneut anlernen. Fortfahren?",
+  "keycardStartOverConfirmBody": "Damit werden die Anlernkarte und alle angelernten Schlüsselkarten auf dem Roller gelöscht. Du musst sie danach erneut anlernen. Fortfahren?",
   "keycardStartOverConfirmYes": "Alles löschen",
   "keycardStartOverConfirmNo": "Abbrechen",
-
   "keycardCardsStageContinueButton": "Weiter",
-  "keycardCardsStageAddMasterButton": "Masterkarte hinzufügen (fortgeschritten)",
-
-  "keycardMasterStageHeading": "Masterkarte hinzufügen",
-  "keycardMasterStageWarningHeading": "ACHTUNG: Die Masterkarte entriegelt den Roller NICHT",
-  "keycardMasterStageWarningBody": "Die Masterkarte dient nur zur Verwaltung anderer Schlüsselkarten. Mit ihr kannst du den Roller NICHT entriegeln. Verwende KEINE der gerade angelernten Schlüsselkarten. Nimm eine separate, frische Karte.",
-  "keycardMasterStageHint": "Halte die Masterkarte an den Leser.",
+  "keycardCardsStageAddMasterButton": "Anlernkarte hinzufügen",
+  "keycardMasterStageHeading": "Anlernkarte hinzufügen",
+  "keycardMasterStageWarningHeading": "Die Anlernkarte entriegelt den Roller nicht",
+  "keycardMasterStageWarningBody": "Die Anlernkarte verwaltet deine übrigen Schlüsselkarten. Sie entriegelt den Roller nicht, und keine der eben angelernten Karten kann als Anlernkarte dienen. Nimm eine separate, unbenutzte Karte.",
+  "keycardMasterStageHint": "Halte die Anlernkarte an den Leser.",
   "keycardCardDuplicateToast": "Diese Karte ist bereits angelernt.",
-  "keycardMasterStageRejectedToast": "Diese Karte ist bereits als Schlüsselkarte registriert.",
-  "keycardMasterStageSaveFailedToast": "Masterkarte konnte nicht gespeichert werden: Schreibvorgang fehlgeschlagen.",
-  "keycardMasterStageLearnedToast": "Masterkarte wurde registriert.",
+  "keycardMasterStageRejectedToast": "Diese Karte ist bereits als Schlüsselkarte angelernt.",
+  "keycardMasterStageSaveFailedToast": "Anlernkarte konnte nicht gespeichert werden: Schreibvorgang fehlgeschlagen.",
+  "keycardMasterStageLearnedToast": "Anlernkarte wurde angelernt.",
+  "keycardMasterStageStartFailed": "Die Anlernkarten-Einrichtung konnte nicht gestartet werden",
+  "keycardMasterStageRetryButton": "Erneut versuchen",
   "keycardMasterStageSkipButton": "Überspringen",
-
   "keycardSimulateTapButton": "[DRY RUN] Tap simulieren",
-  "keycardSimulateMasterTapButton": "[DRY RUN] Master-Tap simulieren",
+  "keycardSimulateMasterTapButton": "[DRY RUN] Anlernkarten-Tap simulieren",
   "keycardSimulateRejectedTapButton": "[DRY RUN] Bereits-angelernt-Ablehnung simulieren",
-
-  "willAskForElevation": "Installation starten (fragt nach Berechtigung)",
   "installationContinuesInNewWindow": "Die Installation wird im neuen Fenster fortgesetzt",
   "youCanCloseThisWindow": "Du kannst dieses Fenster schließen.",
   "cannotQuitWhileFlashing": "Beenden während des Flashens nicht möglich",
@@ -427,57 +494,214 @@
   "skipToFinish": "Zum Abschluss springen",
   "skipKeycardSetup": "Überspringen",
   "finished": "Fertig",
+  "installAnother": "Weiteren Roller installieren",
   "keepCachedDownloads": "Heruntergeladene Dateien behalten",
-  "librescootFirmwareDetected": "Librescoot-Firmware erkannt",
-  "skipMdbReflash": "MDB nicht neu flashen",
-  "keepCurrentMdbFirmware": "Aktuelle MDB-Firmware behalten",
-  "skipDbcFlashOption": "DBC-Flash überspringen",
-  "onlyFlashMdbSkipDbc": "Nur MDB flashen, DBC überspringen",
+  "phaseInstallPlanTitle": "Installationsplan",
+  "phaseInstallPlanDescription": "Festlegen, was mit jedem Board passiert",
+  "phaseMdbArtifactTitle": "MDB-Update",
+  "phaseMdbArtifactDescription": "Firmware-Artefakt installieren",
+  "majorStepMdbUpgrade": "MDB aktualisieren",
+  "majorStepDbcUpgrade": "DBC aktualisieren",
+  "installPlanHeading": "Was soll der Installer tun?",
+  "installPlanIntro": "Aktion pro Board auswählen. Zielversion: {version}",
+  "@installPlanIntro": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "boardMdb": "MDB (Hauptboard)",
+  "boardDbc": "DBC (Display)",
+  "boardVersionCurrent": "Aktuell {version}",
+  "@boardVersionCurrent": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "boardVersionLastSeen": "Zuletzt gesehen mit {version}",
+  "@boardVersionLastSeen": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "previousRunSummary": "Letzte Installation abgeschlossen {when}, mit {version}",
+  "@previousRunSummary": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      },
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "boardVersionUnknown": "Version unbekannt",
+  "actionUpgrade": "Aktualisieren",
+  "actionUpgradeDetail": "Behält Einstellungen, Schlüsselkarten, Karten und Fahrten",
+  "actionCleanInstall": "Neu installieren",
+  "actionCleanInstallDetail": "Löscht Einstellungen und Fahrtenverlauf. Schlüsselkarten und Karten werden in diesem Durchlauf neu eingerichtet",
+  "actionUpgradeDetailDbc": "Behält die Offline-Karten",
+  "actionCleanInstallDetailDbc": "Löscht nur die Offline-Karten",
+  "actionCleanInstallDetailDbcTiles": "Löscht die Offline-Karten. Sie werden in diesem Durchlauf neu installiert",
+  "actionLeave": "Unverändert lassen",
+  "actionLeaveDetail": "Dieses Board wird nicht angefasst",
+  "upgradeBlockedNotLibrescoot": "Aktualisieren setzt eine vorhandene Librescoot-Installation voraus",
+  "upgradeBlockedStateUnknown": "Aktualisieren setzt eine bekannte Version auf diesem Board voraus",
+  "upgradeBlockedMinimalImage": "Dieses Board läuft mit einem Bootstrap-Image und muss installiert werden",
+  "upgradeBlockedNoMender": "Dieses Board hat keinen Update-Client und kann nur neu installiert werden",
+  "planTilesNeedDbcHandoff": "Für neue Kartendaten muss das DBC-Kabel umgesteckt werden, auch wenn das DBC unverändert bleibt",
+  "planInstallTiles": "Offline-Karten aktualisieren",
+  "planInstallTilesDetail": "Fügt einen DBC-Schritt hinzu: Die Karten wandern auf das MDB, dann wird das Kabel zurückgesteckt und der Roller kopiert sie selbst.",
+  "planTilesNotDownloaded": "Nicht heruntergeladen. Offline-Karten wurden im ersten Schritt übersprungen.",
+  "actionLeaveBlockedStockMdb": "Ein Serien-Hauptboard muss installiert werden, bevor sonst etwas geht",
+  "planDbcNeedsLibrescootMdb": "Das DBC ist nur über das MDB erreichbar, und die Werkzeuge dafür gehören zu Librescoot. Installiere in diesem Durchgang das MDB mit, oder lass das DBC unverändert.",
+  "planNothingToDo": "Nichts ausgewählt. Mindestens eine Aktion wählen, um fortzufahren.",
+  "releaseMissingAssetsTitle": "Dieses Release kann nicht installiert werden",
+  "releaseMissingAssetsBody": "Das Release {tag} veröffentlicht nicht alles, was der Installer braucht: {assets}. Gehe zurück und wähle einen anderen Kanal, oder warte auf ein Release, das alles enthält.",
+  "@releaseMissingAssetsBody": {
+    "placeholders": {
+      "tag": {
+        "type": "String"
+      },
+      "assets": {
+        "type": "String"
+      }
+    }
+  },
+  "assetMdbArtifact": "das MDB-Firmware-Artefakt",
+  "assetDbcArtifact": "das DBC-Firmware-Artefakt",
+  "assetMdbImage": "das MDB-Systemabbild",
+  "assetDbcImage": "das DBC-Systemabbild",
+  "artifactStaging": "Firmware-Artefakt wird übertragen...",
+  "artifactInstalling": "Firmware wird installiert ({percent}%)",
+  "@artifactInstalling": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "artifactVerifying": "Installierte Version wird geprüft...",
+  "waitingForDbcUpload": "Display-Dateien werden noch übertragen",
+  "artifactStillMinimal": "Das MDB ist mit dem Bootstrap-Image zurückgekommen, das Firmware-Artefakt wurde also nicht übernommen. Versuche es erneut oder schreibe stattdessen das vollständige Image.",
+  "artifactVersionMismatch": "Das MDB meldet nach dem Neustart weiterhin {found} statt {expected}. Die Installation wurde zurückgerollt, es wurde also nichts geändert. Versuche es erneut oder schreibe stattdessen das vollständige Image.",
+  "@artifactVersionMismatch": {
+    "placeholders": {
+      "found": {
+        "type": "String"
+      },
+      "expected": {
+        "type": "String"
+      }
+    }
+  },
+  "artifactInstallFailedHeading": "Firmware-Installation fehlgeschlagen",
+  "artifactStagingInBackground": "Firmware-Installation wird abgeschlossen...",
+  "artifactNoneDownloaded": "Für dieses Board wurde kein Firmware-Artefakt heruntergeladen.",
+  "dbcImageMissing": "Das für diesen Plan benötigte DBC-Systemabbild fehlt.",
+  "artifactRebootTimeout": "Der Roller war nach dem Neustart nicht erreichbar.",
+  "artifactRebootTimeoutHint": "Prüfe, ob das USB-Kabel an beiden Enden fest sitzt und der Roller Strom hat. Ein Roller ohne eingesetzten Fahrakku kann beim Warten auch von allein einschlafen.",
+  "artifactRetryDetail": "Kostet nichts. Versucht es an derselben Stelle noch einmal und behält Einstellungen, Schlüsselkarten und Fahrten.",
+  "artifactFullImageDetail": "Letzter Ausweg. Beschreibt das ganze Board neu und löscht Einstellungen, Schlüsselkarten und Fahrten.",
+  "artifactPreflightNoMender": "Dieses Board hat keinen Update-Client und kann daher kein Firmware-Artefakt aufnehmen.",
+  "artifactPreflightOtaBusy": "Der Roller führt gerade sein eigenes Update aus ({status}). Warte, bis es fertig ist und der Roller neu gestartet hat, und versuche es dann erneut.",
+  "@artifactPreflightOtaBusy": {
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "artifactPreflightNoSpace": "Zu wenig Platz in /data: {freeMiB} MiB frei, {neededMiB} MiB benötigt.",
+  "@artifactPreflightNoSpace": {
+    "placeholders": {
+      "freeMiB": {
+        "type": "int"
+      },
+      "neededMiB": {
+        "type": "int"
+      }
+    }
+  },
+  "artifactRetry": "Erneut versuchen",
+  "artifactFallBackToFullImage": "Stattdessen das vollständige Image schreiben",
+  "fallBackWipeTitle": "Dabei werden die Daten des Rollers gelöscht",
+  "fallBackWipeBody": "Beim Schreiben des vollständigen Images wird die Datenpartition neu formatiert. Einstellungen, angelernte Schlüsselkarten, Offline-Karten und Fahrtenhistorie gehen dabei verloren, der Roller kommt wie fabrikneu zurück. Die begonnene Aktualisierung hätte all das behalten.\n\nEin erneuter Versuch mit dem Firmware-Artefakt behält die Daten. Schreibe das vollständige Image nur, wenn das Artefakt weiterhin fehlschlägt.",
+  "fallBackWipeConfirm": "Löschen und vollständiges Image schreiben",
+  "dbcCleanInstallButton": "DBC löschen und neu installieren",
+  "dbcCleanInstallTitle": "Dabei wird das DBC gelöscht",
+  "dbcCleanInstallBody": "Die zuletzt bekannte Version des DBC ist nur das, was das MDB gesehen hat, als beide zusammen mit Strom versorgt waren. Ein Board, das der Plan für aktualisierbar hielt, hat also womöglich gar keinen Update-Client. Bei einer Neuinstallation wird zuerst das Bootstrap-Image geschrieben, dabei wird die Datenpartition des DBC neu formatiert und die Offline-Karten gehen verloren. Alles auf dem MDB bleibt unberührt, auch Einstellungen, angelernte Schlüsselkarten und Fahrtenhistorie.\n\nDafür muss das Kabel noch einmal umgesteckt werden: Der Installer legt die Dateien ab, du schraubst das DBC-Kabel zurück an das MDB, der Rest läuft unbeaufsichtigt.",
+  "dbcCleanInstallConfirm": "DBC löschen und installieren",
   "firmwareVersionDisplay": "Firmware: {version}",
+  "healthVersionPlan": "Aktuell installierte Version: {current} - Zu installierende Version: {target}",
+  "distroStock": "unu scooterOS",
+  "distroLibrescoot": "Librescoot",
+  "@healthVersionPlan": {
+    "placeholders": {
+      "current": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "healthAuxVoltage": "{mv} mV",
+  "@healthAuxVoltage": {
+    "placeholders": {
+      "mv": {
+        "type": "int"
+      }
+    }
+  },
   "openSeatboxButton": "Sitzbank öffnen",
   "reconnectCbbStep": "CBB wieder anschließen",
   "reconnectCbbStepDesc": "Stecke das CBB-Kabel wieder in den Anschluss im Fußraum. Ohne CBB könnte das MDB während des Flashens herunterfahren.",
-  "insertMainBatteryStep": "Fahrakku einsetzen",
-  "insertMainBatteryStepDesc": "Setze den Fahrakku wieder in die Sitzbank ein. Ohne ihn könnte die CBB oder die 12V-Hilfsbatterie während des Flashens leer werden, was MDB oder DBC zum Absturz bringen kann.",
+  "mainBatteryMissingHeading": "Kein Fahrakku erkannt",
+  "mainBatteryMissingHint": "Der DBC-Flash zieht Strom aus dem Fahrakku. Setz ihn zurück in die Sitzbank, bevor es weitergeht.",
   "cbbDetected": "CBB erkannt",
   "batteryDetected": "Akku erkannt",
   "proceedWithoutCbb": "Ich verstehe die Risiken, trotzdem fortfahren",
   "checkingCbbAndBattery": "CBB und Akku werden geprüft...",
   "waitingForUsbDisconnect": "Warte auf USB-Trennung...",
-  "dbcWillCyclePower": "Das DBC wird während dieses Vorgangs mehrmals ein- und ausgeschaltet. Trenne das USB-Kabel zwischen MDB und DBC nicht.",
-  "ledBootAmber": "Tacho-LED gelb-orange",
-  "ledBootAmberMeaning": "Flash läuft",
-  "ledBootRedError": "Tacho-LED blinkt rot",
-  "ledBootRedMeaning": "Fehler. Laptop verbinden und Log prüfen; Blinker und LED gehen aus, sobald du verbunden bist",
-  "flashingTakesAbout10Min": "Erst wenn die Tacho-LED blinkt (grün oder rot), und auch wirklich erst dann, das Laptop-USB-Kabel wieder anschließen.",
-  "dbcFlashDurationHeadline": "Das DBC-Flashen kann 10–20 Minuten dauern.",
-  "dbcFlashDurationDetail": "Das DBC wird dabei mehrmals ein- und ausgeschaltet — das ist normal. Nichts abziehen, bis die Tacho-LED grün oder rot blinkt.",
-  "finishRebootingTitle": "Roller startet neu…",
-  "finishRebootingBody": "Warte auf die USB-Trennung, dann ist der Installer fertig.",
-  "networkConfigNeedsPermission": "macOS fragt nach Erlaubnis, die Netzwerk-Einstellungen zu ändern. Im Systemdialog auf 'Erlauben' klicken, dann 'Erneut versuchen' drücken.",
-  "waitingForMdbToReconnect": "Warte auf MDB-Wiederverbindung...",
-  "ledIsGreen": "LED blinkt grün",
-  "ledIsRed": "LED blinkt rot",
-  "ledAmberWaitNotice": "Wichtig: USB und Strom NICHT trennen, solange das hier läuft. Solange die Tacho-LED gelb-orange leuchtet, läuft der Flash noch. Finger weg, nichts anklicken. Wenn der Flash durch ist, fängt die LED an zu blinken: grün = Erfolg, rot = Fehler. Erst weitermachen, wenn sie blinkt.",
+  "dbcFlashDurationHeadline": "Das DBC-Flashen kann 10 bis 20 Minuten dauern.",
+  "finishHandoverRestoring": "Einstellungen und Dienste werden zurückgesetzt",
+  "finishBlockedHeading": "Die Installation wurde nicht abgeschlossen",
+  "finishBlockedBody": "Die Verbindung zum Roller ist vor dem letzten Schritt abgebrochen, die Firmware wurde also übertragen, aber nicht installiert. Am Roller wurde nichts verändert, du kannst es gefahrlos noch einmal versuchen.\n\nPrüf das USB-Kabel an beiden Enden und klick dann Nochmal versuchen. Wenn das nicht hilft, schließ den Installer und starte ihn neu: er macht da weiter, wo dieser Lauf stehen geblieben ist.",
+  "finishBlockedRetry": "Nochmal versuchen",
+  "finishHandoverTitle": "Warte darauf, dass der Roller sich entsperrt",
+  "finishHandoverBody": "Bleib beim Roller, bis er sich entsperrt. Dann kannst du das USB-Kabel abziehen.",
+  "networkConfigNeedsPermission": "macOS fragt nach Erlaubnis, die Netzwerk-Einstellungen zu ändern. Im Systemdialog auf Erlauben klicken, dann Erneut versuchen drücken.",
+  "waitingForMdb": "Warte auf das MDB...",
+  "dbcFlashAllDone": "Weiter zum Abschluss",
+  "dbcFlashSequence": "Ab hier macht der Roller allein weiter: er schreibt das Image auf das Display, startet es neu und spielt die Karten auf. Der Fortschritt steht auf dem Display. Bleib beim Roller, bis eines von beidem passiert.",
+  "dbcFlashDoNotDisconnect": "USB und Strom nicht trennen, solange das läuft.",
+  "dbcFlashDoneSignal": "Fertig: der Roller entsperrt sich von selbst. Das ist das Signal, mehr musst du nicht abwarten.",
+  "dbcFlashFailSignal": "Fehler: die LED am DBC blinkt rot und der Warnblinker geht an. Dann USB zurück auf das MDB stecken und hier das Log holen.",
+  "dbcFlashLedIsTheSignal": "Die LED am DBC ist das Fehlersignal: blinkt sie rot, ist etwas schiefgegangen.",
+  "dbcFlashSomethingWrong": "LED blinkt rot: USB zurückstecken und Log holen",
   "phaseKeycardSetupTitle": "Schlüsselkarten einrichten",
   "phaseKeycardSetupDescription": "Schlüsselkarten anlernen",
   "usingLocalFirmwareImages": "Lokale Firmware-Images werden verwendet",
   "mdbDetectedUmsSkipping": "MDB im UMS-Modus erkannt. Direkt zum Flashen.",
-  "waitingForMdbToReboot": "Warte auf MDB-Neustart...",
-  "mdbDetectedWaitingForSsh": "MDB erkannt, warte auf SSH...",
-  "reconnectedToMdb": "MDB wieder verbunden",
   "verifyingBootloaderConfig": "Bootloader-Konfiguration wird überprüft...",
   "umsNotDetectedTimeout": "UMS-Gerät nicht innerhalb von 60 s erkannt. MDB ist möglicherweise wieder in Linux gebootet.",
   "waitingForDevicePath": "Warte auf Gerätepfad...",
   "noDevicePathFound": "Kein Gerätepfad gefunden. USB-Verbindung prüfen und erneut versuchen.",
   "mdbDisconnectedFlashingDbc": "MDB getrennt. DBC wird autonom geflasht...",
-  "mdbReconnectedVerifying": "MDB wieder verbunden! Überprüfung läuft...",
+  "mdbReconnectedVerifying": "MDB wieder verbunden. Überprüfung läuft...",
   "logDebugShell": "Log & Debug-Shell",
   "internalError": "Interner Fehler: {error}",
   "copyLog": "Log kopieren",
   "copyToClipboard": "In Zwischenablage kopieren",
   "logFilePath": "Logdatei: {path}",
   "revealLogFile": "Im Ordner anzeigen",
+  "debugShell": "Debug-Shell",
   "debugCommandHint": "Befehl im Installer-Kontext ausführen...",
   "mbOnDisk": "{size} MB belegt",
   "beforeImageLabel": "Vorher",
@@ -485,8 +709,7 @@
   "language": "Sprache",
   "languageGerman": "Deutsch",
   "languageEnglish": "English",
-
-  "gettingStartedTitle": "Erste Schritte",
+  "gettingStartedTitle": "So bedienst du den Roller",
   "gettingStartedOpenMenuTitle": "Menü öffnen",
   "gettingStartedOpenMenuDesc": "Im Parkmodus zweimal kurz hintereinander am linken Bremshebel ziehen. Innerhalb des Menüs scrollst und wählst du mit den Bremshebeln; was die jeweilige Bremse gerade tut, steht unten am Bildschirmrand.",
   "gettingStartedDriveMenuTitle": "Kurzmenü während der Fahrt",
@@ -498,28 +721,185 @@
   "gettingStartedFooter": "Mehr auf librescoot.org und im Handbuch.",
   "gettingStartedLinkWebsite": "librescoot.org",
   "gettingStartedLinkHandbook": "Handbuch",
-
   "substepWaitRndis": "Warte auf MDB (RNDIS) am USB",
-  "substepConfigureNetwork": "Netzwerkkonfiguration",
+  "substepConfigureNetwork": "Netzwerk konfigurieren",
   "substepConnectSsh": "SSH-Verbindung herstellen",
   "substepDisableHazards": "Alarm und Auto-Standby deaktivieren",
   "substepReadStatus": "Trampoline-Status auslesen",
   "elapsedSeconds": "{seconds}s vergangen",
   "@elapsedSeconds": {
     "placeholders": {
-      "seconds": { "type": "int" }
+      "seconds": {
+        "type": "int"
+      }
     }
   },
   "reconnectTimeoutHeading": "Dauert ungewöhnlich lange",
   "reconnectTimeoutBody": "Es sind {minutes} Min vergangen, ohne dass das MDB als RNDIS-Gerät aufgetaucht ist. Das DBC braucht beim ersten Boot manchmal länger (Partitions-Resize, Karten-Installation). Du kannst weiter warten, oder unten neu starten / überspringen.",
   "@reconnectTimeoutBody": {
     "placeholders": {
-      "minutes": { "type": "int" }
+      "minutes": {
+        "type": "int"
+      }
     }
   },
   "usbDeviceCurrentlyDetected": "Aktuell erkanntes USB-Gerät",
   "usbDeviceNone": "keines",
   "collectingUsbInfo": "USB-Geräteinfos werden gesammelt…",
   "usbInfoUnsupportedPlatform": "USB-Geräteinfos werden auf dieser Plattform nicht unterstützt.",
-  "usbInfoCollectFailed": "USB-Geräteinfos konnten nicht gesammelt werden"
+  "usbInfoCollectFailed": "USB-Geräteinfos konnten nicht gesammelt werden",
+  "upgradeDowngradeWarning": "Das ist älter als das, was auf dem Board läuft. Aktualisieren behält Einstellungen, Schlüsselkarten, Karten und Fahrten, und ältere Dienste lesen Daten einer neueren Version womöglich nicht. Wenn danach etwas klemmt, neu installieren.",
+  "upgradeChannelSwitchWarning": "Das ist ein anderer Kanal als der, der auf dem Board läuft. Aktualisieren behält Einstellungen, Schlüsselkarten, Karten und Fahrten, die die Dienste des anderen Kanals womöglich anders lesen. Wenn danach etwas klemmt, neu installieren.",
+  "tightenDbcCable": "DBC-Kabel festschrauben",
+  "tightenDbcCableDesc": "Das interne DBC-USB-Kabel steckt schon im MDB. Schraube es jetzt fest.",
+  "finalRide": "Losfahren",
+  "finalRideDesc": "Der Roller hat sich am Ende der Installation selbst entsperrt. Falls nicht, nimm eine angelernte Schlüsselkarte oder entsperre über Bluetooth.",
+  "notEnoughDiskSpace": "Zu wenig Speicherplatz: {needed} fehlen. Schaffe Platz und versuche es erneut.",
+  "@notEnoughDiskSpace": {
+    "placeholders": {
+      "needed": {
+        "type": "String"
+      }
+    }
+  },
+  "keycardFinishCards": "Fertig",
+  "substepCheckExisting": "Vorhandene Dateien prüfen",
+  "substepVerifying": "{filename} wird geprüft",
+  "@substepVerifying": {
+    "placeholders": {
+      "filename": {
+        "type": "String"
+      }
+    }
+  },
+  "substepUploadFile": "{filename} übertragen",
+  "@substepUploadFile": {
+    "placeholders": {
+      "filename": {
+        "type": "String"
+      }
+    }
+  },
+  "substepAlreadyThere": "liegt schon auf dem Roller",
+  "substepFileImage": "Display-Image",
+  "substepFileImageMap": "Prüfdaten zum Display-Image",
+  "substepFileFirmware": "Display-Firmware",
+  "substepFileMaps": "Karten",
+  "substepFileRouting": "Routing-Daten",
+  "substepUploadStarting": "Übertragung wird vorbereitet...",
+  "substepUploadComplete": "Übertragung abgeschlossen",
+  "substepUploadNothingToDo": "Alle Dateien sind schon auf dem Roller",
+  "substepRemaining": "noch {mins} Min. {secs} Sek.",
+  "@substepRemaining": {
+    "placeholders": {
+      "mins": {
+        "type": "int"
+      },
+      "secs": {
+        "type": "int"
+      }
+    }
+  },
+  "substepUploadFlasher": "Flash-Werkzeug übertragen",
+  "substepUploadFwTools": "DBC-Bootloader-Werkzeuge übertragen",
+  "substepUploadScript": "Trampolin-Skript übertragen",
+  "waitStepCounter": "Schritt {current} von {total}",
+  "waitRemaining": "noch etwa {duration}",
+  "@waitRemaining": {
+    "placeholders": {
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "@waitStepCounter": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "waitElapsed": "{time} vergangen",
+  "@waitElapsed": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "waitLongerThanUsual": "{time} · länger als üblich",
+  "@waitLongerThanUsual": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "waitShowLog": "Protokoll anzeigen",
+  "waitHideLog": "Protokoll verbergen",
+  "blePairingWhy": "Mit einem gekoppelten Handy kannst du den Roller später über die App entsperren und seinen Zustand sehen. Du kannst das auch überspringen und später nachholen.",
+  "blePairingStep1": "Bluetooth am Handy öffnen",
+  "blePairingStep1Desc": "Die Bluetooth-Einstellungen deines Handys oder die App.",
+  "blePairingStep2": "Roller in der Geräteliste auswählen",
+  "blePairingStep2Desc": "Er erscheint unter der Adresse, die hier steht.",
+  "blePairingStep3": "PIN bestätigen",
+  "blePairingStep3Desc": "Die PIN erscheint hier auf dem Bildschirm, sobald dein Handy fragt.",
+  "blePairingOneAtATime": "Der Roller hält immer nur eine Bluetooth-Verbindung. Ist schon ein Gerät verbunden, trenne es zuerst dort.",
+  "keycardWhy": "Mit einer angelernten Karte entsperrst du den Roller ohne Handy. Du kannst mehrere Karten anlernen und das später jederzeit wiederholen. Eine Neuinstallation löscht vorher angelernte Karten.",
+  "keycardStep1": "Anlernen starten",
+  "keycardStep1Desc": "Der Roller wartet danach auf eine Karte.",
+  "keycardStep2": "Karte an den Leser halten",
+  "keycardStep2Desc": "Der Leser sitzt vorne am Display. Kurz halten, bis der Installer die Karte zählt.",
+  "keycardStep3": "Fertig drücken",
+  "keycardStep3Desc": "Damit endet das Anlernen und die Karten gelten.",
+  "keycardPanelHeading": "Kartenleser",
+  "keycardReaderPreparing": "Wird vorbereitet",
+  "keycardReaderReady": "Bereit",
+  "keycardRetryReader": "Kartenleser erneut versuchen",
+  "keycardReaderUnreachable": "Kartenleser nicht erreichbar",
+  "keycardReaderScanning": "Karte an den Leser halten",
+  "keycardCardsTaught": "{count, plural, =0{Keine Schlüsselkarte angelernt} =1{1 Schlüsselkarte angelernt} other{{count} Schlüsselkarten angelernt}}",
+  "@keycardCardsTaught": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "keycardMastersRegistered": "{count, plural, =1{1 Anlernkarte registriert} other{{count} Anlernkarten registriert}}",
+  "@keycardMastersRegistered": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "keycardNeedOneToFinish": "Eine Karte reicht zum Abschließen.",
+  "keycardPreparingReader": "Kartenleser wird vorbereitet...",
+  "blePairingDeviceName": "Gerätename",
+  "blePairingStateIdle": "Kopplung nicht gestartet",
+  "blePairingStateVisible": "Sichtbar, wartet auf ein Gerät",
+  "blePinConfirmTitle": "Diese PIN am Handy bestätigen",
+  "blePinConfirmHint": "Dein Handy zeigt dieselbe Zahl. Stimmen sie überein, bestätige dort.",
+  "blePairingStep2DescCompare": "Vergleiche den Namen und die Adresse rechts, wenn mehrere Geräte auftauchen.",
+  "blePairingStep3DescOverlay": "Der Installer zeigt sie groß an, sobald dein Handy danach fragt.",
+  "dbcSayInstalling": "Firmware wird installiert, das dauert ein paar Minuten",
+  "dbcSayInstalled": "Firmware installiert, Display startet neu",
+  "dbcSayRunning": "Firmware {version} läuft",
+  "dbcSayMaps": "Karten werden übertragen",
+  "dbcSayRouting": "Routing-Karten werden übertragen",
+  "dbcSayFailed": "Installation fehlgeschlagen",
+  "dbcSaySwap1": "USB-Kabel zurück auf das MDB stecken und im",
+  "dbcSaySwap2": "Installer auf dem Laptop weitermachen.",
+  "dbcSayDone": "Fertig. Der Roller entsperrt sich jetzt.",
+  "dbcSayBanner": "Librescoot wird installiert",
+  "dbcSayFailOnboot": "Der Teil nach dem Neustart ist mehrfach gescheitert.",
+  "dbcSayFailDbc": "Das Display hat sich nach dem Flashen nicht gemeldet.",
+  "dbcSayFailTiles": "{count} Karten-Uebertragung(en) fehlgeschlagen.",
+  "mainBatteryCharge": "Fahrakku-Ladung",
+  "riskMainBatteryLow": "Der Fahrakku ist fast leer. Die Installation läuft über die AUX-Batterie und geht durch, aber weit kommt der Roller danach nicht, und so stehen gelassen ist er morgen leer. Lade ihn im Anschluss.",
+  "waitingForBoardRecovery": "Das Hauptboard hat nichts zum Starten gefunden und wartet in seinem Wiederherstellungsmodus. Nach etwa zwei Minuten startet es sich selbst neu. Kabel und Strom in Ruhe lassen."
 }
