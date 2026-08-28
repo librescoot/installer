@@ -194,11 +194,6 @@ fi
 # Restarting vehicle-service re-claims the PWM channels the progress bar
 # borrowed, without which the blinkers stay dark. On a failed run it comes back
 # reading always-on out of the overlay, so the link survives the restart.
-systemctl start librescoot-pm 2>/dev/null ||
-  log "  WARNING: could not start librescoot-pm"
-systemctl restart librescoot-vehicle 2>/dev/null ||
-  log "  WARNING: could not restart vehicle-service"
-sync
 
 if [ "$INSTALL_OK" = yes ]; then
   # The bar is complete and the vehicle goes dark. Not green: the unlock below
@@ -208,6 +203,20 @@ if [ "$INSTALL_OK" = yes ]; then
   progress_set "$SEGMENT_HANDOVER" done
   sleep 1
   signal_install_done
+fi
+
+# The lights are handed back before vehicle-service is restarted, never
+# after. On start it reloads the PWM-LED kernel module; with the installer's
+# breathe loop still holding /dev/pwm_led* open the remove fails, the insert
+# goes ahead regardless, and every LED ioctl from then on, this script's and
+# vehicle-service's own, sleeps in the kernel for good.
+systemctl start librescoot-pm 2>/dev/null ||
+  log "  WARNING: could not start librescoot-pm"
+systemctl restart librescoot-vehicle 2>/dev/null ||
+  log "  WARNING: could not restart vehicle-service"
+sync
+
+if [ "$INSTALL_OK" = yes ]; then
 
   # Give vehicle-service its state machine back before asking for a transition,
   # or the unlock lands before it is listening.
