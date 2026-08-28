@@ -23,6 +23,7 @@ import '../models/download_state.dart';
 import '../models/dashboard_messages.dart';
 import '../models/install_plan.dart';
 import '../models/keycard_master.dart';
+import '../models/keycard_preset.dart';
 import '../l10n/phase_l10n.dart';
 import '../models/finish_handover.dart';
 import '../models/installer_phase.dart';
@@ -281,6 +282,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   bool _keycardMasterLearning = false;
   String? _keycardMasterStartError;
   int _keycardAuthorizedCountBefore = 0; // captured at Start, compared at Done
+  // The cards the board had when the laptop connected. A clean install wipes
+  // /data and them with it; the keycard step puts them back.
+  List<String> _keycardCapturedUids = const [];
   int _keycardSessionTapCount = 0; // driven by card-learned events
   // Substage of the keycardSetup phase. The phase is rendered as a small
   // state machine so we can branch between the cards-only legacy flow and
@@ -811,6 +815,24 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
   }
 
+
+  /// Read the cards the board knows now, while it still knows them. Read
+  /// from the file rather than asked of keycard-service, which is stopped
+  /// for most of a run and absent on a stock board.
+  Future<void> _captureBoardKeycards() async {
+    if (_isDryRun) return;
+    try {
+      final out = await _sshService
+          .runCommand('cat /data/keycard/authorized_uids.txt 2>/dev/null; true')
+          .timeout(const Duration(seconds: 10));
+      _keycardCapturedUids = parseKeycardUidFile(out);
+      debugPrint(
+        'UI: captured ${_keycardCapturedUids.length} keycard(s) from the board',
+      );
+    } catch (e) {
+      debugPrint('UI: could not read the board keycards (ok): $e');
+    }
+  }
 
   /// Persist the user's installer choices on the MDB: dashboard language
   /// (so the UI matches what they used here) and OTA channel (so future
@@ -3171,6 +3193,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // Before the first `lsc set` below, so the copy is the user's own
     // settings and not ours. An upgrade puts it back at finish.
     await _backupPersistedSettings();
+    await _captureBoardKeycards();
 
     // Hand the overrides to settings-service if this board has somewhere to
     // put them. What follows is then a no-op on the keys the overlay covers:
@@ -8354,6 +8377,61 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         _keycardStage = _KeycardStage.cards;
       }
     });
+
+    await _keycardAddKnownCards(capability);
+  }
+
+  /// Authorise the cards known before the reader saw any: the ones named on
+  /// the command line and the ones the board had at connect. Each goes in
+  /// as an `add:<uid>` command, which only the current keycard-service
+  /// answers; a legacy one gets nothing and the cards are logged instead.
+  Future<void> _keycardAddKnownCards(KeycardCapability capability) async {
+    final uids = keycardsToAdd(
+      preset: launchArgs.keycards,
+      captured: _keycardCapturedUids,
+    );
+    if (uids.isEmpty || _isDryRun) return;
+    if (capability != KeycardCapability.current) {
+      debugPrint(
+        'UI: ${uids.length} known keycard(s) not added, the service cannot '
+        '(${capability.name})',
+      );
+      return;
+    }
+    var added = 0;
+    for (final uid in uids) {
+      final result = await _keycardCommand('add:$uid');
+      if (result == 'ok') {
+        added++;
+      } else {
+        debugPrint('UI: add:$uid -> ${result ?? "no answer"}');
+      }
+    }
+    debugPrint('UI: added $added of ${uids.length} known keycard(s)');
+    await _keycardRefreshCounts();
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context)!;
+    _keycardShowToast(l10n.keycardKnownAdded(added, uids.length), kAccent);
+  }
+
+  /// One command on the keycard queue and its answer. command-result is a
+  /// single field the service overwrites, so it is cleared first: two
+  /// commands answered "ok" in a row would otherwise look like no answer.
+  Future<String?> _keycardCommand(String command) async {
+    try {
+      await _sshService.runCommand(
+        'redis-cli hdel keycard command-result >/dev/null; true',
+      );
+      await _sshService.redisLpush('scooter:keycard', command);
+      for (var i = 0; i < 20; i++) {
+        await Future.delayed(const Duration(milliseconds: 150));
+        final result = await _sshService.redisHget('keycard', 'command-result');
+        if (result != null) return result.trim();
+      }
+    } catch (e) {
+      debugPrint('UI: keycard command $command failed: $e');
+    }
+    return null;
   }
 
   KeycardCapability? _keycardCapability;

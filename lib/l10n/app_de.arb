@@ -427,6 +427,7 @@
       }
     }
   },
+  "keycardKnownAdded": "{added, plural, =0{Keine der {total} bekannten Keycards konnte hinzugef\u00fcgt werden} one{1 von {total} bekannten Keycards hinzugef\u00fcgt} other{{added} von {total} bekannten Keycards hinzugef\u00fcgt}}",
   "keycardCardsChecking": "Registrierte Karten werden gepr\u00fcft...",
   "keycardStartLearning": "Starten",
   "keycardAddMore": "Starten",

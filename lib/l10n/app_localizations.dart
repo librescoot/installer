@@ -2324,6 +2324,12 @@ abstract class AppLocalizations {
   /// **'{count, plural, =0{No keycards tapped yet} one{1 keycard tapped} other{{count} keycards tapped}}'**
   String keycardLearningTapped(int count);
 
+  /// No description provided for @keycardKnownAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'{added, plural, =0{None of the {total} known keycards could be added} one{1 of {total} known keycards added} other{{added} of {total} known keycards added}}'**
+  String keycardKnownAdded(int added, int total);
+
   /// No description provided for @keycardCardsChecking.
   ///
   /// In en, this message translates to:

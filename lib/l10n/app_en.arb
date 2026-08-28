@@ -545,6 +545,13 @@
       }
     }
   },
+  "keycardKnownAdded": "{added, plural, =0{None of the {total} known keycards could be added} one{1 of {total} known keycards added} other{{added} of {total} known keycards added}}",
+  "@keycardKnownAdded": {
+    "placeholders": {
+      "added": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
   "keycardCardsChecking": "Checking registered cards...",
   "keycardStartLearning": "Start",
   "keycardAddMore": "Add more cards",

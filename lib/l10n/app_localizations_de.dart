@@ -1306,6 +1306,18 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String keycardKnownAdded(int added, int total) {
+    String _temp0 = intl.Intl.pluralLogic(
+      added,
+      locale: localeName,
+      other: '$added von $total bekannten Keycards hinzugefügt',
+      one: '1 von $total bekannten Keycards hinzugefügt',
+      zero: 'Keine der $total bekannten Keycards konnte hinzugefügt werden',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get keycardCardsChecking => 'Registrierte Karten werden geprüft...';
 
   @override

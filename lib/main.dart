@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 import 'l10n/app_localizations.dart';
+import 'models/keycard_preset.dart';
 import 'screens/installer_screen.dart';
 import 'services/log_service.dart';
 import 'theme.dart';
@@ -100,6 +101,9 @@ class LaunchArgs {
   /// appends to it instead of starting a second file, so one run produces one
   /// log the user can hand over.
   final String? logFile;
+  /// Cards to authorise at the keycard step without holding them to the
+  /// reader. `--keycard=UID`, repeatable, or `--keycards=A,B`.
+  final List<String> keycards;
 
   LaunchArgs({
     this.channel,
@@ -111,6 +115,7 @@ class LaunchArgs {
     this.noOfflineMaps = false,
     this.dryRun = false,
     this.logFile,
+    this.keycards = const [],
   });
 
   factory LaunchArgs.fromArgs(List<String> args) {
@@ -118,7 +123,14 @@ class LaunchArgs {
     var autoStart = false;
     var noOfflineMaps = false;
     var dryRun = false;
+    final keycards = <String>[];
     for (final arg in args) {
+      if (arg.startsWith('--keycard=')) {
+        keycards.addAll(splitKeycardArg(arg.substring('--keycard='.length)));
+      }
+      if (arg.startsWith('--keycards=')) {
+        keycards.addAll(splitKeycardArg(arg.substring('--keycards='.length)));
+      }
       if (arg.startsWith('--channel=')) channel = arg.split('=')[1];
       if (arg.startsWith('--region=')) region = arg.split('=')[1];
       if (arg.startsWith('--lang=')) lang = arg.split('=')[1];
@@ -141,6 +153,7 @@ class LaunchArgs {
       noOfflineMaps: noOfflineMaps,
       dryRun: dryRun,
       logFile: logFile,
+      keycards: normalizeKeycardUids(keycards),
     );
   }
 
@@ -168,6 +181,7 @@ class LaunchArgs {
         if (dbcImage != null) '--dbc-image=$dbcImage',
         if (!wantsOfflineMaps) '--no-offline-maps',
         if (dryRun) '--dry-run',
+        if (keycards.isNotEmpty) '--keycards=${keycards.join(',')}',
         if (LogService.filePath != null) '--log-file=${LogService.filePath}',
         '--auto-start',
       ];
