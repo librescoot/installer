@@ -115,7 +115,23 @@ echo "systemd-run $unit$args" >> "$CALLS"''',
           'systemd-run librescoot-progress-breathe ${bin.path}/ioctl 4');
     });
 
-    test('the bar fills left to right past stages the plan skipped', () async {
+    test('with the curve files present the loops play the vehicle fades', () async {
+      // fade4/fade9 for the bar and fade0/fade1 for the ring, the way the
+      // earlier installer breathed; the duty loops are only the fallback for
+      // an image without the curves.
+      final fades = Directory('${root.path}/fades');
+      await fades.create();
+      await File('${fades.path}/fade4-brake-dim-on').writeAsString('x');
+      await File('${fades.path}/fade9-brake-dim-off').writeAsString('x');
+      final withFades = 'SIGNAL_FADES_DIR=${fades.path}\n';
+      await run('${withFades}progress_set 3 active\nfront_pulse_start');
+      expect(calls(), contains(
+          'systemd-run librescoot-progress-breathe ${bin.path}/ioctl 4 9 4'));
+      expect(calls(), contains(
+          'systemd-run librescoot-front-pulse ${bin.path}/ioctl 1 0 1'));
+    });
+
+  test('the bar fills left to right past stages the plan skipped', () async {
       // An upgrade writes no stage-0 image and a plan that leaves the main
       // board alone installs no artifact. The state file records that, but
       // the bar is drawn filled up to the furthest lit segment: a dark gap

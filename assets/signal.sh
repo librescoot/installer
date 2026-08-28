@@ -60,11 +60,30 @@ BLINKER_LEDS="3 7 4 6"
 # Just under fade4's peak (156), so a breathing segment reads brighter at its
 # peak than the filled trail behind it.
 DIM_DUTY=150
-# Breathing drives the duty directly rather than playing a fade. The fade
-# tables ship with vehicle-service and are loaded by it, so on the bootstrap
-# image every play is a no-op and the whole bar stays dark.
+# Direct-duty breathing, for a board without the curves below.
 BREATHE_LOW=40
 BREATHE_HIGH=400
+
+# --- the fade curves ---------------------------------------------------------
+# Both images load the PWM-LED driver's fade table at boot (led-curves +
+# led-curve-loader), so PLAY_FADE plays the curves the vehicle itself uses
+# and the breathing is the vehicle's own. The direct-duty loops above stay as
+# the fallback for an image without the curve files.
+#
+#   fade4  brake dim on    0.4% -> 1.3%  over 2.5s   (the bar's breath in)
+#   fade9  brake dim off   1.5% -> 0.4%  over 2.0s   (the bar's breath out)
+#   fade0  parking on      0    -> 20%   over 3.0s   (the front ring's breath in)
+#   fade1  smooth off      20%  -> 0     over 2.3s   (the front ring's breath out)
+FADE_DIM_ON=4
+FADE_DIM_OFF=9
+FADE_RING_ON=0
+FADE_RING_OFF=1
+SIGNAL_FADES_DIR="${SIGNAL_FADES_DIR:-/usr/share/led-curves/fades}"
+signal_has_fades() {
+  [ -n "$SIGNAL_IOCTL" ] || return 1
+  [ -f "$SIGNAL_FADES_DIR/fade$FADE_DIM_ON-brake-dim-on" ] &&
+    [ -f "$SIGNAL_FADES_DIR/fade$FADE_DIM_OFF-brake-dim-off" ]
+}
 
 led_activate() {
   [ -n "$SIGNAL_IOCTL" ] || return 0
@@ -113,6 +132,20 @@ FRONT_PULSE_UNIT="librescoot-front-pulse"
 front_pulse_start() {
   [ -n "$SIGNAL_IOCTL" ] || return 0
   systemctl stop "$FRONT_PULSE_UNIT.service" 2>/dev/null
+  if signal_has_fades; then
+    systemd-run --unit="$FRONT_PULSE_UNIT" --collect --quiet --slice=system.slice \
+      /bin/sh -c '
+        IOCTL="$1"; CH="$2"; ON="$3"; OFF="$4"
+        "$IOCTL" "/dev/pwm_led$CH" 0x00007549 -v 1 2>/dev/null
+        while true; do
+          "$IOCTL" "/dev/pwm_led$CH" 0x00007545 -v "$ON" 2>/dev/null
+          sleep 3
+          "$IOCTL" "/dev/pwm_led$CH" 0x00007545 -v "$OFF" 2>/dev/null
+          sleep 3
+        done
+      ' sh "$SIGNAL_IOCTL" "$FRONT_LED" "$FADE_RING_ON" "$FADE_RING_OFF" 2>/dev/null
+    return 0
+  fi
   systemd-run --unit="$FRONT_PULSE_UNIT" --collect --quiet --slice=system.slice \
     --setenv=BREATHE_LO="$BREATHE_LOW" --setenv=BREATHE_HI="$BREATHE_HIGH" \
     /bin/sh -c '
@@ -266,6 +299,28 @@ progress_render() {
 # together stay in step instead of drifting apart.
 progress_breathe_start() {
   [ -n "$SIGNAL_IOCTL" ] || return 0
+  if signal_has_fades; then
+    systemd-run --unit="$PROGRESS_BREATHE_UNIT" --collect --quiet \
+      --slice=system.slice \
+      /bin/sh -c '
+        IOCTL="$1"; ON="$2"; OFF="$3"
+        shift 3
+        for ch in "$@"; do
+          "$IOCTL" "/dev/pwm_led$ch" 0x00007549 -v 1 2>/dev/null
+        done
+        while true; do
+          for ch in "$@"; do
+            "$IOCTL" "/dev/pwm_led$ch" 0x00007545 -v "$ON" 2>/dev/null
+          done
+          sleep 3
+          for ch in "$@"; do
+            "$IOCTL" "/dev/pwm_led$ch" 0x00007545 -v "$OFF" 2>/dev/null
+          done
+          sleep 3
+        done
+      ' sh "$SIGNAL_IOCTL" "$FADE_DIM_ON" "$FADE_DIM_OFF" "$@" 2>/dev/null
+    return 0
+  fi
   systemd-run --unit="$PROGRESS_BREATHE_UNIT" --collect --quiet \
     --slice=system.slice \
     --setenv=BREATHE_LO="$BREATHE_LOW" --setenv=BREATHE_HI="$BREATHE_HIGH" \

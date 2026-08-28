@@ -843,10 +843,6 @@ journalctl -f --no-pager >> "$INSTALLER_DIR/trampoline-journal.log" 2>&1 &
 JOURNAL_PID=$!
 
 if [ "$MODE" = "flash" ]; then
-  # Segment 1 is the preparation: the dashboard into mass storage and the
-  # stage-0 image written onto it. An upgrade does neither, so on that path
-  # segment 1 stays dark rather than filling for work nobody did.
-  progress_set "$SEGMENT_PREP" active
 
   # Arm the host-mode stall watchdog. Inert while the role is gadget, so
   # arming this early is free; it covers every host-mode stint from here on.
@@ -936,6 +932,16 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
   [ "$DBC_PINGED" = "yes" ] && log "  DBC is reachable after ${PING_ELAPSED}s"
 fi
 step_end
+
+# The dashboard is on the cable, one way or the other, so the wait the front
+# ring was announcing is over. It stays off for the rest of the run: the bar
+# carries everything after this, and a ring that came back would read as
+# another cable to move. Segment 1 lights here and not at the start for the
+# same reason: it means the dashboard being put into mass storage and written,
+# which begins now, and a segment breathing under the ring's wait said two
+# things at once.
+front_pulse_stop
+progress_set "$SEGMENT_PREP" active
 
 if [ "$DBC_ALREADY_UMS" != "yes" ]; then
   step_begin "Step 3b: wait for DBC SSH"
@@ -1112,12 +1118,6 @@ step_end
 
 # Safety
 echo "$DBC_DEV" | grep -q "mmcblk" && fail "SAFETY: $DBC_DEV is mmcblk - refusing!"
-
-# The dashboard is on the bus, so the cable is where it belongs and the wait
-# the front light was announcing is over. It stays off for the rest of the run:
-# the bar carries everything after this, and a light that came back would read
-# as another cable to move.
-front_pulse_stop
 
 # Step 7: Flash DBC
 step_begin "Step 7: flash DBC"
