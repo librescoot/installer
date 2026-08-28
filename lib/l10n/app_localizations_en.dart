@@ -1077,7 +1077,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get finishNextNothing =>
-      'The main board is done and nothing else runs on the scooter. Reassemble it and ride.';
+      'The main board is ready. Reassemble the scooter and ride.';
+
+  @override
+  String get finishOnDevice =>
+      'Your scooter is finishing the installation on its own. It will unlock automatically when it is done. Keep it powered on and leave the cables connected until then.';
+
+  @override
+  String get finishReconnectDbc =>
+      'The laptop is connected to the MDB again. Reconnect the DBC cable before the scooter can finish the installation.';
+
+  @override
+  String get finishConfirmed =>
+      'Installation complete. Your scooter is unlocked and ready to ride.';
+
+  @override
+  String get closeInstaller => 'Close installer';
 
   @override
   String get disconnectUsbFromLaptopFinal =>

@@ -135,7 +135,7 @@ class LogService {
       if (Platform.isWindows) {
         // explorer returns a non-zero exit code even on success, so the
         // result is not worth checking.
-        await Process.run('explorer', ['/select,$target']);
+        await Process.run('explorer', windowsExplorerArgs(target));
       } else if (Platform.isMacOS) {
         // Reveal in the logged-in user's Finder session, which is a different
         // session from this process when we run elevated.
@@ -158,6 +158,10 @@ class LogService {
       debugPrint('Log: could not reveal $target: $e');
     }
   }
+
+  /// Explorer treats a quoted `/select,<path>` as an invalid switch. Keep
+  /// the switch and path separate so Dart quotes only a path that needs it.
+  static List<String> windowsExplorerArgs(String target) => ['/select,', target];
 
   static void _writeHeader({
     required String version,

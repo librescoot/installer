@@ -1973,8 +1973,32 @@ abstract class AppLocalizations {
   /// No description provided for @finishNextNothing.
   ///
   /// In en, this message translates to:
-  /// **'The main board is done and nothing else runs on the scooter. Reassemble it and ride.'**
+  /// **'The main board is ready. Reassemble the scooter and ride.'**
   String get finishNextNothing;
+
+  /// No description provided for @finishOnDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Your scooter is finishing the installation on its own. It will unlock automatically when it is done. Keep it powered on and leave the cables connected until then.'**
+  String get finishOnDevice;
+
+  /// No description provided for @finishReconnectDbc.
+  ///
+  /// In en, this message translates to:
+  /// **'The laptop is connected to the MDB again. Reconnect the DBC cable before the scooter can finish the installation.'**
+  String get finishReconnectDbc;
+
+  /// No description provided for @finishConfirmed.
+  ///
+  /// In en, this message translates to:
+  /// **'Installation complete. Your scooter is unlocked and ready to ride.'**
+  String get finishConfirmed;
+
+  /// No description provided for @closeInstaller.
+  ///
+  /// In en, this message translates to:
+  /// **'Close installer'**
+  String get closeInstaller;
 
   /// No description provided for @disconnectUsbFromLaptopFinal.
   ///

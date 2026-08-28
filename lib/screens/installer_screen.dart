@@ -12,6 +12,7 @@ import '../main.dart'
     show
         appendLog,
         appendLogRaw,
+        appLocale,
         installerLog,
         launchArgs,
         showElevationRequiredDialog;
@@ -26,6 +27,7 @@ import '../models/keycard_master.dart';
 import '../models/keycard_preset.dart';
 import '../l10n/phase_l10n.dart';
 import '../models/finish_handover.dart';
+import '../models/final_screen_state.dart';
 import '../models/installer_phase.dart';
 import '../models/keycard_capability.dart';
 import '../models/phase_attempt.dart';
@@ -330,6 +332,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   bool get _isCriticalOperation => _criticalOperations.isCritical;
   bool _windowClosing = false;
   bool _awaitingFinishHandover = false;
+  bool _finishCompletionChecking = false;
+  bool _finishCompletionConfirmed = false;
   Process? _caffeinateProcess; // macOS sleep prevention
   int _caffeinateGeneration = 0;
   final WindowCloseCoordinator _windowCloseCoordinator =
@@ -348,6 +352,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     _downloadService = DownloadService();
     _deviceSub = _usbDetector.deviceStream.listen((device) {
       setState(() => _device = device);
+      // A laptop reconnect after the handover is our one chance to replace an
+      // assumed device-side finish with the completion record's verdict.
+      if (device != null && _currentPhase == InstallerPhase.finish) {
+        unawaited(_refreshFinishCompletion());
+      }
     });
     _usbDetector.startMonitoring();
     _sshService.setManualPasswordPrompt(_promptManualRootPassword);
@@ -868,6 +877,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // but show the finish screen and let the device close itself out, which
     // is what it was armed to do.
     var reported = await _deviceReportedFinished();
+    if (reported == true && mounted) {
+      setState(() => _finishCompletionConfirmed = true);
+    }
     var todo = finishHandover(
       dryRun: _isDryRun,
       linkUp: _sshService.isConnected,
@@ -882,6 +894,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       try {
         await _sshService.ensureConnected('finish');
         reported = await _deviceReportedFinished();
+        if (reported == true && mounted) {
+          setState(() => _finishCompletionConfirmed = true);
+        }
         todo = finishHandover(
           dryRun: _isDryRun,
           linkUp: _sshService.isConnected,
@@ -1071,6 +1086,28 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     } catch (e) {
       debugPrint('UI: could not read the completion record ($e)');
       return null;
+    }
+  }
+
+  /// Refresh the final-screen verdict after the laptop can reach the MDB
+  /// again. A missing or failed record is deliberately not a success: the
+  /// scooter may still be working, or the connection may have returned too
+  /// early to read the record.
+  Future<void> _refreshFinishCompletion() async {
+    if (_isDryRun || _finishCompletionConfirmed || _finishCompletionChecking) {
+      return;
+    }
+    _finishCompletionChecking = true;
+    try {
+      await _sshService.ensureConnected('confirm finish');
+      final completed = await _deviceReportedFinished();
+      if (completed == true && mounted) {
+        setState(() => _finishCompletionConfirmed = true);
+      }
+    } catch (e) {
+      debugPrint('UI: could not confirm finish after reconnect: $e');
+    } finally {
+      _finishCompletionChecking = false;
     }
   }
 
@@ -9510,9 +9547,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     try {
       _sshService.disconnect();
     } catch (_) {}
+    // Do not forward our entry-point arguments. In particular, an elevated
+    // run has --auto-start and the previous scooter's selections; forwarding
+    // either turns this "fresh" install straight back into the old flow.
     await Process.start(
       Platform.resolvedExecutable,
-      [...Platform.executableArguments],
+      ['--lang=${appLocale.value.languageCode}'],
       mode: ProcessStartMode.detached,
     );
     exit(0);
@@ -9556,22 +9596,28 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         ),
       );
     }
+    final state = finalScreenState(
+      planNeedsHandoff: _plan?.needsHandoff ?? false,
+      laptopAttached: _device != null,
+      completionConfirmed: _finishCompletionConfirmed,
+    );
+    final confirmed = state == FinalScreenState.completed ||
+        state == FinalScreenState.completedReconnectDbc;
     return PhaseLayout(
       title: l10n.welcomeToLibrescoot,
       actions: [
+        if (confirmed)
+          PhaseAction(
+            label: l10n.installAnother,
+            icon: Icons.restart_alt,
+            onPressed: _installAnother,
+          ),
         PhaseAction(
-          label: l10n.installAnother,
-          icon: Icons.restart_alt,
-          onPressed: _installAnother,
-        ),
-        PhaseAction(
-          label: l10n.finished,
-          icon: Icons.check_circle,
+          label: l10n.closeInstaller,
+          icon: Icons.close,
           primary: true,
           onPressed: () async {
-            if (!_keepCache) {
-              await _offerCleanup();
-            }
+            if (confirmed && !_keepCache) await _offerCleanup();
             if (mounted) exit(0);
           },
         ),
@@ -9579,76 +9625,68 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.celebration, size: 40, color: kAccent),
+          Icon(
+            confirmed ? Icons.celebration : Icons.autorenew,
+            size: 40,
+            color: kAccent,
+          ),
           const SizedBox(height: 12),
-          // The reassembly steps are the same on every route, but what they
-          // set in motion is not: on the trampoline routes reconnecting the
-          // cable starts work on the board, and the screen used to end the
-          // conversation right where that begins.
-          _finishWhatHappensNext(l10n),
+          _finishStatus(l10n, state),
           const SizedBox(height: 16),
           Text(
             l10n.finalSteps,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           ),
           const SizedBox(height: 8),
-          // The dashboard path already swapped the cable back before the
-          // trampoline ran, so telling the user to do it again is wrong;
-          // what is left there is tightening the screws they were told to
-          // leave loose. An MDB-only run still has the laptop plugged in.
-          ..._finalSteps(l10n),
+          ..._finalSteps(l10n, state),
           const SizedBox(height: 16),
-          // The one part of this screen about actually using the scooter, so
-          // it is open rather than an expander at the bottom. It carries its
-          // own heading and the handbook and website links.
           _buildGettingStarted(l10n),
-          const SizedBox(height: 12),
-          CheckboxListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            title: Text(l10n.keepCachedDownloads),
-            subtitle: Text(
-              l10n.mbOnDisk(_totalCacheSizeMb()),
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+          if (confirmed) ...[
+            const SizedBox(height: 12),
+            CheckboxListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(l10n.keepCachedDownloads),
+              subtitle: Text(
+                l10n.mbOnDisk(_totalCacheSizeMb()),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+              ),
+              value: _keepCache,
+              onChanged: (v) => setState(() => _keepCache = v ?? false),
             ),
-            value: _keepCache,
-            onChanged: (v) => setState(() => _keepCache = v ?? false),
-          ),
+          ],
         ],
       ),
     );
   }
 
-  /// What the reassembly steps set in motion, which differs by route.
-  ///
-  /// Any run that started the trampoline continues on the board after the
-  /// cable goes back: that is what arms _deviceFinishArmed, and the trampoline
-  /// is always given onDevice, so there is no variant that hands back to the
-  /// laptop. Whether the dashboard is being written on top of that is the
-  /// plan's own answer, since tiles alone also require the handoff.
-  Widget _finishWhatHappensNext(AppLocalizations l10n) {
-    final continues = _deviceFinishArmed;
-    final flashesDbc = continues && (_plan?.needsDbcWork ?? false);
-    final body = !continues
-        ? l10n.finishNextNothing
-        : (flashesDbc ? l10n.finishNextDbcFlash : l10n.finishNextOnDevice);
+  /// Say only what the laptop can prove. A board-side handover is not a
+  /// completion until this run's completion record is read after reconnect.
+  Widget _finishStatus(AppLocalizations l10n, FinalScreenState state) {
+    final confirmed = state == FinalScreenState.completed ||
+        state == FinalScreenState.completedReconnectDbc;
+    final body = switch (state) {
+      FinalScreenState.finishingOnDevice => l10n.finishOnDevice,
+      FinalScreenState.reconnectDbc => l10n.finishReconnectDbc,
+      FinalScreenState.completedReconnectDbc || FinalScreenState.completed =>
+        l10n.finishConfirmed,
+    };
+    final color = confirmed ? kAccent : Colors.amber;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: (continues ? Colors.amber : kAccent).withValues(alpha: 0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: (continues ? Colors.amber : kAccent).withValues(alpha: 0.35),
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            continues ? Icons.autorenew : Icons.check_circle_outline,
+            confirmed ? Icons.check_circle_outline : Icons.autorenew,
             size: 20,
-            color: continues ? Colors.amber : kAccent,
+            color: color,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -9674,31 +9712,29 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     );
   }
 
-  /// The last physical steps. Both paths unlock the scooter themselves, so
-  /// neither asks the user to.
-  List<Widget> _finalSteps(AppLocalizations l10n) {
-    final swapped = dashboardCableIsBack(
-      laptopSeesBoard: _device != null,
-      deviceFinishArmed: _deviceFinishArmed,
-    );
+  /// Only show the physical actions the current cable topology still needs.
+  List<Widget> _finalSteps(AppLocalizations l10n, FinalScreenState state) {
+    final reconnectDbc = state == FinalScreenState.reconnectDbc ||
+        state == FinalScreenState.completedReconnectDbc;
+    final completed = state == FinalScreenState.completed ||
+        state == FinalScreenState.completedReconnectDbc;
     final steps = <({String title, String description})>[
-      if (!swapped)
+      if (reconnectDbc)
         (
           title: l10n.disconnectUsbFromLaptopFinal,
           description: l10n.disconnectUsbFromLaptopFinalDesc,
         ),
-      if (!swapped)
+      if (reconnectDbc)
         (
           title: l10n.reconnectDbcUsbCable,
           description: l10n.reconnectDbcUsbCableDesc,
         ),
-      if (swapped)
-        (title: l10n.tightenDbcCable, description: l10n.tightenDbcCableDesc),
       (
         title: l10n.closeSeatboxAndFootwell,
         description: l10n.closeSeatboxAndFootwellDesc,
       ),
-      (title: l10n.finalRide, description: l10n.finalRideDesc),
+      if (completed)
+        (title: l10n.finalRide, description: l10n.finalRideDesc),
     ];
     // One line each. These are physical steps someone is looking at while
     // they do them, so the titles carry it. Only the last keeps its
@@ -9987,19 +10023,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
   }
 }
-
-/// Whether the dashboard's USB cable is the one currently in the MDB.
-///
-/// The board has a single USB port, so the laptop and the dashboard cannot
-/// both be in it. The laptop seeing the board is proof its own cable is in
-/// that port, whatever the run did earlier: someone who plugged back in to
-/// read a log must not be told the dashboard cable is already seated. With no
-/// link, an armed device-run finish means the user swapped it over before
-/// walking away, and tightening the screws is all that is left.
-bool dashboardCableIsBack({
-  required bool laptopSeesBoard,
-  required bool deviceFinishArmed,
-}) => !laptopSeesBoard && deviceFinishArmed;
 
 /// An install failure whose message is already in the user's language.
 /// [toString] is the message itself because the artifact screen renders

@@ -1088,7 +1088,22 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get finishNextNothing =>
-      'Das Hauptboard ist fertig, auf dem Roller läuft nichts mehr. Bau ihn wieder zusammen und fahr los.';
+      'Das Hauptboard ist bereit. Bau den Roller wieder zusammen und fahr los.';
+
+  @override
+  String get finishOnDevice =>
+      'Dein Roller schließt die Installation selbstständig ab und wird danach automatisch entsperrt. Lass ihn eingeschaltet und trenne bis dahin keine Kabel.';
+
+  @override
+  String get finishReconnectDbc =>
+      'Der Laptop ist wieder mit dem MDB verbunden. Schließ das DBC-Kabel wieder an, damit der Roller die Installation abschließen kann.';
+
+  @override
+  String get finishConfirmed =>
+      'Die Installation ist abgeschlossen. Dein Roller ist entsperrt und fahrbereit.';
+
+  @override
+  String get closeInstaller => 'Installer schließen';
 
   @override
   String get disconnectUsbFromLaptopFinal =>
