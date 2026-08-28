@@ -541,6 +541,198 @@ void main() {
       },
     );
 
+    // The cache sidecar. Every file that reaches its final name in the cache
+    // got there by passing a SHA256 check at download time, so the digest is
+    // recorded next to it and the next run compares two strings instead of
+    // rehashing several hundred MB of firmware.
+    test('a cache entry the sidecar vouches for is restored unhashed', () async {
+      final wanted = <int>[1, 2, 3, 4];
+      final digest = sha256.convert(wanted).toString();
+      final name =
+          'librescoot-unu-mdb-minimal-cache-sidecar-${DateTime.now().microsecondsSinceEpoch}.sdimg.gz';
+      final cacheDir = await DownloadService.getCacheDir();
+      final cached = File(p.join(cacheDir.path, name));
+      final sidecar = File('${cached.path}.sha256');
+      addTearDown(() async {
+        if (await cached.exists()) await cached.delete();
+        if (await sidecar.exists()) await sidecar.delete();
+      });
+      // Content the digest does not describe, at the right size. Restoring it
+      // is only possible if the file was never hashed, which is the point.
+      await cached.writeAsBytes(<int>[9, 9, 9, 9]);
+      await sidecar.writeAsString(digest);
+
+      final service = DownloadService(
+        client: _manifestClient({
+          'stable': _release('v1.2.1', [
+            _asset(name, wanted.length, sha256: digest),
+          ]),
+        }),
+      );
+      final item = (await service.buildDownloadQueue(
+        channel: DownloadChannel.stable,
+        wantsOfflineMaps: false,
+      )).single;
+
+      expect(item.localPath, cached.path);
+      expect(item.bytesDownloaded, wanted.length);
+    });
+
+    test('a finished download leaves the sidecar the next run reads', () async {
+      final wanted = <int>[1, 2, 3, 4];
+      final digest = sha256.convert(wanted).toString();
+      final name =
+          'librescoot-unu-mdb-minimal-cache-writes-${DateTime.now().microsecondsSinceEpoch}.sdimg.gz';
+      final cacheDir = await DownloadService.getCacheDir();
+      final cached = File(p.join(cacheDir.path, name));
+      final sidecar = File('${cached.path}.sha256');
+      addTearDown(() async {
+        if (await cached.exists()) await cached.delete();
+        if (await sidecar.exists()) await sidecar.delete();
+      });
+
+      final manifest = {
+        'stable': _release('v1.2.1', [
+          _asset(name, wanted.length, sha256: digest),
+        ]),
+      };
+      final service = DownloadService(
+        client: http_testing.MockClient((request) async {
+          if (request.url.path.endsWith('latest.json')) {
+            return http.Response(jsonEncode(manifest), 200);
+          }
+          if (request.url.path.endsWith(name)) {
+            return http.Response.bytes(wanted, 200);
+          }
+          return http.Response('Not found', 404);
+        }),
+      );
+      final item = (await service.buildDownloadQueue(
+        channel: DownloadChannel.stable,
+        wantsOfflineMaps: false,
+      )).single;
+      await service.downloadItem(item);
+
+      expect(await sidecar.readAsString(), digest);
+    });
+
+    test('a cache entry with no sidecar is hashed once and gains one', () async {
+      final bytes = <int>[1, 2, 3, 4];
+      final digest = sha256.convert(bytes).toString();
+      final name =
+          'librescoot-unu-mdb-minimal-cache-adopt-${DateTime.now().microsecondsSinceEpoch}.sdimg.gz';
+      final cacheDir = await DownloadService.getCacheDir();
+      final cached = File(p.join(cacheDir.path, name));
+      final sidecar = File('${cached.path}.sha256');
+      addTearDown(() async {
+        if (await cached.exists()) await cached.delete();
+        if (await sidecar.exists()) await sidecar.delete();
+      });
+      await cached.writeAsBytes(bytes);
+
+      final service = DownloadService(
+        client: _manifestClient({
+          'stable': _release('v1.2.1', [
+            _asset(name, bytes.length, sha256: digest),
+          ]),
+        }),
+      );
+      final item = (await service.buildDownloadQueue(
+        channel: DownloadChannel.stable,
+        wantsOfflineMaps: false,
+      )).single;
+
+      expect(item.localPath, cached.path,
+          reason: 'a file that hashes correctly is still usable');
+      expect(await sidecar.readAsString(), digest,
+          reason: 'so the run after this one does not hash it again');
+    });
+
+    test('a sidecar that disagrees with the manifest saves nothing', () async {
+      final wanted = <int>[1, 2, 3, 4];
+      final name =
+          'librescoot-unu-mdb-minimal-cache-stale-${DateTime.now().microsecondsSinceEpoch}.sdimg.gz';
+      final cacheDir = await DownloadService.getCacheDir();
+      final cached = File(p.join(cacheDir.path, name));
+      final sidecar = File('${cached.path}.sha256');
+      addTearDown(() async {
+        if (await cached.exists()) await cached.delete();
+        if (await sidecar.exists()) await sidecar.delete();
+      });
+      await cached.writeAsBytes(<int>[9, 9, 9, 9]);
+      // A digest from some older release that reused this filename.
+      await sidecar.writeAsString(sha256.convert(<int>[5, 5, 5, 5]).toString());
+
+      final service = DownloadService(
+        client: _manifestClient({
+          'stable': _release('v1.2.1', [
+            _asset(
+              name,
+              wanted.length,
+              sha256: sha256.convert(wanted).toString(),
+            ),
+          ]),
+        }),
+      );
+      final item = (await service.buildDownloadQueue(
+        channel: DownloadChannel.stable,
+        wantsOfflineMaps: false,
+      )).single;
+
+      expect(item.localPath, isNull);
+      expect(await cached.exists(), isFalse);
+      expect(await sidecar.exists(), isFalse,
+          reason: 'a digest for a file that is gone vouches for the next '
+              'thing to take the name');
+    });
+
+    test("an evicted old version takes its sidecar with it", () async {
+      final wanted = <int>[1, 2, 3, 4];
+      final digest = sha256.convert(wanted).toString();
+      final stamp = DateTime.now().microsecondsSinceEpoch;
+      final name = 'librescoot-unu-mdb-minimal-stable-$stamp.sdimg.gz';
+      final oldName = 'librescoot-unu-mdb-minimal-stable-${stamp - 1}.sdimg.gz';
+      final cacheDir = await DownloadService.getCacheDir();
+      final cached = File(p.join(cacheDir.path, name));
+      final sidecar = File('${cached.path}.sha256');
+      final old = File(p.join(cacheDir.path, oldName));
+      final oldSidecar = File('${old.path}.sha256');
+      addTearDown(() async {
+        for (final f in [cached, sidecar, old, oldSidecar]) {
+          if (await f.exists()) await f.delete();
+        }
+      });
+      await old.writeAsBytes(<int>[7, 7, 7]);
+      await oldSidecar.writeAsString(sha256.convert(<int>[7, 7, 7]).toString());
+
+      final manifest = {
+        'stable': _release('v1.2.1', [
+          _asset(name, wanted.length, sha256: digest),
+        ]),
+      };
+      final service = DownloadService(
+        client: http_testing.MockClient((request) async {
+          if (request.url.path.endsWith('latest.json')) {
+            return http.Response(jsonEncode(manifest), 200);
+          }
+          if (request.url.path.endsWith(name)) {
+            return http.Response.bytes(wanted, 200);
+          }
+          return http.Response('Not found', 404);
+        }),
+      );
+      final item = (await service.buildDownloadQueue(
+        channel: DownloadChannel.stable,
+        wantsOfflineMaps: false,
+      )).single;
+      await service.downloadItem(item);
+
+      expect(await old.exists(), isFalse);
+      expect(await oldSidecar.exists(), isFalse,
+          reason: 'an orphan digest outlives the file it describes and then '
+              'vouches for a reused name');
+    });
+
     test('a stalled response stream fails after the idle deadline', () async {
       final controller = StreamController<List<int>>();
       addTearDown(controller.close);

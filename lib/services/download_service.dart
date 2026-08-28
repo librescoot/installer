@@ -346,29 +346,74 @@ class DownloadService {
     throw const DownloadCancelled();
   }
 
+  /// The digest of a cached file, recorded beside it under `<name>.sha256`
+  /// when the download passed its check.
+  static File _sidecarFor(File cached) => File('${cached.path}.sha256');
+
+  /// The digest the sidecar claims, or null when there is none to read.
+  Future<String?> _sidecarDigest(File cached) async {
+    final sidecar = _sidecarFor(cached);
+    try {
+      if (!await sidecar.exists()) return null;
+      final recorded = (await sidecar.readAsString()).trim().toLowerCase();
+      return recorded.isEmpty ? null : recorded;
+    } catch (e) {
+      debugPrint('Download: unreadable sidecar for ${p.basename(cached.path)} ($e)');
+      return null;
+    }
+  }
+
+  Future<void> _writeSidecar(File cached, String digest) async {
+    try {
+      await _sidecarFor(cached).writeAsString(digest.toLowerCase());
+    } catch (e) {
+      // A cache that cannot hold the digest still holds the file; the next
+      // run just pays for the hash again.
+      debugPrint('Download: could not record digest for ${p.basename(cached.path)} ($e)');
+    }
+  }
+
   Future<void> _restoreCachedFile(File cached, DownloadItem item) async {
     if (!await cached.exists()) return;
 
     if (await cached.length() != item.expectedSize) {
       await cached.delete();
+      await _deleteSidecar(cached);
       return;
     }
 
-    final expectedSha256 = item.expectedSha256;
+    final expectedSha256 = item.expectedSha256?.toLowerCase();
     if (expectedSha256 != null) {
-      final actualSha256 = await _sha256OfFile(cached);
-      if (actualSha256 != expectedSha256.toLowerCase()) {
-        debugPrint(
-          'Download: deleting cached ${item.filename}: SHA256 mismatch '
-          '(expected $expectedSha256, got $actualSha256)',
-        );
-        await cached.delete();
-        return;
+      // Nothing reaches this name without having been hashed on the way in,
+      // so a sidecar naming the digest the manifest wants settles it. The
+      // hash below is for a cache filled before sidecars existed, and for a
+      // manifest that has changed under a filename that stayed the same.
+      if (await _sidecarDigest(cached) != expectedSha256) {
+        final actualSha256 = await _sha256OfFile(cached);
+        if (actualSha256 != expectedSha256) {
+          debugPrint(
+            'Download: deleting cached ${item.filename}: SHA256 mismatch '
+            '(expected $expectedSha256, got $actualSha256)',
+          );
+          await cached.delete();
+          await _deleteSidecar(cached);
+          return;
+        }
+        await _writeSidecar(cached, actualSha256);
       }
     }
 
     item.localPath = cached.path;
     item.bytesDownloaded = item.expectedSize;
+  }
+
+  Future<void> _deleteSidecar(File cached) async {
+    try {
+      final sidecar = _sidecarFor(cached);
+      if (await sidecar.exists()) await sidecar.delete();
+    } catch (e) {
+      debugPrint('Download: could not drop sidecar for ${p.basename(cached.path)} ($e)');
+    }
   }
 
   /// Resolve tile release assets for a repo, with disk caching.
@@ -734,6 +779,7 @@ class DownloadService {
 
     // Verify sha256 if the release shipped a SHA256SUMS for this asset.
     // Catches transit corruption that the size check would miss.
+    String? verifiedSha256;
     if (item.expectedSha256 != null) {
       final actual = await _sha256OfFile(partFile);
       await _throwIfDownloadCancelled(cancellationToken, partFile);
@@ -744,10 +790,16 @@ class DownloadService {
           'expected ${item.expectedSha256}, got $actual',
         );
       }
+      verifiedSha256 = actual;
     }
 
     await _throwIfDownloadCancelled(cancellationToken, partFile);
     await partFile.rename(targetFile.path);
+    // Record it only now: a digest beside a name that does not exist yet
+    // would vouch for whatever later takes the name.
+    if (verifiedSha256 != null) {
+      await _writeSidecar(targetFile, verifiedSha256);
+    }
     await _throwIfDownloadCancelled(cancellationToken, partFile);
     item.localPath = targetFile.path;
 
@@ -797,6 +849,7 @@ class DownloadService {
         if (cleanupPattern.hasMatch(candidate)) {
           debugPrint('Cache cleanup: deleting old $candidate');
           await entity.delete();
+          await _deleteSidecar(entity);
         }
       }
     } catch (e) {
