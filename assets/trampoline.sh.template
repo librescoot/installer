@@ -1811,7 +1811,11 @@ while [ $ATTEMPTS -lt 5 ]; do
   ATTEMPTS=$((ATTEMPTS + 1))
   log "  dbc on-wait attempt $ATTEMPTS..."
   dbc_power_on_wait && break
-  log "  attempt $ATTEMPTS failed, retrying..."
+  # A request that was already high is not a new request. Drop it, let the
+  # rail settle, and ask again: a board that ignored the first ask answers
+  # a cycle.
+  log "  attempt $ATTEMPTS failed, power-cycling the dashboard and retrying..."
+  dbc_power_off || true
   sleep 5
 done
 
@@ -1852,8 +1856,10 @@ front_pulse_stop
 # reboots once on first boot to apply its boot-partition (u-boot) update,
 # and that update's `complete-dbc` makes vehicle-service power the DBC off
 # if the vehicle is in standby. Either way the DBC drops off the bus. So
-# whenever it's unpingable, force it back on (`lsc dbc on`) - the boot
-# update only fires once, so it comes up and stays up. Poll, not a blind
+# whenever it's unpingable, cycle its power: off, a settle, on. A request
+# line that is already high is not a new request, and a board that ignored
+# it once answers the cycle. The boot update only fires once, so it comes up
+# and stays up. Poll, not a blind
 # wait: breaks the instant the DBC answers. Skipping tiles = no offline maps.
 log "  waiting for DBC SSH..."
 CURRENT_STAGE="waiting-dbc-ssh"
@@ -1862,7 +1868,8 @@ ELAPSED=0
 while [ $ELAPSED -lt 300 ]; do
   ssh -y -y root@$DBC_IP 'echo ok' >/dev/null && break
   if ! ping -c 1 -W 2 $DBC_IP >/dev/null 2>&1 && [ $((ELAPSED % 20)) -eq 0 ]; then
-    log "  DBC unreachable - re-asserting power (lsc dbc on)"
+    log "  DBC unreachable - power-cycling it"
+    dbc_power_off || true
     dbc_power_on || true
   fi
   ELAPSED=$((ELAPSED + 5))
