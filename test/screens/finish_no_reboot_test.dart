@@ -108,7 +108,8 @@ void main() {
     final calls = RegExp(r'installOnbootShim\(\)').allMatches(source).length +
         RegExp(r'installOnbootShim\(\)').allMatches(tramp).length;
     expect(calls, 1, reason: 'one definition, so it cannot drift');
-    expect(source, contains('Future<void> _armInstallPhases() async {'));
+    expect(source,
+        contains('Future<void> _armInstallPhases({required bool expectDbcPhase})'));
 
     final planStart = source.indexOf('Future<void> _startPlan() async {');
     final planEnd = source.indexOf('\n  /// ', planStart);
@@ -117,7 +118,22 @@ void main() {
         reason: '_startPlan is before the flash that wipes /data');
 
     // Armed on both routes: a dashboard-less plan never reaches the trampoline.
-    expect(RegExp(r'await _armInstallPhases\(\);').allMatches(source).length, 2,
+    expect(
+        RegExp(r'await _armInstallPhases\(\n?\s*expectDbcPhase:')
+            .allMatches(source)
+            .length,
+        2,
         reason: 'both queueing paths have to arm it');
+
+    // Only the trampoline writes 20-dbc.sh. The handover arms the coordinator
+    // a second time, and a run whose trampoline never started has nobody left
+    // to write it: declaring it there ends the run on "install phases never
+    // ran: 20-dbc.sh" while everything that did run went fine.
+    expect(
+        source,
+        contains('expectDbcPhase: (_plan?.needsHandoff ?? false) && '
+            '_deviceFinishArmed'),
+        reason: 'the handover expects the dashboard phase only from a run '
+            'that reached the trampoline');
   });
 }

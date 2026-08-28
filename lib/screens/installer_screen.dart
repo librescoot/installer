@@ -1050,7 +1050,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // side. All three take the link down in turn, which is why it is detached
     // and why nothing below can rely on SSH surviving.
     try {
-      await _armInstallPhases();
+      // The trampoline is the only writer of 20-dbc.sh, so a run that never
+      // handed off to one must not ask the coordinator to wait for it.
+      await _armInstallPhases(
+        expectDbcPhase: (_plan?.needsHandoff ?? false) && _deviceFinishArmed,
+      );
       await _sshService.startInstallPhasesDetached();
       debugPrint('UI: handed off to the coordinator');
     } catch (e) {
@@ -4269,12 +4273,17 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// dashboard work. The other three are expected on every plan, including one
   /// that leaves the MDB alone, because 80-reboot.sh joins on a verdict that
   /// has to come from somewhere.
-  Future<void> _armInstallPhases() async {
+  ///
+  /// [expectDbcPhase] is the plan's answer at the arming before the trampoline
+  /// and the run's answer at the one before the handover. A run whose
+  /// trampoline never started has nobody left to write 20-dbc.sh, so declaring
+  /// it there ends an otherwise fine handover with "install phases never ran".
+  Future<void> _armInstallPhases({required bool expectDbcPhase}) async {
     try {
       await _sshService.installOnbootShim();
       await _sshService.declareExpectedPhases([
         MdbArtifactScript.phaseName,
-        if (_plan?.needsHandoff ?? false) '20-dbc.sh',
+        if (expectDbcPhase) '20-dbc.sh',
         RebootPhaseScript.phaseName,
         FinalizeScript.phaseName,
       ]);
@@ -6972,7 +6981,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     try {
       _setStatus(l10n.startingTrampoline);
       await _installStateWriteQueue;
-      await _armInstallPhases();
+      await _armInstallPhases(expectDbcPhase: _plan?.needsHandoff ?? false);
       await TrampolineService(_sshService).start(runId: _installRunId);
       _deviceFinishArmed = true;
       criticalOperation.release();
@@ -9975,8 +9984,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       final preserved = await _sshService.runCommand(
         'if [ -d ${SshService.installerDir} ]; then '
         '  mkdir -p ${SshService.installerHistoryDir}/$_installRunId; '
+        // trampoline-stdout.log is what the shell itself says: the launch that
+        // never became a process leaves its only account there, and every
+        // other file in this list is written by a trampoline that got as far
+        // as running.
         '  for f in trampoline.log trampoline-status trampoline-journal.log '
-        '           finalize.log; do '
+        '           trampoline-stdout.log finalize.log; do '
         r'    [ -f "' '${SshService.installerDir}' r'/$f" ] && '
         r'      cp "' '${SshService.installerDir}' r'/$f" '
         '      ${SshService.installerHistoryDir}/$_installRunId/ && '

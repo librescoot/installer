@@ -928,7 +928,76 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       await Future.delayed(const Duration(milliseconds: 500));
       if (await isRunning()) return;
     }
-    throw Exception('Trampoline did not start on the MDB');
+    final reason = await _whyNoTrampoline();
+    throw Exception(
+      'Trampoline did not start on the MDB'
+      '${reason == null ? '' : ': $reason'}',
+    );
+  }
+
+  /// What the board says about a launch that never became a process.
+  ///
+  /// The script's own stderr goes to trampoline-stdout.log and nowhere else,
+  /// so a run that died on a truncated helper, a missing one or a full /data
+  /// reported "did not start" and threw the only account of why away. Read
+  /// before the sweep, and put the first line in the exception so the message
+  /// the user is shown says something they can act on.
+  ///
+  /// Best effort throughout: this runs on a failure path and must not replace
+  /// it with one of its own.
+  Future<String?> _whyNoTrampoline() async {
+    String? firstLine;
+    Future<String> read(String label, String command) async {
+      try {
+        return (await _ssh.runCommand(
+          command,
+          timeout: const Duration(seconds: 15),
+        )).trim();
+      } catch (e) {
+        debugPrint('Trampoline: could not read $label: $e');
+        return '';
+      }
+    }
+
+    final stdout = await read(
+      'the launch output',
+      'cat /data/installer/trampoline-stdout.log 2>/dev/null; true',
+    );
+    for (final line in const LineSplitter().convert(stdout)) {
+      if (line.trim().isEmpty) continue;
+      debugPrint('Trampoline[stdout]: $line');
+      firstLine ??= line.trim();
+    }
+    if (stdout.trim().isEmpty) {
+      debugPrint('Trampoline[stdout]: empty or absent');
+    }
+
+    // The rest is context for the log rather than for the user: whether the
+    // script got as far as its first log line, what is actually staged, and
+    // whether the partition that holds all of it still had room for the
+    // uploads that went before this.
+    final tail = await read(
+      'the trampoline log',
+      'tail -n 20 /data/installer/trampoline.log 2>/dev/null; true',
+    );
+    if (tail.isEmpty) {
+      debugPrint('Trampoline[log]: no trampoline.log, it died before its '
+          'first log line');
+    } else {
+      for (final line in const LineSplitter().convert(tail)) {
+        debugPrint('Trampoline[log]: $line');
+      }
+    }
+    final staged = await read(
+      'the staged scripts',
+      'ls -l ${SshService.installerScriptsDir} 2>&1; '
+      'df -h /data 2>&1 | tail -n 1; true',
+    );
+    for (final line in const LineSplitter().convert(staged)) {
+      debugPrint('Trampoline[staging]: $line');
+    }
+
+    return firstLine;
   }
 
   /// Whether a trampoline process is running on the MDB. The bracketed pattern
