@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:path/path.dart' as path;
 
 import '../models/dashboard_messages.dart';
 import '../models/install_plan.dart';
@@ -17,6 +18,137 @@ typedef ToolAssetLoader = Future<ByteData> Function(String path);
 typedef ToolUploader =
     Future<void> Function(Uint8List content, String remotePath);
 typedef RemoteCommandRunner = Future<String> Function(String command);
+typedef RemoteFileDownloader = Future<Uint8List?> Function(String remotePath);
+
+class TrampolineLaunchDiagnostics {
+  const TrampolineLaunchDiagnostics({
+    required this.stdout,
+    required this.logTail,
+    required this.staging,
+  });
+
+  final String stdout;
+  final String logTail;
+  final String staging;
+
+  String? get firstOutputLine {
+    for (final line in const LineSplitter().convert(stdout)) {
+      final trimmed = line.trim();
+      if (trimmed.isNotEmpty) return trimmed;
+    }
+    return null;
+  }
+}
+
+class TrampolineStartException implements Exception {
+  const TrampolineStartException(this.diagnostics);
+
+  final TrampolineLaunchDiagnostics diagnostics;
+
+  @override
+  String toString() {
+    final reason = diagnostics.firstOutputLine;
+    return 'Trampoline did not start on the MDB'
+        '${reason == null ? '' : ': $reason'}';
+  }
+}
+
+Future<TrampolineLaunchDiagnostics> collectTrampolineLaunchDiagnostics({
+  required RemoteCommandRunner runCommand,
+}) async {
+  Future<String> read(String command) async {
+    try {
+      return (await runCommand(command)).trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  return TrampolineLaunchDiagnostics(
+    stdout: await read(
+      'tail -c 131072 /data/installer/trampoline-stdout.log 2>/dev/null; true',
+    ),
+    logTail: await read(
+      'tail -n 20 /data/installer/trampoline.log 2>/dev/null; true',
+    ),
+    staging: await read(
+      'ls -l ${SshService.installerScriptsDir} 2>&1; '
+      'df -h /data 2>&1 | tail -n 1; true',
+    ),
+  );
+}
+
+Map<String, String> trampolineDiagnosticFiles(String runId) {
+  if (!RegExp(r'^[a-zA-Z0-9._-]+$').hasMatch(runId)) {
+    throw ArgumentError.value(runId, 'runId');
+  }
+  return {
+    'trampoline.log': '${SshService.installerDir}/trampoline.log',
+    'trampoline-status': '${SshService.installerDir}/trampoline-status',
+    'trampoline-journal.log':
+        '${SshService.installerDir}/trampoline-journal.log',
+    'trampoline-phase': '${SshService.installerDir}/trampoline-phase',
+    'run-id': '${SshService.installerDir}/run-id',
+    'run-state': SshService.installerRunState,
+    'last-install': SshService.installerLastInstall,
+    'history-record': '${SshService.installerHistoryDir}/$runId/record',
+    'mdb-artifact.log':
+        '${SshService.installerHistoryDir}/$runId/mdb-artifact.log',
+    'mdb-artifact.result': '${SshService.installerDir}/mdb-artifact.result',
+    'finalize.log': '${SshService.installerDir}/finalize.log',
+    'trampoline.sh': '${SshService.installerScriptsDir}/trampoline.sh',
+    'signal.sh': '${SshService.installerScriptsDir}/signal.sh',
+    'device.sh': '${SshService.installerScriptsDir}/device.sh',
+    '10-mdb-artifact.sh':
+        '${SshService.installerScriptsDir}/10-mdb-artifact.sh',
+    '20-dbc.sh': '${SshService.installerScriptsDir}/20-dbc.sh',
+    '80-reboot.sh': '${SshService.installerScriptsDir}/80-reboot.sh',
+    '90-finalize.sh': '${SshService.installerScriptsDir}/90-finalize.sh',
+    'expected-phases': '${SshService.installerScriptsDir}/.expected',
+    'completed-phases': '${SshService.installerScriptsDir}/.completed',
+  };
+}
+
+Future<List<String>> saveTrampolineDiagnostics({
+  required String runId,
+  required Directory target,
+  required RemoteFileDownloader downloadFile,
+  required TrampolineLaunchDiagnostics launch,
+}) async {
+  if (await target.exists()) await target.delete(recursive: true);
+  await target.create(recursive: true);
+  final saved = <String>[];
+  final summary = File(path.join(target.path, 'launch-diagnostics.txt'));
+  await summary.writeAsString([
+    'run-id: $runId',
+    '',
+    '[stdout]',
+    launch.stdout,
+    '',
+    '[trampoline log tail]',
+    launch.logTail,
+    '',
+    '[staging and disk space]',
+    launch.staging,
+    '',
+  ].join('\n'));
+  saved.add(summary.path);
+
+  final entries = trampolineDiagnosticFiles(runId).entries.toList();
+  for (var offset = 0; offset < entries.length; offset += 8) {
+    final end = (offset + 8).clamp(0, entries.length);
+    await Future.wait(entries.sublist(offset, end).map((entry) async {
+      try {
+        final bytes = await downloadFile(entry.value);
+        if (bytes == null) return;
+        final file = File(path.join(target.path, entry.key));
+        await file.writeAsBytes(bytes, flush: true);
+        saved.add(file.path);
+      } catch (_) {}
+    }));
+  }
+  return saved;
+}
 
 Future<void> stageDbcBootloaderTools({
   required ToolAssetLoader loadAsset,
@@ -862,6 +994,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
             : 'leave',
         releaseTag: releaseTag,
         region: region?.slug ?? '',
+        dashboardResult: 'complete',
       );
       await _ssh.uploadFile(
         Uint8List.fromList(utf8.encode(finalize)),
@@ -916,7 +1049,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     // silently, so it goes before anything can be believed.
     await _ssh.runCommand(
       'rm -f /data/installer/trampoline-status; '
-      'nohup ${SshService.installerScriptsDir}/trampoline.sh '
+      'nohup sh ${SshService.installerScriptsDir}/trampoline.sh '
       '> /data/installer/trampoline-stdout.log 2>&1 &',
     );
 
@@ -928,76 +1061,37 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       await Future.delayed(const Duration(milliseconds: 500));
       if (await isRunning()) return;
     }
-    final reason = await _whyNoTrampoline();
-    throw Exception(
-      'Trampoline did not start on the MDB'
-      '${reason == null ? '' : ': $reason'}',
-    );
+    final diagnostics = await _whyNoTrampoline();
+    throw TrampolineStartException(diagnostics);
   }
 
-  /// What the board says about a launch that never became a process.
-  ///
-  /// The script's own stderr goes to trampoline-stdout.log and nowhere else,
-  /// so a run that died on a truncated helper, a missing one or a full /data
-  /// reported "did not start" and threw the only account of why away. Read
-  /// before the sweep, and put the first line in the exception so the message
-  /// the user is shown says something they can act on.
-  ///
-  /// Best effort throughout: this runs on a failure path and must not replace
-  /// it with one of its own.
-  Future<String?> _whyNoTrampoline() async {
-    String? firstLine;
-    Future<String> read(String label, String command) async {
-      try {
-        return (await _ssh.runCommand(
-          command,
-          timeout: const Duration(seconds: 15),
-        )).trim();
-      } catch (e) {
-        debugPrint('Trampoline: could not read $label: $e');
-        return '';
+  /// Collects launch evidence before cleanup removes the staging directory.
+  Future<TrampolineLaunchDiagnostics> _whyNoTrampoline() async {
+    final diagnostics = await collectTrampolineLaunchDiagnostics(
+      runCommand: (command) => _ssh.runCommand(
+        command,
+        timeout: const Duration(seconds: 15),
+      ),
+    );
+
+    if (diagnostics.stdout.isEmpty) {
+      debugPrint('Trampoline[stdout]: empty or absent');
+    } else {
+      for (final line in const LineSplitter().convert(diagnostics.stdout)) {
+        debugPrint('Trampoline[stdout]: $line');
       }
     }
-
-    final stdout = await read(
-      'the launch output',
-      'cat /data/installer/trampoline-stdout.log 2>/dev/null; true',
-    );
-    for (final line in const LineSplitter().convert(stdout)) {
-      if (line.trim().isEmpty) continue;
-      debugPrint('Trampoline[stdout]: $line');
-      firstLine ??= line.trim();
-    }
-    if (stdout.trim().isEmpty) {
-      debugPrint('Trampoline[stdout]: empty or absent');
-    }
-
-    // The rest is context for the log rather than for the user: whether the
-    // script got as far as its first log line, what is actually staged, and
-    // whether the partition that holds all of it still had room for the
-    // uploads that went before this.
-    final tail = await read(
-      'the trampoline log',
-      'tail -n 20 /data/installer/trampoline.log 2>/dev/null; true',
-    );
-    if (tail.isEmpty) {
-      debugPrint('Trampoline[log]: no trampoline.log, it died before its '
-          'first log line');
+    if (diagnostics.logTail.isEmpty) {
+      debugPrint('Trampoline[log]: absent');
     } else {
-      for (final line in const LineSplitter().convert(tail)) {
+      for (final line in const LineSplitter().convert(diagnostics.logTail)) {
         debugPrint('Trampoline[log]: $line');
       }
     }
-    final staged = await read(
-      'the staged scripts',
-      'ls -l ${SshService.installerScriptsDir} 2>&1; '
-      'df -h /data 2>&1 | tail -n 1; true',
-    );
-    for (final line in const LineSplitter().convert(staged)) {
+    for (final line in const LineSplitter().convert(diagnostics.staging)) {
       debugPrint('Trampoline[staging]: $line');
     }
-
-    return firstLine;
+    return diagnostics;
   }
 
   /// Whether a trampoline process is running on the MDB. The bracketed pattern

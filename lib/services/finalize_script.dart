@@ -30,6 +30,7 @@ class FinalizeScript {
     String dbcAction = '',
     String releaseTag = '',
     String region = '',
+    String dashboardResult = 'not-requested',
   }) {
     final rendered = template
         .replaceAll('{{MDB_ACTION}}', mdbAction)
@@ -40,7 +41,8 @@ class FinalizeScript {
         .replaceAll('{{DBC_VERSION}}', dbcVersion)
         .replaceAll('{{DBC_ACTION}}', dbcAction)
         .replaceAll('{{RELEASE_TAG}}', releaseTag)
-        .replaceAll('{{TILES_REGION}}', region);
+        .replaceAll('{{TILES_REGION}}', region)
+        .replaceAll('{{DASHBOARD_RESULT}}', dashboardResult);
 
     // An unfilled placeholder is valid shell in most of the places one
     // appears, so the script runs and takes the wrong branch rather than

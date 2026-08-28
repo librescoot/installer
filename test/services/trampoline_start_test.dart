@@ -15,7 +15,8 @@ void main() {
         File('lib/services/trampoline_service.dart').readAsStringSync();
   });
 
-  test('one pattern, used by both the kill and the check', () {
+  test('launches through sh and uses one pattern for kill and check', () {
+    expect(source, contains('nohup sh \${SshService.installerScriptsDir}/trampoline.sh'));
     expect(source, contains("_trampolinePattern = 'installer/scripts/[t]rampoline.sh'"));
     expect(source, contains("pkill -f '\$_trampolinePattern'"));
     expect(source, contains("pgrep -f '\$_trampolinePattern'"));

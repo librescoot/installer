@@ -32,6 +32,7 @@ DBC_VERSION="{{DBC_VERSION}}"
 DBC_ACTION="{{DBC_ACTION}}"
 RELEASE_TAG="{{RELEASE_TAG}}"
 TILES_REGION="{{TILES_REGION}}"
+DASHBOARD_RESULT="{{DASHBOARD_RESULT}}"
 
 log() {
   mkdir -p "$(dirname "$LOG")" 2>/dev/null
@@ -248,6 +249,7 @@ if [ "$INSTALL_OK" = yes ]; then
     echo "language: $FINISH_LANGUAGE"
     echo "channel: $FINISH_CHANNEL"
     echo "region: $TILES_REGION"
+echo "dashboard-result: $DASHBOARD_RESULT"
   } > "$RUN_HISTORY_DIR/$RUN_ID/.record.tmp"
   mv -f "$RUN_HISTORY_DIR/$RUN_ID/.record.tmp" "$RUN_HISTORY_DIR/$RUN_ID/record"
   cp "$RUN_HISTORY_DIR/$RUN_ID/record" "$INSTALLER_DIR/.last-install.tmp" &&

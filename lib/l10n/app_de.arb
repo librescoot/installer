@@ -314,6 +314,17 @@
   "waitingForDownloads": "Warte auf Abschluss der Downloads...",
   "startingTrampoline": "Trampoline-Skript wird gestartet...",
   "uploadError": "Upload-Fehler: {error}",
+  "trampolineStartFailed": "Die Installation auf dem Roller konnte nicht gestartet werden. Details wurden ins Log geschrieben und Diagnose-Dateien unter {path} gespeichert. Versuch es erneut; falls es wieder fehlschlägt, stelle den Roller ohne diese Übertragung wieder her.",
+  "@trampolineStartFailed": {
+    "placeholders": {
+      "path": {"type": "String"}
+    }
+  },
+  "trampolineStartFailedNoPath": "Die Installation auf dem Roller konnte nicht gestartet werden. Details wurden ins Installer-Log geschrieben. Versuch es erneut; falls es wieder fehlschlägt, stelle den Roller ohne diese Übertragung wieder her.",
+  "restoreScooterWithoutTransfer": "Roller ohne diese Übertragung wiederherstellen",
+  "restoreScooterBeforeClosing": "Stelle den Roller wieder her, bevor du den Installer schließt. Versuch die Übertragung erneut oder wähle „Roller ohne diese Übertragung wiederherstellen“.",
+  "finishTransferSkippedPending": "Die Übertragung wurde übersprungen. Dein Roller stellt seine normalen Dienste wieder her und wird automatisch entsperrt, sobald er bereit ist.",
+  "finishTransferSkippedConfirmed": "Dein Roller wurde wiederhergestellt und entsperrt. Die gewünschte Dashboard- oder Kartenübertragung wurde nicht installiert.",
   "dbcReadyButton": "DBC-Flashen beginnen",
   "dbcFlashInProgress": "DBC wird geflasht",
   "dbcFlashSwapCablesTitle": "USB auf das DBC umstecken",

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -6,8 +7,74 @@ import 'package:librescoot_installer/models/install_plan.dart';
 import 'package:librescoot_installer/models/region.dart';
 import 'package:librescoot_installer/models/trampoline_status.dart';
 import 'package:librescoot_installer/services/trampoline_service.dart';
+import 'package:path/path.dart' as p;
 
 void main() {
+  group('trampoline launch diagnostics', () {
+    test('collects launch evidence', () async {
+      final commands = <String>[];
+      final diagnostics = await collectTrampolineLaunchDiagnostics(
+        runCommand: (command) async {
+          commands.add(command);
+          if (command.contains('trampoline-stdout.log')) {
+            return 'sh: missing device.sh\n';
+          }
+          if (command.contains('trampoline.log')) return '22:58:03 started\n';
+          return '-rwxr-xr-x trampoline.sh\n/data 99%';
+        },
+      );
+
+      expect(diagnostics.firstOutputLine, 'sh: missing device.sh');
+      expect(diagnostics.logTail, contains('started'));
+      expect(diagnostics.staging, contains('/data 99%'));
+      expect(commands, hasLength(3));
+      expect(TrampolineStartException(diagnostics).toString(),
+          contains('sh: missing device.sh'));
+    });
+
+    test('saves available run files beside a launch summary', () async {
+      final target = await Directory.systemTemp.createTemp('trampoline-diag-');
+      addTearDown(() => target.delete(recursive: true));
+      File(p.join(target.path, 'stale.log')).writeAsStringSync('old attempt');
+      final requested = <String>[];
+      final saved = await saveTrampolineDiagnostics(
+        runId: 'run-test-1',
+        target: target,
+        launch: const TrampolineLaunchDiagnostics(
+          stdout: 'shell failed',
+          logTail: 'last line',
+          staging: '/data 100%',
+        ),
+        downloadFile: (remotePath) async {
+          requested.add(remotePath);
+          if (remotePath.endsWith('trampoline.log')) {
+            return Uint8List.fromList(utf8.encode('last line'));
+          }
+          if (remotePath.endsWith('run-state')) {
+            throw StateError('unreadable');
+          }
+          return null;
+        },
+      );
+
+      expect(requested, contains('/data/installer/trampoline.log'));
+      expect(saved.map(p.basename),
+          containsAll(['launch-diagnostics.txt', 'trampoline.log']));
+      expect(File(p.join(target.path, 'stale.log')).existsSync(), isFalse);
+      expect(
+        File(p.join(target.path, 'launch-diagnostics.txt')).readAsStringSync(),
+        allOf(contains('run-test-1'), contains('/data 100%')),
+      );
+    });
+
+    test('rejects unsafe run IDs', () {
+      expect(
+        () => trampolineDiagnosticFiles('../previous-run'),
+        throwsArgumentError,
+      );
+    });
+  });
+
   group('DBC bootloader tool staging', () {
     Future<ByteData> loadTool(String path) async {
       final bytes = path.endsWith('.config') ? [1, 2] : [3, 4, 5];
@@ -132,7 +199,8 @@ void main() {
           File('lib/services/trampoline_service.dart').readAsStringSync();
       final start = source.indexOf('Future<void> start({required String runId})');
       final clear = source.indexOf('installerLastInstall}', start);
-      final launch = source.indexOf('nohup \${SshService.installerScriptsDir}', start);
+      final launch = source.indexOf(
+          'nohup sh \${SshService.installerScriptsDir}', start);
       expect(start, greaterThanOrEqualTo(0));
       expect(clear, greaterThan(start));
       expect(launch, greaterThan(clear));

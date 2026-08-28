@@ -964,6 +964,31 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String trampolineStartFailed(String path) {
+    return 'The on-device installation could not start. Details were written to the log and diagnostic files were saved to $path. Try again; if it still fails, restore the scooter without this transfer.';
+  }
+
+  @override
+  String get trampolineStartFailedNoPath =>
+      'The on-device installation could not start. Details were written to the installer log. Try again; if it still fails, restore the scooter without this transfer.';
+
+  @override
+  String get restoreScooterWithoutTransfer =>
+      'Restore scooter without this transfer';
+
+  @override
+  String get restoreScooterBeforeClosing =>
+      'Restore the scooter before closing the installer. Retry the transfer or choose Restore scooter without this transfer.';
+
+  @override
+  String get finishTransferSkippedPending =>
+      'The transfer was skipped. Your scooter is restoring its normal services and will unlock automatically when it is ready.';
+
+  @override
+  String get finishTransferSkippedConfirmed =>
+      'Your scooter was restored and unlocked. The requested dashboard or map transfer was not installed.';
+
+  @override
   String get dbcReadyButton => 'Begin flashing DBC';
 
   @override

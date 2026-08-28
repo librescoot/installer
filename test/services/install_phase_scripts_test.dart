@@ -14,6 +14,25 @@ void main() {
     rebootTemplate = File('assets/reboot-phase.sh.template').readAsStringSync();
   });
 
+  group('shell assets', () {
+    test('normalizes Windows line endings before upload', () {
+      expect(normalizeShellScript('one\r\ntwo\rthree\n'), 'one\ntwo\nthree\n');
+    });
+  });
+
+  group('expected phases', () {
+    test('expects the dashboard phase only after trampoline handoff', () {
+      expect(
+        expectedInstallPhases(expectDbcPhase: true),
+        ['10-mdb-artifact.sh', '20-dbc.sh', '80-reboot.sh', '90-finalize.sh'],
+      );
+      expect(
+        expectedInstallPhases(expectDbcPhase: false),
+        ['10-mdb-artifact.sh', '80-reboot.sh', '90-finalize.sh'],
+      );
+    });
+  });
+
   group('10-mdb-artifact.sh', () {
     test('renders the staged artifact path', () {
       final s = MdbArtifactScript.render(

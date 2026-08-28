@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/models/dashboard_messages.dart';
+import 'package:librescoot_installer/models/region.dart';
 import 'package:librescoot_installer/services/trampoline_service.dart';
 
 /// Step 3's wait for the DBC. A DBC already parked in u-boot UMS is a USB
@@ -45,20 +46,37 @@ void main() {
       expect(syntax.exitCode, 0, reason: syntax.stderr.toString());
     });
 
-    test('the rendered template is valid POSIX shell', () async {
-      final rendered = TrampolineService.renderTemplate(
-        source,
-        upgradeMode: false,
-        dbcImagePath: '/data/installer/dbc.sdimg.gz',
-        dbcMenderPath: '/data/installer/dbc.mender',
-        messages: DashboardMessages.english,
-      );
+    test('rendered flash and tiles-only scripts are valid shell', () async {
+      final variants = [
+        TrampolineService.renderTemplate(
+          source,
+          upgradeMode: false,
+          dbcImagePath: '/data/installer/dbc.sdimg.gz',
+          dbcMenderPath: '/data/installer/dbc.mender',
+          messages: DashboardMessages.english,
+        ),
+        TrampolineService.renderTemplate(
+          source,
+          upgradeMode: true,
+          dbcImagePath: '',
+          dbcMenderPath: '',
+          installTiles: true,
+          region: const Region(
+            name: 'Bayern',
+            slug: 'bayern',
+            country: 'Deutschland',
+          ),
+          messages: DashboardMessages.english,
+        ),
+      ];
       final dir = await Directory.systemTemp.createTemp('ums-wait-');
       addTearDown(() => dir.delete(recursive: true));
-      final f = File('${dir.path}/trampoline.sh');
-      await f.writeAsString(rendered);
-      final syntax = await Process.run('sh', ['-n', f.path]);
-      expect(syntax.exitCode, 0, reason: syntax.stderr.toString());
+      for (var i = 0; i < variants.length; i++) {
+        final f = File('${dir.path}/trampoline-$i.sh');
+        await f.writeAsString(variants[i]);
+        final syntax = await Process.run('sh', ['-n', f.path]);
+        expect(syntax.exitCode, 0, reason: syntax.stderr.toString());
+      }
     });
   });
 

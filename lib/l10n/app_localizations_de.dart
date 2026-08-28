@@ -976,6 +976,31 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String trampolineStartFailed(String path) {
+    return 'Die Installation auf dem Roller konnte nicht gestartet werden. Details wurden ins Log geschrieben und Diagnose-Dateien unter $path gespeichert. Versuch es erneut; falls es wieder fehlschlägt, stelle den Roller ohne diese Übertragung wieder her.';
+  }
+
+  @override
+  String get trampolineStartFailedNoPath =>
+      'Die Installation auf dem Roller konnte nicht gestartet werden. Details wurden ins Installer-Log geschrieben. Versuch es erneut; falls es wieder fehlschlägt, stelle den Roller ohne diese Übertragung wieder her.';
+
+  @override
+  String get restoreScooterWithoutTransfer =>
+      'Roller ohne diese Übertragung wiederherstellen';
+
+  @override
+  String get restoreScooterBeforeClosing =>
+      'Stelle den Roller wieder her, bevor du den Installer schließt. Versuch die Übertragung erneut oder wähle „Roller ohne diese Übertragung wiederherstellen“.';
+
+  @override
+  String get finishTransferSkippedPending =>
+      'Die Übertragung wurde übersprungen. Dein Roller stellt seine normalen Dienste wieder her und wird automatisch entsperrt, sobald er bereit ist.';
+
+  @override
+  String get finishTransferSkippedConfirmed =>
+      'Dein Roller wurde wiederhergestellt und entsperrt. Die gewünschte Dashboard- oder Kartenübertragung wurde nicht installiert.';
+
+  @override
   String get dbcReadyButton => 'DBC-Flashen beginnen';
 
   @override

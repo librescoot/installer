@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as path;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -558,6 +559,18 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Future<void> _handleWindowClose() async {
+    if (!_isDryRun &&
+        (_trampolineStartFailed ||
+            (_dashboardTransferSkipped && !_deviceFinishArmed))) {
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.restoreScooterBeforeClosing),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     final isCritical = _isCriticalOperation;
     if (!isCritical) _windowClosing = true;
     final closed = await _windowCloseCoordinator.requestClose(
@@ -990,7 +1003,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           dbcVersion: _deviceFinishArmed ? (_dbcState.version ?? '') : '',
           dbcAction: (_plan?.dbc.action ?? BoardAction.leave).name,
           releaseTag: _downloadState.releaseTag ?? '',
-          region: _downloadState.selectedRegion?.slug ?? '',
+          region: _dashboardTransferSkipped
+              ? ''
+              : (_downloadState.selectedRegion?.slug ?? ''),
+          dashboardResult: _dashboardTransferSkipped
+              ? 'skipped'
+              : ((_plan?.needsHandoff ?? false)
+                  ? 'complete'
+                  : 'not-requested'),
         ))),
         FinalizeScript.remotePath,
       );
@@ -1050,12 +1070,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // side. All three take the link down in turn, which is why it is detached
     // and why nothing below can rely on SSH surviving.
     try {
-      // The trampoline is the only writer of 20-dbc.sh, so a run that never
-      // handed off to one must not ask the coordinator to wait for it.
       await _armInstallPhases(
         expectDbcPhase: (_plan?.needsHandoff ?? false) && _deviceFinishArmed,
       );
       await _sshService.startInstallPhasesDetached();
+      _deviceFinishArmed = true;
       debugPrint('UI: handed off to the coordinator');
     } catch (e) {
       debugPrint('UI: failed to start the install phases: $e');
@@ -4252,41 +4271,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     );
   }
 
-  /// Turn the chosen plan into a route through the phases. Every branch has
-  /// to leave the wizard somewhere it can continue from: a board left alone
-  /// skips its phases outright, an upgrade skips only the sdimg write, and a
-  /// plan that does nothing at all cannot get here (the panel disables
-  /// Continue for it).
-  /// Put the coordinator on the board and tell it what this plan owes it.
-  ///
-  /// Immediately before the phases are run, not when they are staged. A
-  /// coordinator is what makes queued phases run at boot, so installing it
-  /// early opens a window where an unattended MDB reboot would install the
-  /// artifact, reboot and unlock a scooter whose dashboard was never touched.
-  /// Queued phases with no coordinator are inert, which is the state to be in
-  /// while the user is still being asked to swap the cable.
-  ///
-  /// Also after the bootstrap flash rather than at plan time: a clean install
-  /// reformats /data, and on the stock image the write fails outright.
-  ///
-  /// 20-dbc.sh is the trampoline's to write and only exists when there is
-  /// dashboard work. The other three are expected on every plan, including one
-  /// that leaves the MDB alone, because 80-reboot.sh joins on a verdict that
-  /// has to come from somewhere.
-  ///
-  /// [expectDbcPhase] is the plan's answer at the arming before the trampoline
-  /// and the run's answer at the one before the handover. A run whose
-  /// trampoline never started has nobody left to write 20-dbc.sh, so declaring
-  /// it there ends an otherwise fine handover with "install phases never ran".
+  /// Installs the coordinator and declares the phases it must observe.
+  /// Only the trampoline can create 20-dbc.sh.
   Future<void> _armInstallPhases({required bool expectDbcPhase}) async {
     try {
       await _sshService.installOnbootShim();
-      await _sshService.declareExpectedPhases([
-        MdbArtifactScript.phaseName,
-        if (expectDbcPhase) '20-dbc.sh',
-        RebootPhaseScript.phaseName,
-        FinalizeScript.phaseName,
-      ]);
+      await _sshService.declareExpectedPhases(
+        expectedInstallPhases(expectDbcPhase: expectDbcPhase),
+      );
     } catch (e) {
       debugPrint('UI: could not arm the install phases: $e');
     }
@@ -6679,6 +6671,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   bool _dbcPrepBlocked = false;
+  bool _trampolineStartFailed = false;
+  bool _dashboardTransferSkipped = false;
 
   Widget _buildDbcPrep(AppLocalizations l10n) {
     // The upload usually started while the user was pairing, so this phase
@@ -6711,9 +6705,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             // like one. Skipping a map copy costs stale offline maps, which
             // is recoverable and repeatable, so it reads as an ordinary
             // choice.
-            label: mapsOnly ? l10n.skipMapTransfer : l10n.skipToFinish,
+            label: _trampolineStartFailed
+                ? l10n.restoreScooterWithoutTransfer
+                : (mapsOnly ? l10n.skipMapTransfer : l10n.skipToFinish),
             side: ActionSide.back,
-            onPressed: busy ? null : () => _setPhase(InstallerPhase.finish),
+            onPressed: busy ? null : _skipDashboardTransfer,
           ),
           PhaseAction(
             label: mapsOnly ? l10n.dbcReadyButtonMaps : l10n.dbcReadyButton,
@@ -6725,11 +6721,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         else if (!busy) ...[
           if (_dbcPrepBlocked)
             PhaseAction(
-              label: l10n.skipToFinish,
-              onPressed: () {
-                setState(() => _dbcPrepBlocked = false);
-                _setPhase(InstallerPhase.finish);
-              },
+              label: l10n.restoreScooterWithoutTransfer,
+              onPressed: _skipDashboardTransfer,
             ),
           PhaseAction(
             label: l10n.retryDbcPrep,
@@ -6961,11 +6954,21 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// fire the trampoline (the last thing we do over SSH) and hand off to the
   /// swap-cables screen, which is the first place the user is told to touch
   /// the cable.
+  void _skipDashboardTransfer() {
+    setState(() {
+      _dashboardTransferSkipped = true;
+      _trampolineStartFailed = false;
+      _dbcPrepBlocked = false;
+    });
+    _setPhase(InstallerPhase.finish);
+  }
+
   Future<void> _startTrampoline() async {
     final l10n = AppLocalizations.of(context)!;
     setState(() {
       _isProcessing = true;
       _dbcUploadReady = false;
+      _trampolineStartFailed = false;
     });
     final criticalOperation = _acquireCriticalOperation();
 
@@ -6984,22 +6987,55 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       await _armInstallPhases(expectDbcPhase: _plan?.needsHandoff ?? false);
       await TrampolineService(_sshService).start(runId: _installRunId);
       _deviceFinishArmed = true;
+      _dashboardTransferSkipped = false;
       criticalOperation.release();
       setState(() => _isProcessing = false);
       await Future.delayed(const Duration(seconds: 1));
       _setPhase(InstallerPhase.dbcFlash);
     } catch (e) {
       criticalOperation.release();
-      _setStatus(l10n.uploadError(e.toString()));
+      String? diagnosticsPath;
+      if (e is TrampolineStartException) {
+        diagnosticsPath = await _saveTrampolineFailureDiagnostics(e);
+      }
+      _setStatus(e is TrampolineStartException
+          ? (diagnosticsPath == null
+              ? l10n.trampolineStartFailedNoPath
+              : l10n.trampolineStartFailed(diagnosticsPath))
+          : l10n.uploadError(e.toString()));
       debugPrint('Trampoline start error: $e');
       // The upload is still intact; re-offer the begin button instead of
       // demoting the user to a full prep retry over a transient SSH error.
       setState(() {
         _isProcessing = false;
         _dbcUploadReady = true;
+        _trampolineStartFailed = true;
       });
     } finally {
       criticalOperation.release();
+    }
+  }
+
+  Future<String?> _saveTrampolineFailureDiagnostics(
+      TrampolineStartException error) async {
+    final logFile = LogService.filePath;
+    if (logFile == null) return null;
+    final target = Directory(
+      path.join(path.dirname(logFile), 'diagnostics-$_installRunId'),
+    );
+    try {
+      final saved = await saveTrampolineDiagnostics(
+        runId: _installRunId,
+        target: target,
+        downloadFile: _sshService.downloadFileTail,
+        launch: error.diagnostics,
+      );
+      debugPrint('Trampoline: saved ${saved.length} diagnostic file(s) to '
+          '${target.path}');
+      return target.path;
+    } catch (e) {
+      debugPrint('Trampoline: could not save local diagnostics: $e');
+      return null;
     }
   }
 
@@ -9680,13 +9716,20 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   Widget _finishStatus(AppLocalizations l10n, FinalScreenState state) {
     final confirmed = state == FinalScreenState.completed ||
         state == FinalScreenState.completedReconnectDbc;
-    final body = switch (state) {
-      FinalScreenState.finishingOnDevice => l10n.finishOnDevice,
-      FinalScreenState.reconnectDbc => l10n.finishReconnectDbc,
-      FinalScreenState.completedReconnectDbc || FinalScreenState.completed =>
-        l10n.finishConfirmed,
-    };
-    final color = confirmed ? kAccent : Colors.amber;
+    final body = _dashboardTransferSkipped
+        ? (confirmed
+            ? l10n.finishTransferSkippedConfirmed
+            : l10n.finishTransferSkippedPending)
+        : switch (state) {
+            FinalScreenState.finishingOnDevice => l10n.finishOnDevice,
+            FinalScreenState.reconnectDbc => l10n.finishReconnectDbc,
+            FinalScreenState.completedReconnectDbc ||
+            FinalScreenState.completed =>
+              l10n.finishConfirmed,
+          };
+    final color = confirmed && !_dashboardTransferSkipped
+        ? kAccent
+        : Colors.amber;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -9984,10 +10027,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       final preserved = await _sshService.runCommand(
         'if [ -d ${SshService.installerDir} ]; then '
         '  mkdir -p ${SshService.installerHistoryDir}/$_installRunId; '
-        // trampoline-stdout.log is what the shell itself says: the launch that
-        // never became a process leaves its only account there, and every
-        // other file in this list is written by a trampoline that got as far
-        // as running.
+        // Keep stderr from failures before trampoline.log exists.
         '  for f in trampoline.log trampoline-status trampoline-journal.log '
         '           trampoline-stdout.log finalize.log; do '
         r'    [ -f "' '${SshService.installerDir}' r'/$f" ] && '

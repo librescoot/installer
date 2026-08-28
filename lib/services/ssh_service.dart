@@ -2464,6 +2464,39 @@ echo timeout
     }
   }
 
+  /// Downloads at most the last [maxBytes] of a remote file.
+  Future<Uint8List?> downloadFileTail(
+    String remotePath, {
+    int maxBytes = 256 * 1024,
+  }) async {
+    if (maxBytes < 1 || maxBytes > 1024 * 1024) {
+      throw ArgumentError.value(maxBytes, 'maxBytes');
+    }
+    await _ensureConnected('diagnostic download');
+    SSHSession? session;
+    try {
+      session = await _requireClient('diagnostic download').execute(
+        'tail -c $maxBytes -- ${_shellEscape(remotePath)}',
+      );
+      final chunks = <int>[];
+      final stdoutDone = () async {
+        await for (final data in session!.stdout) {
+          chunks.addAll(data);
+        }
+      }();
+      final stderrDone = () async {
+        await for (final _ in session!.stderr) {}
+      }();
+      await Future.wait([stdoutDone, stderrDone, session.done])
+          .timeout(const Duration(seconds: 10));
+      if (session.exitCode != 0) return null;
+      return Uint8List.fromList(chunks);
+    } catch (_) {
+      session?.close();
+      return null;
+    }
+  }
+
   /// List files in a remote directory. Returns empty list if directory doesn't exist.
   Future<List<String>> listRemoteDir(String remotePath) async {
     try {

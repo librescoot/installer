@@ -1,5 +1,7 @@
 import 'package:flutter/services.dart';
 
+import 'finalize_script.dart';
+
 /// Placeholders left unfilled are valid shell in most positions, so a script
 /// with one runs and takes the wrong branch rather than failing. Both scripts
 /// here decide whether to reboot a vehicle, so they refuse to render instead.
@@ -11,7 +13,7 @@ List<String> unresolvedPlaceholders(String script) =>
         .toList()
       ..sort();
 
-String _normalise(String script) =>
+String normalizeShellScript(String script) =>
     script.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
 
 /// The blinker bar, the front light, the dashboard LED and the hazards, in one
@@ -30,7 +32,8 @@ class SignalHelpers {
 
   static const String assetPath = 'assets/$fileName';
 
-  static Future<String> load() => rootBundle.loadString(assetPath);
+  static Future<String> load() async =>
+      normalizeShellScript(await rootBundle.loadString(assetPath));
 }
 
 /// dbc_ssh, wait_dbc_ssh and the dashboard power helpers, in one file every
@@ -46,16 +49,18 @@ class DeviceHelpers {
 
   static const String assetPath = 'assets/$fileName';
 
-  static Future<String> load() => rootBundle.loadString(assetPath);
+  static Future<String> load() async =>
+      normalizeShellScript(await rootBundle.loadString(assetPath));
 }
 
-/// Installs the MDB's own .mender, in the background, on the far side of the
-/// cable swap.
-///
-/// The install used to run over the laptop link and was followed by a reboot
-/// to prove the rootfs committed. Both are gone: the board stays on the
-/// bootstrap image until everything is done, and staying there is what lets
-/// the user walk away as soon as the uploads finish.
+List<String> expectedInstallPhases({required bool expectDbcPhase}) => [
+  MdbArtifactScript.phaseName,
+  if (expectDbcPhase) '20-dbc.sh',
+  RebootPhaseScript.phaseName,
+  FinalizeScript.phaseName,
+];
+
+/// Installs the MDB artifact in the background before the dashboard phase.
 class MdbArtifactScript {
   /// Ahead of the dashboard phase so its background install is already
   /// running while the dashboard is flashed and uploaded to.
@@ -82,7 +87,7 @@ class MdbArtifactScript {
     if (left.isNotEmpty) {
       throw StateError('mdb-artifact template still wants ${left.join(", ")}');
     }
-    return _normalise(rendered);
+    return normalizeShellScript(rendered);
   }
 
   static Future<String> loadTemplate() =>
@@ -120,7 +125,7 @@ class RebootPhaseScript {
     if (left.isNotEmpty) {
       throw StateError('reboot template still wants ${left.join(", ")}');
     }
-    return _normalise(rendered);
+    return normalizeShellScript(rendered);
   }
 
   static Future<String> loadTemplate() =>

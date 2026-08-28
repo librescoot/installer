@@ -18,6 +18,8 @@ void main() {
     String mode = 'upgrade',
     String language = 'de',
     String channel = 'stable',
+    String region = '',
+    String dashboardResult = 'not-requested',
   }) =>
       FinalizeScript.render(
         template: template,
@@ -27,11 +29,19 @@ void main() {
         language: language,
         channel: channel,
         dbcVersion: 'v1.2.1',
+        region: region,
+        dashboardResult: dashboardResult,
       );
 
   group('rendering', () {
     test('a rendered script has nothing left to fill', () {
       expect(FinalizeScript.unresolvedPlaceholders(render()), isEmpty);
+    });
+
+    test('records a skipped dashboard transfer without a region', () {
+      final script = render(dashboardResult: 'skipped');
+      expect(script, contains('DASHBOARD_RESULT="skipped"'));
+      expect(script, contains('TILES_REGION=""'));
     });
 
     test('it refuses rather than shipping a hole', () {
@@ -206,6 +216,7 @@ case "\$1" in is-active) echo active ;; esac
       expect(record, contains('result: success'));
       expect(record, contains('run-id: run-good'));
       expect(record, contains('mdb: 2.0.0'));
+      expect(record, contains('dashboard-result: not-requested'));
       expect(await File('${root.path}/installer/last-install').readAsString(),
           contains('run-id: run-good'));
     });

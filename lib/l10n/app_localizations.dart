@@ -1772,6 +1772,42 @@ abstract class AppLocalizations {
   /// **'Upload error: {error}'**
   String uploadError(String error);
 
+  /// No description provided for @trampolineStartFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The on-device installation could not start. Details were written to the log and diagnostic files were saved to {path}. Try again; if it still fails, restore the scooter without this transfer.'**
+  String trampolineStartFailed(String path);
+
+  /// No description provided for @trampolineStartFailedNoPath.
+  ///
+  /// In en, this message translates to:
+  /// **'The on-device installation could not start. Details were written to the installer log. Try again; if it still fails, restore the scooter without this transfer.'**
+  String get trampolineStartFailedNoPath;
+
+  /// No description provided for @restoreScooterWithoutTransfer.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore scooter without this transfer'**
+  String get restoreScooterWithoutTransfer;
+
+  /// No description provided for @restoreScooterBeforeClosing.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore the scooter before closing the installer. Retry the transfer or choose Restore scooter without this transfer.'**
+  String get restoreScooterBeforeClosing;
+
+  /// No description provided for @finishTransferSkippedPending.
+  ///
+  /// In en, this message translates to:
+  /// **'The transfer was skipped. Your scooter is restoring its normal services and will unlock automatically when it is ready.'**
+  String get finishTransferSkippedPending;
+
+  /// No description provided for @finishTransferSkippedConfirmed.
+  ///
+  /// In en, this message translates to:
+  /// **'Your scooter was restored and unlocked. The requested dashboard or map transfer was not installed.'**
+  String get finishTransferSkippedConfirmed;
+
   /// No description provided for @dbcReadyButton.
   ///
   /// In en, this message translates to:
