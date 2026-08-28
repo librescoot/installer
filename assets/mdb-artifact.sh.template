@@ -98,20 +98,26 @@ WORKER
 } > "$WORKER"
 chmod +x "$WORKER"
 
+# A systemd-run that exists but cannot start the unit (no privilege, no
+# system bus, a fixture) falls through to the detached job rather than
+# ending the install: the unit is the better home, not the only one.
+STARTED=""
 if command -v systemd-run >/dev/null 2>&1; then
   systemctl stop librescoot-mdb-artifact.service >/dev/null 2>&1
   if systemd-run --unit=librescoot-mdb-artifact --collect --quiet \
-      --slice=system.slice /bin/sh "$WORKER"; then
+      --slice=system.slice /bin/sh "$WORKER" >/dev/null 2>&1; then
     log "started as librescoot-mdb-artifact.service"
+    STARTED="yes"
   else
-    log "ERROR: could not start the install unit"
-    echo "error: could not start the MDB artifact install" > "$RESULT_FILE"
+    log "could not start the install unit, running the install detached instead"
   fi
-elif command -v setsid >/dev/null 2>&1; then
-  setsid /bin/sh "$WORKER" >/dev/null 2>&1 < /dev/null &
-  log "started in the background as pid $!"
-else
-  /bin/sh "$WORKER" >/dev/null 2>&1 < /dev/null &
+fi
+if [ -z "$STARTED" ]; then
+  if command -v setsid >/dev/null 2>&1; then
+    setsid /bin/sh "$WORKER" >/dev/null 2>&1 < /dev/null &
+  else
+    /bin/sh "$WORKER" >/dev/null 2>&1 < /dev/null &
+  fi
   log "started in the background as pid $!"
 fi
 

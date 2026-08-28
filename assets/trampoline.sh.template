@@ -2238,11 +2238,21 @@ if [ -n "$DBC_MENDER" ]; then
       log "  committed the DBC slot (attempt $COMMIT_TRY)"
       break
     fi
+    # Already committed reads as a failure from mender-update, and the DBC's
+    # own update-service usually gets there first. Ask the board what it
+    # runs before spending another ten seconds on a retry: an installed,
+    # non-bootstrap artifact is the answer, whoever committed it.
+    case "$(ssh -y -y root@$DBC_IP 'mender-update show-artifact' 2>/dev/null)" in
+      *minimal*|'') ;;
+      *)
+        DBC_COMMITTED="yes"
+        log "  the DBC already reports the installed artifact, the slot is committed"
+        break
+        ;;
+    esac
     log "  commit attempt $COMMIT_TRY/5 failed, retrying..."
     sleep 10
   done
-  # Already committed reads as a failure from mender-update, so ask the board
-  # rather than trusting the exit code: the state it is in is what matters.
   if [ "$DBC_COMMITTED" != yes ]; then
     case "$(ssh -y -y root@$DBC_IP 'mender-update show-artifact' 2>/dev/null)" in
       *minimal*|'') artifact_fail "error: the DBC slot could not be committed and will roll back on its next boot" ;;

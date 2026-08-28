@@ -108,6 +108,26 @@ void main() {
         'echo 90 >> ${root.path}/order\nrm -f "\$0"\n');
   }
 
+  test('a systemd-run that refuses does not end the install', () async {
+    // The CI runner has systemd-run on PATH and no privilege to use it. The
+    // artifact phase used to record that as the install's failure; it falls
+    // through to the detached job instead.
+    final artifact = File('${root.path}/a.mender');
+    await artifact.writeAsString('x');
+    await stub('mender-update', 'sleep 0.3; exit 0');
+    await stub('systemd-run', 'exit 1');
+    await stub('systemctl', 'exit 0');
+    await queueAll(artifactPath: artifact.path);
+
+    final r = await boot();
+    expect(r.exitCode, 0, reason: r.stderr.toString());
+    expect(
+      await File('${root.path}/installer/history/run-test/reboot.log')
+          .readAsString(),
+      contains('MDB artifact: ok'),
+    );
+  });
+
   test('a successful run reboots once, after the dashboard phase', () async {
     final artifact = File('${root.path}/a.mender');
     await artifact.writeAsString('x');

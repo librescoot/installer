@@ -1484,7 +1484,7 @@ if [ -f "$EXPECTED" ]; then
     } > "$STATUS"
   fi
 fi
-rm -f "$EXPECTED" "$COMPLETED" "$SCRIPTS/signal.sh"
+rm -f "$EXPECTED" "$COMPLETED" "$SCRIPTS/signal.sh" "$SCRIPTS/device.sh"
 
 if [ -f /data/installer/onboot.sh.bak ]; then
   mv -f /data/installer/onboot.sh.bak /data/onboot.sh
