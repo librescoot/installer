@@ -115,6 +115,26 @@ class InstallPlan {
         installTiles: installTiles,
       );
 
+  /// Conservative plan when the MDB is already in U-Boot mass storage.
+  ///
+  /// Its installed state cannot be inspected, and the normal release queue
+  /// contains minimal stage-0 images rather than self-contained full images.
+  /// Both boards therefore need the artifact that completes a clean install.
+  static InstallPlan directMassStorage({bool installTiles = false}) =>
+      InstallPlan(
+        mdb: const BoardPlan(
+          board: Board.mdb,
+          action: BoardAction.cleanInstall,
+          blocker: UpgradeBlocker.stateUnknown,
+        ),
+        dbc: const BoardPlan(
+          board: Board.dbc,
+          action: BoardAction.cleanInstall,
+          blocker: UpgradeBlocker.stateUnknown,
+        ),
+        installTiles: installTiles,
+      );
+
   static UpgradeBlocker? _blockerFor(BoardState state) {
     if (state.isMinimalImage) return UpgradeBlocker.minimalImage;
 

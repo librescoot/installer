@@ -56,8 +56,10 @@ fi
 # whose install never survived its first boot. os-release cannot lag, and only
 # the bootstrap images set IMAGE_ID.
 RUNNING_IMAGE_ID="$(sed -n 's/^IMAGE_ID=//p' "${OS_RELEASE:-/etc/os-release}" 2>/dev/null | tr -d '"')"
+FAILURE_REASON=""
 case "$RUNNING_IMAGE_ID" in
   *-bootstrap)
+    FAILURE_REASON="the MDB is still running the bootstrap image"
     log "  running $RUNNING_IMAGE_ID: the install did not survive its first boot"
     INSTALL_OK=no
     ;;
@@ -262,6 +264,27 @@ else
   # going to finish. Both stop when the installer reconnects.
   signal_error
   log "  install did not succeed; left reachable for a retry, not unlocking"
+
+  # Finalization has reached a verdict even though the phase remains queued for
+  # recovery on a later boot. Publish that verdict atomically: otherwise the
+  # reconnecting installer sees the stale `result: running` state forever and
+  # keeps asking for a status that will never arrive.
+  if ! grep -q '^error' "$STATUS_FILE" 2>/dev/null; then
+    {
+      printf 'error: %s\n' "${FAILURE_REASON:-on-device finalization failed}"
+      printf 'run-id: %s\n' "$RUN_ID"
+      printf 'finish: pending\n'
+      printf 'stage: finalization-failed\n'
+    } > "$STATUS_FILE.tmp" && mv -f "$STATUS_FILE.tmp" "$STATUS_FILE"
+  fi
+  {
+    printf 'run-id: %s\n' "$RUN_ID"
+    printf 'actor: finalize\n'
+    printf 'stage: finalization-failed\n'
+    printf 'result: error\n'
+    printf 'finish: pending\n'
+    printf 'updated: %s\n' "$(date -u "+%Y-%m-%dT%H:%M:%S")Z"
+  } > "$RUN_STATE_FILE.tmp" && mv -f "$RUN_STATE_FILE.tmp" "$RUN_STATE_FILE"
 fi
 
 sync

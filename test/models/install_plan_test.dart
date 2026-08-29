@@ -148,6 +148,26 @@ void main() {
     });
   });
 
+  group('directMassStorage', () {
+    test('treats both minimal stage-0 images as clean installs', () {
+      final plan = InstallPlan.directMassStorage(installTiles: true);
+
+      expect(plan.mdb.action, BoardAction.cleanInstall);
+      expect(plan.dbc.action, BoardAction.cleanInstall);
+      expect(plan.mdb.blocker, UpgradeBlocker.stateUnknown);
+      expect(plan.dbc.blocker, UpgradeBlocker.stateUnknown);
+      expect(plan.installTiles, isTrue);
+    });
+
+    test('requires the MDB artifact, reboot path, and dashboard handoff', () {
+      final plan = InstallPlan.directMassStorage();
+
+      expect(plan.needsMdbStage0, isTrue);
+      expect(plan.needsMdbArtifact, isTrue);
+      expect(plan.needsHandoff, isTrue);
+    });
+  });
+
   group('InstallPlan', () {
     InstallPlan planOf(BoardAction mdb, BoardAction dbc, {bool tiles = false}) =>
         InstallPlan(

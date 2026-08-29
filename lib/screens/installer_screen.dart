@@ -2861,7 +2861,21 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     _usbDeviceSeen = true;
 
     if (_device!.mode == DeviceMode.massStorage) {
-      // Device is already in UMS mode: skip ahead to flash
+      // This route never saw the boards, so it also never visited the plan
+      // screen. The normal release queue carries minimal stage-0 images: they
+      // erase /data but still need their artifacts installed afterwards.
+      // Give that implicit choice an explicit plan before any later phase
+      // asks whether an MDB artifact or reboot is required. Local --*-image
+      // arguments are self-contained full images and keep their legacy null
+      // plan semantics.
+      if (_plan == null && !launchArgs.hasLocalImages) {
+        setState(() {
+          _plan = InstallPlan.directMassStorage(
+            installTiles: _downloadState.wantsOfflineMaps,
+          );
+          _expectMinimalMdb = true;
+        });
+      }
       _setStatus(l10n.mdbDetectedUmsSkipping);
       await Future.delayed(const Duration(seconds: 1));
       _setPhase(InstallerPhase.mdbFlash);
@@ -5556,9 +5570,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final artifact = _downloadState.artifactFor(Board.mdb);
     return DeviceFinish(
       onDevice: true,
-      // No plan means the mass-storage shortcut, which writes a full image
-      // and so erases /data. That is the non-upgrade branch, same as a clean
-      // install: there are no settings left worth restoring.
+      // Normal mass-storage entry seeds a clean-install plan before flashing.
+      // A null plan remains only for the legacy --*-image path, whose image is
+      // self-contained and intentionally has full-image semantics.
       mdbAction: _plan?.mdb.action ?? BoardAction.fullImage,
       mdbTargetVersion: artifact == null
           ? ''

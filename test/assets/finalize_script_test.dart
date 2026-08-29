@@ -322,6 +322,27 @@ case "\$1" in is-active) echo active ;; esac
         expect(await callLog(), isNot(contains(contains('scooter:state unlock'))));
       });
 
+      test('a bootstrap failure publishes a terminal status for the laptop',
+          () async {
+        await run(
+          status: null,
+          imageId: 'librescoot-mdb-bootstrap',
+          runId: 'run-bootstrap-failed',
+        );
+
+        final status = await File('${root.path}/installer/trampoline-status')
+            .readAsString();
+        expect(status, startsWith('error:'));
+        expect(status, contains('run-id: run-bootstrap-failed'));
+        expect(status, contains('stage: finalization-failed'));
+
+        final state =
+            await File('${root.path}/installer/run-state').readAsString();
+        expect(state, contains('run-id: run-bootstrap-failed'));
+        expect(state, contains('result: error'));
+        expect(state, contains('finish: pending'));
+      });
+
       test('a board on the image it installed is unlocked', () async {
         // The full images set no IMAGE_ID at all, so absence is the good case.
         await run(status: 'success');
