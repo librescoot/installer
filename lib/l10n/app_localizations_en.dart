@@ -724,6 +724,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mdbFlashComplete => 'MDB flash complete';
 
   @override
+  String get flashVerifyingReadback =>
+      'Verifying boot-critical data on the device…';
+
+  @override
   String flashProgressMb(String mb) {
     return '$mb MB written';
   }

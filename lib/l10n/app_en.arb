@@ -260,6 +260,7 @@
   "flashAwaitingAuthorisation": "macOS will ask for your password or Touch ID before the write can start. Look for a system dialog, it may be behind this window. Nothing is being written until you approve it.",
   "waitingForMdbFirmware": "Waiting for MDB firmware download...",
   "mdbFlashComplete": "MDB flash complete",
+  "flashVerifyingReadback": "Verifying boot-critical data on the device…",
   "flashProgressMb": "{mb} MB written",
   "@flashProgressMb": {
     "placeholders": {

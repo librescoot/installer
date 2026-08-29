@@ -239,6 +239,7 @@
   "flashAwaitingAuthorisation": "macOS fragt vor dem Schreiben nach deinem Passwort oder Touch ID. Suche nach einem Systemdialog, der sich hinter diesem Fenster befinden kann. Solange du nicht bestätigst, wird nichts geschrieben.",
   "waitingForMdbFirmware": "Warte auf den Download der MDB-Firmware…",
   "mdbFlashComplete": "MDB-Flash abgeschlossen",
+  "flashVerifyingReadback": "Bootkritische Daten auf dem Gerät werden geprüft…",
   "flashProgressMb": "{mb} MB geschrieben",
   "flashProgressMbOfTotal": "{mb} / {total} MB geschrieben",
   "flashProgressEta": "Noch {minutes} Min. {seconds} Sek.",

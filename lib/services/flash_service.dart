@@ -591,6 +591,13 @@ class FlashService {
           final phase = line.substring(6).trim();
           if (phase == 'A') onProgress?.call(0.0, 'Phase A: Writing partitions...');
           if (phase == 'B') onProgress?.call(0.9, 'Phase B: Writing boot sector...');
+          if (phase == 'verify') {
+            onProgress?.call(
+              0.95,
+              l10n?.flashVerifyingReadback ??
+                  'Verifying boot-critical data on the device…',
+            );
+          }
         }
         if (line.startsWith('PROGRESS:')) {
           final bytes = int.tryParse(line.substring(9).trim());
@@ -694,7 +701,7 @@ class FlashService {
   static String _humanFlashError(String raw) {
     final kept = raw
         .split('\n')
-        .where((l) => !RegExp(r'^\s*(TOTAL:|PHASE:|PROGRESS:|Bmap:)').hasMatch(l))
+        .where((l) => !RegExp(r'^\s*(TOTAL:|PHASE:|PROGRESS:|VERIFY_PROGRESS:|Bmap:)').hasMatch(l))
         .map((l) => l.trimRight())
         .where((l) => l.isNotEmpty)
         .toList();

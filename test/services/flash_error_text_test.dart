@@ -2,10 +2,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/services/flash_service.dart';
 
 void main() {
-  const raw = 'TOTAL:196423680\n'
+  const raw =
+      'TOTAL:196423680\n'
       'Bmap: 47955/342016 blocks mapped (14% of 1400897536 bytes), block size 4096\n'
       'PHASE:A\n'
       'PROGRESS:4194304\n'
+      'VERIFY_PROGRESS:4194304\n'
       'ERROR: write at offset 29360128: write /dev/sdb: no such device\n'
       '\n'
       'Device stopped responding mid-write at 28.0 MB.\n';
@@ -21,7 +23,12 @@ void main() {
 
   test('the protocol markers are dropped', () {
     final out = FlashService.humanFlashErrorForTest(raw);
-    for (final marker in ['TOTAL:', 'PHASE:', 'PROGRESS:']) {
+    for (final marker in [
+      'TOTAL:',
+      'PHASE:',
+      'PROGRESS:',
+      'VERIFY_PROGRESS:',
+    ]) {
       expect(out, isNot(contains(marker)));
     }
   });

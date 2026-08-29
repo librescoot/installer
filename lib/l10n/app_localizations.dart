@@ -1364,6 +1364,12 @@ abstract class AppLocalizations {
   /// **'MDB flash complete'**
   String get mdbFlashComplete;
 
+  /// No description provided for @flashVerifyingReadback.
+  ///
+  /// In en, this message translates to:
+  /// **'Verifying boot-critical data on the device…'**
+  String get flashVerifyingReadback;
+
   /// No description provided for @flashProgressMb.
   ///
   /// In en, this message translates to:
