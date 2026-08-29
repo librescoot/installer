@@ -81,6 +81,6 @@ void main() {
     final en = File('lib/l10n/app_en.arb').readAsStringSync();
     final de = File('lib/l10n/app_de.arb').readAsStringSync();
     expect(en, contains('Add master card (advanced)'));
-    expect(de, contains('Anlernkarte hinzufügen (erweitert)'));
+    expect(de, contains('Anlernkarte hinzufügen (fortgeschritten)'));
   });
 }

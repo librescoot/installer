@@ -1441,7 +1441,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get keycardCardsStageAddMasterButton =>
-      'Anlernkarte hinzufügen (erweitert)';
+      'Anlernkarte hinzufügen (fortgeschritten)';
 
   @override
   String get keycardMasterStageHeading => 'Anlernkarte hinzufügen';
