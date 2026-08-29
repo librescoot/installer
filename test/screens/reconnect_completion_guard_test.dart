@@ -29,6 +29,30 @@ void main() {
     expect(guard, contains('return;'));
   });
 
+  test('All done proactively checks an already reconnected MDB', () {
+    final source = File('lib/screens/installer_screen.dart').readAsStringSync();
+    final start = source.indexOf('Future<void> _finishAfterDbcSuccess()');
+    final end = source.indexOf('\n  Future<void> _verifyDbcFlash()', start);
+    final finish = source.substring(start, end);
+
+    final detect = finish.indexOf('_usbDetector.detectDevice()');
+    final refresh = finish.indexOf('_refreshFinishCompletion()');
+    final advance = finish.indexOf('_setPhase(InstallerPhase.finish)');
+    expect(detect, greaterThan(-1));
+    expect(refresh, greaterThan(detect));
+    expect(advance, greaterThan(refresh));
+    expect(source, contains('onPressed: _isProcessing ? null : _finishAfterDbcSuccess'));
+  });
+
+  test('a USB event on Finish remains the late-reconnect fallback', () {
+    final source = File('lib/screens/installer_screen.dart').readAsStringSync();
+    expect(
+      source,
+      contains('device != null && _currentPhase == InstallerPhase.finish'),
+    );
+    expect(source, contains('unawaited(_refreshFinishCompletion())'));
+  });
+
   test('fallback wording names the active probes, not the trampoline', () {
     for (final arb in ['lib/l10n/app_en.arb', 'lib/l10n/app_de.arb']) {
       final text = File(arb).readAsStringSync();

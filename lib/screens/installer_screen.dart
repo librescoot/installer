@@ -7224,10 +7224,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           label: l10n.dbcFlashAllDone,
           icon: Icons.arrow_forward,
           primary: true,
-          onPressed: () {
-            _dbcFlashSimulateError = false;
-            _setPhase(InstallerPhase.finish);
-          },
+          onPressed: _isProcessing ? null : _finishAfterDbcSuccess,
         ),
       ],
       child: Column(
@@ -7671,6 +7668,25 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         ],
       ),
     );
+  }
+
+  Future<void> _finishAfterDbcSuccess() async {
+    if (_isProcessing) return;
+    _dbcFlashSimulateError = false;
+    setState(() => _isProcessing = true);
+    try {
+      final detected = await _usbDetector.detectDevice() ?? _device;
+      if (detected?.mode == DeviceMode.ethernet) {
+        if (mounted) setState(() => _device = detected);
+        await _ensureDriverBinding();
+        final iface = await NetworkService().findLibrescootInterface();
+        if (iface != null) await NetworkService().configureInterface(iface);
+        await _refreshFinishCompletion();
+      }
+    } catch (e) {
+      debugPrint('UI: could not verify completion before Finish: $e');
+    }
+    if (mounted) _setPhase(InstallerPhase.finish);
   }
 
   Future<void> _verifyDbcFlash() async {
