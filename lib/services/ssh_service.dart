@@ -2796,7 +2796,8 @@ echo timeout
   Future<bool> lastInstallSucceeded() async {
     try {
       final out = await runCommand(
-        'head -n1 $installerLastInstall 2>/dev/null; true',
+        'head -n1 $installerLastInstall 2>/dev/null || '
+        'head -n1 $legacyLastInstall 2>/dev/null; true',
       ).timeout(const Duration(seconds: 10));
       return out.trim().toLowerCase() == 'result: success';
     } catch (_) {

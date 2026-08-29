@@ -84,4 +84,15 @@ void main() {
     expect(block, contains('runCommand(cmd, replayOnDisconnect: false)'));
     expect(block, contains('reboot likely triggered (connection dropped)'));
   });
+
+  test('successful legacy completion records suppress recovery', () {
+    final source = File('lib/services/ssh_service.dart').readAsStringSync();
+    final start = source.indexOf('Future<bool> lastInstallSucceeded()');
+    final end = source.indexOf('Future<bool> installPhasesActive()', start);
+    final block = source.substring(start, end);
+
+    expect(block, contains(r'$installerLastInstall'));
+    expect(block, contains(r'$legacyLastInstall'));
+    expect(block, contains("== 'result: success'"));
+  });
 }
