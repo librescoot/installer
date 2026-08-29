@@ -209,19 +209,59 @@ class FlashService {
   }
 
   Future<List<String>> _findLinuxPartitions(String devicePath) async {
-    final partitions = <String>[];
-    try {
-      final result = await Process.run('lsblk', ['-n', '-o', 'NAME', devicePath]);
-      if (result.exitCode == 0) {
-        for (final line in result.stdout.toString().split('\n')) {
-          final name = line.trim();
-          if (name.isNotEmpty && name != path.basename(devicePath)) {
-            partitions.add('/dev/$name');
-          }
+    final result = await Process.run(
+        'lsblk', ['-rpn', '-o', 'PATH,TYPE', devicePath]);
+    if (result.exitCode != 0) {
+      throw Exception(
+          'Could not enumerate partitions on $devicePath: ${result.stderr}');
+    }
+    return [
+      for (final line in result.stdout.toString().split('\n'))
+        if (line.trim().isNotEmpty &&
+            line.trim().split(RegExp(r'\s+')).last == 'part')
+          line.trim().split(RegExp(r'\s+')).first,
+    ];
+  }
+
+  Future<List<String>> _linuxMountTargets(String partition) async {
+    final result = await Process.run(
+        'findmnt', ['-rn', '-S', partition, '-o', 'TARGET']);
+    // findmnt returns 1 when there are no matches.
+    if (result.exitCode != 0 && result.exitCode != 1) {
+      throw Exception(
+          'Could not inspect mounts for $partition: ${result.stderr}');
+    }
+    return result.stdout
+        .toString()
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+  }
+
+  Future<void> _prepareLinuxTarget(String devicePath) async {
+    final partitions = await _findLinuxPartitions(devicePath);
+    await Process.run('sync', []);
+    for (final partition in partitions) {
+      for (final target in await _linuxMountTargets(partition)) {
+        debugPrint('Flash: unmounting $partition from $target');
+        final result = await Process.run('umount', ['--', target]);
+        if (result.exitCode != 0) {
+          throw Exception(
+              'Refusing to flash: could not unmount $partition from $target: '
+              '${result.stderr}');
         }
       }
-    } catch (_) {}
-    return partitions;
+    }
+    for (final partition in partitions) {
+      final remaining = await _linuxMountTargets(partition);
+      if (remaining.isNotEmpty) {
+        throw Exception('Refusing to flash: $partition remains mounted at '
+            '${remaining.join(', ')}');
+      }
+    }
+    debugPrint('Flash: all partitions below $devicePath are unmounted; '
+        'flasher will acquire O_EXCL');
   }
 
   // ---- Two-phase flash ----
@@ -777,11 +817,11 @@ class FlashService {
     void Function(double progress, String message)? onProgress, {
     String? bmapPath,
   }) async {
-    // Unmount any auto-mounted partitions before writing
-    final partitions = await _findLinuxPartitions(devicePath);
-    for (final partition in partitions) {
-      await Process.run('umount', [partition]);
-    }
+    // Desktop volume monitors may mount the UMS partitions as soon as they
+    // enumerate. Remove every mount and fail closed; the Linux flasher then
+    // opens the whole disk O_EXCL, which prevents a remount through the write,
+    // flush, and verification window.
+    await _prepareLinuxTarget(devicePath);
 
     final isRoot = (await Process.run('id', ['-u'])).stdout.toString().trim() == '0';
 
