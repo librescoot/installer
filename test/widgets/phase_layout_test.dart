@@ -241,6 +241,40 @@ void main() {
     }
   });
 
+  testWidgets('five German configured-keycard actions fit a narrow bar',
+      (tester) async {
+    tester.view.physicalSize = const Size(700, 600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(host(const PhaseLayout(
+      title: 'Schlüsselkarten',
+      actions: [
+        PhaseAction(label: 'Überspringen', side: ActionSide.back),
+        PhaseAction(label: 'Von vorn beginnen', icon: Icons.refresh),
+        PhaseAction(label: 'Weitere hinzufügen', icon: Icons.nfc),
+        PhaseAction(
+          label: 'Anlernkarte hinzufügen (fortgeschritten)',
+          icon: Icons.shield_outlined,
+        ),
+        PhaseAction(label: 'Fertig', icon: Icons.arrow_forward, primary: true),
+      ],
+      child: Text('body'),
+    )));
+
+    expect(tester.takeException(), isNull);
+    for (final label in [
+      'Überspringen',
+      'Von vorn beginnen',
+      'Weitere hinzufügen',
+      'Anlernkarte hinzufügen (fortgeschritten)',
+      'Fertig',
+    ]) {
+      expect(find.text(label), findsOneWidget);
+    }
+  });
+
   testWidgets('the title stays put while the body scrolls', (tester) async {
     tester.view.physicalSize = const Size(1000, 400);
     tester.view.devicePixelRatio = 1.0;

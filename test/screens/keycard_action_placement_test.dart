@@ -46,6 +46,7 @@ void main() {
       start,
     );
     final actions = source.substring(start, end);
+    expect(actions, contains('keycardAddMore'));
     expect(actions, contains('keycardCardsStageAddMasterButton'));
     expect(actions, contains('(_keycardMasterCount ?? 0) == 0'));
 
@@ -55,6 +56,13 @@ void main() {
       actions.substring(master, nextAction),
       isNot(contains('primary: true')),
     );
+  });
+
+  test('adding another unlock card returns to the teaching stage', () {
+    final start = source.indexOf('Future<void> _startKeycardLearning()');
+    final end = source.indexOf('\n  Future<void> _stopKeycardLearning(', start);
+    final learning = source.substring(start, end);
+    expect(learning, contains('_keycardStage = _KeycardStage.cards;'));
   });
 
   test('review keeps continue primary and master setup secondary', () {

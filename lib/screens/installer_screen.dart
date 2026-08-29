@@ -8711,6 +8711,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // pointless, the events are the source of truth.
     setState(() {
       _keycardLearning = true;
+      _keycardStage = _KeycardStage.cards;
       _keycardSessionTapCount = 0;
       _keycardAuthorizedCount = _keycardAuthorizedCountBefore;
     });
@@ -9062,6 +9063,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           label: l10n.keycardStartOverButton,
           icon: Icons.refresh,
           onPressed: _keycardStartOver,
+        ),
+        PhaseAction(
+          label: l10n.keycardAddMore,
+          icon: Icons.nfc,
+          onPressed: _canDriveKeycard ? _startKeycardLearning : null,
         ),
         if ((_keycardServiceCanMaster ?? false) &&
             (_keycardMasterCount ?? 0) == 0 &&
