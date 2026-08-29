@@ -881,6 +881,7 @@ class DownloadService {
         if (await file.exists()) {
           totalFreed += await file.length();
           await file.delete();
+          await _deleteSidecar(file);
         }
       }
     }

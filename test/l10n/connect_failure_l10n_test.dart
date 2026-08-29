@@ -87,9 +87,10 @@ void main() {
         expect(
           kind.body(l10n).toLowerCase(),
           anyOf(
-            contains('carries on by itself'),
-            contains('macht von selbst weiter'),
-            contains('macht von allein weiter'),
+            contains('keeps watching'),
+            contains('retries automatically'),
+            contains('fährt automatisch fort'),
+            contains('wartet weiter'),
           ),
           reason: '${kind.name} never says the installer is still watching',
         );

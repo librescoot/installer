@@ -171,21 +171,25 @@ void main() {
     // dashboard phase records its time while mender is still running.
     final artifact = File('${root.path}/a.mender');
     await artifact.writeAsString('x');
-    await stub('mender-update', 'sleep 2; exit 0');
+    await stub(
+      'mender-update',
+      'while [ ! -e ${root.path}/release-mdb-write ]; do sleep 0.05; done; '
+          'touch ${root.path}/mdb-write-done; exit 0',
+    );
     await queueAll(artifactPath: artifact.path);
 
-    final started = DateTime.now();
-    await writePhase('20-dbc.sh',
-        'date +%s%N >> ${root.path}/dbc-at\nrm -f "\$0"\n');
+    await writePhase(
+      '20-dbc.sh',
+      'if [ -e ${root.path}/mdb-write-done ]; then echo after; '
+          'else echo during; fi > ${root.path}/dbc-at\n'
+          'touch ${root.path}/release-mdb-write\nrm -f "\$0"\n',
+    );
     await boot();
-    final elapsedToDbc = int.parse(
-          (await File('${root.path}/dbc-at').readAsString()).trim(),
-        ) ~/
-        1000000;
-    final dbcRanAfterMs =
-        elapsedToDbc - started.millisecondsSinceEpoch;
-    expect(dbcRanAfterMs, lessThan(2000),
-        reason: 'the dashboard phase waited for the 2s MDB write');
+    expect(
+      (await File('${root.path}/dbc-at').readAsString()).trim(),
+      'during',
+      reason: 'the dashboard phase waited for the MDB write to finish',
+    );
   });
 
   test('a failed MDB install does not reboot the vehicle', () async {

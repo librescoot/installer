@@ -10,7 +10,7 @@ void main() {
     source = File('lib/screens/installer_screen.dart').readAsStringSync();
   });
 
-  test('health check is an overlay only while results are pending', () {
+  test('health check stays in an overlay when results arrive', () {
     expect(kWaitPhases, contains(InstallerPhase.healthCheck));
 
     final start = source.indexOf('Widget _buildHealthCheck(');
@@ -19,7 +19,10 @@ void main() {
     expect(build, contains('if (_scooterHealth == null)'));
     expect(build, contains('return _waitPhase('));
     expect(build, contains('title: l10n.healthCheckHeading'));
-    expect(build, contains('PhaseLayout('));
+    expect(build, contains('return WaitScaffold('));
+    expect(build, contains('overlay: OverlayCard('));
+    expect(build, contains('HealthCheckPanel(health: health)'));
+    expect(build, isNot(contains('return PhaseLayout(')));
   });
 
   test('overlay names battery polling and backup work', () {

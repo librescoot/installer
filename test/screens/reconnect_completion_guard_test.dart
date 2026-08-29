@@ -12,17 +12,18 @@ void main() {
     final completion = reconnect.indexOf(
       'final completed = await _deviceReportedFinished()',
     );
-    final hazards = reconnect.indexOf(
-      "_disableInstallerHazards(label: 'reconnect')",
-    );
     expect(completion, greaterThan(-1));
-    expect(hazards, greaterThan(completion));
     expect(
       reconnect.substring(0, completion),
       contains('l10n.checkingCompletionRecord'),
     );
+    expect(
+      reconnect,
+      isNot(contains("_disableInstallerHazards(label: 'reconnect')")),
+    );
+    expect(reconnect, isNot(contains("Substep(id: 'hazards'")));
 
-    final guard = reconnect.substring(completion, hazards);
+    final guard = reconnect.substring(completion);
     expect(guard, contains('if (completed == true)'));
     expect(guard, contains('_finishCompletionConfirmed = true'));
     expect(guard, contains('_setPhase(InstallerPhase.finish)'));
@@ -41,7 +42,10 @@ void main() {
     expect(detect, greaterThan(-1));
     expect(refresh, greaterThan(detect));
     expect(advance, greaterThan(refresh));
-    expect(source, contains('onPressed: _isProcessing ? null : _finishAfterDbcSuccess'));
+    expect(
+      source,
+      contains('onPressed: _isProcessing ? null : _finishAfterDbcSuccess'),
+    );
   });
 
   test('a USB event on Finish remains the late-reconnect fallback', () {

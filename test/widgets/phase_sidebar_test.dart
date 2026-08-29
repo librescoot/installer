@@ -121,7 +121,7 @@ void main() {
     )));
 
     expect(find.text('Karten'), findsOneWidget);
-    expect(find.text('MDB-Artefakt'), findsOneWidget);
+    expect(find.text('MDB-Firmware-Paket'), findsOneWidget);
     expect(find.text('Maps'), findsNothing);
   });
 }

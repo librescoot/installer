@@ -57,6 +57,10 @@ Section
   SetOutPath "$PLUGINSDIR\app"
   File /r "${BUILD_DIR}\*"
 
+  ; The inner executable runs from $PLUGINSDIR, which this wrapper removes
+  ; when it exits. Preserve the wrapper path for an "Install another scooter"
+  ; restart so the child can launch a fresh wrapper instead of these temp files.
+  System::Call 'Kernel32::SetEnvironmentVariable(t "LIBRESCOOT_OUTER_WRAPPER_PATH", t "$EXEPATH")'
   ${GetParameters} $R0
   ExecWait '"$PLUGINSDIR\app\${INNER_EXE}" $R0' $R1
   SetErrorLevel $R1

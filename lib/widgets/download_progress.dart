@@ -16,7 +16,10 @@ class DownloadProgressWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(l10n.downloads, style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text(
+          l10n.downloads,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 8),
         for (final item in items)
           Padding(
@@ -54,13 +57,14 @@ class DownloadProgressWidget extends StatelessWidget {
     );
   }
 
-  String _labelFor(DownloadItemType type, AppLocalizations l10n) => switch (type) {
-        DownloadItemType.mdbArtifact => 'MDB Artifact',
-        DownloadItemType.dbcArtifact => 'DBC Artifact',
+  String _labelFor(DownloadItemType type, AppLocalizations l10n) =>
+      switch (type) {
+        DownloadItemType.mdbArtifact => l10n.assetChipMdbArtifact,
+        DownloadItemType.dbcArtifact => l10n.assetChipDbcArtifact,
         DownloadItemType.mdbFirmware => l10n.downloadMdbFirmware,
-        DownloadItemType.mdbBmap => 'MDB Bmap',
+        DownloadItemType.mdbBmap => l10n.assetChipMdbBlockMap,
         DownloadItemType.dbcFirmware => l10n.downloadDbcFirmware,
-        DownloadItemType.dbcBmap => 'DBC Bmap',
+        DownloadItemType.dbcBmap => l10n.assetChipDbcBlockMap,
         DownloadItemType.osmTiles => l10n.downloadMapTiles,
         DownloadItemType.valhallaTiles => l10n.downloadRoutingTiles,
       };

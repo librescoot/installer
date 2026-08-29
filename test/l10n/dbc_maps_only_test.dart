@@ -36,7 +36,7 @@ void main() {
       }
     });
 
-    testWidgets('the firmware labels still say flash in ${locale.languageCode}',
+    testWidgets('the firmware labels stay distinct in ${locale.languageCode}',
         (tester) async {
       late AppLocalizations l10n;
       await tester.pumpWidget(MaterialApp(
@@ -49,11 +49,12 @@ void main() {
         }),
       ));
 
-      // The real dashboard install keeps its own wording: it does write
-      // firmware, and softening that would be the opposite mistake.
+      final firmware = InstallerPhase.dbcFlash.localizedTitle(l10n);
+      final maps = InstallerPhase.dbcFlash.localizedTitle(l10n, mapsOnly: true);
+      expect(firmware, isNot(maps));
       expect(
-        InstallerPhase.dbcFlash.localizedTitle(l10n).toLowerCase(),
-        contains('flash'),
+        firmware.toLowerCase(),
+        anyOf(contains('dbc'), contains('dashboard'), contains('display')),
       );
     });
   }

@@ -13,7 +13,12 @@ void main() {
   });
 
   test('the review stage has an action bar of its own', () {
-    expect(source, contains('_KeycardStage.cardsReview => _keycardCardsReviewActions(l10n),'));
+    expect(
+      source,
+      contains(
+        '_KeycardStage.cardsReview => _keycardCardsReviewActions(l10n),',
+      ),
+    );
     expect(source, contains('List<PhaseAction> _keycardCardsReviewActions('));
   });
 
@@ -23,8 +28,11 @@ void main() {
     final end = source.indexOf('\n  ///', start);
     final body = source.substring(start, end);
     for (final widget in ['FilledButton', 'OutlinedButton', 'TextButton']) {
-      expect(body, isNot(contains(widget)),
-          reason: '$widget is still stacked in the body');
+      expect(
+        body,
+        isNot(contains(widget)),
+        reason: '$widget is still stacked in the body',
+      );
     }
   });
 
@@ -52,6 +60,8 @@ void main() {
     expect(actions, contains('(_keycardMasterCount ?? 0) == 0'));
 
     final master = actions.indexOf('keycardCardsStageAddMasterButton');
+    final addMore = actions.indexOf('keycardAddMore');
+    expect(master, lessThan(addMore));
     final nextAction = actions.indexOf('PhaseAction(', master + 1);
     expect(
       actions.substring(master, nextAction),
@@ -67,7 +77,9 @@ void main() {
   });
 
   test('review keeps continue primary and master setup secondary', () {
-    final start = source.indexOf('List<PhaseAction> _keycardCardsReviewActions(');
+    final start = source.indexOf(
+      'List<PhaseAction> _keycardCardsReviewActions(',
+    );
     final end = source.indexOf('\n  }', start);
     final actions = source.substring(start, end);
     for (final label in [
@@ -81,8 +93,10 @@ void main() {
 
     final master = actions.indexOf('keycardCardsStageAddMasterButton');
     final continueAction = actions.indexOf('keycardCardsStageContinueButton');
-    expect(actions.substring(master, continueAction),
-        isNot(contains('primary: true')));
+    expect(
+      actions.substring(master, continueAction),
+      isNot(contains('primary: true')),
+    );
     expect(actions.substring(continueAction), contains('primary: true'));
   });
 

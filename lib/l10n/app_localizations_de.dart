@@ -43,13 +43,14 @@ class AppLocalizationsDe extends AppLocalizations {
   String get phaseHealthCheckTitle => 'Statusprüfung';
 
   @override
-  String get phaseHealthCheckDescription => 'Roller-Bereitschaft prüfen';
+  String get phaseHealthCheckDescription => 'Bereitschaft des Rollers prüfen';
 
   @override
   String get phaseMdbToUmsTitle => 'MDB → UMS';
 
   @override
-  String get phaseMdbToUmsDescription => 'Bootloader für Flashen konfigurieren';
+  String get phaseMdbToUmsDescription =>
+      'Bootloader für den Flashvorgang konfigurieren';
 
   @override
   String get phaseMdbFlashTitle => 'MDB flashen';
@@ -64,36 +65,37 @@ class AppLocalizationsDe extends AppLocalizations {
   String get phaseScooterPrepDescription => 'CBB und AUX trennen';
 
   @override
-  String get phaseMdbBootTitle => 'MDB-Boot';
+  String get phaseMdbBootTitle => 'MDB starten';
 
   @override
   String get phaseMdbBootDescription =>
-      'AUX wieder anschließen, auf Boot warten';
+      'AUX wieder anschließen und auf den Start warten';
 
   @override
   String get phaseCbbReconnectTitle => 'CBB anschließen';
 
   @override
   String get phaseCbbReconnectDescription =>
-      'CBB für DBC-Flash wieder anschließen';
+      'CBB für den DBC-Flash wieder anschließen';
 
   @override
   String get phaseDbcPrepTitle => 'DBC vorbereiten';
 
   @override
-  String get phaseDbcPrepDescription => 'DBC-Bootstrap und Karten hochladen';
+  String get phaseDbcPrepDescription =>
+      'DBC-Systemabbild und Karten übertragen';
 
   @override
   String get phaseDbcFlashTitle => 'DBC flashen';
 
   @override
-  String get phaseDbcFlashDescription => 'Autonome DBC-Installation';
+  String get phaseDbcFlashDescription => 'Automatische DBC-Installation';
 
   @override
   String get phaseReconnectTitle => 'Prüfen';
 
   @override
-  String get phaseReconnectDescription => 'DBC-Installation prüfen';
+  String get phaseReconnectDescription => 'Display-Arbeiten prüfen';
 
   @override
   String get phaseBluetoothPairingTitle => 'Bluetooth';
@@ -161,42 +163,43 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get reliabilityWarningBody =>
-      'Das Flashen dauert mehrere Minuten, und jeder USB-Wackler oder Laptop-Standby mittendrin hinterlässt das MDB in einem inkonsistenten Zustand. Bitte prüfen:\n• Ein zuverlässiges USB-Kabel, an beiden Enden fest eingesteckt. Wackelkontakte sind die häufigste Ursache für gescheiterte Installationen\n• Laptop am Netzteil oder vollgeladen. Energiesparmodus / Standby unterbricht den Flash\n• Möglichst direkter USB-Port, kein USB-Hub\n• Während des Flashens nichts umstecken oder bewegen';
+      'Das Flashen dauert mehrere Minuten. Eine instabile USB-Verbindung oder der Ruhemodus des Laptops kann das MDB in einen inkonsistenten Zustand bringen. Prüfe:\n• Ein zuverlässiges USB-Kabel, an beiden Enden fest eingesteckt\n• Laptop am Netzteil oder vollständig geladen. Energiesparmodus und Ruhemodus können den Vorgang unterbrechen\n• Möglichst einen direkten USB-Port, keinen USB-Hub\n• Während des Flashens nichts umstecken oder bewegen';
 
   @override
   String get noPowerCycleWarningTitle =>
-      'Während der Installation NICHTS vom Strom trennen oder neu starten';
+      'Stromversorgung nur nach Anweisung trennen';
 
   @override
   String get noPowerCycleWarningBody =>
-      'Wenn etwas hängt, keine Rückmeldung gibt oder sich merkwürdig verhält: halt an und frag im Discord nach, bevor du etwas anderes tust.\n• Den AUX-Akku nicht abziehen\n• Die CBB nicht abklemmen\n• Kein USB-Kabel abziehen\n• Weder Roller noch Laptop neu starten\nDer Installer kommt aus fast jedem Zustand wieder heraus, solange ihn nichts unterbricht. Strom mitten im Flash zu trennen ist das, was Roller unbrauchbar macht.';
+      'Wenn der Vorgang scheinbar hängt oder keine Rückmeldung gibt, halte an und frage im Librescoot-Discord nach, bevor du etwas veränderst. Solange der Installer dich nicht ausdrücklich zu etwas anderem auffordert:\n• AUX-Akku und CBB angeschlossen lassen\n• USB-Kabel angeschlossen lassen\n• Roller und Laptop eingeschaltet lassen\n\nEine Unterbrechung während eines Schreibvorgangs kann dazu führen, dass ein Board nicht mehr startet.';
 
   @override
-  String get downloadsFailedHeading => 'Download-Server nicht erreichbar';
+  String get downloadsFailedHeading =>
+      'Server für Firmware-Downloads nicht erreichbar';
 
   @override
   String get downloadsFailedBody =>
-      'Prüf die Internetverbindung des Laptops und versuch es nochmal. Offline weitermachen geht auch, wenn die Firmware schon im Cache liegt.';
+      'Prüfe die Internetverbindung des Laptops und versuche es erneut. Du kannst offline fortfahren, wenn die Firmware bereits im Zwischenspeicher liegt.';
 
   @override
-  String get downloadsRetry => 'Nochmal versuchen';
+  String get downloadsRetry => 'Erneut versuchen';
 
   @override
   String get noticesHeading => 'Vor dem Weitermachen lesen';
 
   @override
   String get noticesSubheading =>
-      'Zwei Dinge, die deine Installation retten, wenn du sie ernst nimmst.';
+      'Zwei wichtige Hinweise für einen sicheren Installationsvorgang.';
 
   @override
-  String get noticesAcknowledgeButton => 'Gelesen, weitermachen';
+  String get noticesAcknowledgeButton => 'Gelesen. Weiter';
 
   @override
-  String get noticesWaitingForDownloads => 'Firmware wird geladen...';
+  String get noticesWaitingForDownloads => 'Firmware wird geladen…';
 
   @override
   String get noticesContinueOfflineAnyway =>
-      'Trotzdem weiter (am Roller habe ich Internet)';
+      'Fortfahren, während Downloads laufen';
 
   @override
   String get backButton => 'Zurück';
@@ -206,15 +209,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get elevationRequiredBody =>
-      'Der Librescoot Installer benötigt Administratorrechte, um auf den Speicher des Rollers zu schreiben und das Netzwerk-Interface zu konfigurieren. Die Berechtigungsanfrage wurde abgelehnt oder konnte nicht angezeigt werden.\n\nKlicke auf Weiter, um den Dialog zu schließen, und versuche es erneut. Wenn du die Anfrage immer wieder ablehnst, kann der Installer nicht fortfahren.';
+      'Der Librescoot Installer benötigt Administratorrechte, um auf den Speicher des Rollers zu schreiben und die Netzwerkschnittstelle zu konfigurieren. Die Berechtigungsanfrage wurde abgelehnt oder konnte nicht angezeigt werden.\n\nKlicke auf Weiter, um den Dialog zu schließen, und versuche es erneut. Wenn du die Anfrage erneut ablehnst, kann der Installer nicht fortfahren.';
 
   @override
   String get elevationNoticeWelcome =>
-      'Beim Klick auf Installation starten fragt dein System nach Administratorrechten. Der Installer braucht sie, um auf den Speicher des Rollers zu schreiben und das Netzwerk zu konfigurieren.';
+      'Wenn du auf Installation starten klickst, fragt dein System nach Administratorrechten. Der Installer benötigt sie, um auf den Speicher des Rollers zu schreiben und das Netzwerk zu konfigurieren.';
 
   @override
   String get requestingAdminPrivileges =>
-      'Administratorrechte werden angefragt...';
+      'Administratorrechte werden angefragt…';
 
   @override
   String get firmwareChannel => 'Firmware-Kanal';
@@ -232,20 +235,21 @@ class AppLocalizationsDe extends AppLocalizations {
   String get channelStableDesc => 'Getestet und zuverlässig';
 
   @override
-  String get channelTestingDesc => 'Neueste Features, evtl. Noch ungeschliffen';
+  String get channelTestingDesc =>
+      'Neueste Funktionen, möglicherweise noch nicht ausgereift';
 
   @override
   String get channelNightlyDesc => 'Täglich aus main gebaut, für Entwickler';
 
   @override
-  String get channelNoReleases => 'Keine Releases verfügbar';
+  String get channelNoReleases => 'Keine Veröffentlichungen verfügbar';
 
   @override
   String get manifestBundledNotice =>
-      'Offline: Diese Versionen stammen aus der im Installer hinterlegten Liste und sind womöglich veraltet.';
+      'Offline: Diese Versionen stammen aus der im Installer hinterlegten Liste und sind möglicherweise veraltet.';
 
   @override
-  String get loadingChannels => 'Verfügbare Kanäle werden geladen...';
+  String get loadingChannels => 'Verfügbare Kanäle werden geladen…';
 
   @override
   String get region => 'Region';
@@ -257,14 +261,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get startInstallation => 'Installation starten';
 
   @override
-  String get selectRegionError =>
-      'Bitte wähle eine Region für die Offline-Karten';
+  String get selectRegionError => 'Wähle eine Region für die Offline-Karten';
 
   @override
-  String get resolvingReleases => 'Releases werden aufgelöst...';
+  String get resolvingReleases => 'Veröffentlichungen werden ermittelt…';
 
   @override
-  String get preparingDownloads => 'Downloads werden vorbereitet...';
+  String get preparingDownloads => 'Herunterladen wird vorbereitet…';
 
   @override
   String get physicalPrepHeading => 'Physische Vorbereitung';
@@ -278,21 +281,21 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get keepScooterAwakeDesc =>
-      'Entsperre den Roller, oder setz einen Fahrakku in den vorderen Schacht. Ohne das eine oder andere geht er mitten in der Installation in den Ruhezustand und nimmt die USB-Verbindung mit.';
+      'Entsperre den Roller oder setze einen Fahrakku in den vorderen Schacht. Ohne eines von beidem wechselt der Roller während der Installation in den Ruhezustand und trennt die USB-Verbindung.';
 
   @override
   String get removeFootwellCover => 'Fußraumabdeckung entfernen';
 
   @override
   String get removeFootwellCoverDesc =>
-      'Vier Schrauben lösen. Ab Werk PH2 Kreuzschrauben, bei guten Werkstätten H4 Innensechskant oder Torx.';
+      'Löse die vier Schrauben. Ab Werk sind es PH2-Kreuzschrauben, bei Reparaturen können es H4-Innensechskant- oder Torxschrauben sein.';
 
   @override
   String get unscrewUsbCable => 'USB-Kabel vom MDB lösen';
 
   @override
   String get unscrewUsbCableDesc =>
-      'Trenne das interne DBC-USB-Kabel vom MDB-Board. Verwende einen Schlitz- oder PH1-Schraubendreher.';
+      'Trenne das interne DBC-USB-Kabel vom MDB. Verwende einen Schlitz- oder PH1-Schraubendreher.';
 
   @override
   String get connectLaptopUsb => 'Laptop-USB-Kabel anschließen';
@@ -308,14 +311,14 @@ class AppLocalizationsDe extends AppLocalizations {
   String get connectingToMdb => 'Verbindung zum MDB wird hergestellt';
 
   @override
-  String get waitingForUsbDevice => 'Warte auf USB-Gerät...';
+  String get waitingForUsbDevice => 'Warte auf USB-Gerät…';
 
   @override
   String get waitingForRndis =>
-      'Warte auf USB-Gerät... Stelle sicher, dass dein Laptop per USB mit dem MDB verbunden ist.';
+      'Warte auf das USB-Gerät… Stelle sicher, dass der Laptop per USB mit dem MDB verbunden ist.';
 
   @override
-  String get checkingRndisDriver => 'RNDIS-Treiber wird geprüft...';
+  String get checkingRndisDriver => 'RNDIS-Treiber wird geprüft…';
 
   @override
   String get driverClaimedHeading =>
@@ -323,7 +326,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String driverClaimedBody(String driver) {
-    return 'Windows hat die USB-Verbindung des Rollers an $driver vergeben statt an den Netzwerktreiber, den der Installer braucht. Das Programm hat sich darübergelegt, deshalb bekommt der Installer sie nicht von allein zurück.\n\nÖffne den Geräte-Manager, such den Roller unter Anschlüsse (COM & LPT), klick ihn mit der rechten Maustaste an und wähle Gerät deinstallieren. Setz den Haken bei „Die Treibersoftware für dieses Gerät löschen“, wenn er angeboten wird, zieh den Roller danach ab und steck ihn wieder an.\n\nAm Roller wurde nichts verändert, du kannst den Installer gefahrlos schließen.';
+    return 'Windows hat die USB-Verbindung des Rollers an $driver statt an den benötigten Netzwerktreiber gebunden. Der Installer kann die Verbindung deshalb nicht verwenden.\n\nÖffne den Geräte-Manager, suche den Roller unter Anschlüsse (COM & LPT), klicke ihn mit der rechten Maustaste an und wähle Gerät deinstallieren. Aktiviere den Haken bei „Die Treibersoftware für dieses Gerät löschen“, falls er angeboten wird. Ziehe den Roller danach ab und stecke ihn wieder an.\n\nAm Roller wurde nichts verändert. Du kannst den Installer gefahrlos schließen.';
   }
 
   @override
@@ -334,7 +337,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get driverNeedsRebootBody =>
-      'Der Netzwerktreiber wurde installiert, aber Windows konnte ihn nicht wechseln, solange der Roller angesteckt war. Starte den Computer neu und starte den Installer danach noch einmal.\n\nAm Roller wurde nichts verändert.';
+      'Der Netzwerktreiber wurde installiert, aber Windows konnte ihn nicht aktivieren, solange der Roller angeschlossen war. Starte den Computer neu und führe den Installer danach erneut aus.\n\nAm Roller wurde nichts verändert.';
 
   @override
   String get driverRecheck => 'Erneut prüfen';
@@ -351,38 +354,37 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get connectFailedNoDeviceBody =>
-      'Das MDB meldet sich als Netzwerkgerät, sobald es angesteckt und wach ist. Bisher ist am USB überhaupt nichts aufgetaucht.\n• Das Kabel gehört in den MDB-Port, aus dem du das interne Kabel gezogen hast. Prüf, ob es an beiden Enden fest sitzt\n• Steck direkt in den Laptop, nicht über einen Hub oder eine Dockingstation\n• Probier ein anderes Kabel. Reine Ladekabel übertragen Strom und keine Daten\n• Der Roller muss wach sein. Ohne Fahrakku im vorderen Schacht schläft er von allein ein\nDer Installer schaut weiter nach und macht von allein weiter, sobald sich das MDB meldet. Hier musst du nichts weiter klicken.';
+      'Das MDB meldet sich als Netzwerkgerät, sobald es angeschlossen und aktiv ist. Bisher wurde über USB kein Gerät erkannt.\n• Stecke das Kabel in den MDB-Port, aus dem du das interne Kabel gezogen hast. Prüfe beide Enden\n• Verbinde es direkt mit dem Laptop, nicht über einen Hub oder eine Dockingstation\n• Verwende ein anderes Kabel. Ladekabel übertragen keine Daten\n• Der Roller muss aktiv sein. Ohne Fahrakku im vorderen Schacht wechselt er automatisch in den Ruhezustand\nDer Installer wartet weiter und fährt automatisch fort, sobald das MDB erkannt wird. Du musst hier nichts anklicken.';
 
   @override
   String get connectFailedDeviceVanishedHeading =>
-      'Das USB-Gerät ist verschwunden';
+      'Das USB-Gerät wurde getrennt';
 
   @override
   String get connectFailedDeviceVanishedBody =>
-      'Das MDB war eben noch am USB und ist jetzt weg. Entweder hat sich das Kabel bewegt, oder der Roller ist eingeschlafen und hat die Verbindung mitgenommen.\n• Prüf das USB-Kabel an beiden Enden. Ein Stecker, der wackelt, reicht schon\n• Entsperre den Roller, oder setz einen Fahrakku in den vorderen Schacht. Ohne das eine oder andere geht er mittendrin in den Ruhezustand\n• Lass AUX-Akku und CBB angeschlossen\nAm Roller wurde nichts verändert. Versuch es noch einmal, sobald sich das MDB wieder meldet.';
+      'Das MDB wurde über USB erkannt, ist jetzt aber nicht mehr verbunden. Möglicherweise wurde das Kabel bewegt oder der Roller ist in den Ruhezustand gewechselt.\n• Prüfe das USB-Kabel an beiden Enden\n• Entsperre den Roller oder setze einen Fahrakku in den vorderen Schacht. Ohne eines von beidem wechselt er während der Installation in den Ruhezustand\n• Lass AUX-Akku und CBB angeschlossen\nAm Roller wurde nichts verändert. Versuche es erneut, sobald das MDB wieder erkannt wird.';
 
   @override
   String get connectFailedNoRouteHeading =>
-      'Der Roller hängt am USB, ist aber nicht erreichbar';
+      'Der Roller ist über USB verbunden, aber nicht erreichbar';
 
   @override
   String get connectFailedNoRouteBody =>
-      'Das MDB ist am Bus, und dieser Rechner kommt nicht zu ihm durch. Die USB-Netzwerkschnittstelle ist ohne die Adresse hochgekommen, die der Installer gesetzt hat. Unter Linux übernimmt meistens der NetworkManager die Schnittstelle.\n• Versuch es noch einmal. Der Installer setzt die Adresse bei jedem Anlauf neu\n• Unter Linux die Schnittstelle im NetworkManager auf „nicht verwaltet“ stellen, oder IPv6 dafür abschalten\n• Zieh das Kabel ab und steck es wieder an, damit die Schnittstelle neu angelegt wird\nIm Log stehen die Schnittstelle und die Route, die der Installer gefunden hat.';
+      'Das MDB ist über USB verbunden, aber dieser Rechner kann es nicht erreichen. Die USB-Netzwerkschnittstelle wurde ohne die vom Installer gesetzte Adresse eingerichtet. Unter Linux übernimmt meist der NetworkManager die Schnittstelle.\n• Versuche es erneut. Der Installer setzt die Adresse bei jedem Versuch neu\n• Setze die Schnittstelle unter Linux im NetworkManager auf „nicht verwaltet“ oder deaktiviere dort IPv6\n• Ziehe das Kabel ab und stecke es wieder an, damit die Schnittstelle neu eingerichtet wird\nIm Protokoll stehen die Schnittstelle und die Route, die der Installer gefunden hat.';
 
   @override
-  String get connectFailedRefusedHeading =>
-      'Der Roller hat die Verbindung abgewiesen';
+  String get connectFailedRefusedHeading => 'Verbindung zum Roller abgewiesen';
 
   @override
   String get connectFailedRefusedBody =>
-      'Das MDB hat im Netzwerk geantwortet und die Verbindung abgewiesen. Die Verbindung steht also, und der Teil, mit dem der Installer spricht, ist noch nicht gestartet. In der ersten Minute nach dem Einschalten ist das normal.\n• Gib ihm ein paar Sekunden und versuch es noch einmal\n• Wenn es nach ein paar Minuten immer noch abweist: technische Details aufklappen, kopieren und im Librescoot-Discord fragen\nAm Roller wurde nichts verändert, du kannst den Installer gefahrlos schließen.';
+      'Das MDB hat im Netzwerk geantwortet, aber die Verbindung abgewiesen. Die Netzwerkverbindung steht, der benötigte Dienst ist jedoch noch nicht gestartet. In der ersten Minute nach dem Einschalten ist das normal.\n• Warte einige Sekunden und versuche es erneut\n• Wenn die Verbindung nach einigen Minuten weiterhin abgewiesen wird, öffne die technischen Details, kopiere sie und frage im Librescoot-Discord nach\nAm Roller wurde nichts verändert. Du kannst den Installer gefahrlos schließen.';
 
   @override
   String get connectFailedTimeoutHeading => 'Keine Antwort vom Roller';
 
   @override
   String get connectFailedTimeoutBody =>
-      'Das MDB hängt am USB, der Installer hat eine Verbindung dorthin aufgemacht, und bis zum Ablauf der Zeit kam nichts zurück. Meistens fährt das Board noch hoch, manchmal steht die Verbindung nur auf dieser Seite.\n• Versuch es noch einmal. Ein Board, das noch startet, antwortet beim zweiten oder dritten Anlauf\n• Prüf das USB-Kabel an beiden Enden und steck direkt in den Laptop, nicht über einen Hub\n• Der Roller muss wach sein und der AUX-Akku angeschlossen\nAm Roller wurde nichts verändert.';
+      'Das MDB ist über USB verbunden, aber innerhalb des Zeitlimits wurde keine Antwort empfangen. Möglicherweise startet das Hauptboard noch oder die Verbindung besteht nur auf dieser Seite.\n• Versuche es erneut. Ein noch startendes Hauptboard antwortet oft beim zweiten oder dritten Versuch\n• Prüfe das USB-Kabel an beiden Enden und verbinde es direkt mit dem Laptop, nicht über einen Hub\n• Der Roller muss aktiv und der AUX-Akku angeschlossen sein\nAm Roller wurde nichts verändert.';
 
   @override
   String get connectFailedDroppedHeading =>
@@ -390,15 +392,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get connectFailedDroppedBody =>
-      'Der Roller hat die Verbindung angenommen und wieder losgelassen, bevor sie fertig war. Ein Board, das gerade neu startet, macht genau das, und eines, das mittendrin einschläft, auch.\n• Entsperre den Roller, oder setz einen Fahrakku in den vorderen Schacht. Ohne das eine oder andere geht er von allein in den Ruhezustand\n• Prüf das USB-Kabel an beiden Enden\n• Warte, bis das Board fertig hochgefahren ist, und versuch es dann noch einmal\nAm Roller wurde nichts verändert.';
+      'Die Verbindung wurde vor dem Abschluss getrennt. Das kann beim Neustart des Hauptboards oder beim Wechsel in den Ruhezustand passieren.\n• Entsperre den Roller oder setze einen Fahrakku in den vorderen Schacht. Ohne eines von beidem wechselt er automatisch in den Ruhezustand\n• Prüfe das USB-Kabel an beiden Enden\n• Warte, bis das Hauptboard vollständig gestartet ist, und versuche es erneut\nAm Roller wurde nichts verändert.';
 
   @override
-  String get connectFailedAuthHeading =>
-      'Der Roller lässt den Installer nicht herein';
+  String get connectFailedAuthHeading => 'Anmeldung am Roller fehlgeschlagen';
 
   @override
   String get connectFailedAuthBody =>
-      'Die Verbindung steht, und jede Anmeldung, die der Installer kennt, wurde abgelehnt. Bei einem Serienroller heißt das meistens, dass das Root-Passwort geändert wurde, zum Beispiel in einer Werkstatt.\n• Versuch es noch einmal. Fragt der Roller nach einem Passwort, bietet dir der Installer ein Feld dafür an\n• Frag denjenigen, der den Roller zuletzt offen hatte, ob dort ein Root-Passwort gesetzt wurde\n• Sonst frag im Librescoot-Discord und nimm die technischen Details von unten mit\nAm Roller wurde nichts verändert, du kannst den Installer gefahrlos schließen.';
+      'Die Verbindung steht, aber alle dem Installer bekannten Anmeldedaten wurden abgelehnt. Bei einem Serienroller wurde möglicherweise das Root-Passwort geändert, etwa in einer Werkstatt.\n• Versuche es erneut. Wenn der Roller ein Passwort verlangt, zeigt der Installer ein Eingabefeld an\n• Frage nach, ob für den Roller ein Root-Passwort festgelegt wurde\n• Frage andernfalls im Librescoot-Discord nach und füge die technischen Details hinzu\nAm Roller wurde nichts verändert. Du kannst den Installer gefahrlos schließen.';
 
   @override
   String get connectFailedUnknownHeading =>
@@ -406,45 +407,45 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get connectFailedUnknownBody =>
-      'Die Verbindung ist aus einem Grund gescheitert, zu dem der Installer nichts zu sagen hat. Die technischen Details unten sind das, was ein Fehlerbericht braucht.\n• Prüf das USB-Kabel an beiden Enden und steck direkt in den Laptop, nicht über einen Hub\n• Der Roller muss wach sein und der AUX-Akku angeschlossen\n• Versuch es noch einmal, einiges davon erledigt sich von selbst\nAm Roller wurde nichts verändert, du kannst den Installer gefahrlos schließen.';
+      'Die Verbindung ist aus einem unbekannten Grund fehlgeschlagen. Die technischen Details unten werden für einen Fehlerbericht benötigt.\n• Prüfe das USB-Kabel an beiden Enden und verbinde es direkt mit dem Laptop, nicht über einen Hub\n• Der Roller muss aktiv und der AUX-Akku angeschlossen sein\n• Versuche es erneut\nAm Roller wurde nichts verändert. Du kannst den Installer gefahrlos schließen.';
 
   @override
-  String get configuringNetwork => 'Netzwerk wird konfiguriert...';
+  String get configuringNetwork => 'Netzwerk wird konfiguriert…';
 
   @override
-  String get connectingSsh => 'SSH-Verbindung wird aufgebaut...';
+  String get connectingSsh => 'SSH-Verbindung wird aufgebaut…';
 
   @override
-  String get waitingForUnlock => 'Roller entsperren, um fortzufahren...';
+  String get waitingForUnlock => 'Roller entsperren, um fortzufahren…';
 
   @override
   String get unfinishedInstallDetected =>
-      'Unvollständige Installation erkannt, Entsperren wird übersprungen...';
+      'Unvollständige Installation erkannt, Entsperren wird übersprungen…';
 
   @override
-  String get waitingForBatteryData => 'Warte auf AUX/CBB-Batteriedaten...';
+  String get waitingForBatteryData => 'Warte auf AUX- und CBB-Akkudaten…';
 
   @override
   String get resumeFoundHeading => 'Unterbrochene Installation gefunden';
 
   @override
   String get resumeFoundBody =>
-      'Der Roller ist nicht beschädigt. Eine Installation wurde unterbrochen, und dieser Schritt räumt ihre Reste auf, bevor es von vorn losgeht.';
+      'Eine unterbrochene Installation wurde erkannt. Der Installer bereinigt den vorherigen Versuch, bevor er neu beginnt.';
 
   @override
   String get resumeWhatHappensHeading => 'Was beim Weitermachen passiert';
 
   @override
   String get resumeWhatHappensCleanup =>
-      'Die Reste werden aufgeräumt: das zurückgelassene Onboot-Skript wird entschärft, gestoppte Dienste werden wieder gestartet.';
+      'Zurückgebliebene Dateien und das Onboot-Skript werden bereinigt; angehaltene Dienste werden wieder gestartet.';
 
   @override
   String get resumeWhatHappensRestart =>
-      'Die Installation läuft komplett von vorn. Es wird nichts fortgesetzt, kein halbfertiger Schritt wird übernommen.';
+      'Die Installation beginnt vollständig neu. Kein unvollständiger Schritt wird fortgesetzt.';
 
   @override
   String get resumeWhatHappensKeep =>
-      'Es geht nichts zusätzlich verloren. Was der vorherige Durchlauf geändert hat, hat er bereits geändert; ein Neustart kostet das nicht noch einmal.';
+      'Es gehen keine weiteren Daten verloren. Änderungen des vorherigen Durchlaufs bleiben bestehen.';
 
   @override
   String get resumeTakesAsLong =>
@@ -452,11 +453,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get resumeClearingLeftovers =>
-      'Reste der vorherigen Installation werden aufgeräumt...';
+      'Reste der vorherigen Installation werden bereinigt…';
 
   @override
   String resumeCleanupFailed(String error) {
-    return 'Die vorige Installation konnte nicht sicher aufgeräumt werden: $error\n\nEs wird nichts weiter ausgeführt, bis das Aufräumen erfolgreich war.';
+    return 'Die vorige Installation konnte nicht sicher bereinigt werden: $error\n\nEs wird nichts weiter ausgeführt, bis die Bereinigung erfolgreich war.';
   }
 
   @override
@@ -464,15 +465,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get resumeRunningHeading =>
-      'Auf dem Roller läuft noch eine Installation';
+      'Eine Installation läuft noch auf dem Roller';
 
   @override
   String get resumeRunningBody =>
-      'Der Roller arbeitet die vorige Installation noch ab. Hier wird nichts angefasst, solange sie läuft.';
+      'Die vorherige Installation läuft auf dem Roller noch. Währenddessen werden keine Änderungen vorgenommen.';
 
   @override
   String get resumeRunningWait =>
-      'Warte, bis der Roller fertig ist. Danach geht es hier automatisch weiter.';
+      'Warte, bis die Installation abgeschlossen ist. Danach geht es hier automatisch weiter.';
 
   @override
   String resumeStageLabel(String stage) {
@@ -486,21 +487,21 @@ class AppLocalizationsDe extends AppLocalizations {
   String get resumeActorInstaller => 'im Installer';
 
   @override
-  String get resumeLogHeading => 'Letzte Zeilen aus dem Log des Rollers';
+  String get resumeLogHeading => 'Letzte Zeilen aus dem Protokoll des Rollers';
 
   @override
   String get awaitingUnlockHeading => 'Roller entsperren';
 
   @override
   String get awaitingUnlockDetail =>
-      'Entsperre den Roller, damit der Installer weitermachen kann.';
+      'Entsperre den Roller, damit der Installer fortfahren kann.';
 
   @override
   String get awaitingUnlockHintKeycard =>
-      'Schlüsselkarte an den Leser am Lenker halten';
+      'Halte die Schlüsselkarte an den Leser am Lenker';
 
   @override
-  String get awaitingUnlockHintPhone => 'Oder ein gekoppeltes Handy benutzen';
+  String get awaitingUnlockHintPhone => 'Oder verwende ein gekoppeltes Handy';
 
   @override
   String get awaitingUnlockWatching =>
@@ -515,20 +516,20 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get awaitingParkDetail =>
-      'Bitte parke deinen Roller (Seitenständer ausklappen), um fortzufahren.';
+      'Parke den Roller (Seitenständer ausklappen), um fortzufahren.';
 
   @override
   String get awaitingParkContinueAnyway => 'Trotzdem weiter';
 
   @override
-  String get lockingScooter => 'Roller wird für das Flashen gesperrt...';
+  String get lockingScooter => 'Roller wird für das Flashen gesperrt…';
 
   @override
   String get connected => 'Verbunden';
 
   @override
   String sshConnectionFailed(String error) {
-    return 'SSH-Verbindung fehlgeschlagen: $error. Kabel prüfen und erneut versuchen.';
+    return 'SSH-Verbindung fehlgeschlagen: $error. Prüfe das Kabel und versuche es erneut.';
   }
 
   @override
@@ -536,16 +537,16 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get manualPasswordPrompt =>
-      'Das Root-Passwort konnte nicht automatisch ermittelt werden. Bitte gib das Root-Passwort für dieses Gerät ein.';
+      'Das Root-Passwort konnte nicht automatisch ermittelt werden. Gib das Root-Passwort für dieses Gerät ein.';
 
   @override
   String manualPasswordPromptVersion(String version) {
-    return 'Das Root-Passwort für Firmware $version konnte nicht automatisch ermittelt werden. Bitte gib das Root-Passwort für dieses Gerät ein.';
+    return 'Das Root-Passwort für Firmware $version konnte nicht automatisch ermittelt werden. Gib das Root-Passwort für dieses Gerät ein.';
   }
 
   @override
   String manualPasswordPromptRetry(int remaining) {
-    return 'Das Passwort war falsch. Bitte erneut versuchen (noch $remaining Versuche).';
+    return 'Das Passwort war falsch. Versuche es erneut ($remaining Versuche verbleiben).';
   }
 
   @override
@@ -559,18 +560,18 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get manualPasswordUnknownHeading =>
-      'Der Roller will ein Passwort, das niemand hat';
+      'Das Root-Passwort ist nicht verfügbar';
 
   @override
   String get manualPasswordUnknownBody =>
-      'Normalerweise antworten Roller mit einem Passwort, das der Installer schon kennt. Dieser tut das nicht, meistens heißt das, dass es geändert wurde.\n\nWar der Roller in einer Werkstatt, frag dort nach, ob ein Root-Passwort gesetzt wurde. Das ist der häufigste Grund.\n\nSonst frag im Librescoot-Discord und nenne die oben angezeigte Firmware-Version.\n\nAm Roller wurde nichts verändert, du kannst den Installer gefahrlos schließen.';
+      'Der Installer kennt normalerweise das Root-Passwort des Rollers. Dieses Passwort wurde möglicherweise geändert.\n\nFrage in der Werkstatt nach, falls der Roller dort war, oder frage im Librescoot-Discord nach. Nenne dabei die oben angezeigte Firmware-Version.\n\nAm Roller wurde nichts verändert. Du kannst den Installer gefahrlos schließen.';
 
   @override
   String get untestedFirmwareHeading => 'Ungetestete Firmware-Version';
 
   @override
   String untestedFirmwareBody(String version) {
-    return 'Die Installation auf Firmware-Versionen älter als 1.12.0 ist nicht getestet (deine: $version). Der Installer sollte trotzdem funktionieren. Probleme bitte im Librescoot-Discord melden.';
+    return 'Die Installation auf Firmware-Versionen älter als 1.12.0 wurde nicht getestet (deine: $version). Der Installer sollte trotzdem funktionieren. Melde Probleme bitte im Librescoot-Discord.';
   }
 
   @override
@@ -580,32 +581,30 @@ class AppLocalizationsDe extends AppLocalizations {
   String get healthCheckHeading => 'Statusprüfung';
 
   @override
-  String get verifyingReadiness => 'Roller-Bereitschaft wird geprüft...';
-
-  @override
   String get incompleteImageStatus =>
-      'Unvollständiges Firmware-Image erkannt. Neu flashen zur Wiederherstellung...';
+      'Unvollständiges Firmware-Systemabbild erkannt. Neuinstallation zur Wiederherstellung…';
 
   @override
-  String get incompleteImageHeading => 'Unvollständiges Firmware-Image';
+  String get incompleteImageHeading => 'Unvollständiges Firmware-Systemabbild';
 
   @override
   String get incompleteImageBody =>
-      'Dieser Roller läuft mit einem minimalen Wiederherstellungs-Image. Es bootet und antwortet, hat aber keine der Fahrzeugdienste. Das kann passieren, wenn eine frühere Installation nicht abgeschlossen wurde. Fahre fort, um die vollständige Firmware neu zu flashen und die Einrichtung abzuschließen.';
+      'Auf diesem Roller läuft ein minimales Wiederherstellungs-Systemabbild. Es startet und antwortet, enthält aber keine Fahrzeugdienste. Das kann nach einer unterbrochenen Installation passieren. Fahre fort, um das vollständige Systemabbild zu installieren und die Einrichtung abzuschließen.';
 
   @override
-  String get reflashToRecover => 'Neu flashen zur Wiederherstellung';
+  String get reflashToRecover =>
+      'Systemabbild zur Wiederherstellung installieren';
 
   @override
   String get stockFirmwareStatus =>
-      'Original-Firmware erkannt. Bereit für die Librescoot-Installation...';
+      'Original-Firmware erkannt. Bereit für die Librescoot-Installation…';
 
   @override
   String get stockFirmwareHeading => 'Original-Firmware';
 
   @override
   String get stockFirmwareBody =>
-      'Dieser Roller läuft mit seiner Original-Firmware. Damit ist alles in Ordnung. Fahre fort, um Librescoot zu installieren.';
+      'Auf diesem Roller läuft die Original-Firmware. Fahre fort, um Librescoot zu installieren.';
 
   @override
   String get continueButton => 'Weiter';
@@ -639,19 +638,19 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get riskAuxLow =>
-      'Niedrige AUX-Batterie könnte MDB oder DBC während des Flashens abschalten. LED-Anzeigen könnten ebenfalls ausfallen. Sitzbank mit eingesetztem Fahrakku schließen und warten, bis sie geladen ist.';
+      'Ein schwacher AUX-Akku kann MDB oder DBC während des Flashens abschalten. Auch die LED-Anzeigen können ausfallen. Schließe die Sitzbank mit eingesetztem Fahrakku und warte, bis der AUX-Akku geladen ist.';
 
   @override
   String get riskCbbSoh =>
-      'Schlechter CBB-Zustand kann zu unzuverlässiger Stromversorgung während des Flashens führen.';
+      'Ein schlechter CBB-Zustand kann während des Flashens zu einer unzuverlässigen Stromversorgung führen.';
 
   @override
   String get riskCbbCharge =>
-      'Niedrige CBB-Ladung erhöht das Risiko eines Stromausfalls beim DBC-Flash. Sitzbank mit eingesetztem Fahrakku schließen und warten, bis die CBB geladen ist.';
+      'Eine niedrige CBB-Ladung erhöht beim DBC-Flash das Risiko eines Stromausfalls. Schließe die Sitzbank mit eingesetztem Fahrakku und warte, bis die CBB geladen ist.';
 
   @override
   String get riskNoBattery =>
-      'Ohne den Fahrakku entlädt sich die AUX-Batterie schneller. Der Roller könnte bei längeren Vorgängen herunterfahren.';
+      'Ohne Fahrakku entlädt sich der AUX-Akku schneller. Der Roller kann bei längeren Vorgängen herunterfahren.';
 
   @override
   String get openSeatbox => 'Sitzbank öffnen';
@@ -660,46 +659,50 @@ class AppLocalizationsDe extends AppLocalizations {
   String get configuringMdbBootloader => 'MDB-Bootloader wird konfiguriert';
 
   @override
-  String get preparing => 'Vorbereitung...';
+  String get preparing => 'Vorbereitung…';
 
   @override
   String get uploadingBootloaderTools =>
-      'Bootloader-Tools werden hochgeladen...';
+      'Bootloader-Werkzeuge werden übertragen…';
 
   @override
   String get rebootingMdbUms =>
-      'MDB wird im Mass-Storage-Modus neu gestartet...';
+      'MDB wird im Massenspeichermodus neu gestartet…';
 
   @override
-  String get waitingForUmsDevice => 'Warte auf UMS-Gerät...';
+  String get waitingForUmsDevice => 'Warte auf UMS-Gerät…';
 
   @override
   String get readyToFlash => 'Bereit zum Flashen';
 
   @override
   String get readyToFlashHint =>
-      'Das Gerät ist im Flash-Modus. Du kannst das Gerät mounten, um vor dem Fortfahren manuelle Backups zu erstellen.';
+      'Das Gerät befindet sich im Flash-Modus. Du kannst es einbinden, um vor dem Fortfahren eine manuelle Sicherung zu erstellen.';
 
   @override
   String get readyToFlashTargetLabel => 'Ziel';
 
   @override
-  String get readyToFlashImageLabel => 'Zu schreibendes Image';
+  String get readyToFlashImageLabel => 'Zu schreibendes Systemabbild';
 
   @override
   String get readyToFlashErases =>
-      'Das löscht das Hauptboard. Alles, was aktuell darauf ist, wird ersetzt.';
+      'Dabei wird der Speicher des Hauptboards überschrieben. Alle vorhandenen Daten werden ersetzt.';
 
   @override
   String get readyToFlashDuration =>
       'Das Schreiben dauert etwa eine Minute. Trenne währenddessen weder USB noch Strom.';
 
   @override
-  String get readyToFlashNoTarget => 'Noch kein Zielgerät ermittelt.';
+  String get readyToFlashNoTarget => 'Noch kein Zielgerät gefunden.';
+
+  @override
+  String get waitingForDeviceRedetection =>
+      'Warte darauf, dass das Gerät erneut erkannt wird…';
 
   @override
   String get macosDiskNotReadable =>
-      'macOS meldet eventuell, dass das Medium nicht gelesen werden kann. Klicke auf „Ignorieren“. Klicke nicht auf „Auswerfen“, das trennt das Board mitten in der Installation.';
+      'macOS meldet möglicherweise, dass das Medium nicht gelesen werden kann. Klicke auf „Ignorieren“. Klicke nicht auf „Auswerfen“, da dadurch das MDB während der Installation getrennt wird.';
 
   @override
   String get macosNoRouteHeading =>
@@ -707,7 +710,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get macosNoRouteBody =>
-      'Die USB-Verbindung steht. Der Roller antwortet auf Pings, es liegt also nicht am Kabel: macOS lässt den Installer nicht durch.\n\nÖffne „Datenschutz & Sicherheit“ > „Lokales Netzwerk“ und aktiviere den Zugriff für Librescoot Installer.\n\nDer Installer versucht es weiter und macht von selbst weiter, sobald du das getan hast. Hier musst du nichts weiter klicken.';
+      'Die USB-Verbindung steht und das MDB antwortet auf Pings. macOS blockiert jedoch den Zugriff des Installers.\n\nÖffne „Datenschutz & Sicherheit“ > „Lokales Netzwerk“ und aktiviere den Zugriff für Librescoot Installer.\n\nDer Installer fährt automatisch fort, sobald du den Zugriff aktiviert hast.';
 
   @override
   String get macosOpenLocalNetworkSettings =>
@@ -725,10 +728,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get flashAwaitingAuthorisation =>
-      'macOS fragt vor dem Schreiben nach deinem Passwort oder Touch ID. Achte auf einen Systemdialog, er kann hinter diesem Fenster liegen. Solange du nicht bestätigst, wird nichts geschrieben.';
+      'macOS fragt vor dem Schreiben nach deinem Passwort oder Touch ID. Suche nach einem Systemdialog, der sich hinter diesem Fenster befinden kann. Solange du nicht bestätigst, wird nichts geschrieben.';
 
   @override
-  String get waitingForMdbFirmware => 'Warte auf MDB-Firmware-Download...';
+  String get waitingForMdbFirmware =>
+      'Warte auf den Download der MDB-Firmware…';
 
   @override
   String get mdbFlashComplete => 'MDB-Flash abgeschlossen';
@@ -745,7 +749,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String flashProgressEta(int minutes, int seconds) {
-    return 'noch $minutes Min. $seconds Sek.';
+    return 'Noch $minutes Min. $seconds Sek.';
   }
 
   @override
@@ -765,7 +769,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get disconnectCbbDesc =>
-      'Erst die CBB, dann der AUX-Pol. Der Fahrakku ist zu diesem Zeitpunkt schon aus: das MDB steht im Flash-Modus und spricht nicht mehr mit ihm. Ausbauen musst du ihn nicht.';
+      'Trenne zuerst die CBB und dann den AUX-Pol. Der Fahrakku ist zu diesem Zeitpunkt bereits ausgeschaltet; das MDB befindet sich im Flash-Modus und kommuniziert nicht mehr mit ihm. Du musst ihn nicht ausbauen.';
 
   @override
   String get disconnectAuxPole => 'Einen AUX-Pol trennen';
@@ -779,7 +783,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die USB-Verbindung geht verloren, wenn du AUX trennst. Das ist normal. Schließe den AUX-Pol im nächsten Schritt wieder an, um das MDB zu starten.';
 
   @override
-  String get doneCbbAuxDisconnected => 'Fertig, der Roller wurde neu gestartet';
+  String get doneCbbAuxDisconnected => 'Neustart ausgelöst';
 
   @override
   String get doneAuxDisconnected => 'Fertig, AUX ist getrennt';
@@ -789,7 +793,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get brakeResetIntro =>
-      'Beide Bremshebel ziehen und halten. Alle zehn Sekunden den rechten Hebel etwa eine Sekunde loslassen und wieder ziehen. Nach dem vierten Halten einfach loslassen. Der Roller startet neu.';
+      'Ziehe beide Bremshebel und halte sie fest. Lass alle zehn Sekunden den rechten Hebel etwa eine Sekunde los und ziehe ihn wieder. Lass ihn nach dem vierten Halten einfach los. Der Neustart wird ausgelöst.';
 
   @override
   String get brakeResetAfterNote =>
@@ -799,28 +803,29 @@ class AppLocalizationsDe extends AppLocalizations {
   String get brakePacerStart => 'Timer starten';
 
   @override
-  String get brakePacerStop => 'Abbrechen';
+  String get brakePacerStop => 'Timer stoppen';
 
   @override
-  String get brakePacerRestart => 'Nochmal';
+  String get brakePacerRestart => 'Erneut starten';
 
   @override
   String get brakePacerDone =>
-      'Das ist das Muster. Jetzt einfach loslassen. Der Roller startet ein paar Sekunden später von allein neu.';
+      'Das ist das richtige Muster. Lass jetzt los. Der Neustart wird wenige Sekunden später ausgelöst.';
 
   @override
-  String get brakeDiagramBlipLegend => 'Rechter Hebel etwa eine Sekunde los';
+  String get brakeDiagramBlipLegend =>
+      'Rechten Hebel etwa eine Sekunde loslassen';
 
   @override
   String brakeDiagramEndLegend(int seconds) {
-    return 'Bei $seconds Sekunden einfach loslassen';
+    return 'Bei $seconds Sekunden loslassen';
   }
 
   @override
   String get brakeBandBothHeld => 'Linker Hebel bleibt durchgehend gezogen';
 
   @override
-  String get brakeBlipRight => 'Rechten Hebel jetzt los';
+  String get brakeBlipRight => 'Rechten Hebel jetzt loslassen';
 
   @override
   String get brakeLeftStaysHint =>
@@ -831,7 +836,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get brakeLeadInHint =>
-      'Geh zum Lenker und leg die Hände an die Bremshebel.';
+      'Gehe zum Lenker und lege die Hände an die Bremshebel.';
 
   @override
   String get brakeKeepHolding => 'Beide Bremsen halten';
@@ -840,21 +845,21 @@ class AppLocalizationsDe extends AppLocalizations {
   String get scooterPrepManualFallback => 'Oder den Strom von Hand trennen';
 
   @override
-  String get deactivatingMainBattery => 'Fahrakku wird abgeschaltet...';
+  String get deactivatingMainBattery => 'Fahrakku wird abgeschaltet…';
 
   @override
-  String get waitingForMdbBoot => 'Warte auf MDB-Boot';
+  String get waitingForMdbBoot => 'Warte auf den MDB-Start';
 
   @override
   String get mdbBootRestartingNote =>
-      'Der Roller startet von allein neu. Das dauert ein, zwei Minuten.';
+      'Der Neustart des Rollers dauert ein bis zwei Minuten.';
 
   @override
   String get reconnectAuxPole => 'Nur den AUX-Pol wieder anschließen';
 
   @override
   String get reconnectAuxPoleDesc =>
-      'Schließe den positiven AUX-Pol wieder an. Die CBB bleibt vorerst getrennt, sie kommt erst später wieder dran, vor dem DBC-Flash. Das MDB startet und bootet Librescoot.';
+      'Schließe den positiven AUX-Pol wieder an. Die CBB bleibt vorerst getrennt und wird erst vor dem DBC-Flash wieder angeschlossen. Danach startet das MDB mit Librescoot.';
 
   @override
   String get dbcLedHint =>
@@ -862,14 +867,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get mdbStillUms =>
-      'MDB immer noch im UMS-Modus. Flash war möglicherweise nicht erfolgreich. Neuer Versuch...';
+      'MDB weiterhin im UMS-Modus. Der Flashvorgang war möglicherweise nicht erfolgreich. Neuer Versuch…';
 
   @override
-  String get waitingForMdbRestart => 'Warte auf den Neustart des Rollers...';
+  String get waitingForMdbRestart => 'Warte auf den Neustart des Rollers…';
 
   @override
   String get mdbDetectedNetwork =>
-      'MDB im Netzwerkmodus erkannt. Warte auf stabile Verbindung...';
+      'MDB im Netzwerkmodus erkannt. Warte auf eine stabile Verbindung…';
 
   @override
   String pingStable(int count) {
@@ -877,14 +882,14 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get waitingStableConnection => 'Warte auf stabile Verbindung...';
+  String get waitingStableConnection => 'Warte auf eine stabile Verbindung…';
 
   @override
   String get stableConnectionStallHint =>
-      'Verbindung noch instabil. Die USB-Netzwerkschnittstelle hat eventuell ihre IP verloren. Auf Linux: NetworkManager stört möglicherweise (IPv6 deaktivieren kann helfen). Details im Log.';
+      'Verbindung weiterhin instabil. Die USB-Netzwerkschnittstelle hat möglicherweise ihre IP-Adresse verloren. Unter Linux kann NetworkManager die Schnittstelle blockieren; das Deaktivieren von IPv6 kann helfen. Details stehen im Protokoll.';
 
   @override
-  String get reconnectingSsh => 'SSH wird neu verbunden...';
+  String get reconnectingSsh => 'SSH-Verbindung wird wiederhergestellt…';
 
   @override
   String sshReconnectionFailed(String error) {
@@ -901,47 +906,51 @@ class AppLocalizationsDe extends AppLocalizations {
   String get verifyBatteryPresence => 'Akku prüfen';
 
   @override
-  String get turningMainBatteryOff => 'Fahrakku wird zuerst abgeschaltet...';
+  String get turningMainBatteryOff => 'Fahrakku wird zuerst abgeschaltet…';
 
   @override
-  String get turningMainBatteryOn => 'Fahrakku wird wieder eingeschaltet...';
+  String get turningMainBatteryOn => 'Fahrakku wird wieder eingeschaltet…';
 
   @override
-  String get checkingCbb => 'CBB wird geprüft...';
+  String get checkingCbb => 'CBB wird geprüft…';
 
   @override
   String waitingForCbb(int attempts) {
-    return 'Warte auf CBB... ($attempts)';
+    return 'Warte auf CBB… ($attempts)';
   }
 
   @override
-  String get cbbNotDetected => 'CBB nicht erkannt. Bitte Verbindung prüfen.';
+  String get cbbNotDetected => 'CBB nicht erkannt. Prüfe die Verbindung.';
+
+  @override
+  String get mainBatteryNotDetected =>
+      'Fahrakku nicht erkannt. Prüfe, ob er richtig eingesetzt ist.';
 
   @override
   String get cbbDetectionMayTakeMinutes =>
-      'Das kann mehrere Minuten dauern, bitte etwas Geduld.';
+      'Die Erkennung kann mehrere Minuten dauern.';
 
   @override
   String get preparingDbcFlash => 'DBC-Flash wird vorbereitet';
 
   @override
   String get preparingDbcFlashSubtitle =>
-      'Alles, was das Display braucht, wandert zuerst auf das MDB.';
+      'Die Dateien für das Display werden zuerst auf das MDB übertragen.';
 
   @override
   String get preparingDbcFlashExplainer =>
-      'Das DBC hängt am MDB, nicht am Laptop. Der Installer kopiert deshalb Image, Firmware und Offline-Karten auf das MDB und legt dort ein Skript ab, das den Rest übernimmt. Erst danach kommt der Kabeltausch: Laptop ab, DBC-Kabel wieder ans MDB. Von da an flasht das MDB das Display allein weiter.';
+      'Der Installer überträgt zuerst Systemabbild, Firmware und Offline-Karten auf das MDB. Sobald die Dateien bereit sind, startest du die Installation auf dem Roller und ersetzt das Laptop-Kabel durch das DBC-Kabel. Das MDB erledigt die Display-Arbeiten anschließend selbstständig.';
 
   @override
   String get preparingMapTransfer => 'Karten werden übertragen';
 
   @override
   String get preparingMapTransferSubtitle =>
-      'Die Offline-Karten wandern zuerst auf das MDB.';
+      'Die Offline-Karten werden zuerst auf das MDB übertragen.';
 
   @override
   String get preparingMapTransferExplainer =>
-      'Das DBC hängt am MDB, nicht am Laptop. Der Installer kopiert deshalb die Offline-Karten auf das MDB und legt dort ein Skript ab, das den Rest übernimmt. Es wird keine Display-Firmware geschrieben: du hast das DBC auf unverändert gestellt. Danach kommt der Kabeltausch, Laptop ab und DBC-Kabel wieder ans MDB, und die Karten wandern von allein hinüber.';
+      'Der Installer überträgt zuerst die Offline-Karten auf das MDB. Die Display-Firmware bleibt unverändert. Sobald die Dateien bereit sind, startest du die Übertragung und ersetzt das Laptop-Kabel durch das DBC-Kabel. Der Roller kopiert die Karten anschließend selbstständig.';
 
   @override
   String get skipMapTransfer => 'Karten überspringen';
@@ -959,34 +968,67 @@ class AppLocalizationsDe extends AppLocalizations {
   String get phaseDbcFlashTitleMaps => 'Übertragen';
 
   @override
-  String get phaseDbcFlashDescriptionMaps => 'Der Roller kopiert sie selbst';
+  String get phaseDbcFlashDescriptionMaps => 'Automatische Kartenübertragung';
 
   @override
   String get dbcReadyButtonMaps => 'Kartenübertragung starten';
 
   @override
-  String get waitingForDownloads => 'Warte auf Abschluss der Downloads...';
+  String get waitingForDownloads =>
+      'Warte, bis das Herunterladen abgeschlossen ist…';
 
   @override
   String get filesStagedWaitingForHandoff =>
-      'Alle Dateien sind bereit; warte auf den Kabelwechsel.';
+      'Alle Dateien sind bereit. Starte die Display-Arbeiten, wenn du bereit bist.';
 
   @override
-  String get startingTrampoline => 'Trampoline-Skript wird gestartet...';
+  String get handoffEstimateTitle => 'Geschätzter Fortschritt';
+
+  @override
+  String get handoffEstimateExplanation =>
+      'Solange das MDB mit dem DBC verbunden ist, kann der Laptop den aktuellen Fortschritt nicht auslesen. Diese bewusst vorsichtige Schätzung verwendet die ausgewählten Dateien und typische Laufzeiten. Schließe den Laptop nicht aufgrund der Schätzung wieder an, sondern warte auf den tatsächlichen Zustand an Display und Blinkern.';
+
+  @override
+  String handoffEstimateMinutes(int minutes) {
+    return '$minutes Min.';
+  }
+
+  @override
+  String handoffEstimateRemainingRange(String from, String to) {
+    return 'Noch etwa $from–$to';
+  }
+
+  @override
+  String handoffEstimateRemainingUpper(String to) {
+    return 'Noch bis zu etwa $to';
+  }
+
+  @override
+  String handoffEstimateTotalRange(String from, String to) {
+    return 'Voraussichtliche Gesamtdauer: etwa $from–$to';
+  }
+
+  @override
+  String get handoffEstimateTakingLonger =>
+      'Der Vorgang dauert länger als erwartet. Lass den Roller eingeschaltet und die Kabel verbunden.';
+
+  @override
+  String get startingTrampoline =>
+      'Installation auf dem Roller wird gestartet…';
 
   @override
   String uploadError(String error) {
-    return 'Upload-Fehler: $error';
+    return 'Übertragungsfehler: $error';
   }
 
   @override
   String trampolineStartFailed(String path) {
-    return 'Die Installation auf dem Roller konnte nicht gestartet werden. Details wurden ins Log geschrieben und Diagnose-Dateien unter $path gespeichert. Versuch es erneut; falls es wieder fehlschlägt, stelle den Roller ohne diese Übertragung wieder her.';
+    return 'Die Installation auf dem Roller konnte nicht gestartet werden. Details stehen im Protokoll; Diagnose-Dateien wurden unter $path gespeichert. Versuche es erneut. Falls der Fehler bestehen bleibt, stelle den Roller ohne diese Übertragung wieder her.';
   }
 
   @override
   String get trampolineStartFailedNoPath =>
-      'Die Installation auf dem Roller konnte nicht gestartet werden. Details wurden ins Installer-Log geschrieben. Versuch es erneut; falls es wieder fehlschlägt, stelle den Roller ohne diese Übertragung wieder her.';
+      'Die Installation auf dem Roller konnte nicht gestartet werden. Details stehen im Installer-Protokoll. Versuche es erneut. Falls der Fehler bestehen bleibt, stelle den Roller ohne diese Übertragung wieder her.';
 
   @override
   String get restoreScooterWithoutTransfer =>
@@ -994,42 +1036,42 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get restoreScooterBeforeClosing =>
-      'Stelle den Roller wieder her, bevor du den Installer schließt. Versuch die Übertragung erneut oder wähle „Roller ohne diese Übertragung wiederherstellen“.';
+      'Stelle den Roller wieder her, bevor du den Installer schließt. Versuche die Übertragung erneut oder wähle „Roller ohne diese Übertragung wiederherstellen“.';
 
   @override
   String get finishTransferSkippedPending =>
-      'Die Übertragung wurde übersprungen. Dein Roller stellt seine normalen Dienste wieder her und wird automatisch entsperrt, sobald er bereit ist.';
+      'Die Übertragung wurde übersprungen. Die normalen Dienste werden wiederhergestellt. Der Roller wird automatisch entsperrt, sobald er bereit ist.';
 
   @override
   String get finishTransferSkippedConfirmed =>
-      'Dein Roller wurde wiederhergestellt und entsperrt. Die gewünschte Dashboard- oder Kartenübertragung wurde nicht installiert.';
+      'Der Roller wurde wiederhergestellt und entsperrt. Die gewünschte Display- oder Kartenübertragung wurde nicht installiert.';
 
   @override
-  String get dbcReadyButton => 'DBC-Flashen beginnen';
+  String get dbcReadyButton => 'DBC-Installation starten';
 
   @override
   String get dbcFlashInProgress => 'DBC wird geflasht';
 
   @override
-  String get dbcFlashSwapCablesTitle => 'USB auf das DBC umstecken';
+  String get dbcFlashSwapCablesTitle => 'DBC-Kabel am MDB anschließen';
 
   @override
   String get dbcFlashSwapCablesDeadline =>
-      'Der Roller wartet schon auf das Display. Nach ein paar Minuten gibt er auf, mach es also jetzt und nicht später. Die Schrauben können warten.';
+      'Der Vorgang wartet bereits auf das Display. Nach einigen Minuten läuft die Wartezeit ab. Stecke das Kabel jetzt um; die Schrauben kannst du danach festziehen.';
 
   @override
   String get disconnectUsbFromLaptop => 'Laptop-USB-Kabel vom MDB abziehen';
 
   @override
   String get disconnectUsbFromLaptopDesc =>
-      'Ziehe das Laptop-USB-Kabel vom MDB ab, damit der Port für das DBC-Kabel frei wird.';
+      'Ziehe das Laptop-USB-Kabel vom MDB ab, damit der Anschluss für das DBC-Kabel frei ist.';
 
   @override
   String get reconnectDbcUsbToMdb => 'DBC-USB-Kabel mit MDB verbinden';
 
   @override
   String get reconnectDbcUsbToMdbDesc =>
-      'Stecke das interne DBC-USB-Kabel in den MDB-Port. Noch nicht festschrauben.';
+      'Stecke das interne DBC-USB-Kabel in den MDB-Port. Ziehe die Schrauben noch nicht fest.';
 
   @override
   String get ledBlinkerProgress => 'Blinker leuchten reihum auf';
@@ -1050,29 +1092,30 @@ class AppLocalizationsDe extends AppLocalizations {
   String get blinkerStepPrep => 'DBC vorbereiten';
 
   @override
-  String get blinkerStepFlash => 'DBC flashen';
+  String get blinkerStepFlash => 'Display vorbereiten';
 
   @override
-  String get blinkerStepRestart => 'DBC neu starten';
+  String get blinkerStepRestart => 'Display neu starten';
 
   @override
-  String get blinkerStepMaps => 'Karten laden';
+  String get blinkerStepMaps => 'Offline-Karten kopieren';
 
   @override
-  String get verifyingDbcInstallation => 'DBC-Installation wird geprüft';
+  String get verifyingDbcInstallation => 'Display-Arbeiten werden geprüft';
 
   @override
-  String get reconnectUsbToLaptop => 'USB wieder mit Laptop verbinden...';
+  String get reconnectUsbToLaptop =>
+      'Laptop-USB-Kabel wieder am MDB anschließen…';
 
   @override
-  String get waitingForRndisDevice => 'Warte auf RNDIS-Gerät...';
+  String get waitingForRndisDevice => 'Warte auf RNDIS-Gerät…';
 
   @override
-  String get checkingCompletionRecord => 'Abschlussprotokoll wird geprüft...';
+  String get checkingCompletionRecord => 'Abschlussprotokoll wird geprüft…';
 
   @override
   String get readingTrampolineStatus =>
-      'Status der laufenden Installation wird geprüft...';
+      'Status der laufenden Installation wird geprüft…';
 
   @override
   String readingTrampolineStatusElapsed(int elapsed) {
@@ -1080,11 +1123,11 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get dbcFlashSuccessful => 'DBC-Flash abgeschlossen';
+  String get dbcFlashSuccessful => 'Display-Arbeiten abgeschlossen';
 
   @override
   String dbcInstallSuccessfulVersion(String version) {
-    return 'DBC-Installation erfolgreich, läuft jetzt $version';
+    return 'DBC-Installation erfolgreich. Version $version läuft jetzt.';
   }
 
   @override
@@ -1093,17 +1136,29 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get dbcFlashError => 'DBC-Flash-Fehler';
+  String get dbcFlashError => 'DBC-Flash fehlgeschlagen';
 
   @override
   String get closeButton => 'Schließen';
 
   @override
   String get trampolineStatusUnknown =>
-      'Trampoline-Status unbekannt. Prüfe /data/trampoline.log auf dem MDB.';
+      'Der Installer konnte nicht feststellen, ob die Display-Arbeiten abgeschlossen wurden. Einzelheiten stehen im Installationsprotokoll.';
 
   @override
   String get welcomeToLibrescoot => 'Willkommen bei Librescoot';
+
+  @override
+  String get finishStatusTitle => 'Installationsstatus';
+
+  @override
+  String get finishPendingHeading => 'Installation läuft noch';
+
+  @override
+  String get finishCompleteHeading => 'Installation abgeschlossen';
+
+  @override
+  String get finishSkippedHeading => 'Display-Übertragung übersprungen';
 
   @override
   String get finalSteps => 'Letzte Schritte:';
@@ -1113,27 +1168,27 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get finishNextDbcFlash =>
-      'Sobald du das DBC-Kabel wieder ansteckst, installiert der Roller das Display von allein. Das dauert etwa 20 Minuten. Lass den Strom dran und lass ihn fertig werden; das Boot-Licht zeigt, dass er arbeitet.';
+      'Sobald du das DBC-Kabel wieder anschließt, wird das Display automatisch installiert. Das dauert etwa 20 Minuten. Lass die Stromversorgung angeschlossen, bis der Vorgang abgeschlossen ist. Die Boot-LED zeigt den Fortschritt an.';
 
   @override
   String get finishNextOnDevice =>
-      'Sobald du das DBC-Kabel wieder ansteckst, erledigt der Roller den Rest von allein. Du musst den Laptop nicht noch einmal anstecken.';
+      'Sobald du das DBC-Kabel wieder anschließt, wird die Installation automatisch fortgesetzt. Du musst den Laptop nicht erneut anschließen.';
 
   @override
   String get finishNextNothing =>
-      'Das Hauptboard ist bereit. Bau den Roller wieder zusammen und fahr los.';
+      'Das Hauptboard ist bereit. Baue den Roller wieder zusammen.';
 
   @override
   String get finishOnDevice =>
-      'Dein Roller schließt die Installation selbstständig ab und wird danach automatisch entsperrt. Lass ihn eingeschaltet und trenne bis dahin keine Kabel.';
+      'Der Roller schließt die Installation selbstständig ab. Lass ihn eingeschaltet und behalte die aktuelle Kabelverbindung bei, bis der Vorgang beendet ist.';
 
   @override
   String get finishReconnectDbc =>
-      'Der Laptop ist wieder mit dem MDB verbunden. Schließ das DBC-Kabel wieder an, damit der Roller die Installation abschließen kann.';
+      'Der Laptop ist wieder mit dem MDB verbunden. Schließe das DBC-Kabel wieder an, damit die Installation abgeschlossen werden kann.';
 
   @override
   String get finishConfirmed =>
-      'Die Installation ist abgeschlossen. Dein Roller ist entsperrt und fahrbereit.';
+      'Die Installation ist abgeschlossen. Der Roller ist entsperrt und fahrbereit.';
 
   @override
   String get closeInstaller => 'Installer schließen';
@@ -1144,7 +1199,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get disconnectUsbFromLaptopFinalDesc =>
-      'Ziehe das Laptop-USB-Kabel vom MDB ab. Dort kommt gleich das DBC-Kabel wieder hinein.';
+      'Ziehe das Laptop-USB-Kabel vom MDB ab. In diesen Anschluss kommt anschließend das DBC-Kabel.';
 
   @override
   String get reconnectDbcUsbCable =>
@@ -1159,14 +1214,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get closeSeatboxAndFootwellDesc =>
-      'Klipse zuerst die Metallbügel wieder ein, setze dann die Fußraumabdeckung auf und schraube sie fest.';
+      'Setze zuerst die Metallbügel wieder ein. Bringe dann die Fußraumabdeckung an und schraube sie fest.';
 
   @override
   String get unlockScooter => 'Roller entsperren';
 
   @override
   String get unlockScooterDesc =>
-      'Nutze eine der angelernten Schlüsselkarten oder entsperre über Bluetooth.';
+      'Verwende eine der angelernten Schlüsselkarten oder entsperre den Roller über Bluetooth.';
 
   @override
   String deletedCache(String sizeMb) {
@@ -1177,22 +1232,28 @@ class AppLocalizationsDe extends AppLocalizations {
   String get downloads => 'Downloads';
 
   @override
-  String get downloadsFinished => 'Downloads abgeschlossen';
+  String get downloadsFinished => 'Herunterladen abgeschlossen';
 
   @override
   String get downloadsFinishedHint => 'Du kannst jetzt offline weitermachen.';
 
   @override
-  String get assetChipMdbArtifact => 'MDB-Artefakt';
+  String get assetChipMdbArtifact => 'MDB-Firmware-Paket';
 
   @override
-  String get assetChipDbcArtifact => 'DBC-Artefakt';
+  String get assetChipDbcArtifact => 'DBC-Firmware-Paket';
 
   @override
-  String get assetChipMdbImage => 'MDB-Bootstrap';
+  String get assetChipMdbImage => 'MDB-Systemabbild';
 
   @override
-  String get assetChipDbcImage => 'DBC-Bootstrap';
+  String get assetChipDbcImage => 'DBC-Systemabbild';
+
+  @override
+  String get assetChipMdbBlockMap => 'MDB-Blockzuordnung';
+
+  @override
+  String get assetChipDbcBlockMap => 'DBC-Blockzuordnung';
 
   @override
   String get assetChipMaps => 'Karten';
@@ -1210,7 +1271,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get downloadMapTiles => 'Kartenkacheln';
 
   @override
-  String get downloadRoutingTiles => 'Routing-Kacheln';
+  String get downloadRoutingTiles => 'Routenkacheln';
 
   @override
   String get safetyCheckFailed => 'Sicherheitsprüfung fehlgeschlagen';
@@ -1223,11 +1284,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get cancelButton => 'Abbrechen';
 
   @override
-  String get confirmFlashTargetTitle => 'Ziel-Laufwerk bestätigen';
+  String get confirmFlashTargetTitle => 'Ziellaufwerk bestätigen';
 
   @override
   String get confirmFlashTargetBody =>
-      'Der Installer konnte nicht bestätigen, dass dieses Laufwerk nicht deine Systemplatte ist. Prüfe das Ziel vor dem Flashen.';
+      'Der Installer konnte nicht prüfen, ob dieses Ziel sicher überschrieben werden kann. Kontrolliere das Laufwerk sorgfältig, bevor du fortfährst.';
 
   @override
   String get confirmFlashTargetDetected => 'Erkanntes Librescoot-Gerät';
@@ -1245,19 +1306,19 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get flashTargetNotConfirmed =>
-      'Flashen abgebrochen: Das Ziel-Laufwerk wurde nicht bestätigt.';
+      'Flashen abgebrochen: Das Ziellaufwerk wurde nicht bestätigt.';
 
   @override
   String get unknown => 'Unbekannt';
 
   @override
-  String get backingUpConfig => 'Gerätekonfiguration wird gesichert...';
+  String get backingUpConfig => 'Gerätekonfiguration wird gesichert…';
 
   @override
   String get configBackedUp => 'Gerätekonfiguration gesichert';
 
   @override
-  String get restoringConfig => 'Gerätekonfiguration wird wiederhergestellt...';
+  String get restoringConfig => 'Gerätekonfiguration wird wiederhergestellt…';
 
   @override
   String healthCheckFailed(String error) {
@@ -1271,7 +1332,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get regionHint =>
-      'Welche Offline-Karten heruntergeladen werden. Ob sie installiert werden, wird später mit dem Rest des Plans entschieden';
+      'Wähle, welche Offline-Karten heruntergeladen werden. Ob sie installiert werden, entscheidest du später zusammen mit dem restlichen Plan.';
 
   @override
   String get skipOfflineMaps => 'Offline-Karten nicht herunterladen';
@@ -1290,8 +1351,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get startPairing => 'Kopplung starten';
 
   @override
+  String pairingStartFailed(String error) {
+    return 'Bluetooth-Kopplung konnte nicht gestartet werden: $error';
+  }
+
+  @override
   String get blePreparingRadio =>
-      'Bluetooth-Funk startet neu, bitte vor dem Koppeln abwarten.';
+      'Bluetooth-Funk wird neu gestartet. Warte vor dem Koppeln, bis der Vorgang abgeschlossen ist.';
 
   @override
   String get skipPairing => 'Überspringen';
@@ -1301,7 +1367,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get pairingActiveHint =>
-      'Suche den Roller in den Bluetooth-Einstellungen deines Handys und koppele ihn. Drücke Fertig wenn du fertig bist.';
+      'Suche den Roller in den Bluetooth-Einstellungen deines Handys und koppele ihn. Drücke Fertig, wenn du fertig bist.';
 
   @override
   String get pairingDone => 'Fertig';
@@ -1329,7 +1395,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get keycardLearningBody =>
-      'Lerne die NFC-Karten an, mit denen du den Roller ent- und verriegeln möchtest. Klicke auf Starten, halte dann nacheinander jede Karte an den Leser, und klicke anschließend auf Fertig.';
+      'Lerne die NFC-Schlüsselkarten an, mit denen du den Roller ent- und verriegeln möchtest. Klicke auf Anlernen starten, halte dann jede Karte einzeln an den Leser und klicke anschließend auf Fertig.';
 
   @override
   String keycardLearnedAck(int count) {
@@ -1339,7 +1405,7 @@ class AppLocalizationsDe extends AppLocalizations {
       other: '$count Schlüsselkarten angelernt',
       one: '1 Schlüsselkarte angelernt',
     );
-    return '$_temp0. Klicke auf Weiter zum Abschließen, oder lerne weitere Karten an.';
+    return '$_temp0. Klicke auf Weiter zum Abschließen oder lerne weitere Karten an.';
   }
 
   @override
@@ -1347,9 +1413,9 @@ class AppLocalizationsDe extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count Karten erfasst',
-      one: '1 Karte erfasst',
-      zero: 'Noch keine Karte erfasst',
+      other: '$count Schlüsselkarten erfasst',
+      one: '1 Schlüsselkarte erfasst',
+      zero: 'Noch keine Schlüsselkarte erfasst',
     );
     return '$_temp0';
   }
@@ -1359,28 +1425,30 @@ class AppLocalizationsDe extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       added,
       locale: localeName,
-      other: '$added von $total bekannten Keycards hinzugefügt',
-      one: '1 von $total bekannten Keycards hinzugefügt',
-      zero: 'Keine der $total bekannten Keycards konnte hinzugefügt werden',
+      other: '$added von $total bekannten Schlüsselkarten hinzugefügt',
+      one: '1 von $total bekannten Schlüsselkarten hinzugefügt',
+      zero:
+          'Keine der $total bekannten Schlüsselkarten konnte hinzugefügt werden',
     );
     return '$_temp0';
   }
 
   @override
-  String get keycardCardsChecking => 'Registrierte Karten werden geprüft...';
+  String get keycardCardsChecking =>
+      'Registrierte Schlüsselkarten werden geprüft…';
 
   @override
-  String get keycardStartLearning => 'Starten';
+  String get keycardStartLearning => 'Anlernen starten';
 
   @override
-  String get keycardAddMore => 'Starten';
+  String get keycardAddMore => 'Weitere Karten anlernen';
 
   @override
   String get keycardLearningActive => 'Anlernmodus aktiv';
 
   @override
   String get keycardLearningActiveHint =>
-      'Halte jede Karte an den Leser. Klicke auf Fertig, wenn du fertig bist.';
+      'Halte jede Schlüsselkarte an den Leser. Klicke auf Fertig, wenn du fertig bist.';
 
   @override
   String get keycardStopLearning => 'Fertig';
@@ -1393,14 +1461,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get keycardSkipConfirmBody =>
-      'Es wird keine Karte angelernt. Der Roller lässt sich dann nicht mit einer Karte entsperren, nur per Handy.';
+      'Es wird keine Schlüsselkarte angelernt. Richte später Bluetooth ein, wenn du eine andere Entsperrmethode benötigst.';
 
   @override
   String get keycardSkipConfirmAction => 'Trotzdem überspringen';
 
   @override
   String keycardStartLearningFailed(String error) {
-    return 'Kartenanlernung konnte nicht gestartet werden: $error';
+    return 'Das Anlernen der Schlüsselkarten konnte nicht gestartet werden: $error';
   }
 
   @override
@@ -1423,7 +1491,7 @@ class AppLocalizationsDe extends AppLocalizations {
       one: '1 Schlüsselkarte ist angelernt',
       zero: 'keine Schlüsselkarten sind angelernt',
     );
-    return '$_temp0 und $_temp1. Du kannst diesen Zustand behalten, oder alles zurücksetzen und neu beginnen.';
+    return '$_temp0 und $_temp1. Du kannst diesen Zustand beibehalten oder alles zurücksetzen und neu beginnen.';
   }
 
   @override
@@ -1437,7 +1505,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get keycardStartOverConfirmBody =>
-      'Damit werden die Anlernkarte und alle angelernten Schlüsselkarten auf dem Roller gelöscht. Du musst sie danach erneut anlernen. Fortfahren?';
+      'Damit werden die Anlernkarte und alle angelernten Schlüsselkarten auf dem Roller gelöscht. Du musst sie danach erneut anlernen. Möchtest du fortfahren?';
 
   @override
   String get keycardStartOverConfirmYes => 'Alles löschen';
@@ -1457,32 +1525,33 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get keycardMasterStageWarningHeading =>
-      'Die Anlernkarte entriegelt den Roller nicht';
+      'Die Anlernkarte entsperrt den Roller nicht';
 
   @override
   String get keycardMasterStageWarningBody =>
-      'Die Anlernkarte verwaltet deine übrigen Schlüsselkarten. Sie entriegelt den Roller nicht, und keine der eben angelernten Karten kann als Anlernkarte dienen. Nimm eine separate, unbenutzte Karte.';
+      'Mit der Anlernkarte verwaltest du weitere Schlüsselkarten. Sie kann den Roller nicht entsperren. Verwende eine separate Karte, die noch nicht als Schlüsselkarte angelernt ist.';
 
   @override
   String get keycardMasterStageHint => 'Halte die Anlernkarte an den Leser.';
 
   @override
-  String get keycardCardDuplicateToast => 'Diese Karte ist bereits angelernt.';
+  String get keycardCardDuplicateToast =>
+      'Diese Schlüsselkarte ist bereits angelernt.';
 
   @override
   String get keycardMasterStageRejectedToast =>
-      'Diese Karte ist bereits als Schlüsselkarte angelernt.';
+      'Diese Schlüsselkarte ist bereits angelernt.';
 
   @override
   String get keycardMasterStageSaveFailedToast =>
-      'Anlernkarte konnte nicht gespeichert werden: Schreibvorgang fehlgeschlagen.';
+      'Anlernkarte konnte nicht gespeichert werden. Schreibvorgang fehlgeschlagen.';
 
   @override
   String get keycardMasterStageLearnedToast => 'Anlernkarte wurde angelernt.';
 
   @override
   String get keycardMasterStageStartFailed =>
-      'Die Anlernkarten-Einrichtung konnte nicht gestartet werden';
+      'Die Einrichtung der Anlernkarte konnte nicht gestartet werden';
 
   @override
   String get keycardMasterStageRetryButton => 'Erneut versuchen';
@@ -1491,15 +1560,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get keycardMasterStageSkipButton => 'Überspringen';
 
   @override
-  String get keycardSimulateTapButton => '[DRY RUN] Tap simulieren';
+  String get keycardSimulateTapButton => '[DRY RUN] Kartenkontakt simulieren';
 
   @override
   String get keycardSimulateMasterTapButton =>
-      '[DRY RUN] Anlernkarten-Tap simulieren';
+      '[DRY RUN] Anlernkarte simulieren';
 
   @override
   String get keycardSimulateRejectedTapButton =>
-      '[DRY RUN] Bereits-angelernt-Ablehnung simulieren';
+      '[DRY RUN] Ablehnung einer angelernten Karte simulieren';
 
   @override
   String get installationContinuesInNewWindow =>
@@ -1513,7 +1582,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Beenden während des Flashens nicht möglich';
 
   @override
-  String get showLogTooltip => 'Log anzeigen';
+  String get showLogTooltip => 'Protokoll anzeigen';
 
   @override
   String get retryMdbConnect => 'Erneut versuchen';
@@ -1555,17 +1624,20 @@ class AppLocalizationsDe extends AppLocalizations {
   String get keepCachedDownloads => 'Heruntergeladene Dateien behalten';
 
   @override
+  String get finishKeepDownloadedFiles => 'Abschließen und Downloads behalten';
+
+  @override
   String get phaseInstallPlanTitle => 'Installationsplan';
 
   @override
   String get phaseInstallPlanDescription =>
-      'Festlegen, was mit jedem Board passiert';
+      'Festlegen, was mit jedem Board geschieht';
 
   @override
   String get phaseMdbArtifactTitle => 'MDB-Update';
 
   @override
-  String get phaseMdbArtifactDescription => 'Firmware-Artefakt installieren';
+  String get phaseMdbArtifactDescription => 'Firmware-Paket installieren';
 
   @override
   String get majorStepMdbUpgrade => 'MDB aktualisieren';
@@ -1578,7 +1650,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String installPlanIntro(String version) {
-    return 'Aktion pro Board auswählen. Zielversion: $version';
+    return 'Wähle eine Aktion für jedes Board. Zielversion: $version';
   }
 
   @override
@@ -1617,7 +1689,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get actionCleanInstallDetail =>
-      'Löscht Einstellungen und Fahrtenverlauf. Schlüsselkarten und Karten werden in diesem Durchlauf neu eingerichtet';
+      'Löscht Einstellungen und Fahrtenverlauf. Schlüsselkarten und Karten werden in diesem Vorgang neu eingerichtet';
 
   @override
   String get actionUpgradeDetailDbc => 'Behält die Offline-Karten';
@@ -1627,13 +1699,13 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get actionCleanInstallDetailDbcTiles =>
-      'Löscht die Offline-Karten. Sie werden in diesem Durchlauf neu installiert';
+      'Löscht die Offline-Karten. Sie werden in diesem Vorgang neu installiert';
 
   @override
   String get actionLeave => 'Unverändert lassen';
 
   @override
-  String get actionLeaveDetail => 'Dieses Board wird nicht angefasst';
+  String get actionLeaveDetail => 'Dieses Board bleibt unverändert';
 
   @override
   String get upgradeBlockedNotLibrescoot =>
@@ -1645,7 +1717,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get upgradeBlockedMinimalImage =>
-      'Dieses Board läuft mit einem Bootstrap-Image und muss installiert werden';
+      'Dieses Board läuft mit einem Bootstrap-Systemabbild und muss neu installiert werden';
 
   @override
   String get upgradeBlockedNoMender =>
@@ -1660,7 +1732,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get planInstallTilesDetail =>
-      'Fügt einen DBC-Schritt hinzu: Die Karten wandern auf das MDB, dann wird das Kabel zurückgesteckt und der Roller kopiert sie selbst.';
+      'Fügt einen DBC-Schritt hinzu: Die Karten werden auf das MDB übertragen. Danach wird das Kabel zurückgesteckt und die Karten werden automatisch installiert.';
 
   @override
   String get planTilesNotDownloaded =>
@@ -1668,30 +1740,30 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get actionLeaveBlockedStockMdb =>
-      'Ein Serien-Hauptboard muss installiert werden, bevor sonst etwas geht';
+      'Das Serien-Hauptboard muss installiert werden, bevor weitere Aktionen möglich sind';
 
   @override
   String get planDbcNeedsLibrescootMdb =>
-      'Das DBC ist nur über das MDB erreichbar, und die Werkzeuge dafür gehören zu Librescoot. Installiere in diesem Durchgang das MDB mit, oder lass das DBC unverändert.';
+      'Das DBC ist nur über das MDB erreichbar und die benötigten Werkzeuge gehören zu Librescoot. Installiere in diesem Vorgang das MDB mit oder lasse das DBC unverändert.';
 
   @override
   String get planNothingToDo =>
-      'Nichts ausgewählt. Mindestens eine Aktion wählen, um fortzufahren.';
+      'Keine Aktion ausgewählt. Wähle mindestens eine Aktion, um fortzufahren.';
 
   @override
   String get releaseMissingAssetsTitle =>
-      'Dieses Release kann nicht installiert werden';
+      'Diese Veröffentlichung kann nicht installiert werden';
 
   @override
   String releaseMissingAssetsBody(String tag, String assets) {
-    return 'Das Release $tag veröffentlicht nicht alles, was der Installer braucht: $assets. Gehe zurück und wähle einen anderen Kanal, oder warte auf ein Release, das alles enthält.';
+    return 'Die Veröffentlichung $tag enthält nicht alle benötigten Dateien: $assets. Gehe zurück und wähle einen anderen Kanal oder warte auf eine vollständige Veröffentlichung.';
   }
 
   @override
-  String get assetMdbArtifact => 'das MDB-Firmware-Artefakt';
+  String get assetMdbArtifact => 'das MDB-Firmware-Paket';
 
   @override
-  String get assetDbcArtifact => 'das DBC-Firmware-Artefakt';
+  String get assetDbcArtifact => 'das DBC-Firmware-Paket';
 
   @override
   String get assetMdbImage => 'das MDB-Systemabbild';
@@ -1700,7 +1772,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get assetDbcImage => 'das DBC-Systemabbild';
 
   @override
-  String get artifactStaging => 'Firmware-Artefakt wird übertragen...';
+  String get artifactStaging => 'Firmware-Paket wird übertragen…';
 
   @override
   String artifactInstalling(int percent) {
@@ -1708,18 +1780,18 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get artifactVerifying => 'Installierte Version wird geprüft...';
+  String get artifactVerifying => 'Installierte Version wird geprüft…';
 
   @override
   String get waitingForDbcUpload => 'Display-Dateien werden noch übertragen';
 
   @override
   String get artifactStillMinimal =>
-      'Das MDB ist mit dem Bootstrap-Image zurückgekommen, das Firmware-Artefakt wurde also nicht übernommen. Versuche es erneut oder schreibe stattdessen das vollständige Image.';
+      'Das MDB ist mit dem Bootstrap-Systemabbild gestartet; das Firmware-Paket wurde nicht installiert. Versuche es erneut oder installiere stattdessen das vollständige Systemabbild.';
 
   @override
   String artifactVersionMismatch(String found, String expected) {
-    return 'Das MDB meldet nach dem Neustart weiterhin $found statt $expected. Die Installation wurde zurückgerollt, es wurde also nichts geändert. Versuche es erneut oder schreibe stattdessen das vollständige Image.';
+    return 'Das MDB meldet nach dem Neustart weiterhin $found statt $expected. Die Installation wurde zurückgerollt; es wurde nichts geändert. Versuche es erneut oder installiere stattdessen das vollständige Systemabbild.';
   }
 
   @override
@@ -1728,11 +1800,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get artifactStagingInBackground =>
-      'Firmware-Installation wird abgeschlossen...';
+      'Firmware-Paket wird im Hintergrund übertragen…';
 
   @override
   String get artifactNoneDownloaded =>
-      'Für dieses Board wurde kein Firmware-Artefakt heruntergeladen.';
+      'Für dieses Board wurde kein Firmware-Paket heruntergeladen.';
 
   @override
   String get dbcImageMissing =>
@@ -1744,23 +1816,23 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get artifactRebootTimeoutHint =>
-      'Prüfe, ob das USB-Kabel an beiden Enden fest sitzt und der Roller Strom hat. Ein Roller ohne eingesetzten Fahrakku kann beim Warten auch von allein einschlafen.';
+      'Prüfe, ob das USB-Kabel an beiden Enden fest sitzt und der Roller Strom hat. Ohne eingesetzten Fahrakku kann er während der Wartezeit in den Ruhezustand wechseln.';
 
   @override
   String get artifactRetryDetail =>
-      'Kostet nichts. Versucht es an derselben Stelle noch einmal und behält Einstellungen, Schlüsselkarten und Fahrten.';
+      'Erneuter Versuch an derselben Stelle. Einstellungen, Schlüsselkarten und Fahrten bleiben erhalten.';
 
   @override
   String get artifactFullImageDetail =>
-      'Letzter Ausweg. Beschreibt das ganze Board neu und löscht Einstellungen, Schlüsselkarten und Fahrten.';
+      'Überschreibt den Speicher des gesamten Boards und löscht Einstellungen, Schlüsselkarten und Fahrten.';
 
   @override
   String get artifactPreflightNoMender =>
-      'Dieses Board hat keinen Update-Client und kann daher kein Firmware-Artefakt aufnehmen.';
+      'Dieses Board hat keinen Update-Client und kann daher kein Firmware-Paket aufnehmen.';
 
   @override
   String artifactPreflightOtaBusy(String status) {
-    return 'Der Roller führt gerade sein eigenes Update aus ($status). Warte, bis es fertig ist und der Roller neu gestartet hat, und versuche es dann erneut.';
+    return 'Auf dem Roller läuft gerade ein anderes Update ($status). Warte, bis es abgeschlossen ist und der Roller neu gestartet wurde. Versuche es danach erneut.';
   }
 
   @override
@@ -1773,17 +1845,17 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get artifactFallBackToFullImage =>
-      'Stattdessen das vollständige Image schreiben';
+      'Stattdessen vollständiges Systemabbild installieren';
 
   @override
   String get fallBackWipeTitle => 'Dabei werden die Daten des Rollers gelöscht';
 
   @override
   String get fallBackWipeBody =>
-      'Beim Schreiben des vollständigen Images wird die Datenpartition neu formatiert. Einstellungen, angelernte Schlüsselkarten, Offline-Karten und Fahrtenhistorie gehen dabei verloren, der Roller kommt wie fabrikneu zurück. Die begonnene Aktualisierung hätte all das behalten.\n\nEin erneuter Versuch mit dem Firmware-Artefakt behält die Daten. Schreibe das vollständige Image nur, wenn das Artefakt weiterhin fehlschlägt.';
+      'Beim Installieren des vollständigen Systemabbilds wird die Datenpartition neu formatiert. Einstellungen, angelernte Schlüsselkarten, Offline-Karten und die Fahrtenhistorie gehen verloren. Die begonnene Aktualisierung hätte diese Daten erhalten.\n\nEin erneuter Versuch mit dem Firmware-Paket erhält die Daten. Installiere das vollständige Systemabbild nur, wenn das Paket weiterhin fehlschlägt.';
 
   @override
-  String get fallBackWipeConfirm => 'Löschen und vollständiges Image schreiben';
+  String get fallBackWipeConfirm => 'Löschen und Systemabbild installieren';
 
   @override
   String get dbcCleanInstallButton => 'DBC löschen und neu installieren';
@@ -1793,7 +1865,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcCleanInstallBody =>
-      'Die zuletzt bekannte Version des DBC ist nur das, was das MDB gesehen hat, als beide zusammen mit Strom versorgt waren. Ein Board, das der Plan für aktualisierbar hielt, hat also womöglich gar keinen Update-Client. Bei einer Neuinstallation wird zuerst das Bootstrap-Image geschrieben, dabei wird die Datenpartition des DBC neu formatiert und die Offline-Karten gehen verloren. Alles auf dem MDB bleibt unberührt, auch Einstellungen, angelernte Schlüsselkarten und Fahrtenhistorie.\n\nDafür muss das Kabel noch einmal umgesteckt werden: Der Installer legt die Dateien ab, du schraubst das DBC-Kabel zurück an das MDB, der Rest läuft unbeaufsichtigt.';
+      'Die zuletzt bekannte DBC-Version basiert auf dem letzten gemeinsamen Betrieb mit dem MDB. Ein als aktualisierbar eingestuftes Board hat daher möglicherweise keinen Update-Client. Bei einer Neuinstallation wird zuerst das Bootstrap-Systemabbild installiert. Dabei wird die Datenpartition des DBC formatiert und die Offline-Karten gehen verloren. Die Daten auf dem MDB, einschließlich Einstellungen, angelernten Schlüsselkarten und Fahrtenhistorie, bleiben erhalten.\n\nStecke dafür das Kabel erneut um: Der Installer überträgt die Dateien, du schließt das DBC-Kabel wieder am MDB an, danach läuft der Vorgang automatisch.';
 
   @override
   String get dbcCleanInstallConfirm => 'DBC löschen und installieren';
@@ -1805,7 +1877,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String healthVersionPlan(String current, String target) {
-    return 'Aktuell installierte Version: $current - Zu installierende Version: $target';
+    return 'Aktuell installiert: $current; zu installieren: $target';
   }
 
   @override
@@ -1834,7 +1906,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get mainBatteryMissingHint =>
-      'Der DBC-Flash zieht Strom aus dem Fahrakku. Setz ihn zurück in die Sitzbank, bevor es weitergeht.';
+      'Der DBC-Flash benötigt den Fahrakku. Setze ihn wieder in die Sitzbank ein, bevor du fortfährst.';
 
   @override
   String get cbbDetected => 'CBB erkannt';
@@ -1843,22 +1915,24 @@ class AppLocalizationsDe extends AppLocalizations {
   String get batteryDetected => 'Akku erkannt';
 
   @override
-  String get proceedWithoutCbb =>
-      'Ich verstehe die Risiken, trotzdem fortfahren';
+  String get proceedWithoutCbb => 'Ohne CBB fortfahren';
 
   @override
-  String get checkingCbbAndBattery => 'CBB und Akku werden geprüft...';
+  String get proceedWithoutMainBattery => 'Ohne Fahrakku fortfahren';
 
   @override
-  String get waitingForUsbDisconnect => 'Warte auf USB-Trennung...';
+  String get checkingCbbAndBattery => 'CBB und Akku werden geprüft…';
+
+  @override
+  String get waitingForUsbDisconnect => 'Warte auf USB-Trennung…';
 
   @override
   String get dbcFlashDurationHeadline =>
-      'Das DBC-Flashen kann 10 bis 20 Minuten dauern.';
+      'Die Display-Arbeiten dauern normalerweise 10 bis 20 Minuten.';
 
   @override
   String get finishHandoverRestoring =>
-      'Einstellungen und Dienste werden zurückgesetzt';
+      'Einstellungen und Dienste werden wiederhergestellt';
 
   @override
   String get finishBlockedHeading =>
@@ -1866,32 +1940,31 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get finishBlockedBody =>
-      'Die Verbindung zum Roller ist vor dem letzten Schritt abgebrochen, die Firmware wurde also übertragen, aber nicht installiert. Am Roller wurde nichts verändert, du kannst es gefahrlos noch einmal versuchen.\n\nPrüf das USB-Kabel an beiden Enden und klick dann Nochmal versuchen. Wenn das nicht hilft, schließ den Installer und starte ihn neu: er macht da weiter, wo dieser Lauf stehen geblieben ist.';
+      'Die Verbindung zum Roller ist vor der abschließenden Statusprüfung abgebrochen. Die Display- oder Kartenübertragung wurde möglicherweise nicht gestartet oder nicht abgeschlossen.\n\nPrüfe das USB-Kabel an beiden Enden und wähle „Erneut versuchen“. Wenn die Verbindung nicht wiederhergestellt werden kann, schließe den Installer und starte ihn erneut. Der aufgezeichnete Installationsstand bleibt erhalten.';
 
   @override
   String get finishBlockedRetry => 'Nochmal versuchen';
 
   @override
-  String get finishHandoverTitle =>
-      'Warte darauf, dass der Roller sich entsperrt';
+  String get finishHandoverTitle => 'Warte, bis der Roller entsperrt ist';
 
   @override
   String get finishHandoverBody =>
-      'Bleib beim Roller, bis er sich entsperrt. Dann kannst du das USB-Kabel abziehen.';
+      'Bleibe beim Roller, bis er entsperrt ist. Ziehe danach das USB-Kabel ab.';
 
   @override
   String get networkConfigNeedsPermission =>
-      'macOS fragt nach Erlaubnis, die Netzwerk-Einstellungen zu ändern. Im Systemdialog auf Erlauben klicken, dann Erneut versuchen drücken.';
+      'macOS benötigt die Erlaubnis, die Netzwerkeinstellungen zu ändern. Klicke im Systemdialog auf Erlauben und wähle anschließend Erneut versuchen.';
 
   @override
-  String get waitingForMdb => 'Warte auf das MDB...';
+  String get waitingForMdb => 'Warte auf das MDB…';
 
   @override
   String get dbcFlashAllDone => 'Weiter zum Abschluss';
 
   @override
   String get dbcFlashSequence =>
-      'Ab hier macht der Roller allein weiter: er schreibt das Image auf das Display, startet es neu und spielt die Karten auf. Der Fortschritt steht auf dem Display. Bleib beim Roller, bis eines von beidem passiert.';
+      'Der Roller führt jetzt die ausgewählten Display-Arbeiten aus. Den tatsächlichen Zustand zeigen das Display und die Blinker. Warte, bis der Vorgang abgeschlossen ist oder ein Fehler angezeigt wird.';
 
   @override
   String get dbcFlashDoNotDisconnect =>
@@ -1899,19 +1972,18 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcFlashDoneSignal =>
-      'Fertig: der Roller entsperrt sich von selbst. Das ist das Signal, mehr musst du nicht abwarten.';
+      'Fertig: Der Roller wird automatisch entsperrt. Das ist das Abschlusszeichen; du musst nicht weiter warten.';
 
   @override
   String get dbcFlashFailSignal =>
-      'Fehler: die LED am DBC blinkt rot und der Warnblinker geht an. Dann USB zurück auf das MDB stecken und hier das Log holen.';
+      'Fehler: Die LED am DBC blinkt rot und der Warnblinker geht an. Schließe USB wieder am MDB an und öffne hier das Protokoll.';
 
   @override
   String get dbcFlashLedIsTheSignal =>
-      'Die LED am DBC ist das Fehlersignal: blinkt sie rot, ist etwas schiefgegangen.';
+      'Die LED am DBC zeigt Fehler an: Wenn sie rot blinkt, ist die Installation fehlgeschlagen.';
 
   @override
-  String get dbcFlashSomethingWrong =>
-      'LED blinkt rot: USB zurückstecken und Log holen';
+  String get dbcFlashSomethingWrong => 'Ein Fehler ist aufgetreten';
 
   @override
   String get phaseKeycardSetupTitle => 'Schlüsselkarten einrichten';
@@ -1921,7 +1993,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get usingLocalFirmwareImages =>
-      'Lokale Firmware-Images werden verwendet';
+      'Lokale Firmware-Systemabbilder werden verwendet';
 
   @override
   String get mdbDetectedUmsSkipping =>
@@ -1929,29 +2001,29 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get verifyingBootloaderConfig =>
-      'Bootloader-Konfiguration wird überprüft...';
+      'Bootloader-Konfiguration wird überprüft…';
 
   @override
   String get umsNotDetectedTimeout =>
       'UMS-Gerät nicht innerhalb von 60 s erkannt. MDB ist möglicherweise wieder in Linux gebootet.';
 
   @override
-  String get waitingForDevicePath => 'Warte auf Gerätepfad...';
+  String get waitingForDevicePath => 'Warte auf Gerätepfad…';
 
   @override
   String get noDevicePathFound =>
-      'Kein Gerätepfad gefunden. USB-Verbindung prüfen und erneut versuchen.';
+      'Kein Gerätepfad gefunden. Prüfe die USB-Verbindung und versuche es erneut.';
 
   @override
   String get mdbDisconnectedFlashingDbc =>
-      'MDB getrennt. DBC wird autonom geflasht...';
+      'MDB getrennt. DBC wird automatisch geflasht…';
 
   @override
   String get mdbReconnectedVerifying =>
-      'MDB wieder verbunden. Überprüfung läuft...';
+      'MDB wieder verbunden. Überprüfung läuft…';
 
   @override
-  String get logDebugShell => 'Log & Debug-Shell';
+  String get logDebugShell => 'Protokoll und Debug-Shell';
 
   @override
   String internalError(String error) {
@@ -1959,14 +2031,14 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get copyLog => 'Log kopieren';
+  String get copyLog => 'Protokoll kopieren';
 
   @override
   String get copyToClipboard => 'In Zwischenablage kopieren';
 
   @override
   String logFilePath(String path) {
-    return 'Logdatei: $path';
+    return 'Protokolldatei: $path';
   }
 
   @override
@@ -1976,7 +2048,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get debugShell => 'Debug-Shell';
 
   @override
-  String get debugCommandHint => 'Befehl im Installer-Kontext ausführen...';
+  String get debugCommandHint => 'Befehl im Installer-Kontext ausführen…';
 
   @override
   String mbOnDisk(String size) {
@@ -2013,7 +2085,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get gettingStartedDriveMenuDesc =>
-      'Das Kurzmenü über den Sitzbank-Schalter funktioniert nur im Fahrmodus (Seitenständer oben). Sitzbank-Schalter gedrückt halten, um das Kurzmenü zu öffnen; solange du hältst, wechseln die Einträge automatisch im Sekundentakt weiter. Loslassen, um auf dem hervorgehobenen Eintrag zu stoppen, dann innerhalb etwa einer Sekunde noch einmal kurz drücken, um zu bestätigen.';
+      'Das Kurzmenü über den Sitzbank-Schalter funktioniert nur im Fahrmodus (Seitenständer oben). Halte den Sitzbank-Schalter gedrückt, um es zu öffnen. Solange du ihn hältst, wechseln die Einträge automatisch im Sekundentakt. Lass ihn los, um den hervorgehobenen Eintrag auszuwählen, und drücke innerhalb von etwa einer Sekunde erneut kurz zur Bestätigung.';
 
   @override
   String get gettingStartedUpdateModeTitle =>
@@ -2021,14 +2093,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get gettingStartedUpdateModeDesc =>
-      'Für Karten- oder Routing-Updates, Einstellungen oder weitere Dateiübertragungen: Roller einschalten, Menü öffnen, dann Einstellungen → System → Update-Modus… aufrufen und einen Rechner per USB anschließen.';
+      'Für Karten- oder Routenaktualisierungen, Einstellungen oder weitere Dateiübertragungen: Schalte den Roller ein, öffne das Menü und wähle Einstellungen → System → Update-Modus… aus. Schließe anschließend einen Rechner per USB an.';
 
   @override
   String get gettingStartedNavigationTitle => 'Zu einem Ziel navigieren';
 
   @override
   String get gettingStartedNavigationDesc =>
-      'Menü → Navigation → Adresse eingeben…, Letzte Ziele oder Gespeicherte Orte. Mit Aktuellen Standort speichern hältst du die aktuelle Position für später fest; In Favoriten speichern bei einem letzten Ziel hält es dauerhaft.';
+      'Wähle Menü → Navigation → Adresse eingeben…, Letzte Ziele oder Gespeicherte Orte. Mit Aktuellen Standort speichern speicherst du die aktuelle Position. Mit In Favoriten speichern bleibt ein letztes Ziel dauerhaft gespeichert.';
 
   @override
   String get gettingStartedFooter => 'Mehr auf librescoot.org und im Handbuch.';
@@ -2052,9 +2124,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get substepCheckCompletionRecord => 'Abschlussprotokoll prüfen';
 
   @override
-  String get substepDisableHazards => 'Alarm und Auto-Standby deaktivieren';
-
-  @override
   String get substepReadStatus => 'Status der laufenden Installation prüfen';
 
   @override
@@ -2067,7 +2136,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String reconnectTimeoutBody(int minutes) {
-    return 'Es sind $minutes Min vergangen, ohne dass das MDB als RNDIS-Gerät aufgetaucht ist. Das DBC braucht beim ersten Boot manchmal länger (Partitions-Resize, Karten-Installation). Du kannst weiter warten, oder unten neu starten / überspringen.';
+    return 'Das MDB ist seit $minutes Minuten nicht als USB-Netzwerkgerät zurückgekehrt. Die erste Display-Einrichtung kann länger dauern, während Speicher und Offline-Karten vorbereitet werden. Du kannst weiter warten, die Prüfung wiederholen, die Display-Arbeiten erneut starten oder zum Abschluss gehen.';
   }
 
   @override
@@ -2089,11 +2158,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get upgradeDowngradeWarning =>
-      'Das ist älter als das, was auf dem Board läuft. Aktualisieren behält Einstellungen, Schlüsselkarten, Karten und Fahrten, und ältere Dienste lesen Daten einer neueren Version womöglich nicht. Wenn danach etwas klemmt, neu installieren.';
+      'Diese Version ist älter als die aktuell auf dem Board laufende Version. Beim Aktualisieren bleiben Einstellungen, Schlüsselkarten, Karten und Fahrten erhalten. Ältere Dienste können Daten einer neueren Version möglicherweise nicht lesen. Installiere neu, wenn danach Probleme auftreten.';
 
   @override
   String get upgradeChannelSwitchWarning =>
-      'Das ist ein anderer Kanal als der, der auf dem Board läuft. Aktualisieren behält Einstellungen, Schlüsselkarten, Karten und Fahrten, die die Dienste des anderen Kanals womöglich anders lesen. Wenn danach etwas klemmt, neu installieren.';
+      'Diese Version stammt aus einem anderen Kanal als die aktuell auf dem Board laufende Version. Beim Aktualisieren bleiben Einstellungen, Schlüsselkarten, Karten und Fahrten erhalten. Die Dienste des anderen Kanals können diese Daten möglicherweise anders lesen. Installiere neu, wenn danach Probleme auftreten.';
 
   @override
   String get tightenDbcCable => 'DBC-Kabel festschrauben';
@@ -2107,11 +2176,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get finalRideDesc =>
-      'Der Roller hat sich am Ende der Installation selbst entsperrt. Falls nicht, nimm eine angelernte Schlüsselkarte oder entsperre über Bluetooth.';
+      'Der Roller wurde am Ende der Installation automatisch entsperrt. Falls nicht, verwende eine angelernte Schlüsselkarte oder entsperre ihn über Bluetooth.';
 
   @override
   String notEnoughDiskSpace(String needed) {
-    return 'Zu wenig Speicherplatz: $needed fehlen. Schaffe Platz und versuche es erneut.';
+    return 'Zu wenig Speicherplatz: $needed fehlen. Schaffe Speicherplatz und versuche es erneut.';
   }
 
   @override
@@ -2134,10 +2203,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get substepAlreadyThere => 'liegt schon auf dem Roller';
 
   @override
-  String get substepFileImage => 'Display-Image';
+  String get substepFileImage => 'Display-Systemabbild';
 
   @override
-  String get substepFileImageMap => 'Prüfdaten zum Display-Image';
+  String get substepFileImageMap => 'Prüfdaten zum Display-Systemabbild';
 
   @override
   String get substepFileFirmware => 'Display-Firmware';
@@ -2146,17 +2215,17 @@ class AppLocalizationsDe extends AppLocalizations {
   String get substepFileMaps => 'Karten';
 
   @override
-  String get substepFileRouting => 'Routing-Daten';
+  String get substepFileRouting => 'Routendaten';
 
   @override
-  String get substepUploadStarting => 'Übertragung wird vorbereitet...';
+  String get substepUploadStarting => 'Übertragung wird vorbereitet…';
 
   @override
   String get substepUploadComplete => 'Übertragung abgeschlossen';
 
   @override
   String get substepUploadNothingToDo =>
-      'Alle Dateien sind schon auf dem Roller';
+      'Alle Dateien sind bereits auf dem Roller';
 
   @override
   String substepRemaining(int mins, int secs) {
@@ -2170,7 +2239,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get substepUploadFwTools => 'DBC-Bootloader-Werkzeuge übertragen';
 
   @override
-  String get substepUploadScript => 'Trampolin-Skript übertragen';
+  String get substepUploadScript => 'Installationsskript übertragen';
 
   @override
   String waitStepCounter(int current, int total) {
@@ -2200,7 +2269,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get blePairingWhy =>
-      'Mit einem gekoppelten Handy kannst du den Roller später über die App entsperren und seinen Zustand sehen. Du kannst das auch überspringen und später nachholen.';
+      'Mit einem gekoppelten Handy kannst du den Roller später über die App entsperren und seinen Zustand anzeigen. Du kannst diesen Schritt überspringen und später nachholen.';
 
   @override
   String get blePairingStep1 => 'Bluetooth am Handy öffnen';
@@ -2229,27 +2298,28 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get keycardWhy =>
-      'Mit einer angelernten Karte entsperrst du den Roller ohne Handy. Du kannst mehrere Karten anlernen und das später jederzeit wiederholen. Eine Neuinstallation löscht vorher angelernte Karten.';
+      'Mit einer angelernten Schlüsselkarte entsperrst du den Roller ohne Handy. Du kannst mehrere Schlüsselkarten anlernen und das später jederzeit wiederholen. Eine Neuinstallation löscht zuvor angelernte Schlüsselkarten.';
 
   @override
   String get keycardStep1 => 'Anlernen starten';
 
   @override
-  String get keycardStep1Desc => 'Der Roller wartet danach auf eine Karte.';
+  String get keycardStep1Desc =>
+      'Danach wartet der Roller auf eine Schlüsselkarte.';
 
   @override
-  String get keycardStep2 => 'Karte an den Leser halten';
+  String get keycardStep2 => 'Schlüsselkarte an den Leser halten';
 
   @override
   String get keycardStep2Desc =>
-      'Der Leser sitzt vorne am Display. Kurz halten, bis der Installer die Karte zählt.';
+      'Der Leser befindet sich vorne am Display. Halte die Schlüsselkarte dort, bis der Installer sie zählt.';
 
   @override
   String get keycardStep3 => 'Fertig drücken';
 
   @override
   String get keycardStep3Desc =>
-      'Damit endet das Anlernen und die Karten gelten.';
+      'Damit wird das Anlernen beendet und die Schlüsselkarten werden aktiviert.';
 
   @override
   String get keycardPanelHeading => 'Kartenleser';
@@ -2267,7 +2337,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get keycardReaderUnreachable => 'Kartenleser nicht erreichbar';
 
   @override
-  String get keycardReaderScanning => 'Karte an den Leser halten';
+  String get keycardReaderScanning => 'Schlüsselkarte an den Leser halten';
 
   @override
   String keycardCardsTaught(int count) {
@@ -2286,17 +2356,18 @@ class AppLocalizationsDe extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count Anlernkarten registriert',
-      one: '1 Anlernkarte registriert',
+      other: '$count Anlernkarten eingerichtet',
+      one: '1 Anlernkarte eingerichtet',
     );
     return '$_temp0';
   }
 
   @override
-  String get keycardNeedOneToFinish => 'Eine Karte reicht zum Abschließen.';
+  String get keycardNeedOneToFinish =>
+      'Zum Abschließen musst du mindestens eine Schlüsselkarte anlernen.';
 
   @override
-  String get keycardPreparingReader => 'Kartenleser wird vorbereitet...';
+  String get keycardPreparingReader => 'Kartenleser wird vorbereitet…';
 
   @override
   String get blePairingDeviceName => 'Gerätename';
@@ -2312,7 +2383,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get blePinConfirmHint =>
-      'Dein Handy zeigt dieselbe Zahl. Stimmen sie überein, bestätige dort.';
+      'Dein Handy zeigt dieselbe Zahl. Wenn beide übereinstimmen, bestätige die PIN dort.';
 
   @override
   String get blePairingStep2DescCompare =>
@@ -2324,48 +2395,49 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcSayInstalling =>
-      'Firmware wird installiert, das dauert ein paar Minuten';
+      'Firmware wird installiert. Dies dauert einige Minuten';
 
   @override
-  String get dbcSayInstalled => 'Firmware installiert, Display startet neu';
+  String get dbcSayInstalled =>
+      'Firmware installiert. Display wird neu gestartet';
 
   @override
   String dbcSayRunning(String version) {
-    return 'Firmware $version läuft';
+    return 'Firmware $version ist aktiv';
   }
 
   @override
   String get dbcSayMaps => 'Karten werden übertragen';
 
   @override
-  String get dbcSayRouting => 'Routing-Karten werden übertragen';
+  String get dbcSayRouting => 'Routenkarten werden übertragen';
 
   @override
   String get dbcSayFailed => 'Installation fehlgeschlagen';
 
   @override
-  String get dbcSaySwap1 => 'USB-Kabel zurück auf das MDB stecken und im';
+  String get dbcSaySwap1 => 'USB-Kabel wieder am MDB anschließen und im';
 
   @override
-  String get dbcSaySwap2 => 'Installer auf dem Laptop weitermachen.';
+  String get dbcSaySwap2 => 'Installer auf dem Laptop fortfahren.';
 
   @override
-  String get dbcSayDone => 'Fertig. Der Roller entsperrt sich jetzt.';
+  String get dbcSayDone => 'Fertig. Der Roller wird jetzt entsperrt.';
 
   @override
   String get dbcSayBanner => 'Librescoot wird installiert';
 
   @override
   String get dbcSayFailOnboot =>
-      'Der Teil nach dem Neustart ist mehrfach gescheitert.';
+      'Der Installationsabschnitt nach dem Neustart ist wiederholt fehlgeschlagen.';
 
   @override
   String get dbcSayFailDbc =>
-      'Das Display hat sich nach dem Flashen nicht gemeldet.';
+      'Das Display hat sich nach dem Flashen nicht zurückgemeldet.';
 
   @override
   String dbcSayFailTiles(String count) {
-    return '$count Karten-Uebertragung(en) fehlgeschlagen.';
+    return 'Fehlgeschlagene Kartenübertragungen: $count';
   }
 
   @override
@@ -2373,9 +2445,9 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get riskMainBatteryLow =>
-      'Der Fahrakku ist fast leer. Die Installation läuft über die AUX-Batterie und geht durch, aber weit kommt der Roller danach nicht, und so stehen gelassen ist er morgen leer. Lade ihn im Anschluss.';
+      'Der Fahrakku ist fast leer. Die Installation nutzt das 12-V-System, aber ein niedriger Ladestand lässt wenig Reserve. Lade den Roller nach der Installation.';
 
   @override
   String get waitingForBoardRecovery =>
-      'Das Hauptboard hat nichts zum Starten gefunden und wartet in seinem Wiederherstellungsmodus. Nach etwa zwei Minuten startet es sich selbst neu. Kabel und Strom in Ruhe lassen.';
+      'Das Hauptboard hat nichts Startbares gefunden und befindet sich im Wiederherstellungsmodus. Nach etwa zwei Minuten wird es automatisch neu gestartet. Lass Kabel und Stromversorgung angeschlossen.';
 }
