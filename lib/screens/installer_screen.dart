@@ -3940,7 +3940,28 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   Widget _buildHealthCheck(AppLocalizations l10n) {
     if (!_healthCheckStarted && _scooterHealth == null && !_isProcessing) {
       _healthCheckStarted = true;
+      _isProcessing = true;
       Future.microtask(_runHealthCheck);
+    }
+
+    if (_scooterHealth == null) {
+      return _waitPhase(
+        title: l10n.healthCheckHeading,
+        warning: _isProcessing ? null : _statusMessage,
+        actions: [
+          if (!_isProcessing)
+            FilledButton.icon(
+              onPressed: () {
+                setState(() {
+                  _healthCheckStarted = false;
+                  _statusMessage = '';
+                });
+              },
+              icon: const Icon(Icons.refresh),
+              label: Text(l10n.retryButton),
+            ),
+        ],
+      );
     }
 
     Future<void> proceed() async {
@@ -4174,6 +4195,17 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   Future<void> _runHealthCheck() async {
     final l10n = AppLocalizations.of(context)!;
+    _beginWait([
+      WaitStep(
+        label: l10n.waitingForBatteryData,
+        typical: const Duration(seconds: 90),
+      ),
+      WaitStep(
+        label: l10n.backingUpConfig,
+        typical: const Duration(seconds: 15),
+      ),
+    ]);
+    _setStatus(l10n.waitingForBatteryData);
     setState(() => _isProcessing = true);
     if (_isDryRun) {
       setState(
