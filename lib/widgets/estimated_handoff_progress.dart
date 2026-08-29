@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show FontFeature;
 
 import 'package:flutter/material.dart';
 
@@ -162,7 +163,8 @@ class _EstimatedHandoffProgressState extends State<EstimatedHandoffProgress> {
                 style: const TextStyle(
                   fontSize: 12,
                   color: kTextMuted,
-                  fontFamily: 'monospace',
+                  fontFamily: 'Inter',
+                  fontFeatures: [FontFeature.tabularFigures()],
                 ),
               ),
             ],
