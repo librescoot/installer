@@ -241,7 +241,7 @@ void main() {
     }
   });
 
-  testWidgets('five German configured-keycard actions fit a narrow bar',
+  testWidgets('German configured-keycard actions fit a narrow bar',
       (tester) async {
     tester.view.physicalSize = const Size(700, 600);
     tester.view.devicePixelRatio = 1.0;
@@ -251,7 +251,6 @@ void main() {
     await tester.pumpWidget(host(const PhaseLayout(
       title: 'Schlüsselkarten',
       actions: [
-        PhaseAction(label: 'Überspringen', side: ActionSide.back),
         PhaseAction(label: 'Von vorn beginnen', icon: Icons.refresh),
         PhaseAction(label: 'Weitere hinzufügen', icon: Icons.nfc),
         PhaseAction(
@@ -265,7 +264,6 @@ void main() {
 
     expect(tester.takeException(), isNull);
     for (final label in [
-      'Überspringen',
       'Von vorn beginnen',
       'Weitere hinzufügen',
       'Anlernkarte hinzufügen (fortgeschritten)',

@@ -48,6 +48,7 @@ void main() {
     final actions = source.substring(start, end);
     expect(actions, contains('keycardAddMore'));
     expect(actions, contains('keycardCardsStageAddMasterButton'));
+    expect(actions, isNot(contains('skipKeycardSetup')));
     expect(actions, contains('(_keycardMasterCount ?? 0) == 0'));
 
     final master = actions.indexOf('keycardCardsStageAddMasterButton');

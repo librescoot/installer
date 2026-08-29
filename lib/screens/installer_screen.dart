@@ -9118,11 +9118,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// screen in the flow whose controls were somewhere else.
   List<PhaseAction> _keycardAlreadyConfiguredActions(AppLocalizations l10n) => [
         PhaseAction(
-          label: l10n.skipKeycardSetup,
-          side: ActionSide.back,
-          onPressed: _skipKeycardSetupEntirely,
-        ),
-        PhaseAction(
           label: l10n.keycardStartOverButton,
           icon: Icons.refresh,
           onPressed: _keycardStartOver,
