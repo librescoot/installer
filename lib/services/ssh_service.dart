@@ -350,6 +350,15 @@ done
     return info;
   }
 
+  /// Reconnect only to read the autonomous install's final status.
+  ///
+  /// A normal installer connection stops the power manager so the board cannot
+  /// suspend during laptop-owned work. At this point the device coordinator
+  /// has already restored services and may already have declared success, so
+  /// changing service state would make a read-only status check unsafe.
+  Future<DeviceInfo> connectToMdbForStatus() =>
+      _connect(mdbHost, stopPowerManager: false);
+
   /// Set the connected device's clock + timezone from this host. Best-effort:
   /// failures are logged and swallowed so a missing `hwclock`/`timedatectl`
   /// never blocks the install.
@@ -414,7 +423,10 @@ done
     return _connect(dbcHost);
   }
 
-  Future<DeviceInfo> _connect(String host) async {
+  Future<DeviceInfo> _connect(
+    String host, {
+    bool stopPowerManager = true,
+  }) async {
     // Auth strategy:
     //   1. empty password (Librescoot)
     //   2. bundled credential matched against banner version (stock OS)
@@ -560,14 +572,18 @@ done
       }
     }
 
-    // Stop power manager to prevent suspend/hibernate during flashing
-    try {
-      await runCommand(
-        'systemctl stop librescoot-pm 2>/dev/null; '
-        'systemctl stop unu-pm 2>/dev/null; true',
-      );
-      debugPrint('SSH: stopped power manager');
-    } catch (_) {}
+    // Normal installer work must prevent suspend during flashing. A
+    // status-only reconnect after autonomous finalization must not change the
+    // service state that finalization just restored.
+    if (stopPowerManager) {
+      try {
+        await runCommand(
+          'systemctl stop librescoot-pm 2>/dev/null; '
+          'systemctl stop unu-pm 2>/dev/null; true',
+        );
+        debugPrint('SSH: stopped power manager');
+      } catch (_) {}
+    }
 
     final detected = await _detectFirmwareVersion();
     if (detected.version != null) {

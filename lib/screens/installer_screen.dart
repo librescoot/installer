@@ -1078,22 +1078,45 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   /// Refresh the final-screen verdict after the laptop can reach the MDB
-  /// again. A missing or failed record is deliberately not a success: the
-  /// scooter may still be working, or the connection may have returned too
-  /// early to read the record.
+  /// again. USB Ethernet returns before sshd and before finalization finish,
+  /// so one connection attempt and one record read are both racy. Keep this
+  /// read-only probe alive long enough for the autonomous reboot/finalizer.
   Future<void> _refreshFinishCompletion() async {
     if (_isDryRun || _finishCompletionConfirmed || _finishCompletionChecking) {
       return;
     }
     _finishCompletionChecking = true;
     try {
-      await _sshService.ensureConnected('confirm finish');
-      final completed = await _deviceReportedFinished();
-      if (completed == true && mounted) {
-        setState(() => _finishCompletionConfirmed = true);
+      const attempts = 80;
+      for (var attempt = 1; attempt <= attempts; attempt++) {
+        if (!mounted || _finishCompletionConfirmed) return;
+        try {
+          if (!_sshService.isConnected) {
+            await _ensureDriverBinding();
+            final iface = await NetworkService().findLibrescootInterface();
+            if (iface != null) {
+              await NetworkService().configureInterface(iface);
+            }
+            await _sshService.connectToMdbForStatus();
+          }
+          final completed = await _deviceReportedFinished();
+          if (completed == true) {
+            if (mounted) {
+              setState(() => _finishCompletionConfirmed = true);
+            }
+            debugPrint('UI: autonomous finish confirmed after reconnect');
+            return;
+          }
+        } catch (e) {
+          debugPrint(
+            'UI: finish confirmation attempt $attempt/$attempts failed: $e',
+          );
+        }
+        if (attempt < attempts) {
+          await Future.delayed(const Duration(seconds: 3));
+        }
       }
-    } catch (e) {
-      debugPrint('UI: could not confirm finish after reconnect: $e');
+      debugPrint('UI: autonomous finish was not confirmed before timeout');
     } finally {
       _finishCompletionChecking = false;
     }

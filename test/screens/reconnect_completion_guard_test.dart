@@ -48,13 +48,41 @@ void main() {
     );
   });
 
-  test('a USB event on Finish remains the late-reconnect fallback', () {
+  test('a USB event on Finish polls through late ssh and finalization', () {
     final source = File('lib/screens/installer_screen.dart').readAsStringSync();
     expect(
       source,
       contains('device != null && _currentPhase == InstallerPhase.finish'),
     );
     expect(source, contains('unawaited(_refreshFinishCompletion())'));
+
+    final start = source.indexOf('Future<void> _refreshFinishCompletion()');
+    final end = source.indexOf('\n  /// Progress for the transfer', start);
+    final refresh = source.substring(start, end);
+    expect(refresh, contains('for (var attempt = 1; attempt <= attempts;'));
+    expect(refresh, contains('connectToMdbForStatus()'));
+    expect(refresh, contains('_deviceReportedFinished()'));
+    expect(refresh, contains('Duration(seconds: 3)'));
+  });
+
+  test('status reconnect cannot stop the restored power manager', () {
+    final source = File('lib/services/ssh_service.dart').readAsStringSync();
+    final statusStart = source.indexOf('connectToMdbForStatus()');
+    final statusEnd = source.indexOf('\n\n', statusStart);
+    final statusConnect = source.substring(statusStart, statusEnd);
+    expect(statusConnect, contains('stopPowerManager: false'));
+
+    final connectStart = source.indexOf('Future<DeviceInfo> _connect(');
+    final connectEnd = source.indexOf(
+      '\n  Future<({String? version, String? osId})>',
+      connectStart,
+    );
+    final connect = source.substring(connectStart, connectEnd);
+    expect(connect, contains('if (stopPowerManager)'));
+    expect(
+      connect.indexOf('if (stopPowerManager)'),
+      lessThan(connect.indexOf('systemctl stop librescoot-pm')),
+    );
   });
 
   test('fallback wording names the active probes, not the trampoline', () {
