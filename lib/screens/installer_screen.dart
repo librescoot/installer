@@ -205,9 +205,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   int _installStateSequence = 0;
   DeviceInfo? _mdbInfo;
 
-  /// What the user chose on the install-plan screen. Null until the health
-  /// check has probed both boards; every route into the flash phases sets it
-  /// first, except the shortcut that finds the MDB already in mass storage.
   /// What the last on-device finish recorded, when there was one. Read at
   /// connect so a run nobody watched can still say what it did.
   String? _previousRunRecord;
@@ -426,12 +423,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   static const _regionHeaderPrefix = '__country__';
 
-  /// Build dropdown items grouped by country: a disabled bold header per
-  /// country, followed by its (indented) regions. Relies on [_availableRegions]
-  /// already being ordered so each country's regions are contiguous.
-  /// Countries as disabled headers, their regions indented under them. The
-  /// grouping is the only thing that says there is more here than one
-  /// country's worth of states.
   List<DropdownMenuEntry<Region>> _regionMenuEntries(List<Region> regions) {
     final entries = <DropdownMenuEntry<Region>>[];
     String? currentCountry;
@@ -856,10 +847,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
   }
 
-  /// Persist the user's installer choices on the MDB: dashboard language
-  /// (so the UI matches what they used here) and OTA channel (so future
-  /// updates pull from the same track they just installed). Both are
-  /// best-effort, failure is harmless, the user can fix from the dashboard.
+  /// Completes a laptop-owned finish or leaves it to the device coordinator.
   Future<void> _onEnterFinish() async {
     // Read before the first await: reaching for the context after one is how
     // a disposed widget turns a best-effort settings write into a crash.
@@ -870,25 +858,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       if (mounted) setState(() => _awaitingFinishHandover = false);
       return;
     }
-    // A dropped link used to return here too, which is right only when a
-    // trampoline is carrying the finish. Without one the laptop owes the whole
-    // install, so finishHandover decides rather than this.
-
-
-    // Connected, but the device may have closed the install out itself while
-    // we were unplugged, in which case redoing any of it is wrong: the
-    // settings backup is already consumed, so a second restore would put
-    // back the first-install snapshot, and a second handover is pure delay.
-    // The completion record is the device's own proof, not our assumption , 
-    // an armed trampoline that failed never writes one, and that run does
-    // still need the laptop-side finish.
-    //
-    // No answer at all is the third case, and the ordinary one once the
-    // trampoline is running: by then the cable is on the dashboard, so the
-    // session this would run over is gone even though the client still thinks
-    // it is up. Everything below needs that link, so there is nothing to do
-    // but show the finish screen and let the device close itself out, which
-    // is what it was armed to do.
+    // A matching record prevents a second restore from consuming the settings
+    // backup again. No answer may simply mean the device owns the disconnected
+    // finish.
     var reported = await _deviceReportedFinished();
     if (reported == true && mounted) {
       setState(() => _finishCompletionConfirmed = true);
@@ -955,9 +927,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
     if (mounted) setState(() => _awaitingFinishHandover = true);
 
-    // The plan goes up with the screen. Set later, the overlay spends the
-    // restore showing the previous phase's steps and its clock, which is how
-    // a fresh wait came to open at four minutes and "longer than usual".
+    // Install the wait plan before updating its status.
     _beginWait([
       WaitStep(
           label: handoverL10n.finishHandoverRestoring,
@@ -975,15 +945,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // blinking green until someone power-cycles it.
     await _stopBootLedBlink();
 
-    // Everything from here is 90-finalize.sh: the settings restore, the
-    // owner's choices, ending service mode, restoring usb0-policy, restarting
-    // what the install stopped, the unlock and the completion record. The
-    // laptop used to do all of that itself, in a different order from the
-    // trampoline's copy of the same work, and the two had drifted.
-    //
-    // Uploaded before the cleanup below, deliberately. A queued phase makes
-    // the coordinator decline to retire, so a detached run that dies takes the
-    // scooter's next boot to finish rather than leaving it half handed back.
+    // Stage finalize before cleanup. Queued phases keep the coordinator alive
+    // so the next boot can recover a detached run.
     try {
       // Before the first upload, not as part of the coordinator install that
       // follows it. uploadFile does not create directories, so without this
@@ -998,8 +961,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           mode: (_plan?.needsMdbStage0 ?? false) ? 'flash' : 'upgrade',
           language: (lang == 'en' || lang == 'de') ? lang : '',
           channel: _downloadState.channel.name,
-          // Only what this run verified. The dashboard is the trampoline's to
-          // report, and a run that never handed off has nothing to say.
           dbcVersion: _deviceFinishArmed ? (_dbcState.version ?? '') : '',
           dbcAction: (_plan?.dbc.action ?? BoardAction.leave).name,
           releaseTag: _downloadState.releaseTag ?? '',
@@ -1391,10 +1352,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                         upgradingSteps: _upgradingSteps,
                         dbcMapsOnly: _dbcMapsOnly,
                         downloadItems: _downloadState.items,
-                        // The last thing the run said is not what is happening
-                        // once the run is over. The finish screen is not a
-                        // wait, so the footer has nothing to report; only the
-                        // handover before it does.
                         statusMessage: _currentPhase == InstallerPhase.finish &&
                                 !_awaitingFinishHandover
                             ? null
@@ -1682,12 +1639,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           ),
           const SizedBox(height: 8),
           if (_downloadState.wantsOfflineMaps)
-            // Answer-width, not measure-width: a one-word answer stretched
-            // across 960px read as a hairline rectangle. The menu is an M3
-            // one because the older dropdown paints its list on the theme's
-            // canvas colour, which on this ground is the page colour: no
-            // edge, no surface, nothing to say where the list ends. Its
-            // surface and border come from the theme.
             Align(
               alignment: Alignment.centerLeft,
               child: DropdownMenu<Region>(
@@ -1737,23 +1688,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             const SizedBox(height: 12),
           ],
 
-          // Start button: fires the UAC / sudo elevation prompt on
-          // Windows / macOS, then advances to Notices. We elevate here
-          // (not at app startup) so the user can browse the welcome form
-          // first, but BEFORE Notices so the prompt is the cost of the
-          // big "I'm starting" click rather than buried inside Notices'
-          // Continue. If the user declines elevation, they stay on this
-          // page with the explanatory dialog and can try again.
         ],
       ),
     );
   }
 
   Widget _buildNotices(AppLocalizations l10n) {
-    // Kick downloads off as soon as the user lands here so the sidebar
-    // shows progress while they read the warnings, and the Continue
-    // button can gate on _downloadState.allReady. Microtask so we don't
-    // mutate state during build.
+    // Defer startup to avoid mutating state during build.
     if (!_downloadsKicked &&
         _downloadsFailed == null &&
         !launchArgs.hasLocalImages) {
@@ -1778,8 +1719,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       onBack: _isProcessing ? null : () => _setPhase(InstallerPhase.welcome),
       backLabel: l10n.backButton,
       actions: [
-        // Offered only while the queue is still running: the user says they
-        // will be online later and takes the install without the files.
         if (waitingOnDownloads)
           PhaseAction(
             label: l10n.noticesContinueOfflineAnyway,
@@ -1787,8 +1726,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 ? null
                 : () => _setPhase(InstallerPhase.physicalPrep),
           ),
-        // Custom: the label and the icon both change while downloads run, and
-        // the icon becomes a spinner.
         PhaseAction.custom(
           primary: true,
           child: FilledButton.icon(
@@ -2044,16 +1981,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        // A border grows inward from the box edge, so widening it on selection
-        // shrinks the content box and reflows everything below the card for
-        // the length of the animation. The border stays one width and the
-        // selected state is carried by colour; the padding absorbs the second
-        // pixel so the card's own size never changes.
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          // Same radius and same border colour as the Cards elsewhere, so a
-          // card the user picks and a card that only groups things read as
-          // two states of one idiom.
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: selected ? kAccent : kOutline,
@@ -2526,10 +2455,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               description: step.description,
               beforeImageAsset: step.before,
               imageAsset: step.after,
-              // All open. As an accordion the closed steps were grey text
-              // with no affordance, so nobody read them as openable and the
-              // instructions for two of the three were simply invisible. The
-              // frame scrolls, which is what the accordion was buying.
               expanded: true,
             ),
         ],
@@ -2673,12 +2598,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     );
   }
 
-  /// The connect phase's dead ends, told apart.
-  ///
-  /// Each kind gets the heading that names it and the checklist that fits it.
-  /// The exception is still here, folded away under the advice, because it is
-  /// what gets pasted into a bug report and nothing else on the screen can
-  /// stand in for it.
   Widget _buildConnectFailure(AppLocalizations l10n, ConnectFailure failure) {
     return ConnectFailurePanel(
       title: failure.kind.heading(l10n),
@@ -2772,13 +2691,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     });
   }
 
-  /// Waiting on the rider, not on the board.
-  ///
-  /// An overlay, like the waits on the machine, but its own card: steps and
-  /// typical durations say nothing about something that ends when a person
-  /// acts. What this one carries is the ask, the ways to do it, and the way
-  /// out. The screen behind it stays visible, which is where the scooter the
-  /// user has to walk over to was last described.
   Widget _buildAwaitingUnlock(AppLocalizations l10n) {
     final isRtd = _awaitingUnlockState == 'ready-to-drive';
     return WaitScaffold(
@@ -2831,10 +2743,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           completer.complete(true);
           return;
         }
-        // Not parked, or not answering: this is the moment to ask, and to
-        // ask with the full overlay rather than a status line. An unreadable
-        // state is shown as the plain unlock ask; the poll keeps going and
-        // the overlay follows the state once it can be read.
         if (!asked) {
           asked = true;
           _setStatus(l10n.waitingForUnlock);
@@ -3982,9 +3890,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         mdb = await _detectMdbState();
         dbc = await _detectDbcState();
       } catch (e) {
-        // Both probes swallow their own SSH errors, so this is belt and
-        // braces: leaving _isProcessing set would disable the only buttons
-        // on this screen and strand the user here.
         if (!mounted) return;
         _setStatus(l10n.errorPrefix(e.toString()));
         setState(() => _isProcessing = false);
@@ -4042,9 +3947,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             onPressed: _isProcessing ? null : () => proceed(),
           )
         else if (health != null) ...[
-          // Going on despite a failed check still goes forward, so it sits
-          // with the primary rather than opposite it. Retrying is the one
-          // worth pressing, so it gets the weight.
           PhaseAction(
             label: l10n.proceedAtOwnRisk,
             danger: true,
@@ -4067,10 +3969,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // The current version alone does not say whether this run is an
-          // upgrade, a reinstall or a downgrade, which is the question someone
-          // reads this screen to answer. Both sides name their distribution,
-          // since a bare version number does not say which one it belongs to.
           if (_mdbInfo != null)
             Text(
               _downloadState.releaseTag == null
@@ -4081,8 +3979,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                     ),
               style: TextStyle(color: Colors.grey.shade400),
             ),
-          // A run that finished on the device had nobody watching it. This is
-          // the only place its outcome reaches a human.
+          // Surface the last unattended completion record.
           if (_previousRun != null) ...[
             const SizedBox(height: 4),
             Text(
@@ -5707,12 +5604,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     return _phaseBeforeDbcWork;
   }
 
-  /// Where a freshly flashed MDB goes next. Stage 0 writes a bootstrap image
-  /// that still needs the artifact on top; the full sdimg of the fall-back
-  /// path already carries the firmware, so it goes straight on. With no plan
-  /// at all (the shortcut that finds the board already in mass storage) the
-  /// image written was the stage-0 one, so the artifact is still due.
-  /// No plan means the mass-storage shortcut, which still needs the artifact.
+  /// Stage 0 and the UMS shortcut still need an artifact; a full image does not.
   bool get _mdbArtifactPending => _plan?.needsMdbArtifact ?? true;
 
   Set<DownloadItemType> get _requestedHandoffDownloadTypes {
@@ -6216,21 +6108,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     });
     CriticalOperationLease? criticalOperation;
     try {
-      // A retry after the post-reboot reconnect gave up starts here with no
-      // session: reboot() disconnects on purpose and clears the stored
-      // credential with it, so nothing below can re-establish one lazily.
-      // Every probe then failed with "no stored credential", which
-      // _waitForDataPartition reported as a verdict about /data, and no
-      // amount of retrying could have changed it. Reconnect first, through
-      // the same wait the reboot uses because the board may still be on its
-      // way up, and let that report honestly when it cannot.
+      // A retry may enter after the previous attempt lost its SSH session.
       if (!_sshService.isConnected) {
         debugPrint('UI: artifact install has no SSH session, reconnecting');
         await _reconnectAfterReboot(l10n, settle: Duration.zero);
         if (!mounted) return;
       }
 
-      var alreadyInstalled = false;
+      var alreadyStaged = false;
       if (_mdbStageStarted) {
         criticalOperation ??= _acquireCriticalOperation();
         String? shown;
@@ -6248,7 +6133,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         if (_mdbStageError != null) {
           throw _LocalizedInstallException(_mdbStageError!);
         }
-        alreadyInstalled = true;
+        alreadyStaged = true;
       }
       if (item.localPath == null) {
         _setStatus(l10n.waitingForDownloads);
@@ -6261,20 +6146,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         }
       }
 
-      // From here on it is several hundred megabytes over the wire and then a
-      // mender run with a 30 minute ceiling. On the clean-install route the
-      // slot currently running is the stage-0 bootstrap image, so a window
-      // close or a laptop sleep in the middle leaves a vehicle with no
-      // service stack. The download wait above is deliberately outside this:
-      // nothing on the vehicle is being written yet.
+      // Keep the laptop awake and block window close during the transfer.
       criticalOperation ??= _acquireCriticalOperation();
 
-      // Everything through artifact installation is what the background job
-      // has already done. Repeating it is not merely wasteful: mender refuses an
-      // install while one is pending, so clearing that first would commit an
-      // update that has never booted, which is the one thing an A/B scheme
-      // exists to prevent.
-      if (!alreadyInstalled) {
+      if (!alreadyStaged) {
         final artifacts = ArtifactService(
           _sshService,
           TrampolineService(_sshService),
@@ -6283,10 +6158,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         if (!await _waitForDataPartition()) return;
         if (!mounted) return;
 
-        // preflight takes assetName so it can discount an artifact already at
-        // the seed path: after a dropped link the file is often already there,
-        // and counting its full size as space still needed would refuse a retry
-        // that would in fact succeed.
+        // Discount an artifact already staged by a dropped attempt.
         final preflight = await artifacts.preflight(
           board: Board.mdb,
           artifactBytes: item.expectedSize,
@@ -6332,12 +6204,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         );
       }
 
-      // The dashboard image and the map tiles upload in the background behind
-      // the pairing screens, and they run after this artifact in the same
-      // chain, so they are usually still transferring when the user finishes
-      // enrolling cards. Rebooting underneath them kills the transfer and the
-      // SSH session carrying it, which on any plan with tiles is not a race
-      // that is sometimes lost but the ordinary case.
+      // DBC payloads share the SSH session and follow MDB staging.
       if (_dbcStageInFlight) {
         _setStatus(l10n.waitingForDbcUpload);
         while (_dbcStageInFlight) {
@@ -6346,22 +6213,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         }
       }
 
-      // No reboot here, and therefore no verification against a running
-      // version: the board stays on the bootstrap image until 80-reboot.sh,
-      // and staying there is what lets the user leave at the cable swap.
-      // mender-update exiting 0 is the verdict, checksum included.
-      //
-      // Nothing arms service mode either. That existed because the image on
-      // the far side of this reboot runs vehicle-service, which takes usb0
-      // down with the dashboard. The bootstrap image has no vehicle-service,
-      // so the gate never closes while anything is talking to the board.
+      // Installation and reboot happen later in the on-device phases.
       _setPhase(_phaseAfterMdbInstall);
     } catch (e) {
       if (!mounted) return;
-      // The panel is on screen and the log says nothing: an install that
-      // stopped here left a silent gap between the last status line and
-      // whatever the user did next, which is the one moment in a run that
-      // most needs a line in the log we ask them to send.
       debugPrint('UI: MDB artifact install failed: $e');
       setState(() {
         _artifactError = e.toString();
@@ -6734,8 +6589,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   bool _dashboardTransferSkipped = false;
 
   Widget _buildDbcPrep(AppLocalizations l10n) {
-    // The upload usually started while the user was pairing, so this phase
-    // mostly displays work already in flight rather than kicking it off.
     final busy = _isProcessing || _dbcStageInFlight;
     // needsHandoff is true for tiles alone, so this step runs for a plan that
     // leaves the dashboard untouched. What it does then is copy maps, and a
@@ -6807,9 +6660,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // A long stage with a progress bar and nothing else looks like the
-          // installer talking to itself. What it is doing, and why the DBC is
-          // not on the other end of the cable, belongs on the screen.
           Text(
             mapsOnly
                 ? l10n.preparingMapTransferExplainer
@@ -7231,11 +7081,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // One instruction, then the two things that can end it. The LED
-          // legend and the blinker diagram that used to sit here said the
-          // same things a third time, and the dashboard now shows its own
-          // progress, so the only thing left worth saying is what to wait
-          // for and what each outcome looks like.
           Text(
             l10n.dbcFlashSequence,
             style: TextStyle(
@@ -7246,11 +7091,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           ),
           const SizedBox(height: 18),
 
-          // A key for reading the scooter, not a status display: the
-          // laptop is unplugged and knows nothing about the blinkers. It
-          // stays because the blinkers are the one progress indicator still
-          // visible while the dashboard reboots and its own screen is dark,
-          // and the user needs to know what the four of them mean.
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
@@ -7833,21 +7673,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
 
     setStep('hazards', SubstepState.active);
-    // The dashboard flash rebooted the main board, which brings the shipped
-    // settings back (alarm.enabled=true, auto-standby=900s). With the scooter
-    // locked and stood up on a lift, alarm-service arms and trips on any
-    // vibration, and auto-standby drops the link we just spent minutes
-    // waiting for. Park both again for whatever is left of the run.
+    // Keep the pending run awake and disarmed after the MDB reboot.
     await _disableInstallerHazards(label: 'reconnect');
     if (!_ownsReconnect(generation)) return;
     setStep('hazards', SubstepState.done);
 
     setStep('status', SubstepState.active);
-    // Poll for trampoline status. A slow DBC first-boot (resize2fs on a
-    // fresh filesystem) can take 5–10 minutes. Give it 5 minutes of quiet
-    // polling, then surface the diagnostic panel, user can keep waiting,
-    // retry, or skip. The user can also bail by yanking USB and re-plugging;
-    // _watchDbcFlash picks that up and puts them back on the prep screen.
+    // First boot can take 5–10 minutes; show diagnostics after five.
     _setStatus(l10n.readingTrampolineStatus);
     _reconnectStatusWaitStart = DateTime.now();
     TrampolineStatus status;
@@ -7876,11 +7708,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       if (elapsed >= 300 && !_reconnectShowDiagnostics) {
         await _surfaceReconnectDiagnostics(l10n);
       }
-      // A ceiling, because a poll with no end is worse than a wrong verdict:
-      // it tells the user nothing, offers nothing, and cannot be distinguished
-      // from a device still working. Anything the trampoline could still be
-      // doing fits inside this, so past it the answer is that we do not know,
-      // and the unknown branch below says so and hands the decision over.
+      // End the poll with an explicit unknown verdict rather than wait forever.
       if (elapsed >= _reconnectStatusCeiling.inSeconds) {
         debugPrint('Trampoline: giving up on the status after ${elapsed}s');
         status = TrampolineStatus(result: TrampolineResult.unknown);
@@ -7893,19 +7721,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     _reconnectStatusWaitStart = null;
     setStep('status', SubstepState.done);
 
-    // librescoot-keycard is deliberately left alone here. This used to stop
-    // it, because keycard setup came after the dashboard flash and a stray
-    // tap before it could silently teach in a master card. Setup now runs
-    // two phases earlier, so by the time anyone reaches this screen a master
-    // exists and the running service is the one the finish screen's own
-    // "unlock with a keycard you registered" step depends on.
-
     if (status.result == TrampolineResult.success) {
-      // The green success-blink onboot.sh started means "safe to swap the
-      // MDB's USB port back to the laptop". We only get here because the
-      // laptop is already back on USB (that's how we read the status), so
-      // the cue has done its job, stop it now instead of letting it run
-      // decoratively through pairing + keycard setup.
+      // Stop the success blink once the laptop has read the verdict.
       await _stopBootLedBlink();
       if (!_ownsReconnect(generation)) return;
       // Say which version actually landed when the trampoline reported one.
@@ -7931,11 +7748,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         );
       } catch (_) {}
       _setStatus(l10n.dbcFlashFailed(status.message ?? ''));
-      // Into our own log before the dialog, because the dialog is the only
-      // copy the user gets and it dies when they close it. A field report
-      // that carries the verdict without the evidence behind it cannot
-      // distinguish a dashboard that was pingable-but-not-ready from one that
-      // was never on the bus, which are different bugs with different fixes.
+      // Keep the evidence after the dialog closes.
       await _captureTrampolineEvidence(status.errorLog);
       if (mounted && status.errorLog != null) {
         showDialog(
@@ -8032,9 +7845,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           ],
         );
 
-    // Steps on the left, what the scooter is doing on the right. The state
-    // moves while the steps stay put, and the PIN is not here: it gets the
-    // whole screen when it arrives, and saying it twice was confusing.
     final body = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -8393,10 +8203,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (advance) _setPhase(InstallerPhase.keycardSetup);
   }
 
-  // Killed on entry to keycardSetup so that any auto-startup master-learning
-  // mode in keycard-service is disengaged before the user can tap a card.
-  // Without this, a stray tap on the reader during the install would be
-  // learned as the master keycard and wipe the authorized list.
   Future<void> _onEnterKeycardSetup() async {
     setState(() {
       _keycardLearning = false;
@@ -8409,8 +8215,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _keycardToastMessage = null;
     });
     if (!_canDriveKeycard) {
-      // No SSH and no dry-run, render an empty cards stage so the Skip
-      // button still works; the actual commands will no-op.
       if (mounted) setState(() => _keycardStage = _KeycardStage.cards);
       return;
     }
@@ -8425,18 +8229,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       return;
     }
 
-    // Keycard learning can sit here for a while, and a parked scooter is fair
-    // game for both the auto-standby timer and the alarm, so re-apply the
-    // policy and the parked settings. Cleared at finish.
-    //
-    // Only where they can land, which is the same test the two neighbouring
-    // sites use. With an artifact still due, a clean install is running this
-    // phase on the stage-0 image: it has no settings-service, so every one of
-    // these is `lsc: not found` and post-artifact applies them once the board
-    // has booted the real image. An upgrade has an artifact due too and is
-    // still running the image the connect parked them on, so there is nothing
-    // to re-apply there either. What is left is the board that took a full
-    // image or was left alone, where a reflash did reset them.
+    // Artifact-pending routes either lack settings-service or retain the
+    // pre-flash overrides. Reapply them only after full-image/leave routes.
     if (!_mdbArtifactPending) {
       try {
         await _sshService.runCommand('lsc set scooter.usb0-policy always-on');
@@ -8488,9 +8282,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       debugPrint('UI: failed to start librescoot-keycard: $e');
     }
 
-    // Wait up to ~3s for the unit to actually be active. If it isn't, log
-    // loudly so the (otherwise silent) downstream "capability probe timed
-    // out" / "no taps register" failure is at least diagnosable.
+    // Poll briefly so an inactive service is logged before capability probing.
     String activeState = 'unknown';
     for (var i = 0; i < 10; i++) {
       await Future.delayed(const Duration(milliseconds: 300));
@@ -9063,20 +8855,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // What the screen is for and how it goes, on every stage: it used
-          // to open as an NFC icon over a spinner and say nothing at all
-          // until the reader was ready. A scooter that already has cards gets
-          // the same screen, with its count in the panel on the right, rather
-          // than a page of its own that happens to say the same thing.
           ...[
             Text(l10n.keycardWhy,
                 style: TextStyle(fontSize: 14, color: Colors.grey.shade300)),
             const SizedBox(height: 20),
-            // Steps on the left, what is true right now on the right, the same
-            // shape the pairing screen uses. This step needs it more: it is the
-            // only one with a count, and that count is what enables Finish, so
-            // without somewhere to show it the user infers it from whether the
-            // button lit up.
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -9144,9 +8926,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
   }
 
-  /// Where a stage's choices live: the action bar, like every other screen.
-  /// Stacked full-width buttons down the middle of the body made this the one
-  /// screen in the flow whose controls were somewhere else.
   List<PhaseAction> _keycardAlreadyConfiguredActions(AppLocalizations l10n) => [
         PhaseAction(
           label: l10n.keycardStartOverButton,
@@ -9250,23 +9029,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     );
   }
 
-  /// The cards stage has three states and they used to share button slots, so
-  /// Start sat where Done had been a moment earlier and read as "start over".
-  ///
-  ///   nothing enrolled : Skip .......... Start
-  ///   learning         : ................ Stop learning
-  ///   cards enrolled   : Start over ... Add more, Finish
-  ///
-  /// Skip is gone once a card is on file: the setup has happened, so the only
-  /// question left is whether to add more or move on.
-  /// Skip, Start/Stop and Finish, all three present at every point.
-  ///
-  /// The instructions on this screen tell the user to press Finish, so Finish
-  /// exists from the start; it is disabled until a card has actually been
-  /// taught in, which is the condition it depends on. Start becomes Stop while
-  /// the reader is scanning, so ending a scan and ending the step are separate
-  /// buttons rather than the same one under two names.
-  /// What is true right now: the reader, and the count that gates Finish.
+  /// Shows reader state and the card count that enables Finish.
   Widget _keycardStatusPanel(AppLocalizations l10n) {
     final scanning = _keycardLearning;
     final preparing = _keycardStage == _KeycardStage.loading ||
@@ -9892,10 +9655,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       if (completed)
         (title: l10n.finalRide, description: l10n.finalRideDesc),
     ];
-    // One line each. These are physical steps someone is looking at while
-    // they do them, so the titles carry it. Only the last keeps its
-    // description, because it says the one thing the scooter cannot: that it
-    // has already unlocked itself, and what to do if it has not.
     return [
       for (var i = 0; i < steps.length; i++)
         Padding(
