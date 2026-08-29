@@ -312,6 +312,7 @@
   "phaseDbcFlashDescriptionMaps": "Der Roller kopiert sie selbst",
   "dbcReadyButtonMaps": "Kartenübertragung starten",
   "waitingForDownloads": "Warte auf Abschluss der Downloads...",
+  "filesStagedWaitingForHandoff": "Alle Dateien sind bereit; warte auf den Kabelwechsel.",
   "startingTrampoline": "Trampoline-Skript wird gestartet...",
   "uploadError": "Upload-Fehler: {error}",
   "trampolineStartFailed": "Die Installation auf dem Roller konnte nicht gestartet werden. Details wurden ins Log geschrieben und Diagnose-Dateien unter {path} gespeichert. Versuch es erneut; falls es wieder fehlschlägt, stelle den Roller ohne diese Übertragung wieder her.",

@@ -99,6 +99,38 @@ void main() {
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
   });
 
+  testWidgets('download and transfer progress can run together',
+      (tester) async {
+    await tester.pumpWidget(host(WaitOverlay(
+      title: 'MDB-Update',
+      steps: const [
+        WaitStep(
+          label: 'Downloads werden abgeschlossen',
+          typical: Duration(minutes: 3),
+        ),
+        WaitStep(
+          label: 'Firmware übertragen',
+          typical: Duration(minutes: 2),
+        ),
+      ],
+      currentStep: 0,
+      startedAt: start,
+      progress: 0.4,
+      backgroundLabel: 'Firmware übertragen',
+      backgroundProgress: 0.2,
+      now: () => start,
+    )));
+
+    final bars = tester
+        .widgetList<LinearProgressIndicator>(
+          find.byType(LinearProgressIndicator),
+        )
+        .toList();
+    expect(bars.map((bar) => bar.value), containsAll([0.4, 0.2]));
+    expect(find.text('Downloads werden abgeschlossen'), findsOneWidget);
+    expect(find.text('Firmware übertragen'), findsWidgets);
+  });
+
   testWidgets('it fits the space a wait gets', (tester) async {
     tester.view.physicalSize = const Size(1000, 700);
     tester.view.devicePixelRatio = 1.0;

@@ -1510,6 +1510,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     String? warning,
     double? progress,
     List<Widget> actions = const [],
+    bool showBackground = true,
   }) {
     return WaitScaffold(
       backdrop: _frozenBackdrop,
@@ -1523,8 +1524,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         warning: warning,
         logTail: _waitLog,
         actions: actions,
-        backgroundLabel: _bgTaskLabel,
-        backgroundProgress: _bgTaskProgress,
+        backgroundLabel: showBackground ? _bgTaskLabel : null,
+        backgroundProgress: showBackground ? _bgTaskProgress : null,
       ),
     );
   }
@@ -5679,10 +5680,65 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// path already carries the firmware, so it goes straight on. With no plan
   /// at all (the shortcut that finds the board already in mass storage) the
   /// image written was the stage-0 one, so the artifact is still due.
-  /// Whether the board still needs the firmware artifact on top. No plan at
-  /// all means the mass storage shortcut, which writes a stage-0 image and so
-  /// still needs one.
+  /// No plan means the mass-storage shortcut, which still needs the artifact.
   bool get _mdbArtifactPending => _plan?.needsMdbArtifact ?? true;
+
+  Set<DownloadItemType> get _requestedHandoffDownloadTypes {
+    final plan = _plan;
+    final types = <DownloadItemType>{};
+    if (_mdbArtifactPending) types.add(DownloadItemType.mdbArtifact);
+    if (!(plan?.needsHandoff ?? true)) return types;
+
+    final needsDbcStage0 = plan?.needsDbcStage0 ?? true;
+    final action = plan?.dbc.action;
+    final needsDbcArtifact =
+        action == null ||
+        action == BoardAction.upgrade ||
+        action == BoardAction.cleanInstall;
+    if (needsDbcStage0) {
+      types.add(DownloadItemType.dbcFirmware);
+      if (_downloadState.itemOfType(DownloadItemType.dbcBmap) != null) {
+        types.add(DownloadItemType.dbcBmap);
+      }
+    }
+    if (needsDbcArtifact) types.add(DownloadItemType.dbcArtifact);
+    if (plan?.installTiles ?? _downloadState.wantsOfflineMaps) {
+      types.addAll([
+        DownloadItemType.osmTiles,
+        DownloadItemType.valhallaTiles,
+      ]);
+    }
+    return types;
+  }
+
+  List<DownloadItem> get _requestedHandoffDownloads => _downloadState.items
+      .where((item) => _requestedHandoffDownloadTypes.contains(item.type))
+      .toList();
+
+  List<DownloadItem> get _requestedDbcDownloads => _requestedHandoffDownloads
+      .where((item) => item.type != DownloadItemType.mdbArtifact)
+      .toList();
+
+  bool get _handoffDownloadsReady =>
+      _requestedHandoffDownloads.every((item) => item.isComplete);
+
+  bool get _dbcDownloadsReady =>
+      _requestedDbcDownloads.every((item) => item.isComplete);
+
+  double? get _handoffDownloadProgress {
+    final items = _requestedHandoffDownloads;
+    final total = items.fold<int>(0, (sum, item) => sum + item.expectedSize);
+    if (total <= 0) return null;
+    final downloaded = items.fold<int>(
+      0,
+      (sum, item) =>
+          sum +
+          (item.isComplete
+              ? item.expectedSize
+              : item.bytesDownloaded.clamp(0, item.expectedSize)),
+    );
+    return (downloaded / total).clamp(0, 1);
+  }
 
   /// Send the user to the interactive work and start the machine work behind
   /// it. Everything the artifact install needs is known by now, and nothing it
@@ -5815,18 +5871,20 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _artifactStarted = true;
       Future.microtask(_runMdbArtifactInstall);
     }
-    // While the background work is still going this panel is the only thing
-    // the user is waiting on, so show its progress rather than an idle bar.
+    final downloading = !_handoffDownloadsReady;
     final staging =
         _mdbStageStarted && !_mdbStageDone && _mdbStageError == null;
     final error = _artifactError ?? _mdbStageError;
     if (error == null) {
       return _waitPhase(
         title: l10n.phaseMdbArtifactTitle,
-        progress: staging
+        progress: downloading
+            ? _handoffDownloadProgress
+            : staging
             ? (_mdbStageProgress > 0 ? _mdbStageProgress : null)
             : (_progress > 0 ? _progress : null),
         warning: l10n.dbcFlashDoNotDisconnect,
+        showBackground: downloading || !staging,
       );
     }
     // Only the failed case reaches here; the running one is an overlay.
@@ -5994,14 +6052,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     r'^librescoot-unu-(?:mdb|dbc)-(.+)\.mender$',
   ).firstMatch(filename)?.group(1);
 
-  /// Upload the artifact and run mender, without rebooting. Kicked off as soon
-  /// as the board is up and left to run while the user pairs a phone and
-  /// enrols keycards, because those are the only two things in the flow that
-  /// need a human and this is the longest thing that does not.
-  ///
-  /// The reboot is deliberately not here: it belongs to the gate, after both
-  /// the machine work and the human work are done, so the board goes down once
-  /// and at a moment nobody is mid-tap.
+  /// Upload the artifact while the user pairs a phone and enrols keycards.
   Future<void> _stageMdbArtifact() async {
     if (_mdbStageStarted) return;
     _mdbStageStarted = true;
@@ -6057,7 +6108,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         localPath: item.localPath!,
         onProgress: (sent, total) {
           if (mounted && total > 0) {
-            setState(() => _mdbStageProgress = sent / total);
+            final progress = sent / total;
+            setState(() => _mdbStageProgress = progress);
+            _setBackgroundStatus(l10n.artifactStaging, progress: progress);
           }
         },
       );
@@ -6070,38 +6123,35 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       }
     } catch (e) {
       if (mounted) setState(() => _mdbStageError = e.toString());
+    } finally {
+      _setBackgroundStatus(null);
     }
   }
 
   Future<void> _runMdbArtifactInstall() async {
     final l10n = AppLocalizations.of(context)!;
-    // Staging is about a minute and the install about two. Reboot and version
-    // verification belong to the on-device coordinator later in the flow.
-    // The status line carries a live percentage. The step NAME must not, or
-    // the list shows the figure it was built with for the whole install.
-    final installing = l10n.artifactInstalling(0).split('(').first.trimRight();
-    // A retry arrives here with the session gone, and the first SSH call
-    // reconnects lazily inside the upload. Without a step for that, the
-    // transfer was shown as active and its clock running while there was no
-    // connection to transfer over, so the elapsed figure measured the wait for
-    // a reconnect and the estimate derived from it meant nothing.
     final reconnecting = !_isDryRun && !_sshService.isConnected;
+    final downloading = !_isDryRun && !_handoffDownloadsReady;
     _beginWait([
-      if (reconnecting)
+      if (downloading)
         WaitStep(
-            label: l10n.reconnectingSsh, typical: const Duration(seconds: 20)),
+          label: l10n.waitingForDownloads,
+          typical: const Duration(minutes: 3),
+        ),
+      if (reconnecting && !downloading)
+        WaitStep(
+          label: l10n.reconnectingSsh,
+          typical: const Duration(seconds: 20),
+        ),
       WaitStep(
-          label: l10n.artifactStaging, typical: const Duration(seconds: 60)),
-      WaitStep(
-        label: installing,
-        matchPrefix: installing,
+        label: l10n.artifactStaging,
         typical: const Duration(minutes: 2),
       ),
-      // The dashboard transfer runs behind this phase and the reboot waits on
-      // it, so it is a step of this wait, not something happening elsewhere.
-      WaitStep(
+      if (_plan?.needsHandoff ?? true)
+        WaitStep(
           label: l10n.waitingForDbcUpload,
-          typical: const Duration(minutes: 3)),
+          typical: const Duration(minutes: 3),
+        ),
     ]);
 
     if (_isDryRun) {
@@ -6110,10 +6160,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         _artifactError = null;
       });
       for (var pct = 0; pct <= 100; pct += 10) {
-        _setStatus(
-          '[DRY RUN] ${l10n.artifactInstalling(pct)}',
-          progress: pct / 100,
-        );
+        _setStatus(l10n.artifactStaging, progress: pct / 100);
         await Future.delayed(const Duration(milliseconds: 150));
         if (!mounted) return;
       }
@@ -6151,27 +6198,17 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         if (!mounted) return;
       }
 
-      // Collect the work that has been running behind the pairing screens.
       var alreadyInstalled = false;
       if (_mdbStageStarted) {
         criticalOperation ??= _acquireCriticalOperation();
-        // The background job reports through _mdbStageProgress and emits no
-        // status, so the wait plan has nothing to match and would sit on its
-        // first step for the whole install. Mirror the job into the same
-        // messages the foreground path uses, only when the text changes: this
-        // loop runs for minutes and _setStatus appends to the log each time.
         String? shown;
         while (!_mdbStageDone && _mdbStageError == null) {
-          // The job spends the first half staging and the second installing.
-          final done = _mdbStageProgress;
-          final staging = done < 0.5;
-          final stepDone = staging ? done * 2 : (done - 0.5) * 2;
-          final message = staging
+          final message = _handoffDownloadsReady
               ? l10n.artifactStaging
-              : l10n.artifactInstalling((stepDone * 100).round());
+              : l10n.waitingForDownloads;
           if (message != shown) {
             shown = message;
-            _setStatus(message, progress: stepDone);
+            _setStatus(message);
           }
           await Future.delayed(const Duration(milliseconds: 500));
           if (!mounted) return;
@@ -6181,9 +6218,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         }
         alreadyInstalled = true;
       }
-      // The artifact is first in the download queue, but an upgrade reaches
-      // this phase without flashing anything, so it can still be in flight.
-      // Waiting beats failing with "nothing was downloaded" at 90%.
       if (item.localPath == null) {
         _setStatus(l10n.waitingForDownloads);
         while (item.localPath == null) {
@@ -6235,16 +6269,35 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           _setStatus(l10n.reconnectingSsh);
           await _sshService.ensureConnected('artifact retry');
         }
-        _setStatus(l10n.artifactStaging, progress: 0);
         await artifacts.stage(
           board: Board.mdb,
           localPath: item.localPath!,
-          onProgress: (sent, total) => _setStatus(
-            l10n.artifactStaging,
-            progress: total > 0 ? sent / total : 0,
-          ),
+          onProgress: (sent, total) {
+            final progress = total > 0 ? sent / total : 0.0;
+            if (_handoffDownloadsReady) {
+              _setBackgroundStatus(null);
+              _setStatus(l10n.artifactStaging, progress: progress);
+            } else {
+              if (_statusMessage != l10n.waitingForDownloads) {
+                _setStatus(l10n.waitingForDownloads);
+              }
+              _setBackgroundStatus(
+                l10n.artifactStaging,
+                progress: progress,
+              );
+            }
+          },
         );
+        _setBackgroundStatus(null);
+      }
 
+      if ((_plan?.needsHandoff ?? true) && !_handoffDownloadsReady) {
+        _setStatus(l10n.waitingForDownloads);
+        await waitForDownloads(
+          isReady: () => _handoffDownloadsReady,
+          currentError: () => _downloadState.error,
+          isCancelled: () => !mounted,
+        );
       }
 
       // The dashboard image and the map tiles upload in the background behind
@@ -6732,6 +6785,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             style: TextStyle(
                 fontSize: 14, height: 1.5, color: Colors.grey.shade300),
           ),
+          if (_dbcUploadReady) ...[
+            const SizedBox(height: 16),
+            Text(
+              l10n.filesStagedWaitingForHandoff,
+              style: const TextStyle(color: kAccent, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+          ],
           const SizedBox(height: 20),
           LinearProgressIndicator(value: _progress, minHeight: 6),
           const SizedBox(height: 16),
@@ -6773,6 +6834,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _setStatus('[DRY RUN] Simulating DBC upload...');
       await Future.delayed(const Duration(seconds: 1));
       criticalOperation.release();
+      _setStatus(l10n.filesStagedWaitingForHandoff, progress: 1);
       setState(() {
         _isProcessing = false;
         _dbcStageInFlight = false;
@@ -6782,10 +6844,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
 
     try {
-      if (!_downloadState.allReady) {
-        _setStatus(l10n.waitingForDownloads);
+      if (!_dbcDownloadsReady) {
+        if (!background) _setStatus(l10n.waitingForDownloads);
         await waitForDownloads(
-          isReady: () => _downloadState.allReady,
+          isReady: () => _dbcDownloadsReady,
           currentError: () => _downloadState.error,
           isCancelled: () => !mounted,
         );
@@ -6895,14 +6957,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         ),
       );
 
-      // Upload is done, but DON'T start the trampoline yet. The trampoline's
-      // first act is to wait for the laptop to disconnect, after which the
-      // install runs autonomously and we lose SSH. Stay on this page and
-      // surface the "Ready to flash DBC" button instead, so the user
-      // explicitly confirms before that point of no return. The cable-swap
-      // instructions only appear on the next screen, after the trampoline
-      // has started, so nobody can swap the cable before start() runs.
+      // Starting the trampoline is an explicit user action after staging.
       criticalOperation.release();
+      _setStatus(l10n.filesStagedWaitingForHandoff, progress: 1);
       setState(() {
         _isProcessing = false;
         _dbcStageInFlight = false;

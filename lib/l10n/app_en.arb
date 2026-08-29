@@ -388,6 +388,7 @@
   "phaseDbcFlashDescriptionMaps": "The scooter copies them over",
   "dbcReadyButtonMaps": "Begin transferring maps",
   "waitingForDownloads": "Waiting for downloads to complete...",
+  "filesStagedWaitingForHandoff": "All files staged; waiting for cable handoff.",
   "startingTrampoline": "Starting the on-device install script...",
   "uploadError": "Upload error: {error}",
   "trampolineStartFailed": "The on-device installation could not start. Details were written to the log and diagnostic files were saved to {path}. Try again; if it still fails, restore the scooter without this transfer.",

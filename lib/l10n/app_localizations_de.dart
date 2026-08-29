@@ -968,6 +968,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get waitingForDownloads => 'Warte auf Abschluss der Downloads...';
 
   @override
+  String get filesStagedWaitingForHandoff =>
+      'Alle Dateien sind bereit; warte auf den Kabelwechsel.';
+
+  @override
   String get startingTrampoline => 'Trampoline-Skript wird gestartet...';
 
   @override

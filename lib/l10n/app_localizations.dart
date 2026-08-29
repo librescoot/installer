@@ -1760,6 +1760,12 @@ abstract class AppLocalizations {
   /// **'Waiting for downloads to complete...'**
   String get waitingForDownloads;
 
+  /// No description provided for @filesStagedWaitingForHandoff.
+  ///
+  /// In en, this message translates to:
+  /// **'All files staged; waiting for cable handoff.'**
+  String get filesStagedWaitingForHandoff;
+
   /// No description provided for @startingTrampoline.
   ///
   /// In en, this message translates to:

@@ -956,6 +956,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get waitingForDownloads => 'Waiting for downloads to complete...';
 
   @override
+  String get filesStagedWaitingForHandoff =>
+      'All files staged; waiting for cable handoff.';
+
+  @override
   String get startingTrampoline => 'Starting the on-device install script...';
 
   @override
