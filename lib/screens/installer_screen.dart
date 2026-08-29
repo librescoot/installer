@@ -7801,6 +7801,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (!_ownsReconnect(generation)) return;
     setStep('ssh', SubstepState.done);
 
+    final completed = await _deviceReportedFinished();
+    if (!_ownsReconnect(generation)) return;
+    if (completed == true) {
+      setState(() => _finishCompletionConfirmed = true);
+      _setPhase(InstallerPhase.finish);
+      return;
+    }
+
     setStep('hazards', SubstepState.active);
     // The dashboard flash rebooted the main board, which brings the shipped
     // settings back (alarm.enabled=true, auto-standby=900s). With the scooter
