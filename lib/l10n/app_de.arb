@@ -373,7 +373,7 @@
   "closeInstaller": "Installer schließen",
   "disconnectUsbFromLaptopFinal": "Laptop-USB-Kabel vom MDB abziehen",
   "disconnectUsbFromLaptopFinalDesc": "Ziehe das Laptop-USB-Kabel vom MDB ab. Dort kommt gleich das DBC-Kabel wieder hinein.",
-  "reconnectDbcUsbCable": "DBC-USB-Kabel anschließen",
+  "reconnectDbcUsbCable": "DBC-USB-Kabel anschließen und festschrauben",
   "reconnectDbcUsbCableDesc": "Stecke das interne DBC-USB-Kabel wieder in den MDB-Port und schraube es jetzt vorsichtig fest.",
   "closeSeatboxAndFootwell": "Fußraumabdeckung wieder anbringen",
   "closeSeatboxAndFootwellDesc": "Klipse zuerst die Metallbügel wieder ein, setze dann die Fußraumabdeckung auf und schraube sie fest.",

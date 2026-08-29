@@ -2057,7 +2057,7 @@ abstract class AppLocalizations {
   /// No description provided for @reconnectDbcUsbCable.
   ///
   /// In en, this message translates to:
-  /// **'Reconnect DBC USB cable'**
+  /// **'Reconnect and secure DBC USB cable'**
   String get reconnectDbcUsbCable;
 
   /// No description provided for @reconnectDbcUsbCableDesc.

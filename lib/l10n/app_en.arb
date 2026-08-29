@@ -470,7 +470,7 @@
   "closeInstaller": "Close installer",
   "disconnectUsbFromLaptopFinal": "Unplug the laptop USB cable from the MDB",
   "disconnectUsbFromLaptopFinalDesc": "Unplug the laptop USB cable from the MDB. The DBC cable goes back into that port next.",
-  "reconnectDbcUsbCable": "Reconnect DBC USB cable",
+  "reconnectDbcUsbCable": "Reconnect and secure DBC USB cable",
   "reconnectDbcUsbCableDesc": "Plug the internal DBC USB cable back into the MDB port, then gently screw it in to secure it.",
   "closeSeatboxAndFootwell": "Replace the footwell cover",
   "closeSeatboxAndFootwellDesc": "Clip the metal bars back in first, then fit the footwell cover and screw it down.",

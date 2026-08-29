@@ -1143,7 +1143,8 @@ class AppLocalizationsDe extends AppLocalizations {
       'Ziehe das Laptop-USB-Kabel vom MDB ab. Dort kommt gleich das DBC-Kabel wieder hinein.';
 
   @override
-  String get reconnectDbcUsbCable => 'DBC-USB-Kabel anschließen';
+  String get reconnectDbcUsbCable =>
+      'DBC-USB-Kabel anschließen und festschrauben';
 
   @override
   String get reconnectDbcUsbCableDesc =>

@@ -6,8 +6,7 @@ enum FinalScreenState {
   /// The device is expected to finish and unlock itself; success is unproven.
   finishingOnDevice,
 
-  /// The laptop is occupying the MDB USB port on a plan that needs the DBC.
-  /// It must be swapped back before device-side work can continue.
+  /// The laptop still occupies the MDB USB port. Restore the internal cable.
   reconnectDbc,
 
   /// Completion was observed, but the laptop cable still needs swapping back
@@ -19,15 +18,15 @@ enum FinalScreenState {
 }
 
 FinalScreenState finalScreenState({
-  required bool planNeedsHandoff,
-  required bool laptopAttached,
+  required bool laptopOccupiesMdbUsb,
   required bool completionConfirmed,
 }) {
   if (completionConfirmed) {
-    return laptopAttached
+    return laptopOccupiesMdbUsb
         ? FinalScreenState.completedReconnectDbc
         : FinalScreenState.completed;
   }
-  if (planNeedsHandoff && laptopAttached) return FinalScreenState.reconnectDbc;
-  return FinalScreenState.finishingOnDevice;
+  return laptopOccupiesMdbUsb
+      ? FinalScreenState.reconnectDbc
+      : FinalScreenState.finishingOnDevice;
 }

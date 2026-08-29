@@ -9721,8 +9721,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       );
     }
     final state = finalScreenState(
-      planNeedsHandoff: _plan?.needsHandoff ?? false,
-      laptopAttached: _device != null,
+      laptopOccupiesMdbUsb: _device != null,
       completionConfirmed: _finishCompletionConfirmed,
     );
     final confirmed = state == FinalScreenState.completed ||

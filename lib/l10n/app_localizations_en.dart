@@ -1132,7 +1132,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Unplug the laptop USB cable from the MDB. The DBC cable goes back into that port next.';
 
   @override
-  String get reconnectDbcUsbCable => 'Reconnect DBC USB cable';
+  String get reconnectDbcUsbCable => 'Reconnect and secure DBC USB cable';
 
   @override
   String get reconnectDbcUsbCableDesc =>
