@@ -15,6 +15,18 @@ enum SystemDiskVerdict {
 }
 
 /// What asking Windows about one disk number came back with.
+class LinuxDiskInfo {
+  const LinuxDiskInfo({
+    required this.sizeBytes,
+    required this.isRemovable,
+    required this.systemDiskVerdict,
+  });
+
+  final int? sizeBytes;
+  final bool isRemovable;
+  final SystemDiskVerdict systemDiskVerdict;
+}
+
 class WindowsDiskProbe {
   /// False only when the probe established the disk is gone.
   final bool present;
@@ -554,6 +566,43 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)`t$($dev.PNPClass)" }
   /// enters mass storage, so "has a mount" would refuse the exact device the
   /// user is trying to flash. A mount anywhere else is a disk the machine is
   /// living on.
+  @visibleForTesting
+  Future<LinuxDiskInfo> linuxDiskInfo(
+    String diskPath, {
+    String sysBlockRoot = '/sys/block',
+    String mountsPath = '/proc/mounts',
+  }) async {
+    final name = diskPath.startsWith('/dev/')
+        ? diskPath.substring(5)
+        : diskPath;
+    int? sizeBytes;
+    var isRemovable = false;
+    if (RegExp(r'^[a-zA-Z0-9._-]+$').hasMatch(name)) {
+      try {
+        final sectors = int.parse(
+          (await File('$sysBlockRoot/$name/size').readAsString()).trim(),
+        );
+        if (sectors > 0 && sectors <= 0x7fffffffffffffff ~/ 512) {
+          sizeBytes = sectors * 512;
+        }
+      } catch (_) {}
+      try {
+        isRemovable =
+            (await File('$sysBlockRoot/$name/removable').readAsString())
+                    .trim() ==
+                '1';
+      } catch (_) {}
+    }
+    return LinuxDiskInfo(
+      sizeBytes: sizeBytes,
+      isRemovable: isRemovable,
+      systemDiskVerdict: await linuxSystemDiskVerdict(
+        diskPath,
+        mountsPath: mountsPath,
+      ),
+    );
+  }
+
   Future<SystemDiskVerdict> linuxSystemDiskVerdict(String diskPath,
       {String mountsPath = '/proc/mounts'}) async {
     final base = diskPath.startsWith('/dev/') ? diskPath.substring(5) : diskPath;
@@ -1297,6 +1346,7 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
 
       if (output.contains('a4a5') || output.contains('A4A5')) {
         final diskPath = await _findLinuxDiskPath();
+        final info = diskPath == null ? null : await linuxDiskInfo(diskPath);
         return UsbDevice(
           id: 'usb-0525-a4a5',
           name: 'Librescoot MDB (Mass Storage)',
@@ -1304,6 +1354,10 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
           vendorId: targetVendorId,
           productId: massStoragePid,
           mode: DeviceMode.massStorage,
+          sizeBytes: info?.sizeBytes,
+          isRemovable: info?.isRemovable ?? false,
+          systemDiskVerdict:
+              info?.systemDiskVerdict ?? SystemDiskVerdict.unknown,
         );
       }
     } catch (_) {}

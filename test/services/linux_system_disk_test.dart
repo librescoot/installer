@@ -85,6 +85,67 @@ void main() {
     });
   });
 
+  group('linuxDiskInfo', () {
+    Future<LinuxDiskInfo> readInfo({
+      String? size = '15269888\n',
+      String? removable = '0\n',
+      String mountsBody = '/dev/nvme0n1p2 / ext4 rw 0 0\n',
+      bool readableMounts = true,
+    }) async {
+      final block = Directory('${tmp.path}/sys/block/sdb')
+        ..createSync(recursive: true);
+      if (size != null) File('${block.path}/size').writeAsStringSync(size);
+      if (removable != null) {
+        File('${block.path}/removable').writeAsStringSync(removable);
+      }
+      return detector.linuxDiskInfo(
+        '/dev/sdb',
+        sysBlockRoot: '${tmp.path}/sys/block',
+        mountsPath: readableMounts
+            ? mounts(mountsBody)
+            : '${tmp.path}/missing-mounts',
+      );
+    }
+
+    test('reads the verified MDB size and a non-system verdict', () async {
+      final info = await readInfo();
+      expect(info.sizeBytes, FlashService.mdbEmmcBytes);
+      expect(info.isRemovable, isFalse);
+      expect(info.systemDiskVerdict, SystemDiskVerdict.notSystem);
+    });
+
+    test('reads a removable block flag', () async {
+      expect((await readInfo(removable: '1\n')).isRemovable, isTrue);
+    });
+
+    test('retains a system-disk verdict for the same path', () async {
+      final info = await readInfo(mountsBody: '/dev/sdb2 / ext4 rw 0 0\n');
+      expect(info.systemDiskVerdict, SystemDiskVerdict.systemDisk);
+    });
+
+    test('ignores a desktop auto-mount on that disk', () async {
+      final info = await readInfo(
+        mountsBody: '/dev/sdb1 /media/user/BOOT vfat rw 0 0\n',
+      );
+      expect(info.systemDiskVerdict, SystemDiskVerdict.notSystem);
+    });
+
+    test('missing, malformed, and overflowing sizes stay unknown', () async {
+      for (final size in <String?>[
+        null,
+        'not-a-number\n',
+        '999999999999999999999999999999\n',
+      ]) {
+        expect((await readInfo(size: size)).sizeBytes, isNull);
+      }
+    });
+
+    test('an unreadable mounts file remains conservative', () async {
+      final info = await readInfo(readableMounts: false);
+      expect(info.systemDiskVerdict, SystemDiskVerdict.unknown);
+    });
+  });
+
   group('validateDevice and /dev/sda', () {
     // validateDevice branches on the host platform, and the /dev/sda rules sit
     // in the Linux arm. On another host that arm never runs, so the two tests

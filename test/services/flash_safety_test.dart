@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/services/flash_service.dart';
+import 'package:librescoot_installer/services/usb_detector.dart';
 
 /// Regression tests for the pre-write device guard.
 ///
@@ -27,6 +28,19 @@ void main() {
     final result = checkGood();
     expect(result.passed, isTrue, reason: result.errors.join('; '));
     expect(result.errors, isEmpty);
+  });
+
+  test('a VID/PID-matched eMMC need not claim to be removable', () {
+    final result = flash.validateDevice(
+      devicePath: _goodPath,
+      sizeBytes: FlashService.mdbEmmcBytes,
+      isRemovable: false,
+      isSystemDisk: false,
+      vendorId: 0x0525,
+      productId: 0xA4A5,
+      systemDiskVerdict: SystemDiskVerdict.notSystem,
+    );
+    expect(result.passed, isTrue, reason: result.errors.join('; '));
   });
 
   test('a system disk is refused', () {
