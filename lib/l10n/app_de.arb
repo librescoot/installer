@@ -480,7 +480,7 @@
   "keycardStartOverConfirmYes": "Alles löschen",
   "keycardStartOverConfirmNo": "Abbrechen",
   "keycardCardsStageContinueButton": "Weiter",
-  "keycardCardsStageAddMasterButton": "Anlernkarte hinzufügen",
+  "keycardCardsStageAddMasterButton": "Anlernkarte hinzufügen (erweitert)",
   "keycardMasterStageHeading": "Anlernkarte hinzufügen",
   "keycardMasterStageWarningHeading": "Die Anlernkarte entriegelt den Roller nicht",
   "keycardMasterStageWarningBody": "Die Anlernkarte verwaltet deine übrigen Schlüsselkarten. Sie entriegelt den Roller nicht, und keine der eben angelernten Karten kann als Anlernkarte dienen. Nimm eine separate, unbenutzte Karte.",

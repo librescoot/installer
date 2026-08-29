@@ -28,15 +28,36 @@ void main() {
     }
   });
 
-  test('cards without a master enter the review stage', () {
+  test('existing cards do not make master setup a default step', () {
     final start = source.indexOf('Future<void> _onEnterKeycardSetup()');
     final end = source.indexOf('Future<void> _keycardAddKnownCards(', start);
     final entry = source.substring(start, end);
-    expect(entry, contains('canMaster && cards > 0 && masters == 0'));
-    expect(entry, contains('_keycardStage = _KeycardStage.cardsReview;'));
+    expect(entry, contains('canMaster && (masters > 0 || cards > 0)'));
+    expect(entry, contains('_keycardStage = _KeycardStage.alreadyConfigured;'));
+    expect(entry, isNot(contains('cards > 0 && masters == 0')));
   });
 
-  test('it still offers all four choices', () {
+  test('master setup remains an advanced action for existing cards', () {
+    final start = source.indexOf(
+      'List<PhaseAction> _keycardAlreadyConfiguredActions(',
+    );
+    final end = source.indexOf(
+      '\n\n  Widget _buildKeycardAlreadyConfigured',
+      start,
+    );
+    final actions = source.substring(start, end);
+    expect(actions, contains('keycardCardsStageAddMasterButton'));
+    expect(actions, contains('(_keycardMasterCount ?? 0) == 0'));
+
+    final master = actions.indexOf('keycardCardsStageAddMasterButton');
+    final nextAction = actions.indexOf('PhaseAction(', master + 1);
+    expect(
+      actions.substring(master, nextAction),
+      isNot(contains('primary: true')),
+    );
+  });
+
+  test('review keeps continue primary and master setup secondary', () {
     final start = source.indexOf('List<PhaseAction> _keycardCardsReviewActions(');
     final end = source.indexOf('\n  }', start);
     final actions = source.substring(start, end);
@@ -48,5 +69,18 @@ void main() {
     ]) {
       expect(actions, contains(label), reason: '$label was dropped');
     }
+
+    final master = actions.indexOf('keycardCardsStageAddMasterButton');
+    final continueAction = actions.indexOf('keycardCardsStageContinueButton');
+    expect(actions.substring(master, continueAction),
+        isNot(contains('primary: true')));
+    expect(actions.substring(continueAction), contains('primary: true'));
+  });
+
+  test('both languages call master setup advanced', () {
+    final en = File('lib/l10n/app_en.arb').readAsStringSync();
+    final de = File('lib/l10n/app_de.arb').readAsStringSync();
+    expect(en, contains('Add master card (advanced)'));
+    expect(de, contains('Anlernkarte hinzufügen (erweitert)'));
   });
 }

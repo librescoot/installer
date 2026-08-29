@@ -8465,13 +8465,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _keycardServiceCanMaster = canMaster;
       final masters = _keycardMasterCount ?? 0;
       final cards = _keycardAuthorizedCount ?? 0;
-      if (canMaster && cards > 0 && masters == 0) {
-        // Cards on file do not make setup complete: the Add master action
-        // lives on the review stage. Sending this route to the generic
-        // "already configured" stage hid that action and let the user leave
-        // without ever seeing master teach-in.
-        _keycardStage = _KeycardStage.cardsReview;
-      } else if (canMaster && (masters > 0 || cards > 0)) {
+      if (canMaster && (masters > 0 || cards > 0)) {
+        // Master-card setup stays an advanced action. Existing unlock cards
+        // must not turn it into a step in the default installer path.
         _keycardStage = _KeycardStage.alreadyConfigured;
       } else {
         _keycardStage = _KeycardStage.cards;
@@ -9067,6 +9063,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           icon: Icons.refresh,
           onPressed: _keycardStartOver,
         ),
+        if ((_keycardServiceCanMaster ?? false) &&
+            (_keycardMasterCount ?? 0) == 0 &&
+            (_keycardAuthorizedCount ?? 0) > 0)
+          PhaseAction(
+            label: l10n.keycardCardsStageAddMasterButton,
+            icon: Icons.shield_outlined,
+            onPressed: _keycardStartMasterStage,
+          ),
         PhaseAction(
           label: l10n.keycardEntryContinueButton,
           icon: Icons.arrow_forward,
