@@ -1500,23 +1500,42 @@ fi
   /// exactly like success on a board nothing touched. With the list it names
   /// what is missing in the status file instead of retiring quietly.
   ///
-  /// Clears any previous run's completions at the same time, so a resumed
-  /// install does not credit itself with work the abandoned one did.
+  /// Clears any previous run's completions and unexpected queued phases at the
+  /// same time, so a resumed install cannot inherit work from an abandoned run.
   Future<void> declareExpectedPhases(List<String> phaseNames) async {
+    await runCommand(expectedPhasesDeclarationCommand(phaseNames));
+    debugPrint('SSH: expecting phases ${phaseNames.join(", ")}');
+  }
+
+  @visibleForTesting
+  static String expectedPhasesDeclarationCommand(
+    List<String> phaseNames, {
+    String scriptsDir = installerScriptsDir,
+  }) {
     final safe = phaseNames
         .where((n) => RegExp(r'^[0-9]{2}-[a-z0-9-]+\.sh$').hasMatch(n))
         .toList();
     if (safe.length != phaseNames.length) {
       throw ArgumentError.value(phaseNames, 'phaseNames', 'unsafe phase name');
     }
-    await runCommand(
-      'mkdir -p $installerScriptsDir; '
-      "cat > $installerScriptsDir/.expected << 'LSIEXPECTED'\n"
-      '${safe.join('\n')}\n'
-      'LSIEXPECTED\n'
-      'rm -f $installerScriptsDir/.completed; sync',
-    );
-    debugPrint('SSH: expecting phases ${safe.join(", ")}');
+    return '''
+set -eu
+scripts=$scriptsDir
+mkdir -p "\$scripts"
+cat > "\$scripts/.expected" << 'LSIEXPECTED'
+${safe.join('\n')}
+LSIEXPECTED
+rm -f "\$scripts/.completed"
+for queued in "\$scripts"/[0-9][0-9]-*.sh "\$scripts"/[0-9][0-9]-*.sh.tries; do
+  [ -e "\$queued" ] || continue
+  name=\${queued##*/}
+  phase=\${name%.tries}
+  if ! grep -Fxq "\$phase" "\$scripts/.expected"; then
+    rm -f "\$queued"
+  fi
+done
+sync
+''';
   }
 
   /// Take the coordinator out and give a displaced onboot.sh back.

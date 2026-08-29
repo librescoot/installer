@@ -219,6 +219,43 @@ void main() {
     expect(File('${root.path}/onboot.sh').existsSync(), isFalse);
   });
 
+  group('declaring the phases for a new run', () {
+    Future<ProcessResult> declare(List<String> names) => Process.run(
+          'sh',
+          [
+            '-c',
+            SshService.expectedPhasesDeclarationCommand(
+              names,
+              scriptsDir: scripts.path,
+            ),
+          ],
+        );
+
+    test('removes a stale dashboard phase from a dashboard-less plan', () async {
+      await phase('20-dbc.sh', 'exit 0');
+      await File('${scripts.path}/20-dbc.sh.tries').writeAsString('2\n');
+
+      final result = await declare(['10-mdb-artifact.sh', '80-reboot.sh']);
+
+      expect(result.exitCode, 0, reason: result.stderr.toString());
+      expect(File('${scripts.path}/20-dbc.sh').existsSync(), isFalse);
+      expect(File('${scripts.path}/20-dbc.sh.tries').existsSync(), isFalse);
+    });
+
+    test('leaves this run’s already staged phases alone', () async {
+      await phase('10-mdb-artifact.sh', 'exit 0');
+      await phase('80-reboot.sh', 'exit 0');
+      await File('${scripts.path}/10-mdb-artifact.sh.tries').writeAsString('1\n');
+
+      final result = await declare(['10-mdb-artifact.sh', '80-reboot.sh']);
+
+      expect(result.exitCode, 0, reason: result.stderr.toString());
+      expect(File('${scripts.path}/10-mdb-artifact.sh').existsSync(), isTrue);
+      expect(File('${scripts.path}/10-mdb-artifact.sh.tries').existsSync(), isTrue);
+      expect(File('${scripts.path}/80-reboot.sh').existsSync(), isTrue);
+    });
+  });
+
   group('the phases the plan asked for', () {
     // An empty directory cannot tell a run that did everything from one whose
     // phases were never queued. The second ends looking exactly like success
