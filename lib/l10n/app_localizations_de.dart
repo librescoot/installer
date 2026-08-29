@@ -1068,11 +1068,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get waitingForRndisDevice => 'Warte auf RNDIS-Gerät...';
 
   @override
-  String get readingTrampolineStatus => 'Trampoline-Status wird gelesen...';
+  String get checkingCompletionRecord => 'Abschlussprotokoll wird geprüft...';
+
+  @override
+  String get readingTrampolineStatus =>
+      'Status der laufenden Installation wird geprüft...';
 
   @override
   String readingTrampolineStatusElapsed(int elapsed) {
-    return 'Trampoline-Status wird gelesen… (${elapsed}s)';
+    return 'Status der laufenden Installation wird geprüft… (${elapsed}s)';
   }
 
   @override
@@ -2045,10 +2049,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get substepConnectSsh => 'SSH-Verbindung herstellen';
 
   @override
+  String get substepCheckCompletionRecord => 'Abschlussprotokoll prüfen';
+
+  @override
   String get substepDisableHazards => 'Alarm und Auto-Standby deaktivieren';
 
   @override
-  String get substepReadStatus => 'Trampoline-Status auslesen';
+  String get substepReadStatus => 'Status der laufenden Installation prüfen';
 
   @override
   String elapsedSeconds(int seconds) {

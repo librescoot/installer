@@ -1057,11 +1057,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get waitingForRndisDevice => 'Waiting for RNDIS device...';
 
   @override
-  String get readingTrampolineStatus => 'Reading trampoline status...';
+  String get checkingCompletionRecord => 'Checking completion record...';
+
+  @override
+  String get readingTrampolineStatus =>
+      'Checking pending installation status...';
 
   @override
   String readingTrampolineStatusElapsed(int elapsed) {
-    return 'Reading trampoline status… (${elapsed}s)';
+    return 'Checking pending installation status… (${elapsed}s)';
   }
 
   @override
@@ -2016,10 +2020,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get substepConnectSsh => 'Connect SSH';
 
   @override
+  String get substepCheckCompletionRecord => 'Check completion record';
+
+  @override
   String get substepDisableHazards => 'Disable alarm and auto-standby';
 
   @override
-  String get substepReadStatus => 'Read trampoline status';
+  String get substepReadStatus => 'Check pending installation status';
 
   @override
   String elapsedSeconds(int seconds) {

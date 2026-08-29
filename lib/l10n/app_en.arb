@@ -429,8 +429,9 @@
   "verifyingDbcInstallation": "Verifying DBC installation",
   "reconnectUsbToLaptop": "Reconnect USB to laptop...",
   "waitingForRndisDevice": "Waiting for RNDIS device...",
-  "readingTrampolineStatus": "Reading trampoline status...",
-  "readingTrampolineStatusElapsed": "Reading trampoline status… ({elapsed}s)",
+  "checkingCompletionRecord": "Checking completion record...",
+  "readingTrampolineStatus": "Checking pending installation status...",
+  "readingTrampolineStatusElapsed": "Checking pending installation status… ({elapsed}s)",
   "@readingTrampolineStatusElapsed": {
     "placeholders": {
       "elapsed": {
@@ -893,8 +894,9 @@
   "substepWaitRndis": "Wait for MDB (RNDIS) on USB",
   "substepConfigureNetwork": "Configure network",
   "substepConnectSsh": "Connect SSH",
+  "substepCheckCompletionRecord": "Check completion record",
   "substepDisableHazards": "Disable alarm and auto-standby",
-  "substepReadStatus": "Read trampoline status",
+  "substepReadStatus": "Check pending installation status",
   "elapsedSeconds": "{seconds}s elapsed",
   "@elapsedSeconds": {
     "placeholders": {

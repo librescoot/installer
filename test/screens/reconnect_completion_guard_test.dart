@@ -17,11 +17,24 @@ void main() {
     );
     expect(completion, greaterThan(-1));
     expect(hazards, greaterThan(completion));
+    expect(
+      reconnect.substring(0, completion),
+      contains('l10n.checkingCompletionRecord'),
+    );
 
     final guard = reconnect.substring(completion, hazards);
     expect(guard, contains('if (completed == true)'));
     expect(guard, contains('_finishCompletionConfirmed = true'));
     expect(guard, contains('_setPhase(InstallerPhase.finish)'));
     expect(guard, contains('return;'));
+  });
+
+  test('fallback wording names the active probes, not the trampoline', () {
+    for (final arb in ['lib/l10n/app_en.arb', 'lib/l10n/app_de.arb']) {
+      final text = File(arb).readAsStringSync();
+      expect(text, contains('substepCheckCompletionRecord'));
+      expect(text, isNot(contains('Read trampoline status')));
+      expect(text, isNot(contains('Trampoline-Status auslesen')));
+    }
   });
 }

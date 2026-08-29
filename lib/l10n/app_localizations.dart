@@ -1934,16 +1934,22 @@ abstract class AppLocalizations {
   /// **'Waiting for RNDIS device...'**
   String get waitingForRndisDevice;
 
+  /// No description provided for @checkingCompletionRecord.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking completion record...'**
+  String get checkingCompletionRecord;
+
   /// No description provided for @readingTrampolineStatus.
   ///
   /// In en, this message translates to:
-  /// **'Reading trampoline status...'**
+  /// **'Checking pending installation status...'**
   String get readingTrampolineStatus;
 
   /// No description provided for @readingTrampolineStatusElapsed.
   ///
   /// In en, this message translates to:
-  /// **'Reading trampoline status… ({elapsed}s)'**
+  /// **'Checking pending installation status… ({elapsed}s)'**
   String readingTrampolineStatusElapsed(int elapsed);
 
   /// No description provided for @dbcFlashSuccessful.
@@ -3524,6 +3530,12 @@ abstract class AppLocalizations {
   /// **'Connect SSH'**
   String get substepConnectSsh;
 
+  /// No description provided for @substepCheckCompletionRecord.
+  ///
+  /// In en, this message translates to:
+  /// **'Check completion record'**
+  String get substepCheckCompletionRecord;
+
   /// No description provided for @substepDisableHazards.
   ///
   /// In en, this message translates to:
@@ -3533,7 +3545,7 @@ abstract class AppLocalizations {
   /// No description provided for @substepReadStatus.
   ///
   /// In en, this message translates to:
-  /// **'Read trampoline status'**
+  /// **'Check pending installation status'**
   String get substepReadStatus;
 
   /// No description provided for @elapsedSeconds.

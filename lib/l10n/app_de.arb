@@ -346,8 +346,9 @@
   "verifyingDbcInstallation": "DBC-Installation wird geprüft",
   "reconnectUsbToLaptop": "USB wieder mit Laptop verbinden...",
   "waitingForRndisDevice": "Warte auf RNDIS-Gerät...",
-  "readingTrampolineStatus": "Trampoline-Status wird gelesen...",
-  "readingTrampolineStatusElapsed": "Trampoline-Status wird gelesen… ({elapsed}s)",
+  "checkingCompletionRecord": "Abschlussprotokoll wird geprüft...",
+  "readingTrampolineStatus": "Status der laufenden Installation wird geprüft...",
+  "readingTrampolineStatusElapsed": "Status der laufenden Installation wird geprüft… ({elapsed}s)",
   "@readingTrampolineStatusElapsed": {
     "placeholders": {
       "elapsed": {
@@ -741,8 +742,9 @@
   "substepWaitRndis": "Warte auf MDB (RNDIS) am USB",
   "substepConfigureNetwork": "Netzwerk konfigurieren",
   "substepConnectSsh": "SSH-Verbindung herstellen",
+  "substepCheckCompletionRecord": "Abschlussprotokoll prüfen",
   "substepDisableHazards": "Alarm und Auto-Standby deaktivieren",
-  "substepReadStatus": "Trampoline-Status auslesen",
+  "substepReadStatus": "Status der laufenden Installation prüfen",
   "elapsedSeconds": "{seconds}s vergangen",
   "@elapsedSeconds": {
     "placeholders": {

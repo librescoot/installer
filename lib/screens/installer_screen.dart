@@ -7688,6 +7688,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         Substep(id: 'rndis', label: l10n.substepWaitRndis),
         Substep(id: 'net', label: l10n.substepConfigureNetwork),
         Substep(id: 'ssh', label: l10n.substepConnectSsh),
+        Substep(
+          id: 'completion',
+          label: l10n.substepCheckCompletionRecord,
+        ),
         Substep(id: 'hazards', label: l10n.substepDisableHazards),
         Substep(id: 'status', label: l10n.substepReadStatus),
       ];
@@ -7801,8 +7805,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (!_ownsReconnect(generation)) return;
     setStep('ssh', SubstepState.done);
 
+    setStep('completion', SubstepState.active);
+    _setStatus(l10n.checkingCompletionRecord);
     final completed = await _deviceReportedFinished();
     if (!_ownsReconnect(generation)) return;
+    setStep('completion', SubstepState.done);
     if (completed == true) {
       setState(() => _finishCompletionConfirmed = true);
       _setPhase(InstallerPhase.finish);
