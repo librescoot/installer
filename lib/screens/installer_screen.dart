@@ -6075,8 +6075,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   Future<void> _runMdbArtifactInstall() async {
     final l10n = AppLocalizations.of(context)!;
-    // Staging is a minute of upload, the install about two, and the reboot
-    // and the version check together about two more.
+    // Staging is about a minute and the install about two. Reboot and version
+    // verification belong to the on-device coordinator later in the flow.
     // The status line carries a live percentage. The step NAME must not, or
     // the list shows the figure it was built with for the whole install.
     final installing = l10n.artifactInstalling(0).split('(').first.trimRight();
@@ -6102,11 +6102,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       WaitStep(
           label: l10n.waitingForDbcUpload,
           typical: const Duration(minutes: 3)),
-      WaitStep(
-          label: l10n.waitingForMdbRestart,
-          typical: const Duration(minutes: 2)),
-      WaitStep(
-          label: l10n.artifactVerifying, typical: const Duration(minutes: 2)),
     ]);
 
     if (_isDryRun) {
@@ -6157,8 +6152,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       }
 
       // Collect the work that has been running behind the pairing screens.
-      // Nothing on the vehicle is written after this point except the reboot,
-      // so this is the last moment where waiting costs the user anything.
       var alreadyInstalled = false;
       if (_mdbStageStarted) {
         criticalOperation ??= _acquireCriticalOperation();
@@ -6210,8 +6203,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // nothing on the vehicle is being written yet.
       criticalOperation ??= _acquireCriticalOperation();
 
-      // Everything from here to the reboot is what the background job has
-      // already done. Repeating it is not merely wasteful: mender refuses an
+      // Everything through artifact installation is what the background job
+      // has already done. Repeating it is not merely wasteful: mender refuses an
       // install while one is pending, so clearing that first would commit an
       // update that has never booted, which is the one thing an A/B scheme
       // exists to prevent.
@@ -6268,26 +6261,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         }
       }
 
-      // The reboot is ours: a rootfs that comes back and answers SSH has
-      // proven itself, u-boot has already rolled back if it did not, and any
-      // DBC work should run from the version the user asked for.
-      _setStatus(l10n.waitingForMdbRestart);
-      // The breadcrumb write is queued and the reboot below tears the session
-      // down on purpose, so an unflushed write races a closing channel and the
-      // record of where this run reached is the thing lost. It is also the
-      // breadcrumb most worth having: it marks the moment before a reboot,
-      // which is when a run is most likely to be interrupted.
-      //
-      // Bounded, because the write is queued rather than awaited so that a
-      // slow one cannot stall the install, and draining it without a limit
-      // would hand that back. A few hundred bytes over a local link needs far
-      // less than this.
-      try {
-        await _installStateWriteQueue.timeout(const Duration(seconds: 3));
-      } catch (e) {
-        debugPrint('UI: install state write did not settle before reboot: $e');
-      }
-      // No reboot here any more, and so no verification against a running
+      // No reboot here, and therefore no verification against a running
       // version: the board stays on the bootstrap image until 80-reboot.sh,
       // and staying there is what lets the user leave at the cable swap.
       // mender-update exiting 0 is the verdict, checksum included.
