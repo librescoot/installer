@@ -3482,6 +3482,18 @@ abstract class AppLocalizations {
   /// **'Copy to clipboard'**
   String get copyToClipboard;
 
+  /// No description provided for @copyErrorAndLog.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy error + log'**
+  String get copyErrorAndLog;
+
+  /// No description provided for @copiedToClipboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied to clipboard'**
+  String get copiedToClipboard;
+
   /// No description provided for @logFilePath.
   ///
   /// In en, this message translates to:

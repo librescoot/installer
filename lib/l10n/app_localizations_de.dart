@@ -2037,6 +2037,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get copyToClipboard => 'In Zwischenablage kopieren';
 
   @override
+  String get copyErrorAndLog => 'Fehler + Log kopieren';
+
+  @override
+  String get copiedToClipboard => 'In die Zwischenablage kopiert';
+
+  @override
   String logFilePath(String path) {
     return 'Protokolldatei: $path';
   }

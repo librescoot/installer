@@ -757,6 +757,8 @@
   "internalError": "Interner Fehler: {error}",
   "copyLog": "Protokoll kopieren",
   "copyToClipboard": "In Zwischenablage kopieren",
+  "copyErrorAndLog": "Fehler + Log kopieren",
+  "copiedToClipboard": "In die Zwischenablage kopiert",
   "logFilePath": "Protokolldatei: {path}",
   "revealLogFile": "Im Ordner anzeigen",
   "debugShell": "Debug-Shell",

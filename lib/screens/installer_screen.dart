@@ -14,8 +14,10 @@ import '../main.dart'
         appendLog,
         appendLogRaw,
         appLocale,
+        appVersion,
         installerLog,
         launchArgs,
+        rootScaffoldMessengerKey,
         showElevationRequiredDialog;
 import '../l10n/app_localizations.dart';
 import '../l10n/connect_failure_l10n.dart';
@@ -1272,21 +1274,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 ),
               TextButton(
                 onPressed: () async {
-                  final text = installerLog.join('\n');
-                  if (Platform.isMacOS) {
-                    final uid = (await Process.run('stat', [
-                      '-f',
-                      '%u',
-                      '/dev/console',
-                    ])).stdout.toString().trim();
-                    final (exe, args, env) = LogService.pbcopyCommand(uid);
-                    final proc = await Process.start(exe, args,
-                        environment: env);
-                    proc.stdin.write(text);
-                    await proc.stdin.close();
-                  } else {
-                    await Clipboard.setData(ClipboardData(text: text));
-                  }
+                  await _copyToClipboard(installerLog.join('\n'));
                   if (ctx.mounted) Navigator.pop(ctx);
                 },
                 child: Text(l10n.copyToClipboard),
@@ -1300,6 +1288,33 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         },
       ),
     );
+  }
+
+  /// Puts [text] on the clipboard the user actually pastes from.
+  ///
+  /// Flutter's Clipboard writes to the pasteboard of the session the process
+  /// belongs to, which on macOS is root's once the installer has elevated,
+  /// and nothing pastes out of that one. pbcopy via launchctl asuser reaches
+  /// the logged-in user's instead.
+  Future<void> _copyToClipboard(String text) async {
+    if (!Platform.isMacOS) {
+      await Clipboard.setData(ClipboardData(text: text));
+      return;
+    }
+    try {
+      final uid = (await Process.run('stat', ['-f', '%u', '/dev/console']))
+          .stdout
+          .toString()
+          .trim();
+      final (exe, args, env) = LogService.pbcopyCommand(uid);
+      final proc = await Process.start(exe, args, environment: env);
+      proc.stdin.write(text);
+      await proc.stdin.close();
+      await proc.exitCode;
+    } catch (e) {
+      debugPrint('Clipboard: pbcopy failed ($e), falling back to Flutter');
+      await Clipboard.setData(ClipboardData(text: text));
+    }
   }
 
   void _criticalOperationChanged(bool critical) {
@@ -3346,6 +3361,53 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     return stage;
   }
 
+  /// One pasteable account of an interrupted run: what the installer is,
+  /// what it was talking to, where the run stopped, and both logs.
+  ///
+  /// Everything on this screen is already selectable, but the parts someone
+  /// is asked for in support are spread over four widgets, and a hand-picked
+  /// selection loses the version and the scooter it came from every time.
+  String _resumeReport(AppLocalizations l10n) {
+    final b = StringBuffer()
+      ..writeln('Librescoot Installer $appVersion (${Platform.operatingSystem})')
+      ..writeln('Interrupted installation');
+    if (_resumeStage != null) {
+      final actor = _resumeActor == null ? '' : ' [$_resumeActor]';
+      b.writeln('Stage: ${_localizedStage(_resumeStage!, l10n)}'
+          ' ($_resumeStage)$actor');
+    }
+    final info = _mdbInfo;
+    if (info != null) {
+      b.writeln('MDB: ${info.firmwareVersion}'
+          '${info.serialNumber == null ? '' : ' serial ${info.serialNumber}'}');
+    }
+    if (_resumePreviousError != null) {
+      b.writeln('Last error: $_resumePreviousError');
+    }
+    if (_resumeCleanupError != null) {
+      b.writeln('Cleanup error: $_resumeCleanupError');
+    }
+    if (_resumeLogTail.isNotEmpty) {
+      b..writeln()..writeln('Scooter log:')..writeln('```')
+        ..writeln(_resumeLogTail.trimRight())..writeln('```');
+    }
+    b..writeln()..writeln('Installer log:')..writeln('```')
+      ..writeln(installerLog.join('\n').trimRight())..writeln('```');
+    return b.toString();
+  }
+
+  Future<void> _copyResumeReport(AppLocalizations l10n) async {
+    await _copyToClipboard(_resumeReport(l10n));
+    rootScaffoldMessengerKey.currentState
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(l10n.copiedToClipboard),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+  }
+
   Widget _buildResumeDetected(AppLocalizations l10n) {
     final running = _resumeStillRunning;
     final actor = switch (_resumeActor) {
@@ -3357,6 +3419,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       title: running ? l10n.resumeRunningHeading : l10n.resumeFoundHeading,
       subtitle: running ? l10n.resumeRunningBody : l10n.resumeFoundBody,
       actions: [
+        // Handing the run's account to someone who can read it is neither
+        // going on nor going back, so it sits away from Continue.
+        PhaseAction(
+          label: l10n.copyErrorAndLog,
+          icon: Icons.copy_all_outlined,
+          side: ActionSide.back,
+          onPressed: () => _copyResumeReport(l10n),
+        ),
         // A run that is still going has nothing for the user to decide: the
         // only honest control is none, until it stops.
         if (!running)

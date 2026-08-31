@@ -2002,6 +2002,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get copyToClipboard => 'Copy to clipboard';
 
   @override
+  String get copyErrorAndLog => 'Copy error + log';
+
+  @override
+  String get copiedToClipboard => 'Copied to clipboard';
+
+  @override
   String logFilePath(String path) {
     return 'Log file: $path';
   }
