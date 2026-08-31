@@ -314,7 +314,7 @@
   "brakePacerStart": "Start the timer",
   "brakePacerStop": "Stop",
   "brakePacerRestart": "Run it again",
-  "brakePacerDone": "That is the pattern. Let go now. The scooter restarts a few seconds later on its own.",
+  "brakePacerDone": "That was the pattern. The scooter restarts a few seconds later on its own.",
   "brakeDiagramBlipLegend": "Right lever released for about a second",
   "brakeDiagramEndLegend": "Just let go at {seconds} seconds",
   "brakeBandBothHeld": "Left lever held down throughout",
@@ -323,6 +323,7 @@
   "brakeLeadInLabel": "Squeeze both brakes in",
   "brakeLeadInHint": "Step over to the handlebars and put a hand on each lever.",
   "brakeKeepHolding": "Hold both brakes",
+  "brakeReleaseNow": "Let go of both brakes",
   "@brakeDiagramEndLegend": {
     "placeholders": {
       "seconds": {

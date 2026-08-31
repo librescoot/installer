@@ -77,9 +77,15 @@ void main() {
     }
     await _advance(tester, brakeHoldSecondsFor(1));
 
+    // Completion fires the moment the levers should be let go; the release
+    // cue then stays up in large type before the done summary replaces it.
     expect(completed, 1);
     expect(find.text('Right lever off, now'), findsNothing);
-    expect(find.textContaining('That is the pattern'), findsOneWidget);
+    expect(find.text('Let go of both brakes'), findsOneWidget);
+
+    await _advance(tester, brakeReleaseSeconds);
+    expect(find.text('Let go of both brakes'), findsNothing);
+    expect(find.textContaining('That was the pattern'), findsOneWidget);
   });
 
   testWidgets('stopping mid-count returns to the start, ticker and all',

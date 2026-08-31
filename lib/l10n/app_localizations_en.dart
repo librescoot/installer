@@ -800,7 +800,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get brakePacerDone =>
-      'That is the pattern. Let go now. The scooter restarts a few seconds later on its own.';
+      'That was the pattern. The scooter restarts a few seconds later on its own.';
 
   @override
   String get brakeDiagramBlipLegend =>
@@ -830,6 +830,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get brakeKeepHolding => 'Hold both brakes';
+
+  @override
+  String get brakeReleaseNow => 'Let go of both brakes';
 
   @override
   String get scooterPrepManualFallback => 'Or cut the power by hand';

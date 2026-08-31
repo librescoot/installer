@@ -797,7 +797,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get brakeResetIntro =>
-      'Ziehe beide Bremshebel und halte sie fest. Lass alle zehn Sekunden den rechten Hebel etwa eine Sekunde los und ziehe ihn wieder. Lass ihn nach dem vierten Halten einfach los. Der Neustart wird ausgelöst.';
+      'Ziehe beide Bremshebel und halte sie fest. Lass alle zehn Sekunden den rechten Hebel etwa eine Sekunde los und ziehe ihn wieder. Lass nach dem vierten Halten einfach beide los. Der Neustart wird ausgelöst.';
 
   @override
   String get brakeResetAfterNote =>
@@ -814,7 +814,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get brakePacerDone =>
-      'Das ist das richtige Muster. Lass jetzt los. Der Neustart wird wenige Sekunden später ausgelöst.';
+      'Das war das richtige Muster. Der Neustart folgt wenige Sekunden später von selbst.';
 
   @override
   String get brakeDiagramBlipLegend =>
@@ -836,7 +836,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Der linke Hebel bleibt die ganze Zeit gezogen.';
 
   @override
-  String get brakeLeadInLabel => 'Beide Bremsen ziehen';
+  String get brakeLeadInLabel => 'Beide Bremsen ziehen in';
 
   @override
   String get brakeLeadInHint =>
@@ -844,6 +844,9 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get brakeKeepHolding => 'Beide Bremsen halten';
+
+  @override
+  String get brakeReleaseNow => 'Beide Bremsen loslassen';
 
   @override
   String get scooterPrepManualFallback => 'Oder den Strom von Hand trennen';

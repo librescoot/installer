@@ -41,6 +41,11 @@ int brakeHoldSecondsFor(int segment) =>
 /// that inherits the gap.
 const brakeLeadInSeconds = 5;
 
+/// How long the closing "let go of both" instruction stays up in large type
+/// before shrinking into the done summary. Letting go is the one step with no
+/// beat after it, so the cue has to outlive the moment it fires.
+const brakeReleaseSeconds = 5;
+
 /// The pattern at a glance: one long squeeze of both levers, with the right
 /// one blipped at each ten second mark. Drawn to scale, so the eye takes in
 /// "hold throughout, three brief interruptions" before reading a word.
@@ -97,7 +102,7 @@ class BrakeGestureDiagram extends StatelessWidget {
         // The band above the timeline is the part people get wrong: the left
         // lever never moves, so it is drawn as one unbroken run.
         Container(
-          height: 22,
+          height: 40,
           decoration: BoxDecoration(
             color: Colors.cyan.shade900.withValues(alpha: 0.55),
             borderRadius: BorderRadius.circular(4),
@@ -105,7 +110,7 @@ class BrakeGestureDiagram extends StatelessWidget {
           alignment: Alignment.center,
           child: Text(l10n.brakeBandBothHeld,
               style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: Colors.cyan.shade100)),
         ),
@@ -195,7 +200,7 @@ class BrakeGesturePacer extends StatefulWidget {
   State<BrakeGesturePacer> createState() => _BrakeGesturePacerState();
 }
 
-enum _PacerPhase { idle, leadIn, hold, blip, done }
+enum _PacerPhase { idle, leadIn, hold, blip, release, done }
 
 class _BrakeGesturePacerState extends State<BrakeGesturePacer> {
   Timer? _ticker;
@@ -238,9 +243,10 @@ class _BrakeGesturePacerState extends State<BrakeGesturePacer> {
         _remaining = brakeHoldSecondsFor(1);
       } else if (_phase == _PacerPhase.hold) {
         if (_segment == brakeSegments) {
-          _phase = _PacerPhase.done;
-          _ticker?.cancel();
-          _ticker = null;
+          // Letting go is what triggers the restart, so completion fires
+          // here; the release phase after it is display time, not gesture.
+          _phase = _PacerPhase.release;
+          _remaining = brakeReleaseSeconds;
           widget.onSequenceComplete?.call();
         } else {
           _phase = _PacerPhase.blip;
@@ -250,6 +256,10 @@ class _BrakeGesturePacerState extends State<BrakeGesturePacer> {
         _segment++;
         _phase = _PacerPhase.hold;
         _remaining = brakeHoldSecondsFor(_segment);
+      } else if (_phase == _PacerPhase.release) {
+        _phase = _PacerPhase.done;
+        _ticker?.cancel();
+        _ticker = null;
       }
     });
   }
@@ -269,7 +279,8 @@ class _BrakeGesturePacerState extends State<BrakeGesturePacer> {
         BrakeGestureDiagram(
           activeSegment: onPattern ? _segment : null,
           blipping: _phase == _PacerPhase.blip,
-          finished: _phase == _PacerPhase.done,
+          finished:
+              _phase == _PacerPhase.done || _phase == _PacerPhase.release,
         ),
         const SizedBox(height: 18),
         if (counting) ...[
@@ -309,6 +320,17 @@ class _BrakeGesturePacerState extends State<BrakeGesturePacer> {
           Center(
             child:
                 TextButton(onPressed: _stop, child: Text(l10n.brakePacerStop)),
+          ),
+        ],
+        if (_phase == _PacerPhase.release) ...[
+          Text(
+            l10n.brakeReleaseNow,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 34,
+              fontWeight: FontWeight.bold,
+              color: Colors.greenAccent,
+            ),
           ),
         ],
         if (_phase == _PacerPhase.done) ...[

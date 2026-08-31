@@ -1487,7 +1487,7 @@ abstract class AppLocalizations {
   /// No description provided for @brakePacerDone.
   ///
   /// In en, this message translates to:
-  /// **'That is the pattern. Let go now. The scooter restarts a few seconds later on its own.'**
+  /// **'That was the pattern. The scooter restarts a few seconds later on its own.'**
   String get brakePacerDone;
 
   /// No description provided for @brakeDiagramBlipLegend.
@@ -1537,6 +1537,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Hold both brakes'**
   String get brakeKeepHolding;
+
+  /// No description provided for @brakeReleaseNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Let go of both brakes'**
+  String get brakeReleaseNow;
 
   /// No description provided for @scooterPrepManualFallback.
   ///
