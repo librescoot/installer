@@ -333,20 +333,29 @@ void main() {
         contains(r'mv -f "$history_tmp" "$RUN_HISTORY_DIR/$RUN_ID/record"'));
   });
 
-  test('completion is written after the handover actions', () {
-    // The record is what a returning laptop reads as the verdict, so it must
-    // not land before the things it is a verdict on.
+  test('completion is written after the handover, before the severing', () {
+    // The record is what a returning laptop reads as the verdict, so it lands
+    // after the actions it is a verdict on: the vehicle handed back and the
+    // unlock sent. But it must be on disk before anything that can take the
+    // board down or away: ending service mode severs the link, and starting
+    // pm-service executes whatever power request sat parked while it was
+    // stopped, a pending boot update's reboot included.
     final finalize = File('assets/finalize.sh.template').readAsStringSync();
     final record = finalize.indexOf('result: success');
+    expect(record, isNot(-1));
     for (final earlier in [
-      'lsc set scooter.usb0-policy auto',
-      'systemctl start librescoot-pm',
       'systemctl restart librescoot-vehicle',
       'lpush scooter:state unlock',
     ]) {
       expect(finalize.indexOf(earlier), isNot(-1), reason: earlier);
       expect(record, greaterThan(finalize.indexOf(earlier)), reason: earlier);
     }
+    expect(record, lessThan(finalize.indexOf('systemctl start librescoot-pm')));
+    // The usb0-policy restore lives inside end_service_mode(), whose
+    // definition sits above the record; what must come after the record is
+    // the call.
+    expect(finalize, contains('lsc set scooter.usb0-policy auto'));
+    expect(record, lessThan(finalize.lastIndexOf('end_service_mode')));
     expect(finalize, contains(r'mv -f "$INSTALLER_DIR/.last-install.tmp"'),
         reason: 'a reader must never see a half-written record');
   });
