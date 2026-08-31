@@ -1957,10 +1957,6 @@ class AppLocalizationsDe extends AppLocalizations {
       'Bleibe beim Roller, bis er entsperrt ist. Ziehe danach das USB-Kabel ab.';
 
   @override
-  String get networkConfigNeedsPermission =>
-      'macOS benötigt die Erlaubnis, die Netzwerkeinstellungen zu ändern. Klicke im Systemdialog auf Erlauben und wähle anschließend Erneut versuchen.';
-
-  @override
   String get waitingForMdb => 'Warte auf das MDB…';
 
   @override

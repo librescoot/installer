@@ -866,7 +866,6 @@
   "finishBlockedRetry": "Try again",
   "finishHandoverTitle": "Finishing installation",
   "finishHandoverBody": "Wait for the scooter to complete the final steps before disconnecting USB.",
-  "networkConfigNeedsPermission": "macOS is asking for permission to change network settings. Click Allow in the system dialog, then hit Retry.",
   "waitingForMdb": "Waiting for the MDB...",
   "dbcFlashAllDone": "Continue",
   "dbcFlashSequence": "The scooter now completes the requested dashboard work. Progress appears on the dashboard. Stay with the scooter until it completes or reports an error.",

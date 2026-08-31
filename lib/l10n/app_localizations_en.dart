@@ -1925,10 +1925,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Wait for the scooter to complete the final steps before disconnecting USB.';
 
   @override
-  String get networkConfigNeedsPermission =>
-      'macOS is asking for permission to change network settings. Click Allow in the system dialog, then hit Retry.';
-
-  @override
   String get waitingForMdb => 'Waiting for the MDB...';
 
   @override

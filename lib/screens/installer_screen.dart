@@ -2937,23 +2937,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       try {
         final configured = await networkService.configureInterface(iface);
         if (!configured && !await networkService.isMdbReachable()) {
-          // configureInterface returns false without throwing for two very
-          // different reasons, and only one of them is about permission.
+          // A false here says only that the board did not answer in the
+          // couple of seconds after the address was set, which is the
+          // ordinary state of a board still booting or re-enumerating.
+          // Carry on and let the SSH connect retry against it.
           //
-          // On macOS `networksetup -setmanual` fails for lack of admin, and
-          // the auth dialog is asynchronous, so auto-retrying churns the UI
-          // until the user clicks Allow. Stopping is right there.
-          //
-          // Everywhere else it means the board did not answer in the couple
-          // of seconds after the address was set, which is the ordinary state
-          // of a board that is still booting. Telling a Linux user that macOS
-          // wants permission is nonsense, and stopping on it strands them in
-          // front of a retry button for something that fixes itself.
-          if (Platform.isMacOS) {
-            _setStatus(l10n.networkConfigNeedsPermission);
-            setState(() => _isProcessing = false);
-            return;
-          }
+          // Configuring the address is not what fails: `networksetup
+          // -setmanual` needs no admin rights and succeeds unprivileged on
+          // every platform this runs on. A genuine denial comes out of the
+          // ifconfig fallback as NetworkPrivilegeException, caught below.
           _setStatus(l10n.waitingForMdb);
         }
       } on NetworkPrivilegeException catch (e) {

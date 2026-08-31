@@ -3350,12 +3350,6 @@ abstract class AppLocalizations {
   /// **'Wait for the scooter to complete the final steps before disconnecting USB.'**
   String get finishHandoverBody;
 
-  /// No description provided for @networkConfigNeedsPermission.
-  ///
-  /// In en, this message translates to:
-  /// **'macOS is asking for permission to change network settings. Click Allow in the system dialog, then hit Retry.'**
-  String get networkConfigNeedsPermission;
-
   /// No description provided for @waitingForMdb.
   ///
   /// In en, this message translates to:

@@ -735,7 +735,6 @@
   "finishBlockedRetry": "Nochmal versuchen",
   "finishHandoverTitle": "Warte, bis der Roller entsperrt ist",
   "finishHandoverBody": "Bleibe beim Roller, bis er entsperrt ist. Ziehe danach das USB-Kabel ab.",
-  "networkConfigNeedsPermission": "macOS benötigt die Erlaubnis, die Netzwerkeinstellungen zu ändern. Klicke im Systemdialog auf Erlauben und wähle anschließend Erneut versuchen.",
   "waitingForMdb": "Warte auf das MDB…",
   "dbcFlashAllDone": "Weiter zum Abschluss",
   "dbcFlashSequence": "Der Roller führt jetzt die ausgewählten Display-Arbeiten aus. Den tatsächlichen Zustand zeigen das Display und die Blinker. Warte, bis der Vorgang abgeschlossen ist oder ein Fehler angezeigt wird.",
