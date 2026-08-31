@@ -80,13 +80,15 @@ class _EstimatedHandoffProgressState extends State<EstimatedHandoffProgress> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final elapsed = _now.difference(widget.startedAt);
+    // The stage durations are calibrated from measured runs, so the estimate
+    // is presented as-is with a small pad rather than widened into a range
+    // nobody can plan around.
     final rawTypical = widget.estimate.typical;
     final rawUpper = widget.estimate.conservativeUpper;
-    final typical = rawTypical + Duration(seconds: rawTypical.inSeconds ~/ 5);
-    final upperPadding = Duration(
-      seconds: (rawUpper.inSeconds ~/ 10).clamp(300, 3600),
-    );
-    final upper = rawUpper + upperPadding;
+    final typical =
+        rawTypical + Duration(seconds: (rawTypical.inSeconds * 0.05).ceil());
+    final upper =
+        rawUpper + Duration(seconds: (rawUpper.inSeconds * 0.05).ceil());
     final overdue = upper > Duration.zero && elapsed >= upper;
     final progress = estimatedHandoffFraction(
       elapsed: elapsed,
@@ -99,6 +101,8 @@ class _EstimatedHandoffProgressState extends State<EstimatedHandoffProgress> {
     if (overdue) {
       timing = l10n.handoffEstimateTakingLonger;
     } else if (widget.estimate.isIndeterminate) {
+      // An asset without a final size cannot be estimated tightly; the broad
+      // range is the honest statement here.
       timing = l10n.handoffEstimateTotalRange(
         _minutes(l10n, typical),
         _minutes(l10n, upper),
@@ -107,10 +111,7 @@ class _EstimatedHandoffProgressState extends State<EstimatedHandoffProgress> {
       final low = typical - elapsed;
       final high = upper - elapsed;
       timing = low > Duration.zero
-          ? l10n.handoffEstimateRemainingRange(
-              _minutes(l10n, low),
-              _minutes(l10n, high),
-            )
+          ? l10n.handoffEstimateRemaining(_minutes(l10n, low))
           : l10n.handoffEstimateRemainingUpper(_minutes(l10n, high));
     }
 

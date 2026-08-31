@@ -13,7 +13,7 @@ InstallPlan _plan(BoardAction mdb, BoardAction dbc, {bool tiles = false}) =>
       installTiles: tiles,
     );
 
-const _oneLinkSecond = 11 * 1000 * 1000;
+const _oneLinkSecond = 10 * 1000 * 1000;
 
 void main() {
   group('InstallEstimateAssets', () {
@@ -56,7 +56,7 @@ void main() {
       );
 
       expect(estimate.typical, const Duration(seconds: 22));
-      expect(estimate.conservativeUpper, const Duration(seconds: 246));
+      expect(estimate.conservativeUpper, const Duration(seconds: 94));
       expect(estimate.stages.map((stage) => stage.name), ['maps']);
       expect(estimate.stages.single.overlapGroup, isNull);
       expect(estimate.isIndeterminate, isFalse);
@@ -71,7 +71,7 @@ void main() {
 
       // 1 s upload + 2 min mender allowance + 2 min reboot/SSH allowance.
       expect(estimate.typical, const Duration(seconds: 241));
-      expect(estimate.conservativeUpper, const Duration(seconds: 1203));
+      expect(estimate.conservativeUpper, const Duration(seconds: 422));
       expect(artifact.name, 'dbc-artifact');
       expect(artifact.typical, const Duration(seconds: 241));
       expect(artifact.weight, 1.0);
@@ -87,15 +87,15 @@ void main() {
         ),
       );
 
-      expect(estimate.typical, const Duration(seconds: 422));
+      expect(estimate.typical, const Duration(seconds: 361));
       expect(estimate.stages.map((stage) => stage.name), [
         'dbc-stage-0',
         'dbc-artifact',
       ]);
       expect(
         estimate.stages.first.typical,
-        const Duration(seconds: 181),
-      ); // 3 MB at 3 MB/s + 3 min stage-0 allowance.
+        const Duration(seconds: 120),
+      ); // 3 MB at 210 kB/s + the measured stage-0 overhead.
     });
 
     test('full image does not add an artifact install', () {
@@ -117,7 +117,7 @@ void main() {
         plan: _plan(BoardAction.cleanInstall, BoardAction.leave),
       );
 
-      expect(estimate.typical, const Duration(seconds: 60 + 120 + 180));
+      expect(estimate.typical, const Duration(seconds: 90 + 180 + 90));
       expect(estimate.stages.map((stage) => stage.name), [
         'mdb-stage-0',
         'mdb-artifact',
@@ -154,7 +154,7 @@ void main() {
         plan: _plan(BoardAction.fullImage, BoardAction.leave),
       );
 
-      expect(estimate.typical, const Duration(seconds: 60 + 180));
+      expect(estimate.typical, const Duration(seconds: 90 + 90));
       expect(estimate.stages.map((stage) => stage.name), [
         'mdb-stage-0',
         'mdb-reboot-and-verify',
@@ -176,9 +176,9 @@ void main() {
 
       // The background MDB worker runs while DBC work runs; only the final
       // MDB reboot is added after the joined work.
-      expect(mdbOnly.typical, const Duration(seconds: 120 + 180));
+      expect(mdbOnly.typical, const Duration(seconds: 180 + 90));
       expect(dbcOnly.typical, const Duration(seconds: 241));
-      expect(both.typical, const Duration(seconds: 241 + 180));
+      expect(both.typical, const Duration(seconds: 241 + 90));
       expect(both.typical, lessThan(mdbOnly.typical + dbcOnly.typical));
       expect(
         both.stages
@@ -204,7 +204,7 @@ void main() {
           ),
         );
 
-        // Maps take 20.2 s nominally, while mender takes 120 s. Their common
+        // Maps take 40 s nominally, while mender takes 120 s. Their common
         // 120 s portion is max(), not an addition.
         expect(withMaps.typical, withoutMaps.typical);
         expect(withMaps.stages.map((stage) => stage.name), [
@@ -225,11 +225,11 @@ void main() {
         ),
       );
 
-      // The 2 GB tile files take longer than the 2 min install. The artifact
-      // upload precedes the overlap, and the reboot follows it.
-      expect(estimate.typical, greaterThan(const Duration(minutes: 6)));
-      expect(estimate.typical, lessThan(const Duration(minutes: 9)));
-      expect(estimate.typical, isNot(const Duration(minutes: 10)));
+      // The 2 GB tile files (420 s) take longer than the 2 min install, so
+      // they set the overlapped branch; the reboot follows it. Blind addition
+      // would give 11 min.
+      expect(estimate.typical, const Duration(seconds: 420 + 120));
+      expect(estimate.typical, lessThan(const Duration(minutes: 11)));
     });
 
     test('unknown selected sizes produce broad indeterminate output', () {
@@ -261,7 +261,7 @@ void main() {
 
       // No DBC or map asset is selected, so their unknown sizes are irrelevant.
       expect(estimate.isIndeterminate, isFalse);
-      expect(estimate.typical, const Duration(seconds: 300));
+      expect(estimate.typical, const Duration(seconds: 270));
     });
 
     test(

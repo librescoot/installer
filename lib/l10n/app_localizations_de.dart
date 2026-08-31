@@ -990,7 +990,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get handoffEstimateExplanation =>
-      'Solange das MDB mit dem DBC verbunden ist, kann der Laptop den aktuellen Fortschritt nicht auslesen. Diese bewusst vorsichtige Schätzung verwendet die ausgewählten Dateien und typische Laufzeiten. Schließe den Laptop nicht aufgrund der Schätzung wieder an, sondern warte auf den tatsächlichen Zustand an Display und Blinkern.';
+      'Solange das MDB mit dem DBC verbunden ist, kann der Laptop den aktuellen Fortschritt nicht auslesen. Die Schätzung wird aus den Dateigrößen und gemessenen Laufzeiten echter Installationen berechnet. Schließe den Laptop nicht aufgrund der Schätzung wieder an, sondern warte auf den tatsächlichen Zustand an Display und Blinkern.';
 
   @override
   String handoffEstimateMinutes(int minutes) {
@@ -998,8 +998,8 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String handoffEstimateRemainingRange(String from, String to) {
-    return 'Noch etwa $from–$to';
+  String handoffEstimateRemaining(String left) {
+    return 'Noch etwa $left';
   }
 
   @override

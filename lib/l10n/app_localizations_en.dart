@@ -974,7 +974,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get handoffEstimateExplanation =>
-      'The laptop cannot read live progress while the MDB is connected to the DBC. This deliberately cautious estimate uses the selected files and typical timings. Do not reconnect the laptop based on the estimate; wait for the display and blinkers to show the actual state.';
+      'The laptop cannot read live progress while the MDB is connected to the DBC. The estimate is calculated from the selected file sizes and timings measured on real installs. Do not reconnect the laptop based on the estimate; wait for the display and blinkers to show the actual state.';
 
   @override
   String handoffEstimateMinutes(int minutes) {
@@ -982,8 +982,8 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String handoffEstimateRemainingRange(String from, String to) {
-    return 'About $from–$to remaining';
+  String handoffEstimateRemaining(String left) {
+    return 'About $left remaining';
   }
 
   @override

@@ -316,17 +316,14 @@
   "waitingForDownloads": "Warte, bis das Herunterladen abgeschlossen ist…",
   "filesStagedWaitingForHandoff": "Alle Dateien sind bereit. Starte die Display-Arbeiten, wenn du bereit bist.",
   "handoffEstimateTitle": "Geschätzter Fortschritt",
-  "handoffEstimateExplanation": "Solange das MDB mit dem DBC verbunden ist, kann der Laptop den aktuellen Fortschritt nicht auslesen. Diese bewusst vorsichtige Schätzung verwendet die ausgewählten Dateien und typische Laufzeiten. Schließe den Laptop nicht aufgrund der Schätzung wieder an, sondern warte auf den tatsächlichen Zustand an Display und Blinkern.",
+  "handoffEstimateExplanation": "Solange das MDB mit dem DBC verbunden ist, kann der Laptop den aktuellen Fortschritt nicht auslesen. Die Schätzung wird aus den Dateigrößen und gemessenen Laufzeiten echter Installationen berechnet. Schließe den Laptop nicht aufgrund der Schätzung wieder an, sondern warte auf den tatsächlichen Zustand an Display und Blinkern.",
   "handoffEstimateMinutes": "{minutes} Min.",
   "@handoffEstimateMinutes": {
     "placeholders": {"minutes": {"type": "int"}}
   },
-  "handoffEstimateRemainingRange": "Noch etwa {from}–{to}",
-  "@handoffEstimateRemainingRange": {
-    "placeholders": {
-      "from": {"type": "String"},
-      "to": {"type": "String"}
-    }
+  "handoffEstimateRemaining": "Noch etwa {left}",
+  "@handoffEstimateRemaining": {
+    "placeholders": {"left": {"type": "String"}}
   },
   "handoffEstimateRemainingUpper": "Noch bis zu etwa {to}",
   "@handoffEstimateRemainingUpper": {

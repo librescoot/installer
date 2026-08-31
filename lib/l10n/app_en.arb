@@ -392,17 +392,14 @@
   "waitingForDownloads": "Waiting for downloads to complete...",
   "filesStagedWaitingForHandoff": "Files are ready. Start the dashboard work when you are ready.",
   "handoffEstimateTitle": "Estimated progress",
-  "handoffEstimateExplanation": "The laptop cannot read live progress while the MDB is connected to the DBC. This deliberately cautious estimate uses the selected files and typical timings. Do not reconnect the laptop based on the estimate; wait for the display and blinkers to show the actual state.",
+  "handoffEstimateExplanation": "The laptop cannot read live progress while the MDB is connected to the DBC. The estimate is calculated from the selected file sizes and timings measured on real installs. Do not reconnect the laptop based on the estimate; wait for the display and blinkers to show the actual state.",
   "handoffEstimateMinutes": "{minutes} min",
   "@handoffEstimateMinutes": {
     "placeholders": {"minutes": {"type": "int"}}
   },
-  "handoffEstimateRemainingRange": "About {from}–{to} remaining",
-  "@handoffEstimateRemainingRange": {
-    "placeholders": {
-      "from": {"type": "String"},
-      "to": {"type": "String"}
-    }
+  "handoffEstimateRemaining": "About {left} remaining",
+  "@handoffEstimateRemaining": {
+    "placeholders": {"left": {"type": "String"}}
   },
   "handoffEstimateRemainingUpper": "Up to about {to} remaining",
   "@handoffEstimateRemainingUpper": {

@@ -1787,7 +1787,7 @@ abstract class AppLocalizations {
   /// No description provided for @handoffEstimateExplanation.
   ///
   /// In en, this message translates to:
-  /// **'The laptop cannot read live progress while the MDB is connected to the DBC. This deliberately cautious estimate uses the selected files and typical timings. Do not reconnect the laptop based on the estimate; wait for the display and blinkers to show the actual state.'**
+  /// **'The laptop cannot read live progress while the MDB is connected to the DBC. The estimate is calculated from the selected file sizes and timings measured on real installs. Do not reconnect the laptop based on the estimate; wait for the display and blinkers to show the actual state.'**
   String get handoffEstimateExplanation;
 
   /// No description provided for @handoffEstimateMinutes.
@@ -1796,11 +1796,11 @@ abstract class AppLocalizations {
   /// **'{minutes} min'**
   String handoffEstimateMinutes(int minutes);
 
-  /// No description provided for @handoffEstimateRemainingRange.
+  /// No description provided for @handoffEstimateRemaining.
   ///
   /// In en, this message translates to:
-  /// **'About {from}–{to} remaining'**
-  String handoffEstimateRemainingRange(String from, String to);
+  /// **'About {left} remaining'**
+  String handoffEstimateRemaining(String left);
 
   /// No description provided for @handoffEstimateRemainingUpper.
   ///

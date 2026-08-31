@@ -36,55 +36,60 @@ class InstallEstimateAssets {
   }
 }
 
-/// Conservative, intentionally boring constants used by [InstallTimeEstimate].
+/// Per-phase rates and durations behind [InstallTimeEstimate].
 ///
-/// These are wall-clock allowances, not measurements from a particular run.
-/// The 11 MB/s dashboard link comes from the trampoline's upload note. The
-/// 2--4 MB/s write range comes from its UMS flash watchdog comment, so the
-/// midpoint is used for a typical value and the slow end for the upper value.
-/// The broad ceilings preserve the waits currently used by the scripts: 300 s
-/// cable/UMS windows, 900 s DBC mender calls, 30 min MDB-artifact joining, and
-/// 300 s post-reboot SSH recovery. No constant represents device telemetry.
+/// Calibrated from installer run logs (2026-08, unu hardware): the
+/// trampoline's per-step wall-clock lines, the Go flasher's timing, and the
+/// laptop upload throughput. Typical is the measured value with a little
+/// headroom; conservative covers the slowest run observed plus margin, not a
+/// script timeout ceiling. The unknown-size fallbacks are the exception and
+/// stay deliberately broad: an asset with no size yet cannot borrow a
+/// measured rate.
 class InstallEstimateConstants {
   InstallEstimateConstants._();
 
-  static const int dbcLinkBytesPerSecond = 11 * 1000 * 1000;
-  static const int conservativeDbcLinkBytesPerSecond = 5 * 1000 * 1000;
-  static const int typicalStage0WriteBytesPerSecond = 3 * 1000 * 1000;
-  static const int conservativeStage0WriteBytesPerSecond = 2 * 1000 * 1000;
+  /// MDB->DBC and laptop->MDB transfers: ~10 MB/s measured (500 MB in 53 s).
+  static const int dbcLinkBytesPerSecond = 10 * 1000 * 1000;
+  static const int conservativeDbcLinkBytesPerSecond = 8 * 1000 * 1000;
 
-  /// The existing UI says a UMS image write takes about a minute.
-  static const Duration mdbStage0Typical = Duration(minutes: 1);
-  static const Duration mdbStage0Conservative = Duration(minutes: 3);
+  /// Stage-0 flash rate over the *compressed* image bytes, which is the size
+  /// the estimate is handed. Measured: a 55 MB image took 262 s to write
+  /// (bmap-mapped blocks through the UMS gadget).
+  static const int typicalStage0WriteBytesPerSecond = 210 * 1000;
+  static const int conservativeStage0WriteBytesPerSecond = 160 * 1000;
 
-  /// The MDB mender worker is backgrounded; the reboot phase joins for 30 min.
-  static const Duration mdbArtifactTypical = Duration(minutes: 2);
-  static const Duration mdbArtifactConservative = Duration(minutes: 30);
+  /// Go flasher over UMS on the laptop side: 78 s measured.
+  static const Duration mdbStage0Typical = Duration(seconds: 90);
+  static const Duration mdbStage0Conservative = Duration(seconds: 150);
 
-  /// A DBC artifact install is bounded by the 900 s SSH command in the script.
+  /// Delta mender install of the MDB artifact: ~2.5 min measured from handoff
+  /// to the reboot phase.
+  static const Duration mdbArtifactTypical = Duration(minutes: 3);
+  static const Duration mdbArtifactConservative = Duration(minutes: 5);
+
   static const Duration dbcArtifactInstallTypical = Duration(minutes: 2);
-  static const Duration dbcArtifactInstallConservative = Duration(minutes: 15);
+  static const Duration dbcArtifactInstallConservative = Duration(minutes: 4);
 
   /// Includes the 20 s reboot pause and the subsequent SSH recovery window.
   static const Duration dbcRebootTypical = Duration(minutes: 2);
-  static const Duration dbcRebootConservative = Duration(minutes: 5);
-  static const Duration mdbRebootTypical = Duration(minutes: 3);
-  static const Duration mdbRebootConservative = Duration(minutes: 5);
+  static const Duration dbcRebootConservative = Duration(minutes: 3);
+  static const Duration mdbRebootTypical = Duration(seconds: 90);
+  static const Duration mdbRebootConservative = Duration(minutes: 3);
 
-  /// The stage-0 path has two user/USB wait windows in the scripts. Typical is
-  /// intentionally shorter than their failure ceiling; the upper value keeps
-  /// both the handoff and a slow board in view without promising success.
-  static const Duration dbcStage0OverheadTypical = Duration(minutes: 3);
-  static const Duration dbcStage0OverheadConservative = Duration(minutes: 10);
+  /// Trampoline steps 1-6 and 8 around the stage-0 write: laptop-disconnect
+  /// debounce, g_ether re-init, DBC power + SSH, bootloader config, host-mode
+  /// switch, cleanup. 97 s measured end to end.
+  static const Duration dbcStage0OverheadTypical = Duration(seconds: 105);
+  static const Duration dbcStage0OverheadConservative = Duration(minutes: 3);
 
   static const Duration mapAssetOverheadTypical = Duration(seconds: 10);
-  static const Duration mapAssetOverheadConservative = Duration(minutes: 2);
+  static const Duration mapAssetOverheadConservative = Duration(seconds: 45);
 
   /// Used when a selected file has no final size yet. This is a broad range,
   /// not a guess about the file or a claim that it has finished staging.
   static const Duration unknownTransferTypical = Duration(minutes: 10);
   static const Duration unknownTransferConservative = Duration(minutes: 45);
-  static const Duration unknownStage0WriteTypical = Duration(minutes: 3);
+  static const Duration unknownStage0WriteTypical = Duration(minutes: 5);
   static const Duration unknownStage0WriteConservative = Duration(minutes: 15);
 }
 
