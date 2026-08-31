@@ -8,10 +8,12 @@ import 'package:librescoot_installer/models/install_time_estimate.dart';
 import 'package:librescoot_installer/widgets/estimated_handoff_progress.dart';
 
 void main() {
-  test('estimate stays deliberately behind the clock', () {
+  test('the bar agrees with the countdown and never claims completion', () {
+    // Half the typical time elapsed reads as half done, matching the
+    // remaining-minutes text beside it.
     expect(
       estimatedHandoffFraction(
-        elapsed: const Duration(minutes: 10),
+        elapsed: const Duration(minutes: 5),
         typical: const Duration(minutes: 10),
         conservativeUpper: const Duration(minutes: 20),
         indeterminate: false,
@@ -20,12 +22,21 @@ void main() {
     );
     expect(
       estimatedHandoffFraction(
+        elapsed: const Duration(minutes: 10),
+        typical: const Duration(minutes: 10),
+        conservativeUpper: const Duration(minutes: 20),
+        indeterminate: false,
+      ),
+      0.9,
+    );
+    expect(
+      estimatedHandoffFraction(
         elapsed: const Duration(minutes: 19),
         typical: const Duration(minutes: 10),
         conservativeUpper: const Duration(minutes: 20),
         indeterminate: false,
       ),
-      lessThanOrEqualTo(0.9),
+      lessThanOrEqualTo(0.97),
     );
     expect(
       estimatedHandoffFraction(

@@ -6,6 +6,12 @@ import '../l10n/app_localizations.dart';
 import '../models/install_time_estimate.dart';
 import '../theme.dart';
 
+/// The bar tracks the calibrated estimate directly: elapsed over typical,
+/// capped at 90%, with the typical-to-upper stretch creeping to 97%. It has
+/// to agree with the countdown next to it; a bar visibly behind its own
+/// "remaining" text reads as a stall. Never full: the vehicle cannot confirm
+/// completion from here, so the last stretch belongs to the scooter's own
+/// signals, and past the upper bound the bar goes indeterminate.
 @visibleForTesting
 double? estimatedHandoffFraction({
   required Duration elapsed,
@@ -22,10 +28,10 @@ double? estimatedHandoffFraction({
   final upperMs = conservativeUpper.inMilliseconds;
   if (elapsedMs >= upperMs) return null;
   if (elapsedMs <= typicalMs || upperMs <= typicalMs) {
-    return (0.50 * elapsedMs / typicalMs).clamp(0.0, 0.50).toDouble();
+    return (elapsedMs / typicalMs).clamp(0.0, 0.90).toDouble();
   }
-  return (0.50 + 0.40 * (elapsedMs - typicalMs) / (upperMs - typicalMs))
-      .clamp(0.50, 0.90)
+  return (0.90 + 0.07 * (elapsedMs - typicalMs) / (upperMs - typicalMs))
+      .clamp(0.90, 0.97)
       .toDouble();
 }
 
