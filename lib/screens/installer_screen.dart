@@ -8411,6 +8411,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
 
     try {
+      // Queued before the start, every time, so it is waiting when the
+      // command watcher comes up. A board with no master enters master
+      // learning mode on each service start, and the earlier guard push is
+      // consumed by the first instance: a restart here (the retry path
+      // included) would otherwise leave a live reader where the next tap
+      // becomes the master.
+      await _sshService.redisLpush('scooter:keycard', 'learn:master:stop');
       await _sshService.runCommand(
         'systemctl start librescoot-keycard 2>/dev/null; true',
       );
@@ -8569,11 +8576,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   /// Probe the keycard-service for new-command support by sending
   /// `learn:master:stop` and inspecting `keycard.command-result`. The new
-  /// service answers either `ok` (was in master teach-in) or
-  /// `error:not in master teach-in`; the old service answers
-  /// `error:unknown command`. We snapshot command-result before the probe so
-  /// we can wait for it to actually change, instead of racing against an old
-  /// stale value.
+  /// service answers `ok` or `error:not in master teach-in`; the old service
+  /// answers `error:unknown command`. command-result is deleted first so the
+  /// wait is for an answer to appear, not for the value to differ from
+  /// whatever a previous command left there.
   ///
   /// Silence is its own answer. Nobody writing command-result at all means no
   /// keycard-service is listening, which is not an old one: the reader sits on
@@ -8582,14 +8588,20 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// teach-in on hardware that cannot do it.
   Future<KeycardCapability> _keycardDetectCapability() async {
     try {
-      final before = await _sshService.redisHget('keycard', 'command-result');
+      // Deleted rather than snapshotted: waiting for the value to change
+      // cannot see an answer that equals the previous one, and two identical
+      // answers in a row is the ordinary case once the guard push before the
+      // service start writes the same result this probe does.
+      await _sshService.runCommand(
+        'redis-cli HDEL keycard command-result >/dev/null 2>&1; true',
+      );
       await _sshService.redisLpush('scooter:keycard', 'learn:master:stop');
       // ~3 s budget at 150 ms intervals. The keycard-service typically writes
       // command-result well under 500 ms on the local USB-network link.
       for (var i = 0; i < 20; i++) {
         await Future.delayed(const Duration(milliseconds: 150));
         final result = await _sshService.redisHget('keycard', 'command-result');
-        if (result == null || result == before) continue;
+        if (result == null) continue;
         final lower = result.toLowerCase();
         if (lower.startsWith('error:unknown')) {
           debugPrint('UI: keycard capability probe -> legacy ($result)');
