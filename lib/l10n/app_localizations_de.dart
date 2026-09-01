@@ -1689,14 +1689,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get actionUpgradeDetail =>
-      'Behält Einstellungen, Schlüsselkarten, Karten und Fahrten';
+      'Behält Einstellungen, Schlüsselkarten und Karten';
 
   @override
   String get actionCleanInstall => 'Neu installieren';
 
   @override
   String get actionCleanInstallDetail =>
-      'Löscht Einstellungen und Fahrtenverlauf. Schlüsselkarten und Karten werden in diesem Vorgang neu eingerichtet';
+      'Löscht Einstellungen. Schlüsselkarten und Karten werden in diesem Vorgang neu eingerichtet';
 
   @override
   String get actionUpgradeDetailDbc => 'Behält die Offline-Karten';
@@ -1827,11 +1827,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get artifactRetryDetail =>
-      'Erneuter Versuch an derselben Stelle. Einstellungen, Schlüsselkarten und Fahrten bleiben erhalten.';
+      'Erneuter Versuch an derselben Stelle. Einstellungen und Schlüsselkarten bleiben erhalten.';
 
   @override
   String get artifactFullImageDetail =>
-      'Überschreibt den Speicher des gesamten Boards und löscht Einstellungen, Schlüsselkarten und Fahrten.';
+      'Überschreibt den Speicher des gesamten Boards und löscht Einstellungen und Schlüsselkarten.';
 
   @override
   String get artifactPreflightNoMender =>
@@ -1859,7 +1859,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get fallBackWipeBody =>
-      'Beim Installieren des vollständigen Systemabbilds wird die Datenpartition neu formatiert. Einstellungen, angelernte Schlüsselkarten, Offline-Karten und die Fahrtenhistorie gehen verloren. Die begonnene Aktualisierung hätte diese Daten erhalten.\n\nEin erneuter Versuch mit dem Firmware-Paket erhält die Daten. Installiere das vollständige Systemabbild nur, wenn das Paket weiterhin fehlschlägt.';
+      'Beim Installieren des vollständigen Systemabbilds wird die Datenpartition neu formatiert. Einstellungen, angelernte Schlüsselkarten und Offline-Karten gehen verloren. Die begonnene Aktualisierung hätte diese Daten erhalten.\n\nEin erneuter Versuch mit dem Firmware-Paket erhält die Daten. Installiere das vollständige Systemabbild nur, wenn das Paket weiterhin fehlschlägt.';
 
   @override
   String get fallBackWipeConfirm => 'Löschen und Systemabbild installieren';
@@ -1872,7 +1872,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcCleanInstallBody =>
-      'Die zuletzt bekannte DBC-Version basiert auf dem letzten gemeinsamen Betrieb mit dem MDB. Ein als aktualisierbar eingestuftes Board hat daher möglicherweise keinen Update-Client. Bei einer Neuinstallation wird zuerst das Bootstrap-Systemabbild installiert. Dabei wird die Datenpartition des DBC formatiert und die Offline-Karten gehen verloren. Die Daten auf dem MDB, einschließlich Einstellungen, angelernten Schlüsselkarten und Fahrtenhistorie, bleiben erhalten.\n\nStecke dafür das Kabel erneut um: Der Installer überträgt die Dateien, du schließt das DBC-Kabel wieder am MDB an, danach läuft der Vorgang automatisch.';
+      'Die zuletzt bekannte DBC-Version basiert auf dem letzten gemeinsamen Betrieb mit dem MDB. Ein als aktualisierbar eingestuftes Board hat daher möglicherweise keinen Update-Client. Bei einer Neuinstallation wird zuerst das Bootstrap-Systemabbild installiert. Dabei wird die Datenpartition des DBC formatiert und die Offline-Karten gehen verloren. Die Daten auf dem MDB, einschließlich Einstellungen und angelernter Schlüsselkarten, bleiben erhalten.\n\nStecke dafür das Kabel erneut um: Der Installer überträgt die Dateien, du schließt das DBC-Kabel wieder am MDB an, danach läuft der Vorgang automatisch.';
 
   @override
   String get dbcCleanInstallConfirm => 'DBC löschen und installieren';
@@ -2167,11 +2167,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get upgradeDowngradeWarning =>
-      'Diese Version ist älter als die aktuell auf dem Board laufende Version. Beim Aktualisieren bleiben Einstellungen, Schlüsselkarten, Karten und Fahrten erhalten. Ältere Dienste können Daten einer neueren Version möglicherweise nicht lesen. Installiere neu, wenn danach Probleme auftreten.';
+      'Diese Version ist älter als die aktuell auf dem Board laufende Version. Beim Aktualisieren bleiben Einstellungen, Schlüsselkarten und Karten erhalten. Ältere Dienste können Daten einer neueren Version möglicherweise nicht lesen. Installiere neu, wenn danach Probleme auftreten.';
 
   @override
   String get upgradeChannelSwitchWarning =>
-      'Diese Version stammt aus einem anderen Kanal als die aktuell auf dem Board laufende Version. Beim Aktualisieren bleiben Einstellungen, Schlüsselkarten, Karten und Fahrten erhalten. Die Dienste des anderen Kanals können diese Daten möglicherweise anders lesen. Installiere neu, wenn danach Probleme auftreten.';
+      'Diese Version stammt aus einem anderen Kanal als die aktuell auf dem Board laufende Version. Beim Aktualisieren bleiben Einstellungen, Schlüsselkarten und Karten erhalten. Die Dienste des anderen Kanals können diese Daten möglicherweise anders lesen. Installiere neu, wenn danach Probleme auftreten.';
 
   @override
   String get tightenDbcCable => 'DBC-Kabel festschrauben';

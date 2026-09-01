@@ -201,7 +201,7 @@ class InstallPlanPanel extends StatelessWidget {
         BoardAction.fullImage => l10n.artifactFallBackToFullImage,
       };
 
-  /// What each action costs, per board. Settings, keycards and trips all live
+  /// What each action costs, per board. Settings and keycards live
   /// on the main board; the dashboard's own storage holds the offline maps and
   /// nothing else, so wiping it loses only those, and only until the maps are
   /// written back. Whether they are written back is this plan's own answer, so

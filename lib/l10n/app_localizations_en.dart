@@ -1662,14 +1662,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get actionUpgrade => 'Upgrade';
 
   @override
-  String get actionUpgradeDetail => 'Keeps settings, keycards, maps and trips';
+  String get actionUpgradeDetail => 'Keeps settings, keycards and maps';
 
   @override
   String get actionCleanInstall => 'Clean install';
 
   @override
   String get actionCleanInstallDetail =>
-      'Erases settings and trip history. Keycards and maps are set up again later in this run';
+      'Erases settings. Keycards and maps are set up again later in this run';
 
   @override
   String get actionUpgradeDetailDbc => 'Keeps the offline maps';
@@ -1802,7 +1802,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get artifactFullImageDetail =>
-      'Rewrites the entire board and erases settings, registered keycards, and trips.';
+      'Rewrites the entire board and erases settings and registered keycards.';
 
   @override
   String get artifactPreflightNoMender =>
@@ -1829,7 +1829,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get fallBackWipeBody =>
-      'Writing the full image reformats the data partition. Settings, registered keycards, offline maps, and trip history are lost.\n\nRetrying the firmware update uses the existing data rather than reformatting it. Write the full image only if the update continues to fail.';
+      'Writing the full image reformats the data partition. Settings, registered keycards and offline maps are lost.\n\nRetrying the firmware update uses the existing data rather than reformatting it. Write the full image only if the update continues to fail.';
 
   @override
   String get fallBackWipeConfirm => 'Erase and write the full image';
@@ -1842,7 +1842,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dbcCleanInstallBody =>
-      'The dashboard version shown here was last reported to the main board and may be out of date. A dashboard selected for update may not have an update client. Installing from scratch writes the bootstrap image first, reformats the DBC data partition, and removes offline maps. Settings, registered keycards, and trip history on the main board are unaffected.\n\nThis requires another cable swap. The installer uploads the files, then you reconnect and secure the dashboard cable to the main board. The scooter completes the remaining work.';
+      'The dashboard version shown here was last reported to the main board and may be out of date. A dashboard selected for update may not have an update client. Installing from scratch writes the bootstrap image first, reformats the DBC data partition, and removes offline maps. Settings and registered keycards on the main board are unaffected.\n\nThis requires another cable swap. The installer uploads the files, then you reconnect and secure the dashboard cable to the main board. The scooter completes the remaining work.';
 
   @override
   String get dbcCleanInstallConfirm => 'Erase and install the DBC';
@@ -2131,11 +2131,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get upgradeDowngradeWarning =>
-      'This is older than what the board runs now. Upgrade keeps settings, keycards, maps and trips, and older services may not read data a newer version wrote. Install fresh if anything misbehaves afterwards.';
+      'This is older than what the board runs now. Upgrade keeps settings, keycards and maps, and older services may not read data a newer version wrote. Install fresh if anything misbehaves afterwards.';
 
   @override
   String get upgradeChannelSwitchWarning =>
-      'This is a different release channel to what the board runs now. Upgrade keeps settings, keycards, maps and trips, which the other channel\'s services may not read the same way. Install fresh if anything misbehaves afterwards.';
+      'This is a different release channel to what the board runs now. Upgrade keeps settings, keycards and maps, which the other channel\'s services may not read the same way. Install fresh if anything misbehaves afterwards.';
 
   @override
   String get tightenDbcCable => 'Screw the dashboard cable down';

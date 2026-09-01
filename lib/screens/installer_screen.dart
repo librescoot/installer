@@ -6359,7 +6359,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
     // An upgrade is the one action that keeps /data. The full image erases
     // it, so this button silently trades away the settings, keycards,
-    // offline maps and trip history the upgrade route exists to preserve.
+    // offline maps the upgrade route exists to preserve.
     // Say so before doing it. A clean install was going to wipe /data
     // anyway, so it gets no dialog.
     if (_plan?.mdb.action == BoardAction.upgrade) {
