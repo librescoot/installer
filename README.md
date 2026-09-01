@@ -1,6 +1,6 @@
 # Librescoot Installer
 
-> **Beta software.** Tested on all three platforms against real hardware, but things can still go wrong. Flashing firmware carries inherent risk. Use at your own risk, no warranty expressed or implied.
+> **Stable software.** Tested on all three platforms against real hardware. Flashing firmware carries inherent risk; use at your own risk, with no warranty expressed or implied.
 
 Part of the [Librescoot](https://librescoot.org/) open-source platform.
 
