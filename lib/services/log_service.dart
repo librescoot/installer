@@ -17,6 +17,25 @@ import 'package:path/path.dart' as path;
 import 'package:win32/win32.dart';
 
 class LogService {
+
+  /// How to reach the logged-in user's clipboard on macOS, with the locale
+  /// pbcopy needs.
+  ///
+  /// pbcopy interprets its input in the current locale and falls back to Mac
+  /// OS Roman when LC_CTYPE says nothing, which a GUI app's environment does
+  /// not. The log is UTF-8, so without this every umlaut in it reaches the
+  /// clipboard as the Mac OS Roman reading of its bytes: "aufgelöst" pasted
+  /// into a bug report as "aufgel√∂st".
+  ///
+  /// The launchctl hop is for the elevated case, where the process is root
+  /// and root's pasteboard is not the one the user pastes from.
+  static (String, List<String>, Map<String, String>) pbcopyCommand(String uid) =>
+      (
+        'launchctl',
+        ['asuser', uid, 'pbcopy'],
+        const {'LC_CTYPE': 'UTF-8', 'LANG': 'en_US.UTF-8'},
+      );
+
   /// Subfolder the log files live in, so nothing is dumped loose into the
   /// user's documents.
   static const _folderName = 'Librescoot Installer';
@@ -116,7 +135,7 @@ class LogService {
       if (Platform.isWindows) {
         // explorer returns a non-zero exit code even on success, so the
         // result is not worth checking.
-        await Process.run('explorer', ['/select,$target']);
+        await Process.run('explorer', windowsExplorerArgs(target));
       } else if (Platform.isMacOS) {
         // Reveal in the logged-in user's Finder session, which is a different
         // session from this process when we run elevated.
@@ -139,6 +158,10 @@ class LogService {
       debugPrint('Log: could not reveal $target: $e');
     }
   }
+
+  /// Explorer treats a quoted `/select,<path>` as an invalid switch. Keep
+  /// the switch and path separate so Dart quotes only a path that needs it.
+  static List<String> windowsExplorerArgs(String target) => ['/select,', target];
 
   static void _writeHeader({
     required String version,

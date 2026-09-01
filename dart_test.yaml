@@ -1,0 +1,10 @@
+# Golden tests render a screen to a PNG so it can be looked at quickly during
+# development. They load whichever system font the host happens to have
+# (DejaVu on Debian, Helvetica on macOS), so the image encodes the rendering
+# of the machine that produced it and does not reproduce anywhere else. That
+# makes them a development aid rather than a regression gate, so they are
+# excluded by default and run on request with:
+#   flutter test --tags golden --run-skipped
+tags:
+  golden:
+    skip: "host-specific rendering; run with --tags golden --run-skipped"

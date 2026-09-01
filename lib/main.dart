@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:window_manager/window_manager.dart';
 import 'l10n/app_localizations.dart';
+import 'models/keycard_preset.dart';
 import 'screens/installer_screen.dart';
 import 'services/log_service.dart';
 import 'theme.dart';
@@ -32,7 +34,7 @@ final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
 
 /// Append an unhandled error to the installer log and show a non-blocking
 /// SnackBar so the user knows something went wrong but the app keeps running.
-/// Native crashes (FFI, signals) can't be caught here — only Dart errors.
+/// Native crashes (FFI, signals) can't be caught here, only Dart errors.
 void reportUnhandledError(Object error, StackTrace? stack, {String? from}) {
   final origin = from != null ? ' [$from]' : '';
   appendLog('ERROR$origin: $error');
@@ -99,6 +101,9 @@ class LaunchArgs {
   /// appends to it instead of starting a second file, so one run produces one
   /// log the user can hand over.
   final String? logFile;
+  /// Cards to authorise at the keycard step without holding them to the
+  /// reader. `--keycard=UID`, repeatable, or `--keycards=A,B`.
+  final List<String> keycards;
 
   LaunchArgs({
     this.channel,
@@ -110,6 +115,7 @@ class LaunchArgs {
     this.noOfflineMaps = false,
     this.dryRun = false,
     this.logFile,
+    this.keycards = const [],
   });
 
   factory LaunchArgs.fromArgs(List<String> args) {
@@ -117,7 +123,14 @@ class LaunchArgs {
     var autoStart = false;
     var noOfflineMaps = false;
     var dryRun = false;
+    final keycards = <String>[];
     for (final arg in args) {
+      if (arg.startsWith('--keycard=')) {
+        keycards.addAll(splitKeycardArg(arg.substring('--keycard='.length)));
+      }
+      if (arg.startsWith('--keycards=')) {
+        keycards.addAll(splitKeycardArg(arg.substring('--keycards='.length)));
+      }
       if (arg.startsWith('--channel=')) channel = arg.split('=')[1];
       if (arg.startsWith('--region=')) region = arg.split('=')[1];
       if (arg.startsWith('--lang=')) lang = arg.split('=')[1];
@@ -140,10 +153,16 @@ class LaunchArgs {
       noOfflineMaps: noOfflineMaps,
       dryRun: dryRun,
       logFile: logFile,
+      keycards: normalizeKeycardUids(keycards),
     );
   }
 
   bool get hasLocalImages => mdbImage != null || dbcImage != null;
+
+  /// Local images and nothing else: no channel to resolve, so the queue is
+  /// only what was passed. With a channel the images stand in for that
+  /// board's entry in the release's queue instead of replacing all of it.
+  bool get hasLocalImagesOnly => hasLocalImages && channel == null;
 
   /// Build the args to relaunch with after the user has clicked Start
   /// and made selections in the welcome screen. Pulls from the live
@@ -162,6 +181,7 @@ class LaunchArgs {
         if (dbcImage != null) '--dbc-image=$dbcImage',
         if (!wantsOfflineMaps) '--no-offline-maps',
         if (dryRun) '--dry-run',
+        if (keycards.isNotEmpty) '--keycards=${keycards.join(',')}',
         if (LogService.filePath != null) '--log-file=${LogService.filePath}',
         '--auto-start',
       ];
@@ -180,6 +200,10 @@ const String appVersion = String.fromEnvironment('APP_VERSION', defaultValue: 'd
 void main(List<String> args) async {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+    if (Platform.isLinux || Platform.isMacOS || Platform.isWindows) {
+      await windowManager.ensureInitialized();
+      await windowManager.setPreventClose(true);
+    }
 
     // Flutter framework errors (build/layout/paint exceptions). Without this,
     // a release build can end up in an unrecoverable state.
@@ -188,7 +212,7 @@ void main(List<String> args) async {
     };
 
     // Async errors that escape the framework (microtasks, untriaged Futures).
-    // Returning true tells the engine we handled it — keep the app alive.
+    // Returning true tells the engine we handled it, keep the app alive.
     PlatformDispatcher.instance.onError = (error, stack) {
       reportUnhandledError(error, stack, from: 'platform');
       return true;
@@ -270,21 +294,7 @@ class LibrescootInstaller extends StatelessWidget {
         locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: kAccent,
-            brightness: Brightness.dark,
-          ).copyWith(
-            primary: kAccent,
-            onPrimary: kOnAccent,
-            secondary: kAccent,
-            onSecondary: kOnAccent,
-            surface: kBgPrimary,
-            onSurface: kTextPrimary,
-          ),
-          scaffoldBackgroundColor: kBgPrimary,
-          useMaterial3: true,
-        ),
+        theme: librescootTheme(),
         home: const InstallerScreen(),
       ),
     );

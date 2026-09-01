@@ -1,0 +1,320 @@
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:librescoot_installer/services/install_phase_scripts.dart';
+import 'package:librescoot_installer/services/ssh_service.dart';
+
+/// Runs the real coordinator over the real phase scripts, with mender-update
+/// and reboot stubbed. The phases decide whether a vehicle reboots and whether
+/// it reboots into a rootfs that was never written, and none of that is
+/// reachable from a unit test of the renderer.
+void main() {
+  late Directory root;
+  late Directory scripts;
+  late Directory bin;
+  late String artifactTemplate;
+  late String rebootTemplate;
+  late String signalHelpers;
+
+  String rehome(String s) => s.replaceAll('/data/', '${root.path}/');
+
+  Future<void> writePhase(String name, String body) async {
+    final f = File('${scripts.path}/$name');
+    await f.writeAsString(rehome(body));
+    await Process.run('chmod', ['+x', f.path]);
+  }
+
+  Future<void> stub(String name, String body) async {
+    final f = File('${bin.path}/$name');
+    await f.writeAsString('#!/bin/sh\n$body\n');
+    await Process.run('chmod', ['+x', f.path]);
+  }
+
+  Future<ProcessResult> boot() async {
+    final f = File('${root.path}/onboot.sh');
+    await f.writeAsString(rehome(SshService.onbootShim));
+    return Process.run(
+      'sh',
+      [f.path],
+      environment: {'PATH': '${bin.path}:${Platform.environment['PATH']}'},
+    );
+  }
+
+  setUpAll(() {
+    artifactTemplate =
+        File('assets/mdb-artifact.sh.template').readAsStringSync();
+    rebootTemplate = File('assets/reboot-phase.sh.template').readAsStringSync();
+    signalHelpers = File(SignalHelpers.assetPath).readAsStringSync();
+  });
+
+  setUp(() async {
+    root = await Directory.systemTemp.createTemp('phase-run-');
+    scripts = Directory('${root.path}/installer/scripts');
+    await scripts.create(recursive: true);
+    // The coordinator and the phases source these and now refuse to run
+    // without them, the same as on a device, where both are always staged.
+    for (final lib in ['signal.sh', 'device.sh']) {
+      await File('${scripts.path}/$lib').writeAsString(
+        File('assets/$lib').readAsStringSync().replaceAll(
+              '/data/',
+              '${root.path}/',
+            ),
+      );
+    }
+    bin = Directory('${root.path}/bin');
+    await bin.create(recursive: true);
+    // Records into the same order file so the sequence around it is visible.
+    // A stub cannot halt the coordinator the way a real reboot does, so the
+    // finalize phase still runs here; on a vehicle it runs on the far side.
+    // Short, not zero: the join in 80-reboot.sh polls for the artifact
+    // verdict between sleeps, and the install now starts in a detached
+    // worker that needs a few milliseconds to get going. A sleep that
+    // returns at once burns the whole wait before the worker has written.
+    await stub('sleep', '/bin/sleep 0.05');
+    // Staged the way the installer stages it, so the phases signal against the
+    // real helpers. Without ioctl or i2cset on PATH they light nothing, which
+    // is what a board with no LED tooling does, and the run must still finish.
+    await File('${scripts.path}/${SignalHelpers.fileName}')
+        .writeAsString(rehome(signalHelpers));
+    await stub('reboot',
+        'echo "reboot \$@" >> ${root.path}/order; '
+        'echo "reboot \$@" >> ${root.path}/reboots');
+  });
+  tearDown(() => root.delete(recursive: true));
+
+  Future<void> queueAll({
+    required String artifactPath,
+    Duration wait = const Duration(seconds: 20),
+  }) async {
+    await writePhase(
+      MdbArtifactScript.phaseName,
+      MdbArtifactScript.render(
+        template: artifactTemplate,
+        runId: 'run-test',
+        artifactPath: artifactPath,
+      ),
+    );
+    await writePhase('20-dbc.sh',
+        'echo 20 >> ${root.path}/order\nrm -f "\$0"\n');
+    await writePhase(
+      RebootPhaseScript.phaseName,
+      RebootPhaseScript.render(
+        template: rebootTemplate,
+        runId: 'run-test',
+        artifactWait: wait,
+      ),
+    );
+    await writePhase('90-finalize.sh',
+        'echo 90 >> ${root.path}/order\nrm -f "\$0"\n');
+  }
+
+  test('a systemd-run that refuses does not end the install', () async {
+    // The CI runner has systemd-run on PATH and no privilege to use it. The
+    // artifact phase used to record that as the install's failure; it falls
+    // through to the detached job instead.
+    final artifact = File('${root.path}/a.mender');
+    await artifact.writeAsString('x');
+    await stub('mender-update', 'sleep 0.3; exit 0');
+    await stub('systemd-run', 'exit 1');
+    await stub('systemctl', 'exit 0');
+    await queueAll(artifactPath: artifact.path);
+
+    final r = await boot();
+    expect(r.exitCode, 0, reason: r.stderr.toString());
+    expect(
+      await File('${root.path}/installer/history/run-test/reboot.log')
+          .readAsString(),
+      contains('MDB artifact: ok'),
+    );
+  });
+
+  test('a successful run reboots once, after the dashboard phase', () async {
+    final artifact = File('${root.path}/a.mender');
+    await artifact.writeAsString('x');
+    await stub('mender-update', 'sleep 0.3; exit 0');
+    await queueAll(artifactPath: artifact.path);
+
+    final r = await boot();
+    expect(r.exitCode, 0, reason: r.stderr.toString());
+
+    // The join read it, so the reboot phase cleared it: nothing should find
+    // this run's verdict on the far side of the reboot.
+    expect(
+      await File('${root.path}/installer/history/run-test/reboot.log')
+          .readAsString(),
+      contains('MDB artifact: ok'),
+    );
+    expect(
+      File('${root.path}/installer/mdb-artifact.result').existsSync(),
+      isFalse,
+    );
+    // The dashboard phase runs while the MDB write is still going, then the
+    // coordinator reboots and this pass ends: the handover is on the far side.
+    final order = await File('${root.path}/order').readAsLines();
+    expect(order.first, '20');
+    expect(order.any((l) => l.startsWith('reboot')), isTrue);
+    expect(order, isNot(contains('90')),
+        reason: 'the handover must not run before the reboot it waits on');
+    expect(
+      File('${scripts.path}/${RebootPhaseScript.phaseName}').existsSync(),
+      isFalse,
+      reason: 'retired, or the next boot reboots again forever',
+    );
+
+    // The next boot is where the vehicle is handed back.
+    await boot();
+    expect(await File('${root.path}/order').readAsLines(), contains('90'));
+  });
+
+  test('the dashboard phase does not wait for the MDB write', () async {
+    // The parallelism, observed rather than asserted from the source: the
+    // dashboard phase records its time while mender is still running.
+    final artifact = File('${root.path}/a.mender');
+    await artifact.writeAsString('x');
+    await stub(
+      'mender-update',
+      'while [ ! -e ${root.path}/release-mdb-write ]; do sleep 0.05; done; '
+          'touch ${root.path}/mdb-write-done; exit 0',
+    );
+    await queueAll(artifactPath: artifact.path);
+
+    await writePhase(
+      '20-dbc.sh',
+      'if [ -e ${root.path}/mdb-write-done ]; then echo after; '
+          'else echo during; fi > ${root.path}/dbc-at\n'
+          'touch ${root.path}/release-mdb-write\nrm -f "\$0"\n',
+    );
+    await boot();
+    expect(
+      (await File('${root.path}/dbc-at').readAsString()).trim(),
+      'during',
+      reason: 'the dashboard phase waited for the MDB write to finish',
+    );
+  });
+
+  test('a failed MDB install does not reboot the vehicle', () async {
+    // u-boot would roll back to the image already running, and a run that
+    // installed nothing would read as having worked.
+    final artifact = File('${root.path}/a.mender');
+    await artifact.writeAsString('x');
+    await stub('mender-update', 'exit 3');
+    await queueAll(artifactPath: artifact.path);
+
+    await boot();
+
+    expect(
+      await File('${root.path}/installer/mdb-artifact.result').readAsString(),
+      contains('error:'),
+    );
+    expect(File('${root.path}/reboots').existsSync(), isFalse,
+        reason: 'it rebooted despite the install failing');
+    expect(
+      await File('${root.path}/installer/trampoline-status').readAsString(),
+      contains('error:'),
+    );
+  });
+
+  test('a missing artifact is caught before anything reboots', () async {
+    await stub('mender-update', 'exit 0');
+    await queueAll(artifactPath: '${root.path}/not-there.mender');
+
+    await boot();
+
+    expect(
+      await File('${root.path}/installer/mdb-artifact.result').readAsString(),
+      contains('missing'),
+    );
+    expect(File('${root.path}/reboots').existsSync(), isFalse);
+  });
+
+  test('a plan that leaves the MDB alone does not reboot it', () async {
+    // Nothing was installed on this board, so there is nothing to activate.
+    // The dashboard was powered off when its work finished and the unlock in
+    // the handover brings it back up on the image it just installed.
+    await stub('mender-update', 'exit 0');
+    await queueAll(artifactPath: '');
+
+    await boot();
+
+    expect(
+      await File('${root.path}/installer/history/run-test/reboot.log')
+          .readAsString(),
+      contains('MDB artifact: skipped'),
+    );
+    expect(File('${root.path}/reboots').existsSync(), isFalse,
+        reason: 'it rebooted a board the plan promised to leave alone');
+    // The handover still has to run, or the vehicle never unlocks.
+    expect(await File('${root.path}/order').readAsLines(), contains('90'));
+    // And the phase still retires, or it re-runs at every boot.
+    expect(
+      File('${scripts.path}/${RebootPhaseScript.phaseName}').existsSync(),
+      isFalse,
+    );
+  });
+
+  test('the artifact phase retires, so the next boot does not reinstall',
+      () async {
+    // It used to stay queued. The boot after the reboot then ran it again and
+    // backgrounded a second install of the same artifact into the now-inactive
+    // slot, which the coordinator killed mid-write when it exited
+    // (KillMode=control-group), leaving an open mender transaction behind for
+    // the owner's next OTA. Three boots of that, then it gave up.
+    final artifact = File('${root.path}/a.mender');
+    await artifact.writeAsString('x');
+    await stub('mender-update',
+        'echo run >> ${root.path}/mender-runs; exit 0');
+    await queueAll(artifactPath: artifact.path);
+
+    await boot();
+    expect(
+      File('${scripts.path}/${MdbArtifactScript.phaseName}').existsSync(),
+      isFalse,
+      reason: 'it started the work; staying queued means doing it again',
+    );
+
+    // A second boot, as happens right after the reboot it triggered.
+    await boot();
+    final runs = await File('${root.path}/mender-runs').readAsLines();
+    // One install, plus the commit-or-rollback preamble that precedes it.
+    expect(runs.length, lessThanOrEqualTo(2),
+        reason: 'the artifact was installed more than once');
+  });
+
+  test('a phase left queued is what the coordinator retries', () async {
+    // The counterpart: 90 deliberately stays queued when it declines, and the
+    // coordinator is what gives it another go on the next boot.
+    await stub('mender-update', 'exit 0');
+    await queueAll(artifactPath: '');
+    await writePhase('90-finalize.sh',
+        'echo 90 >> ${root.path}/order\n'); // never removes itself
+    await boot();
+    expect(File('${scripts.path}/90-finalize.sh').existsSync(), isTrue);
+    await boot();
+    expect((await File('${root.path}/order').readAsLines())
+        .where((l) => l == '90'), hasLength(2));
+  });
+
+  test('a rebooting phase is still recorded as having run', () async {
+    // The coordinator records completion after a phase returns, and the
+    // reboot phase never returns. Left to that, every successful install
+    // finished with a false "install phases never ran: 80-reboot.sh" in the
+    // status file, and the next connect opened on a phantom unfinished run.
+    final artifact = File('${root.path}/a.mender');
+    await artifact.writeAsString('x');
+    await stub('mender-update', 'exit 0');
+    await File('${scripts.path}/.expected').writeAsString(
+        '10-mdb-artifact.sh\n80-reboot.sh\n90-finalize.sh\n');
+    await queueAll(artifactPath: artifact.path);
+
+    await boot();
+
+    final completed =
+        await File('${scripts.path}/.completed').readAsLines();
+    expect(completed, contains('80-reboot.sh'));
+    final status = File('${root.path}/installer/trampoline-status');
+    if (status.existsSync()) {
+      expect(await status.readAsString(), isNot(contains('never ran')),
+          reason: 'a successful run must not report a missing phase');
+    }
+  });
+}

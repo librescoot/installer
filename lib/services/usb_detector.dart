@@ -14,6 +14,29 @@ enum SystemDiskVerdict {
   unknown,
 }
 
+/// What asking Windows about one disk number came back with.
+class LinuxDiskInfo {
+  const LinuxDiskInfo({
+    required this.sizeBytes,
+    required this.isRemovable,
+    required this.systemDiskVerdict,
+  });
+
+  final int? sizeBytes;
+  final bool isRemovable;
+  final SystemDiskVerdict systemDiskVerdict;
+}
+
+class WindowsDiskProbe {
+  /// False only when the probe established the disk is gone.
+  final bool present;
+
+  /// Whether the disk carries boot or system, as far as the probe could tell.
+  final SystemDiskVerdict verdict;
+
+  const WindowsDiskProbe({required this.verdict, this.present = true});
+}
+
 /// One disk as the OS enumerates it, for the dialog that asks the user to
 /// confirm the flash target when the system-disk probe came back unknown.
 class UsbDiskInfo {
@@ -71,7 +94,9 @@ class UsbDevice {
     required this.mode,
     this.sizeBytes,
     this.isRemovable = false,
-    this.systemDiskVerdict = SystemDiskVerdict.notSystem,
+    // No verdict without a probe. notSystem would assert one that never ran
+    // and skip the confirmation dialog.
+    this.systemDiskVerdict = SystemDiskVerdict.unknown,
   });
 
   /// Only a confirmed system disk blocks the flash outright. An unknown
@@ -96,6 +121,7 @@ class UsbDevice {
 /// Device operating modes
 enum DeviceMode {
   ethernet,     // 0525:A4A2 - SSH access available
+  hijacked,     // 0525:A4A2 present, but another driver holds it (no SSH)
   massStorage,  // 0525:A4A5 - Ready for firmware write
   recoveryDbc,  // 15A2:0061 - DBC i.MX6SL ROM in serial-download mode
   recoveryMdb,  // 15A2:007D - MDB i.MX6UL ROM in serial-download mode
@@ -106,6 +132,23 @@ enum DeviceMode {
 class UsbDetector {
   static const int targetVendorId = 0x0525;
   static const int ethernetPid = 0xA4A2;
+
+  /// Map a Windows PnP setup class onto a device mode.
+  ///
+  /// A device answering on 0525:A4A2 is only reachable over SSH if Windows
+  /// put it in the Net class. When another driver has claimed it the same PnP
+  /// entity is still enumerated, in class Ports and named something like
+  /// "USB Serial Device (COM5)", and reporting that as ethernet sent the
+  /// installer on to an SSH attempt that could never succeed.
+  ///
+  /// An unknown class stays ethernet: the query failing to return a class is
+  /// not evidence that something took the device.
+  @visibleForTesting
+  static DeviceMode modeForPnpClass(String? pnpClass) {
+    final cls = pnpClass?.trim().toLowerCase() ?? '';
+    if (cls.isEmpty) return DeviceMode.ethernet;
+    return cls == 'net' ? DeviceMode.ethernet : DeviceMode.hijacked;
+  }
   static const int massStoragePid = 0xA4A5;
   static const int nxpVendorId = 0x15A2;
   static const int recoveryPidDbc = 0x0061;
@@ -114,10 +157,25 @@ class UsbDetector {
   final _deviceController = StreamController<UsbDevice?>.broadcast();
   Timer? _pollingTimer;
   UsbDevice? _lastDevice;
+  bool _pollInFlight = false;
+  int _pollGeneration = 0;
   Map<String, dynamic>? _macDiskInfoCache;
   bool _macDiskProbeInFlight = false;
   int _macDiskProbeAttempts = 0;
   static const int _maxMacDiskProbeAttempts = 12;
+
+  /// Whether the macOS disk probe result is currently cached.
+  ///
+  /// The cache outliving the device it describes is what hands the flasher a
+  /// path that no longer exists, so the conditions that clear it are worth
+  /// pinning in a test rather than trusting by inspection.
+  @visibleForTesting
+  bool get hasMacDiskInfoCache => _macDiskInfoCache != null;
+
+  /// Seed the macOS disk probe cache, standing in for a probe that has landed.
+  @visibleForTesting
+  void seedMacDiskInfoForTest(Map<String, dynamic>? info) =>
+      _macDiskInfoCache = info;
 
   Stream<UsbDevice?> get deviceStream => _deviceController.stream;
   UsbDevice? get currentDevice => _lastDevice;
@@ -135,6 +193,15 @@ class UsbDetector {
     return null;
   }
 
+  /// How long a single poll may take before its result is abandoned.
+  ///
+  /// Nothing under detectDevice() bounds its own subprocesses, and a wedged
+  /// diskutil or PowerShell would otherwise hold the in-flight guard forever
+  /// and stop detection for good. Generous on purpose: a cold Windows host
+  /// legitimately spends several seconds in its PnP queries, and cutting a
+  /// working probe short is worse than waiting for it.
+  static const Duration pollTimeout = Duration(seconds: 30);
+
   /// Start monitoring for USB devices
   void startMonitoring({Duration interval = const Duration(seconds: 1)}) {
     stopMonitoring();
@@ -143,14 +210,36 @@ class UsbDetector {
   }
 
   /// Stop monitoring
+  ///
+  /// Bumps the generation so that a poll already in flight can no longer
+  /// write state or emit when it lands. Callers stop monitoring precisely
+  /// when they need USB left alone, and a late result arriving in the middle
+  /// of a flash carries a pre-flash view of a device that is re-enumerating.
   void stopMonitoring() {
     _pollingTimer?.cancel();
     _pollingTimer = null;
+    _pollGeneration++;
+    // Release the guard as well. Whatever is still running out there is now
+    // orphaned by the generation bump and can no longer touch anything, so
+    // holding the guard for it would only delay the first poll after a
+    // restart by however long the orphan takes to finish.
+    _pollInFlight = false;
   }
 
   Future<void> _poll() async {
+    // A tick that arrives while a poll is still running is dropped rather
+    // than stacking another set of subprocesses on top of it.
+    if (_pollInFlight) return;
+    _pollInFlight = true;
+    final generation = _pollGeneration;
     try {
-      final device = await detectDevice();
+      final device = await detectDevice().timeout(pollTimeout);
+      // Superseded while we were away by a stop, or by the stop inside a
+      // restart. This answer describes a device state nobody is waiting for
+      // any more, and applying it would undo whatever replaced it. A poll
+      // that runs past pollTimeout never reaches here at all: the await
+      // throws and its late result is simply dropped.
+      if (generation != _pollGeneration) return;
       final changed = device?.id != _lastDevice?.id ||
           device?.mode != _lastDevice?.mode ||
           device?.path != _lastDevice?.path ||
@@ -158,11 +247,22 @@ class UsbDetector {
           device?.isRemovable != _lastDevice?.isRemovable ||
           device?.systemDiskVerdict != _lastDevice?.systemDiskVerdict;
       if (changed) {
+        // Computed before _lastDevice is replaced, or the comparison is
+        // against the value we are about to overwrite and never fires.
+        final modeChanged = device?.mode != _lastDevice?.mode;
         _lastDevice = device;
-        if (device == null) {
-          // The cached path can outlive the device (USB drop, power-cycle).
-          // Drop it so resolveDevicePath() doesn't hand back a node that
-          // no longer exists on the host.
+        if (device == null || modeChanged) {
+          // The cached path can outlive the device (USB drop, power-cycle),
+          // and it also outlives a mode change: mass storage to ethernet
+          // leaves a disk node cached for a board that no longer presents
+          // one, because the device is not null so the drop below is skipped.
+          // Clearing on the mode change catches the case a null poll misses
+          // when the board switches gadget without a gap the poll can see.
+          //
+          // Resetting the attempt counter matters for the same transition:
+          // it is capped, and a device that is present but not yet
+          // enumerated exhausts the cap and then never probes again, which
+          // is the state that most needs another look.
           _macDiskInfoCache = null;
           _macDiskProbeAttempts = 0;
         }
@@ -173,6 +273,12 @@ class UsbDetector {
       }
     } catch (e) {
       // Ignore polling errors, will retry next interval.
+    } finally {
+      // Only the current generation owns the flag. stopMonitoring cleared it
+      // and started a new generation; a poll from the old one finishing here
+      // would clear it again under the new one's poll and let the next tick
+      // start a second detectDevice beside it.
+      if (generation == _pollGeneration) _pollInFlight = false;
     }
   }
 
@@ -309,8 +415,10 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.PNPDeviceID)" }
 $dev = Get-CimInstance Win32_DiskDrive | Where-Object {
   $_.PNPDeviceID -like "*VID_0525*" -or
   $_.PNPDeviceID -like "*VEN_LINUX*PROD_UMS*"
-} | Select-Object -First 1 Model,PNPDeviceID,DeviceID,Size,MediaType
-if ($dev) { "$($dev.Model)`t$($dev.PNPDeviceID)`t$($dev.DeviceID)`t$($dev.Size)`t$($dev.MediaType)" }
+} | Select-Object -First 1 Model,PNPDeviceID,DeviceID,MediaType,Index
+if ($dev) {
+  "$($dev.Model)`t$($dev.PNPDeviceID)`t$($dev.DeviceID)`t$($dev.Index)`t$($dev.MediaType)"
+}
 ''',
         ],
       );
@@ -324,17 +432,23 @@ if ($dev) { "$($dev.Model)`t$($dev.PNPDeviceID)`t$($dev.DeviceID)`t$($dev.Size)`
       final model = parts.isNotEmpty ? parts[0].trim() : 'Librescoot Device';
       final pnpId = parts.length > 1 ? parts[1].trim() : '';
       final deviceId = parts.length > 2 ? parts[2].trim() : '';
-      final sizeStr = parts.length > 3 ? parts[3].trim() : '';
+      final indexStr = parts.length > 3 ? parts[3].trim() : '';
       final mediaType = parts.length > 4 ? parts[4].trim() : '';
 
       if (pnpId.isNotEmpty) {
-          final sizeBytes = int.tryParse(sizeStr);
+          final sizeBytes = await _windowsDiskSize(int.tryParse(indexStr));
 
           // Check if this is removable media
           final isRemovable = mediaType.toLowerCase().contains('removable');
 
           // CRITICAL: Check if this might be a system disk
-          final verdict = await _windowsSystemDiskVerdict(deviceId);
+          final probe = await _windowsSystemDiskVerdict(deviceId);
+
+          // The enumeration can return a disk the storage stack has released.
+          // Downstream that reads as a board in mass storage, the state that
+          // means a flash has not taken, and triggers another write against a
+          // path that no longer opens.
+          if (!probe.present) return null;
 
           return UsbDevice(
             id: pnpId,
@@ -345,74 +459,66 @@ if ($dev) { "$($dev.Model)`t$($dev.PNPDeviceID)`t$($dev.DeviceID)`t$($dev.Size)`
             mode: DeviceMode.massStorage,
             sizeBytes: sizeBytes,
             isRemovable: isRemovable,
-            systemDiskVerdict: verdict,
+            systemDiskVerdict: probe.verdict,
           );
       }
     } catch (_) {}
     return null;
   }
 
-  Future<UsbDevice?> _detectWindowsPnpEthernet() async {
-    try {
-      final result = await Process.run(
-        'wmic',
-        [
-          'path',
-          'Win32_PnPEntity',
-          'where',
-          'PNPDeviceID like "%VID_0525&PID_A4A2%"',
-          'get',
-          'Name,PNPDeviceID',
-          '/format:csv',
-        ],
-        // runInShell omitted: avoid cmd.exe mangling '&' in VID/PID strings
-      );
-
-      if (result.exitCode != 0) return null;
-
-      final output = _sanitizeWmicOutput(result.stdout.toString());
-      final lines = output.split('\n').where((l) => l.trim().isNotEmpty).toList();
-      if (lines.length < 2) return null;
-
-      // Header-aware parsing
-      final header = lines[0].split(',');
-      final nameIdx = header.indexOf('Name');
-      final pnpIdIdx = header.indexOf('PNPDeviceID');
-
-      for (var i = 1; i < lines.length; i++) {
-        final parts = lines[i].split(',');
-        final pnpId = pnpIdIdx >= 0 && pnpIdIdx < parts.length ? parts[pnpIdIdx] : '';
-        if (!pnpId.toUpperCase().contains('VID_0525&PID_A4A2')) continue;
-
-        final name = nameIdx >= 0 && nameIdx < parts.length
-            ? parts[nameIdx]
-            : 'Librescoot MDB (USB)';
-
-        return UsbDevice(
-          id: pnpId,
-          name: name,
-          path: pnpId,
-          vendorId: targetVendorId,
-          productId: ethernetPid,
-          mode: DeviceMode.ethernet,
-        );
-      }
-    } catch (_) {}
-
-    return _detectWindowsPnpEthernetPowerShell();
-  }
-
-  Future<UsbDevice?> _detectWindowsPnpEthernetPowerShell() async {
+  /// The disk's real length, from Get-Disk, in its own process.
+  ///
+  /// Win32_DiskDrive.Size is a geometry product rounded down to whole
+  /// cylinders and under-reports the device. Get-Disk reports the true
+  /// length, but powershell.exe has been seen dying with an access violation
+  /// inside this query on some machines, and a process that dies takes its
+  /// whole script with it regardless of try/catch. Kept separate from the
+  /// enumeration so that a crash here costs the size rather than the device.
+  ///
+  /// Null when the size could not be established. [FlashService.validateDevice]
+  /// refuses a flash on a null size, which is the safe reading: a size that is
+  /// missing is not a size that matches.
+  Future<int?> _windowsDiskSize(int? diskNumber) async {
+    if (diskNumber == null) return null;
     try {
       final result = await Process.run(
         'powershell',
         [
           '-NoProfile',
           '-Command',
-          r'''
-$dev = Get-CimInstance Win32_PnPEntity | Where-Object { $_.PNPDeviceID -like "*VID_0525&PID_A4A2*" } | Select-Object -First 1 Name,PNPDeviceID
-if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
-''',
+          '(Get-Disk -Number $diskNumber -ErrorAction Stop).Size',
+        ],
+      );
+      if (result.exitCode != 0) {
+        debugPrint(
+          'USB detector: disk size query failed for disk $diskNumber '
+          '(exit ${result.exitCode})',
+        );
+        return null;
+      }
+      return int.tryParse(result.stdout.toString().trim());
+    } catch (e) {
+      debugPrint('USB detector: disk size query threw for disk $diskNumber: $e');
+      return null;
+    }
+  }
+
+  /// Find the MDB's PnP entity on Windows and work out what mode it is in.
+  ///
+  /// The device is enumerated whether or not a usable driver holds it, so the
+  /// setup class is what separates "reachable over SSH" from "some other
+  /// driver has it". See [modeForPnpClass].
+  Future<UsbDevice?> _detectWindowsPnpEthernet() async {
+    try {
+      final result = await Process.run(
+        'powershell',
+        [
+          '-NoProfile',
+          '-Command',
+          r"""
+$dev = Get-CimInstance Win32_PnPEntity | Where-Object { $_.PNPDeviceID -like "*VID_0525&PID_A4A2*" } | Select-Object -First 1 Name,PNPDeviceID,PNPClass
+if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)`t$($dev.PNPClass)" }
+""",
         ],
         // runInShell omitted: avoid cmd.exe mangling '&' in VID/PID strings
       );
@@ -424,6 +530,7 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
       final parts = line.split('\t');
       final name = parts.isNotEmpty ? parts[0].trim() : 'Librescoot MDB (USB)';
       final pnpId = parts.length > 1 ? parts[1].trim() : '';
+      final pnpClass = parts.length > 2 ? parts[2].trim() : '';
       if (!pnpId.toUpperCase().contains('VID_0525&PID_A4A2')) return null;
 
       return UsbDevice(
@@ -432,7 +539,7 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
         path: pnpId,
         vendorId: targetVendorId,
         productId: ethernetPid,
-        mode: DeviceMode.ethernet,
+        mode: modeForPnpClass(pnpClass),
       );
     } catch (_) {}
 
@@ -446,17 +553,149 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)" }
   /// directly; the CIM associator walk is there for the rare machine whose
   /// Storage module is missing, and compares against the actual system drive
   /// instead of assuming it is C:.
-  Future<SystemDiskVerdict> _windowsSystemDiskVerdict(String deviceId) async {
+  /// Whether a Linux block device carries a mounted filesystem.
+  ///
+  /// Linux had no verdict at all, so the only guard was refusing /dev/sda
+  /// outright. On a laptop that boots from NVMe, sda is simply the first USB
+  /// disk attached, which is exactly what the scooter enumerates as, and the
+  /// refusal blocked the one device the user is trying to flash.
+  ///
+  /// The test is where a partition is mounted, not whether it is mounted at
+  /// all. A desktop auto-mounts whatever appears, and the scooter's own boot
+  /// partition shows up under the removable-media roots seconds after it
+  /// enters mass storage, so "has a mount" would refuse the exact device the
+  /// user is trying to flash. A mount anywhere else is a disk the machine is
+  /// living on.
+  @visibleForTesting
+  Future<LinuxDiskInfo> linuxDiskInfo(
+    String diskPath, {
+    String sysBlockRoot = '/sys/block',
+    String mountsPath = '/proc/mounts',
+  }) async {
+    final name = diskPath.startsWith('/dev/')
+        ? diskPath.substring(5)
+        : diskPath;
+    int? sizeBytes;
+    var isRemovable = false;
+    if (RegExp(r'^[a-zA-Z0-9._-]+$').hasMatch(name)) {
+      try {
+        final sectors = int.parse(
+          (await File('$sysBlockRoot/$name/size').readAsString()).trim(),
+        );
+        if (sectors > 0 && sectors <= 0x7fffffffffffffff ~/ 512) {
+          sizeBytes = sectors * 512;
+        }
+      } catch (_) {}
+      try {
+        isRemovable =
+            (await File('$sysBlockRoot/$name/removable').readAsString())
+                    .trim() ==
+                '1';
+      } catch (_) {}
+    }
+    return LinuxDiskInfo(
+      sizeBytes: sizeBytes,
+      isRemovable: isRemovable,
+      systemDiskVerdict: await linuxSystemDiskVerdict(
+        diskPath,
+        mountsPath: mountsPath,
+      ),
+    );
+  }
+
+  Future<SystemDiskVerdict> linuxSystemDiskVerdict(String diskPath,
+      {String mountsPath = '/proc/mounts'}) async {
+    final base = diskPath.startsWith('/dev/') ? diskPath.substring(5) : diskPath;
+    if (base.isEmpty) return SystemDiskVerdict.systemDisk;
+    try {
+      final mounts = await File(mountsPath).readAsString();
+      // sda matches sda and sda1..sdaN, and must not match sdaa or sdb.
+      final owned = RegExp('^${RegExp.escape(base)}' r'(p?\d+)?$');
+      for (final line in mounts.split('\n')) {
+        final fields = line.split(' ');
+        if (fields.length < 2) continue;
+        final source = fields[0];
+        if (!source.startsWith('/dev/')) continue;
+        if (!owned.hasMatch(source.substring(5))) continue;
+        if (_isRemovableMountPoint(fields[1])) continue;
+        return SystemDiskVerdict.systemDisk;
+      }
+      return SystemDiskVerdict.notSystem;
+    } catch (e) {
+      // Unable to tell is not permission to write: the caller keeps its
+      // conservative path rules when the answer is unknown.
+      debugPrint('USB detector: could not read $mountsPath ($e)');
+      return SystemDiskVerdict.unknown;
+    }
+  }
+
+  /// Where a desktop parks media it auto-mounted, as opposed to the paths a
+  /// running system is built out of. Mount points arrive octal-escaped, so a
+  /// space in a volume label shows up as \\040.
+  static bool _isRemovableMountPoint(String mountPoint) {
+    final p = mountPoint.replaceAll(r'\040', ' ');
+    return p.startsWith('/media/') ||
+        p.startsWith('/run/media/') ||
+        p.startsWith('/mnt/') ||
+        p == '/media' ||
+        p == '/mnt';
+  }
+
+  /// Maps the probe script's answer. Only 'absent' clears [present], so a
+  /// probe that could not answer never removes a device.
+  static WindowsDiskProbe _parseWindowsDiskProbe(int exitCode, String stdout) {
+    final answer = stdout.trim().toLowerCase();
+    if (exitCode != 0) {
+      return const WindowsDiskProbe(verdict: SystemDiskVerdict.unknown);
+    }
+    return switch (answer) {
+      'system' =>
+        const WindowsDiskProbe(verdict: SystemDiskVerdict.systemDisk),
+      'ok' => const WindowsDiskProbe(verdict: SystemDiskVerdict.notSystem),
+      'absent' => const WindowsDiskProbe(
+          verdict: SystemDiskVerdict.unknown,
+          present: false,
+        ),
+      _ => const WindowsDiskProbe(verdict: SystemDiskVerdict.unknown),
+    };
+  }
+
+  @visibleForTesting
+  /// `Removable Media` from `diskutil info`. Null when the field is absent.
+  ///
+  /// diskutil pads its value column to the width of the longest label in the
+  /// block, so the column position moves between disks and between OS
+  /// versions. Match the field, not the layout.
+  @visibleForTesting
+  static bool? parseMacRemovable(String info) {
+    final match =
+        RegExp(r'Removable Media:\s*(\S+)', multiLine: true).firstMatch(info);
+    if (match == null) return null;
+    final value = match.group(1)!.toLowerCase();
+    if (value == 'removable') return true;
+    if (value == 'fixed') return false;
+    return null;
+  }
+
+  static WindowsDiskProbe parseWindowsDiskProbe(int exitCode, String stdout) =>
+      _parseWindowsDiskProbe(exitCode, stdout);
+
+  Future<WindowsDiskProbe> _windowsSystemDiskVerdict(String deviceId) async {
     // Anything we cannot name a disk number for is not something we are
     // willing to write to.
     final diskMatch = RegExp(r'PHYSICALDRIVE(\d+)').firstMatch(deviceId);
-    if (diskMatch == null) return SystemDiskVerdict.systemDisk;
+    if (diskMatch == null) {
+      return const WindowsDiskProbe(verdict: SystemDiskVerdict.systemDisk);
+    }
 
     final diskNumber = int.parse(diskMatch.group(1)!);
 
-    // Disk 0 is the boot disk on essentially every Windows install, and the
-    // path guard in FlashService refuses it too. Never probe, never flash.
-    if (diskNumber == 0) return SystemDiskVerdict.systemDisk;
+    // Index 0 does not identify the system disk; that can be any number and
+    // IsBoot/IsSystem below is what finds it. Refused because the scooter is
+    // never index 0.
+    if (diskNumber == 0) {
+      return const WindowsDiskProbe(verdict: SystemDiskVerdict.systemDisk);
+    }
 
     try {
       final result = await Process.run(
@@ -475,34 +714,40 @@ try {
 } catch {}
 try {
   \$drive = Get-CimInstance Win32_DiskDrive -Filter "Index=\$n"
-  if (-not \$drive) { 'unknown'; exit }
+  if (-not \$drive) { 'absent'; exit }
   \$letters = \$drive |
     Get-CimAssociatedInstance -ResultClassName Win32_DiskPartition |
     Get-CimAssociatedInstance -ResultClassName Win32_LogicalDisk |
     Select-Object -ExpandProperty DeviceID
+  # An empty letter set means the volumes could not be read, not that none
+  # is the system volume: ESP-only, BitLocker-locked and Storage Spaces disks
+  # all answer this way without throwing.
+  if (-not \$letters) { 'unknown'; exit }
   if (\$letters -contains \$env:SystemDrive) { 'system' } else { 'ok' }
 } catch { 'unknown' }
 ''',
         ],
       );
 
-      final verdict = result.stdout.toString().trim().toLowerCase();
-      if (result.exitCode == 0 && verdict == 'system') {
-        return SystemDiskVerdict.systemDisk;
-      }
-      if (result.exitCode == 0 && verdict == 'ok') {
-        return SystemDiskVerdict.notSystem;
-      }
+      final answer = result.stdout.toString().trim().toLowerCase();
+      final probe = _parseWindowsDiskProbe(result.exitCode, answer);
 
-      debugPrint(
-        'USB detector: system-disk check inconclusive for $deviceId '
-        '(exit ${result.exitCode}, output "$verdict"), '
-        'asking the user to confirm the target',
-      );
-      return SystemDiskVerdict.unknown;
+      if (!probe.present) {
+        debugPrint(
+          'USB detector: disk $deviceId no longer enumerates, '
+          'dropping the stale mass-storage entry',
+        );
+      } else if (probe.verdict == SystemDiskVerdict.unknown) {
+        debugPrint(
+          'USB detector: system-disk check inconclusive for $deviceId '
+          '(exit ${result.exitCode}, output "$answer"), '
+          'asking the user to confirm the target',
+        );
+      }
+      return probe;
     } catch (e) {
       debugPrint('USB detector: system-disk check failed for $deviceId: $e');
-      return SystemDiskVerdict.unknown;
+      return const WindowsDiskProbe(verdict: SystemDiskVerdict.unknown);
     }
   }
 
@@ -624,9 +869,13 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
             mode: DeviceMode.massStorage,
             sizeBytes: diskInfo?['size'],
             isRemovable: diskInfo?['removable'] ?? false,
-            systemDiskVerdict: (diskInfo?['systemDisk'] ?? false)
-                ? SystemDiskVerdict.systemDisk
-                : SystemDiskVerdict.notSystem,
+            // The disk probe runs asynchronously, so diskInfo is null until
+            // it lands. Null is the absence of an answer, not a negative one.
+            systemDiskVerdict: switch (diskInfo?['systemDisk']) {
+              true => SystemDiskVerdict.systemDisk,
+              false => SystemDiskVerdict.notSystem,
+              _ => SystemDiskVerdict.unknown,
+            },
           );
         }
 
@@ -722,7 +971,7 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
   ///
   /// macOS 26 renamed the datatype from `SPUSBDataType` to
   /// `SPUSBHostDataType`. The legacy name still exits 0 there but returns an
-  /// empty report, which is indistinguishable from "no devices attached" —
+  /// empty report, which is indistinguishable from "no devices attached" , 
   /// so an empty result falls through to the next candidate instead of being
   /// treated as an answer.
   Future<ProcessResult?> _runSystemProfilerUsb() async {
@@ -818,8 +1067,7 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
         sizeBytes = int.tryParse(sizeMatch.group(1)!);
       }
 
-      final isRemovable = info.contains('Removable Media:') &&
-          info.contains('Removable Media:              Removable');
+      final isRemovable = parseMacRemovable(info) ?? false;
       final isSystemDisk = _isMacOSSystemDisk(info, diskPath);
 
       return {
@@ -879,8 +1127,8 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
   /// alone. Returns null if the device isn't present or its identity can't be
   /// tied to a disk (e.g. it's still in ethernet mode).
   ///
-  /// Prefers the IORegistry, which nests the gadget's IOMedia node — and its
-  /// "BSD Name" — directly beneath the USB device. The `system_profiler`
+  /// Prefers the IORegistry, which nests the gadget's IOMedia node, and its
+  /// "BSD Name", directly beneath the USB device. The `system_profiler`
   /// scrape is a fallback for older releases only: macOS 26 both renamed the
   /// datatype and dropped "BSD Name" from the USB report entirely, so it
   /// cannot map USB identity to a disk there at all.
@@ -929,14 +1177,61 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
   /// refuses to pick a target rather than guess.
   @visibleForTesting
   int? parseIoregDiskNumber(String output) {
+    final disk = ioregBsdNameUnder(
+      output,
+      productId: massStoragePid,
+      // Whole disks only: matches "disk8", never the "disk8s1" slice.
+      bsdRe: RegExp(r'"BSD Name"\s*=\s*"disk(\d+)"', caseSensitive: false),
+    );
+    return disk == null ? null : int.tryParse(disk);
+  }
+
+  /// Parse the same `ioreg -r -c IOUSBHostDevice -l` output for the network
+  /// interface macOS published beneath the ethernet gadget (PID 0xA4A2),
+  /// e.g. `en12`.
+  ///
+  /// Same walk as the disk lookup because it is the same tree: a different
+  /// driver stack hangs off the device, but the interface it publishes sits
+  /// under that device's node exactly as an IOMedia does, and the indent
+  /// tracking below is what attributes it to the right device.
+  static String? parseIoregEthernetInterface(String output) => ioregBsdNameUnder(
+        output,
+        productId: ethernetPid,
+        bsdRe: RegExp(r'"BSD Name"\s*=\s*"(en\d+)"', caseSensitive: false),
+      );
+
+  /// Find a "BSD Name" published somewhere beneath the USB device carrying our
+  /// vendor id and [productId], and return the text [bsdRe] captures.
+  ///
+  /// ioreg prints each node's properties followed, depth-first, by its
+  /// children, and indents every node by its depth in the tree. A device's
+  /// "BSD Name" therefore appears after that device's own idVendor/idProduct
+  /// lines and at a deeper indent, so a node can be attributed to the device
+  /// that owns it even with other USB devices attached.
+  ///
+  /// The identity is dropped as soon as a node appears at or above the indent
+  /// of the node that published it, which is where that device's subtree ends.
+  /// Without that, a device publishing no descriptor properties of its own
+  /// would inherit the gadget's identity and hand the caller something that
+  /// belongs to someone else. An identity that cannot be established stays
+  /// unresolved, and the caller refuses rather than guessing.
+  ///
+  /// Depth-agnostic on purpose: it takes the first match at any depth in the
+  /// subtree rather than expecting a particular chain of intermediate driver
+  /// nubs, which differ between the storage and network stacks and between
+  /// macOS releases.
+  @visibleForTesting
+  static String? ioregBsdNameUnder(
+    String output, {
+    required int productId,
+    required RegExp bsdRe,
+  }) {
     // ioreg prints these in decimal, but accept the hex form too: the rest of
     // this file does, and misreading an id here costs a flash target.
     final vendorRe =
         RegExp(r'"idVendor"\s*=\s*(0x[0-9a-f]+|\d+)', caseSensitive: false);
     final productRe =
         RegExp(r'"idProduct"\s*=\s*(0x[0-9a-f]+|\d+)', caseSensitive: false);
-    // Whole disks only: matches "disk8", never the "disk8s1" slice.
-    final bsdRe = RegExp(r'"BSD Name"\s*=\s*"disk(\d+)"', caseSensitive: false);
 
     int? lastVendor;
     int? lastProduct;
@@ -969,8 +1264,8 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
       final bsd = bsdRe.firstMatch(line);
       if (bsd != null &&
           lastVendor == targetVendorId &&
-          lastProduct == massStoragePid) {
-        return int.tryParse(bsd.group(1)!);
+          lastProduct == productId) {
+        return bsd.group(1);
       }
     }
     return null;
@@ -1029,7 +1324,12 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
       // Use lsusb for device detection
       final result = await Process.run('lsusb', ['-d', '0525:']);
 
-      if (result.exitCode != 0) return null;
+      // Not `return null`: lsusb exits 1 when nothing matches, and a board in
+      // serial-download mode is 15a2, never 0525. Returning here made the SDP
+      // checks at the bottom of this method unreachable in exactly the case
+      // they exist for, so a board sitting in its boot ROM read as no board
+      // at all for as long as it sat there.
+      if (result.exitCode != 0) return _detectLinuxRecovery();
 
       final output = result.stdout.toString();
 
@@ -1046,6 +1346,7 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
 
       if (output.contains('a4a5') || output.contains('A4A5')) {
         final diskPath = await _findLinuxDiskPath();
+        final info = diskPath == null ? null : await linuxDiskInfo(diskPath);
         return UsbDevice(
           id: 'usb-0525-a4a5',
           name: 'Librescoot MDB (Mass Storage)',
@@ -1053,12 +1354,21 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
           vendorId: targetVendorId,
           productId: massStoragePid,
           mode: DeviceMode.massStorage,
+          sizeBytes: info?.sizeBytes,
+          isRemovable: info?.isRemovable ?? false,
+          systemDiskVerdict:
+              info?.systemDiskVerdict ?? SystemDiskVerdict.unknown,
         );
       }
     } catch (_) {}
 
-    // Check for SDP / serial-download recovery mode (DBC i.MX6SL or
-    // MDB i.MX6UL). See _detectMacOSIoreg for the protocol notes.
+    return _detectLinuxRecovery();
+  }
+
+  /// The i.MX Boot ROM's own USB identity, which is what is on the bus when
+  /// the board found nothing bootable. See _detectMacOSIoreg for the protocol
+  /// notes.
+  Future<UsbDevice?> _detectLinuxRecovery() async {
     try {
       final dbc = await Process.run('lsusb', ['-d', '15a2:0061']);
       if (dbc.exitCode == 0 && dbc.stdout.toString().isNotEmpty) {
@@ -1092,7 +1402,7 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
   Future<String?> _findLinuxDiskPath() async {
     // Match the block device to the MDB's USB VID:PID (0525:A4A5). The old
     // "first block device with TRAN=usb" grabbed whatever else was plugged in
-    // — an SD-card reader at /dev/sda, a USB stick — and we'd target the wrong
+    //, an SD-card reader at /dev/sda, a USB stick, and we'd target the wrong
     // disk. Walk sysfs and accept only a device whose USB ancestor is the MDB
     // gadget. No match -> null; never fall back to guessing /dev/sda.
     try {
@@ -1133,12 +1443,6 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
   }
 
   /// Sanitize WMIC output (remove null bytes and other artifacts)
-  String _sanitizeWmicOutput(String output) {
-    return output
-        .replaceAll('\u0000', '')
-        .replaceAll('\r\n', '\n')
-        .replaceAll('\r', '\n');
-  }
 
   void dispose() {
     stopMonitoring();

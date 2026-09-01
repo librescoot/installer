@@ -30,10 +30,11 @@ enum InstallerPhase {
     description: 'Verify scooter readiness',
     isManual: false,
   ),
-  batteryRemoval(
-    title: 'Battery Removal',
-    description: 'Open seatbox, remove main battery',
+  installPlan(
+    title: 'Install Plan',
+    description: 'Choose what happens to each board',
     isManual: true,
+    hiddenUnlessActive: true,
   ),
   mdbToUms(
     title: 'MDB → UMS',
@@ -55,6 +56,21 @@ enum InstallerPhase {
     description: 'Reconnect AUX, wait for boot',
     isManual: true,
   ),
+  bluetoothPairing(
+    title: 'Bluetooth',
+    description: 'Pair phone or other devices',
+    isManual: true,
+  ),
+  keycardSetup(
+    title: 'Keycard Setup',
+    description: 'Register master and user keycards',
+    isManual: true,
+  ),
+  mdbArtifact(
+    title: 'MDB Update',
+    description: 'Install the firmware artifact',
+    isManual: false,
+  ),
   cbbReconnect(
     title: 'CBB Reconnect',
     description: 'Reconnect CBB for DBC flash',
@@ -72,18 +88,9 @@ enum InstallerPhase {
   ),
   reconnect(
     title: 'Reconnect',
-    description: 'Verify DBC installation',
+    description: 'Verify an interrupted DBC install',
     isManual: true,
-  ),
-  bluetoothPairing(
-    title: 'Bluetooth',
-    description: 'Pair phone or other devices',
-    isManual: true,
-  ),
-  keycardSetup(
-    title: 'Keycard Setup',
-    description: 'Register master and user keycards',
-    isManual: true,
+    hiddenUnlessActive: true,
   ),
   finish(
     title: 'Finish',
@@ -107,13 +114,28 @@ enum InstallerPhase {
   final bool hiddenUnlessActive;
 }
 
+/// Phases that draw their active work over the screen the user just left.
+const Set<InstallerPhase> kWaitPhases = {
+  InstallerPhase.mdbConnect,
+  InstallerPhase.healthCheck,
+  InstallerPhase.mdbToUms,
+  InstallerPhase.mdbBoot,
+  InstallerPhase.mdbArtifact,
+};
+
+extension InstallerPhaseWait on InstallerPhase {
+  bool get isWait => kWaitPhases.contains(this);
+}
+
 /// Major step grouping for sidebar display
 enum MajorStep {
   prepare('Prepare', [InstallerPhase.welcome, InstallerPhase.notices, InstallerPhase.physicalPrep]),
-  connect('Connect', [InstallerPhase.mdbConnect, InstallerPhase.resumeDetected, InstallerPhase.healthCheck]),
-  mdbFlash('Flash MDB', [InstallerPhase.batteryRemoval, InstallerPhase.mdbToUms, InstallerPhase.mdbFlash, InstallerPhase.scooterPrep, InstallerPhase.mdbBoot, InstallerPhase.cbbReconnect]),
+  connect('Connect', [InstallerPhase.mdbConnect, InstallerPhase.resumeDetected, InstallerPhase.healthCheck, InstallerPhase.installPlan]),
+  mdbFlash('Flash MDB', [InstallerPhase.mdbToUms, InstallerPhase.mdbFlash, InstallerPhase.scooterPrep, InstallerPhase.mdbBoot]),
+  pairing('Pairing & Cards', [InstallerPhase.bluetoothPairing, InstallerPhase.keycardSetup]),
+  mdbInstall('Install MDB', [InstallerPhase.mdbArtifact, InstallerPhase.cbbReconnect]),
   dbcFlash('Flash DBC', [InstallerPhase.dbcPrep, InstallerPhase.dbcFlash, InstallerPhase.reconnect]),
-  finish('Finish', [InstallerPhase.bluetoothPairing, InstallerPhase.keycardSetup, InstallerPhase.finish]);
+  finish('Finish', [InstallerPhase.finish]);
 
   const MajorStep(this.title, this.phases);
 

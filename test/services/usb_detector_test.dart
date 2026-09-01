@@ -26,7 +26,8 @@ void main() {
       expect(deviceWith(SystemDiskVerdict.unknown).isSystemDisk, isFalse);
     });
 
-    test('defaults to not a system disk', () {
+    test('a device nobody probed carries no verdict', () {
+      // Omitting the argument must not manufacture a positive safety answer.
       final device = UsbDevice(
         id: 'x',
         name: 'x',
@@ -35,7 +36,7 @@ void main() {
         productId: 0xA4A5,
         mode: DeviceMode.massStorage,
       );
-      expect(device.systemDiskVerdict, SystemDiskVerdict.notSystem);
+      expect(device.systemDiskVerdict, SystemDiskVerdict.unknown);
       expect(device.isSystemDisk, isFalse);
     });
   });

@@ -113,14 +113,20 @@ jobs:
           TAG="$(tr -d '[:space:]' < assets/tools/FLASHER_VERSION)"
           echo "Fetching librescoot-flasher $TAG into assets/tools/"
           cd assets/tools
-          # Host flasher for this target + linux-arm (always, for on-device MDB flash)
+          # Host flashers for this target + linux-arm (always, for on-device MDB flash).
+          # macOS takes both CPUs: the .app is universal, so an Intel Mac runs an
+          # x86_64 process and looks for the amd64 binary. Shipping only arm64
+          # sent those hosts into an unprivileged dd on /dev/rdiskN, which can
+          # only end in "Permission denied" with no prompt to answer.
           case "${{ matrix.target }}" in
-            macos)      HOST_ASSET=librescoot-flasher-darwin-arm64 ;;
-            linux-x64)  HOST_ASSET=librescoot-flasher-linux-amd64 ;;
-            windows)    HOST_ASSET=librescoot-flasher-windows-amd64.exe ;;
+            macos)      HOST_ASSETS=(librescoot-flasher-darwin-arm64 librescoot-flasher-darwin-amd64) ;;
+            linux-x64)  HOST_ASSETS=(librescoot-flasher-linux-amd64) ;;
+            windows)    HOST_ASSETS=(librescoot-flasher-windows-amd64.exe) ;;
           esac
+          PATTERNS=()
+          for asset in "${HOST_ASSETS[@]}"; do PATTERNS+=(--pattern "$asset"); done
           gh release download "$TAG" --repo librescoot/librescoot-flasher \
-            --pattern "$HOST_ASSET" \
+            "${PATTERNS[@]}" \
             --pattern librescoot-flasher-linux-arm
           chmod +x librescoot-flasher-*
           # Drop tooling that isn't used by this target
@@ -345,8 +351,13 @@ jobs:
         with:
           files: dist/*
           body_path: release-notes.md
+          # Hyphenated tags (v1.2.3-beta.1) are prereleases: hidden from
+          # /releases/latest, so the downloads site and installers never
+          # pick them up as the current version.
+          prerelease: ${{ contains(github.ref_name, '-') }}
 
       - name: Generate app token for site rebuilds
+        if: ${{ !contains(github.ref_name, '-') }}
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
@@ -356,6 +367,7 @@ jobs:
           repositories: downloads.librescoot.org,librescoot.github.io
 
       - name: Trigger downloads site rebuild
+        if: ${{ !contains(github.ref_name, '-') }}
         uses: peter-evans/repository-dispatch@v4
         with:
           token: ${{ steps.app-token.outputs.token }}
@@ -363,6 +375,7 @@ jobs:
           event-type: releases-changed
 
       - name: Trigger main site rebuild
+        if: ${{ !contains(github.ref_name, '-') }}
         uses: peter-evans/repository-dispatch@v4
         with:
           token: ${{ steps.app-token.outputs.token }}

@@ -1,6 +1,6 @@
 # Librescoot Installer
 
-> **Beta software.** Tested on all three platforms against real hardware, but things can still go wrong. Flashing firmware carries inherent risk. Use at your own risk, no warranty expressed or implied.
+> **Stable software.** Tested on all three platforms against real hardware. Flashing firmware carries inherent risk; use at your own risk, with no warranty expressed or implied.
 
 Part of the [Librescoot](https://librescoot.org/) open-source platform.
 
@@ -59,9 +59,6 @@ lib/                              # Flutter/Dart GUI
     trampoline_service.dart       #   Autonomous DBC flash
     usb_detector.dart             #   USB device detection
     network_service.dart          #   RNDIS interface config
-
-cli/                              # Go CLI installer (feat/cli-installer)
-  main.go                         #   Headless, for scripted/remote use
 
 assets/
   tools/                          # Platform binaries (flasher, fw_setenv)

@@ -6,6 +6,13 @@ import 'package:path/path.dart' as p;
 
 void main() {
   group('LogService', () {
+    test('uses Explorer select syntax that supports paths with spaces', () {
+      expect(
+        LogService.windowsExplorerArgs(r'C:\Users\Jane Doe\Documents\Librescoot Installer\run.log'),
+        [r'/select,', r'C:\Users\Jane Doe\Documents\Librescoot Installer\run.log'],
+      );
+    });
+
     test('appends to the path handed down by the unelevated process', () async {
       final tmp = Directory.systemTemp.createTempSync('librescoot_log_');
       addTearDown(() => tmp.deleteSync(recursive: true));
