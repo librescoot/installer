@@ -71,6 +71,10 @@ static void my_application_activate(GApplication* application) {
   }
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
+  // Skia, not Impeller, for the same reason as on macOS and Windows: the
+  // installer gains nothing from it and its glyph atlas corrupts on some
+  // machines.
+  fl_dart_project_set_enable_impeller(project, FALSE);
   fl_dart_project_set_dart_entrypoint_arguments(project, self->dart_entrypoint_arguments);
 
   FlView* view = fl_view_new(project);
