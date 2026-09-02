@@ -48,7 +48,92 @@ class _StreamClient extends http.BaseClient {
       http.StreamedResponse(stream, 200);
 }
 
+/// Fails the first [failures] requests the way a cold TLS stack does, then
+/// serves [body].
+class _FlakyClient extends http.BaseClient {
+  _FlakyClient({required this.failures, required this.body, this.status = 200});
+
+  final int failures;
+  final List<int> body;
+  final int status;
+  int calls = 0;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    calls++;
+    if (calls <= failures) {
+      throw const HandshakeException('Connection terminated during handshake');
+    }
+    return http.StreamedResponse(Stream.value(body), status);
+  }
+}
+
 void main() {
+  group('transient network errors', () {
+    DownloadItem item(String name, int size) => DownloadItem(
+          type: DownloadItemType.mdbFirmware,
+          url: 'https://example.com/$name',
+          filename: name,
+          expectedSize: size,
+        );
+
+    tearDown(() async {
+      final dir = await DownloadService.getCacheDir();
+      for (final f in dir.listSync()) {
+        if (f is File && p.basename(f.path).startsWith('flaky-')) {
+          f.deleteSync();
+        }
+      }
+    });
+
+    test('a handshake that fails once is tried again and succeeds', () async {
+      final client = _FlakyClient(failures: 1, body: [1, 2, 3]);
+      final service = DownloadService(
+        client: client,
+        retryDelays: const [Duration.zero, Duration.zero],
+      );
+      addTearDown(service.dispose);
+      final target = item('flaky-once-${DateTime.now().microsecondsSinceEpoch}.sdimg.gz', 3);
+
+      await service.downloadItem(target);
+
+      expect(client.calls, 2);
+      expect(target.localPath, isNotNull);
+      expect(File(target.localPath!).lengthSync(), 3);
+    });
+
+    test('a handshake that keeps failing is given up after the delays run out',
+        () async {
+      final client = _FlakyClient(failures: 10, body: [1]);
+      final service = DownloadService(
+        client: client,
+        retryDelays: const [Duration.zero, Duration.zero],
+      );
+      addTearDown(service.dispose);
+      final target = item('flaky-always-${DateTime.now().microsecondsSinceEpoch}.sdimg.gz', 1);
+
+      await expectLater(
+        service.downloadItem(target),
+        throwsA(isA<HandshakeException>()),
+      );
+      expect(client.calls, 3);
+      expect(target.localPath, isNull);
+    });
+
+    test('a bad status is not a network error and is not retried', () async {
+      final client = _FlakyClient(failures: 0, body: [1], status: 404);
+      final service = DownloadService(
+        client: client,
+        retryDelays: const [Duration.zero, Duration.zero],
+      );
+      addTearDown(service.dispose);
+      final target = item('flaky-404-${DateTime.now().microsecondsSinceEpoch}.sdimg.gz', 1);
+
+      await expectLater(service.downloadItem(target), throwsA(isA<Exception>()));
+      expect(client.calls, 1);
+    });
+  });
+
   group('DownloadService', () {
     // _fetchLatest caches the manifest on disk (shared across instances), so
     // clear it before each test to keep them reading their own mock.
@@ -738,9 +823,12 @@ void main() {
       final controller = StreamController<List<int>>();
       addTearDown(controller.close);
       controller.add([1]);
+      // The stall is what is under test; a retry would re-request a stream
+      // that can only be listened to once.
       final service = DownloadService(
         client: _StreamClient(controller.stream),
         idleTimeout: const Duration(milliseconds: 20),
+        retryDelays: const [],
       );
       addTearDown(service.dispose);
       final item = DownloadItem(

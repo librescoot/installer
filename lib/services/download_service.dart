@@ -40,15 +40,38 @@ class DownloadService {
   final http.Client _client;
   final Duration _requestTimeout;
   final Duration _idleTimeout;
+  final List<Duration> _retryDelays;
   Map<String, dynamic>? _cachedLatest;
+
+  /// Pauses before the second and third attempt at a file whose transfer
+  /// failed on the network. The first TLS handshake to a host a fresh
+  /// Windows or macOS install has never spoken to fails while the OS fetches
+  /// the intermediates, as the manifest fetch already knows; a second attempt
+  /// a moment later goes through.
+  static const defaultRetryDelays = [
+    Duration(seconds: 2),
+    Duration(seconds: 5),
+  ];
 
   DownloadService({
     http.Client? client,
     Duration requestTimeout = const Duration(seconds: 30),
     Duration idleTimeout = const Duration(seconds: 60),
+    List<Duration> retryDelays = defaultRetryDelays,
   })  : _client = client ?? http.Client(),
         _requestTimeout = requestTimeout,
-        _idleTimeout = idleTimeout;
+        _idleTimeout = idleTimeout,
+        _retryDelays = retryDelays;
+
+  /// Failures of the connection rather than of the content: worth another
+  /// attempt. A bad status, a size or digest mismatch and a cancellation are
+  /// not.
+  static bool isTransientNetworkError(Object e) =>
+      e is SocketException ||
+      e is TlsException ||
+      e is HttpException ||
+      e is TimeoutException ||
+      e is http.ClientException;
 
   /// Fetch the combined latest-per-channel manifest from
   /// downloads.librescoot.org. One round trip yields the current pointer
@@ -709,8 +732,37 @@ class DownloadService {
     return items;
   }
 
-  /// Download a single item with progress callback.
+  /// Download a single item with progress callback. A transfer that fails on
+  /// the network is started over, up to the length of the retry delays.
   Future<void> downloadItem(
+    DownloadItem item, {
+    void Function(int bytesDownloaded, int totalBytes)? onProgress,
+    DownloadCancellationToken? cancellationToken,
+  }) async {
+    for (var attempt = 0;; attempt++) {
+      try {
+        await _downloadOnce(
+          item,
+          onProgress: onProgress,
+          cancellationToken: cancellationToken,
+        );
+        return;
+      } catch (e) {
+        if (e is DownloadCancelled ||
+            !isTransientNetworkError(e) ||
+            attempt >= _retryDelays.length) {
+          rethrow;
+        }
+        final delay = _retryDelays[attempt];
+        debugPrint('Download: ${item.filename} attempt ${attempt + 1} failed '
+            '($e), retrying in ${delay.inSeconds}s');
+        await Future.delayed(delay);
+        cancellationToken?.throwIfCancelled();
+      }
+    }
+  }
+
+  Future<void> _downloadOnce(
     DownloadItem item, {
     void Function(int bytesDownloaded, int totalBytes)? onProgress,
     DownloadCancellationToken? cancellationToken,
