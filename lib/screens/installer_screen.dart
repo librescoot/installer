@@ -577,7 +577,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final closed = await _windowCloseCoordinator.requestClose(
       isCritical: isCritical,
       cleanup: _cleanupBeforeClose,
-      closeWindow: windowManager.destroy,
+      closeWindow: _exitProcess,
     );
     if (!closed && mounted) {
       _windowClosing = false;
@@ -590,6 +590,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       );
     }
   }
+
+  /// The way out once cleanup is done, the same one the finish screen takes.
+  ///
+  /// Asking the window manager to destroy the window only posts the quit
+  /// message; the runner then tears the engine and the window down from its
+  /// destructor chain, and on Windows that teardown dies in flutter_windows.dll
+  /// on every close, an access violation and then the fatal callback
+  /// exception, with the window sitting there until it does. The log is
+  /// written synchronously, so ending the process here loses nothing.
+  Future<void> _exitProcess() async => exit(0);
 
   Future<void> _cleanupBeforeClose() async {
     await runBoundedCleanupActions([
