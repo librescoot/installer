@@ -189,20 +189,16 @@ end_service_mode() {
 }
 
 # ---- nRF firmware ---------------------------------------------------------
-# bluetooth-service flashes the nRF52 on the first boot that finds newer zips
-# in /usr/share/nrf-fw, which is this boot, and it takes minutes. The unlock
-# is the success signal, so it waits: an owner who sees it and rides off
-# mid-flash is what this fences off. pm-service is still stopped here and the
-# flash holds its own power inhibitor, so nothing takes the board down under
-# the wait.
+# bluetooth-service flashes the nRF52 on the first boot with newer zips in
+# /usr/share/nrf-fw, i.e. this one. Wait for it before unlocking so nobody
+# rides off mid-flash. pm-service is still stopped and the flash holds a power
+# inhibitor, so the board stays up.
 #
-# The status lives in ble[firmware-update-status]. checking, updating and
-# recovering are the flash in progress; anything else is over. Absent means
-# bluetooth-service has not looked yet: it writes nothing until the nRF has
-# reported its version, and this can run before it is even up, so absent gets
-# a grace period rather than a verdict. Valkey does not persist, so absent is
-# never last boot's value either. The unlock itself needs nothing from the
-# nRF; the cap only keeps a hung flash from leaving the vehicle locked.
+# ble[firmware-update-status]: checking/updating/recovering = in progress,
+# anything else = done. Absent = not checked yet (nothing is written until the
+# nRF has reported its version, and this can run before bluetooth-service is
+# up), so absent gets a grace period. Valkey does not persist, so it is never
+# stale. The cap stops a hung flash from keeping the vehicle locked.
 NRF_STATUS_GRACE=60
 NRF_STATUS_CAP=600
 wait_for_nrf_firmware() {
@@ -218,7 +214,7 @@ wait_for_nrf_firmware() {
       checking|updating|recovering) ;;
       "")
         if [ $i -ge "$NRF_STATUS_GRACE" ]; then
-          log "  no nRF firmware status after ${NRF_STATUS_GRACE}s, not waiting for one"
+          log "  no nRF firmware status after ${NRF_STATUS_GRACE}s, not waiting"
           return 0
         fi
         ;;
@@ -232,8 +228,8 @@ wait_for_nrf_firmware() {
 
 # ---- the vehicle ----------------------------------------------------------
 if [ "$INSTALL_OK" = yes ]; then
-  # Before the bar completes and the LED goes dark, not after: a vehicle that
-  # went dark minutes before it unlocks reads as a handover that failed.
+  # Before the bar completes and the LED goes dark, so the wait still looks
+  # like a run in progress.
   wait_for_nrf_firmware
 
   # The bar is complete and the vehicle goes dark. Not green: the unlock below
