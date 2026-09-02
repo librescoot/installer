@@ -83,9 +83,12 @@ void main() {
     });
 
     test('ten percent is the line, and it is inclusive', () {
-      expect((ScooterHealth()..batteryCharge = 10).batteryChargeOk, isTrue);
-      expect((ScooterHealth()..batteryCharge = 9).batteryChargeOk, isFalse);
-      expect((ScooterHealth()..batteryCharge = 100).batteryChargeOk, isTrue);
+      ScooterHealth fitted(int charge) => ScooterHealth()
+        ..batteryPresent = true
+        ..batteryCharge = charge;
+      expect(fitted(10).batteryChargeOk, isTrue);
+      expect(fitted(9).batteryChargeOk, isFalse);
+      expect(fitted(100).batteryChargeOk, isTrue);
     });
 
     test('a charge nobody read is not a flat pack', () {
