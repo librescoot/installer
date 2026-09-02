@@ -3524,6 +3524,18 @@ abstract class AppLocalizations {
   /// **'Run a command in the installer context...'**
   String get debugCommandHint;
 
+  /// No description provided for @debugStopCommand.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop'**
+  String get debugStopCommand;
+
+  /// No description provided for @debugCommandStillRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'A command is still running. Stop it before starting another.'**
+  String get debugCommandStillRunning;
+
   /// No description provided for @mbOnDisk.
   ///
   /// In en, this message translates to:

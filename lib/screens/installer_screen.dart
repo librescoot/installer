@@ -46,6 +46,7 @@ import '../services/artifact_service.dart';
 import '../services/connect_diagnosis.dart';
 import '../services/critical_operation_coordinator.dart';
 import '../services/data_partition_service.dart';
+import '../services/debug_shell.dart';
 import '../services/finalize_script.dart';
 import '../services/install_phase_scripts.dart';
 import '../services/serial_polling_loop.dart';
@@ -526,6 +527,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   @override
   void dispose() {
     windowManager.removeListener(this);
+    unawaited(_debugShell.stop());
+    _debugShell.dispose();
+    _debugOutput.dispose();
+    _debugController.dispose();
     _downloadCancellationToken?.cancel();
     _deviceSub?.cancel();
     _usbDetector.stopMonitoring();
@@ -1163,6 +1168,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   final _debugController = TextEditingController();
 
+  /// Bumped for every line the debug shell appends, so an open log dialog
+  /// redraws as output streams in.
+  final _debugOutput = ValueNotifier<int>(0);
+  late final _debugShell = DebugShell(
+    appendLine: (line) {
+      appendLogRaw(line);
+      _debugOutput.value++;
+    },
+  );
+
   void _showLogDialog() {
     final l10n = AppLocalizations.of(context)!;
     var debugShellOpen = false;
@@ -1173,20 +1188,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           Future<void> runDebugCommand() async {
             final cmd = _debugController.text;
             if (cmd.trim().isEmpty) return;
-            appendLogRaw('> $cmd');
-            setDialogState(() {});
-            try {
-              final result = await Process.run('/bin/sh', ['-c', cmd]);
-              final out = result.stdout.toString().trim();
-              final err = result.stderr.toString().trim();
-              if (out.isNotEmpty) appendLogRaw(out);
-              if (err.isNotEmpty) appendLogRaw('stderr: $err');
-              appendLogRaw('exit: ${result.exitCode}');
-            } catch (e) {
-              appendLogRaw('error: $e');
+            if (_debugShell.running) {
+              appendLogRaw(l10n.debugCommandStillRunning);
+              _debugOutput.value++;
+              return;
             }
             _debugController.clear();
-            setDialogState(() {});
+            await _debugShell.run(cmd);
           }
 
           return AlertDialog(
@@ -1194,7 +1202,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             content: SizedBox(
               width: 700,
               height: 500,
-              child: Column(
+              child: ListenableBuilder(
+                listenable: Listenable.merge([_debugShell, _debugOutput]),
+                builder: (ctx, _) => Column(
                 children: [
                   Expanded(
                     child: SingleChildScrollView(
@@ -1256,13 +1266,21 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                             onSubmitted: (_) => runDebugCommand(),
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.play_arrow),
-                          onPressed: runDebugCommand,
-                        ),
+                        if (_debugShell.running)
+                          IconButton(
+                            icon: const Icon(Icons.stop),
+                            tooltip: l10n.debugStopCommand,
+                            onPressed: () => unawaited(_debugShell.stop()),
+                          )
+                        else
+                          IconButton(
+                            icon: const Icon(Icons.play_arrow),
+                            onPressed: runDebugCommand,
+                          ),
                       ],
                     ),
-                ],
+                  ],
+                ),
               ),
             ),
             actions: [

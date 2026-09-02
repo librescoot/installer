@@ -2025,6 +2025,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get debugCommandHint => 'Run a command in the installer context...';
 
   @override
+  String get debugStopCommand => 'Stop';
+
+  @override
+  String get debugCommandStillRunning =>
+      'A command is still running. Stop it before starting another.';
+
+  @override
   String mbOnDisk(String size) {
     return '$size MB on disk';
   }

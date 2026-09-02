@@ -2060,6 +2060,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get debugCommandHint => 'Befehl im Installer-Kontext ausführen…';
 
   @override
+  String get debugStopCommand => 'Stoppen';
+
+  @override
+  String get debugCommandStillRunning =>
+      'Es läuft noch ein Befehl. Erst stoppen, dann den nächsten starten.';
+
+  @override
   String mbOnDisk(String size) {
     return '$size MB belegt';
   }

@@ -761,6 +761,8 @@
   "revealLogFile": "Im Ordner anzeigen",
   "debugShell": "Debug-Shell",
   "debugCommandHint": "Befehl im Installer-Kontext ausführen…",
+  "debugStopCommand": "Stoppen",
+  "debugCommandStillRunning": "Es läuft noch ein Befehl. Erst stoppen, dann den nächsten starten.",
   "mbOnDisk": "{size} MB belegt",
   "beforeImageLabel": "Vorher",
   "afterImageLabel": "Nachher",
