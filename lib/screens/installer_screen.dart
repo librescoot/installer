@@ -9809,6 +9809,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final state = finalScreenState(
       laptopOccupiesMdbUsb: _device != null,
       completionConfirmed: _finishCompletionConfirmed,
+      // No plan is the legacy full-image route, which does hand the
+      // dashboard over.
+      dashboardWorkPending: _plan?.needsHandoff ?? true,
     );
     final confirmed = state == FinalScreenState.completed ||
         state == FinalScreenState.completedReconnectDbc;

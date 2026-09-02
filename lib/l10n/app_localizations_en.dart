@@ -1154,21 +1154,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get finalSteps => 'Final steps:';
 
   @override
-  String get finishNextHeading => 'What happens next';
-
-  @override
-  String get finishNextDbcFlash =>
-      'After you reconnect the DBC cable, the scooter starts the requested dashboard work. It can take about 20 minutes. Keep power connected until the process finishes; the boot light indicates activity.';
-
-  @override
-  String get finishNextOnDevice =>
-      'After you reconnect the DBC cable, the scooter completes the remaining work. The laptop is not needed for this step.';
-
-  @override
-  String get finishNextNothing =>
-      'The main board installation is complete. Reassemble the scooter before riding.';
-
-  @override
   String get finishOnDevice =>
       'The scooter is completing the installation autonomously. Keep it powered on and leave the current cable connection in place until it finishes.';
 
