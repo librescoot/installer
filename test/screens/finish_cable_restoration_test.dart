@@ -10,11 +10,15 @@ void main() {
   });
 
   test('cable restoration depends on port occupancy, not DBC work', () {
+    // Whether the DBC cable goes back is about the port: the laptop is in it
+    // or not. What the plan decides is only the wording while the finish is
+    // still running, since a plan with no dashboard work does not need the
+    // cable to finish, only to reassemble.
     final start = source.indexOf('final state = finalScreenState(');
     final end = source.indexOf('\n    final confirmed', start);
     final call = source.substring(start, end);
     expect(call, contains('laptopOccupiesMdbUsb: _device != null'));
-    expect(call, isNot(contains('needsHandoff')));
+    expect(call, contains('dashboardWorkPending: _plan?.needsHandoff'));
     expect(call, isNot(contains('needsDbcWork')));
   });
 
