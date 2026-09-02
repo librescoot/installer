@@ -1688,6 +1688,13 @@ device_finish() {
     # stopped here stays stopped: there is no laptop attached any more and no
     # reboot coming to start it by other means, and the last instruction the
     # owner was given ("unlock with a keycard you registered") needs the reader.
+    #
+    # Queued before the start, the way the keycard phase does it: a reader
+    # with no master on file enters master learning mode as it starts and
+    # crowns the next tap, and this is the stop it consumes on its first
+    # pass. Harmless where the mode never arms, and a no-op on a build that
+    # does not know it.
+    redis-cli -h localhost lpush scooter:keycard learn:master:stop >/dev/null 2>&1 || true
     systemctl unmask librescoot-keycard keycard-service 2>/dev/null || true
     systemctl start librescoot-keycard 2>/dev/null || systemctl start keycard-service 2>/dev/null || true
     log "  started keycard-service"

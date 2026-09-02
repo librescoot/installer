@@ -393,6 +393,20 @@ void main() {
     }
   });
 
+  test('the finish disarms master learning before it starts the reader', () {
+    // keycard-service enters master learning mode on any start without a
+    // master on file, and a build without the command fix stays there until
+    // a tap crowns a card. The keycard phase queues learn:master:stop before
+    // its own start for that reason; this start under the amber guard was
+    // the one that did not.
+    final start = onboot.indexOf('systemctl start librescoot-keycard');
+    final stop =
+        onboot.lastIndexOf('lpush scooter:keycard learn:master:stop', start);
+    expect(stop, greaterThan(-1),
+        reason: 'learn:master:stop must be queued before the reader starts');
+    expect(onboot.indexOf('systemctl start librescoot-keycard', stop), start);
+  });
+
   test('the finish keeps its own log out of the sweep', () {
     // The success path deletes the staging directory, and the trampoline's
     // log lives in it. A failed run keeps that directory for the installer to
