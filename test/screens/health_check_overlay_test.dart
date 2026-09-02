@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:librescoot_installer/models/installer_phase.dart';
 
 void main() {
   late String source;
@@ -11,8 +10,6 @@ void main() {
   });
 
   test('health check stays in an overlay when results arrive', () {
-    expect(kWaitPhases, contains(InstallerPhase.healthCheck));
-
     final start = source.indexOf('Widget _buildHealthCheck(');
     final end = source.indexOf('\n  Future<void> _runHealthCheck()', start);
     final build = source.substring(start, end);

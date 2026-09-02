@@ -114,19 +114,6 @@ enum InstallerPhase {
   final bool hiddenUnlessActive;
 }
 
-/// Phases that draw their active work over the screen the user just left.
-const Set<InstallerPhase> kWaitPhases = {
-  InstallerPhase.mdbConnect,
-  InstallerPhase.healthCheck,
-  InstallerPhase.mdbToUms,
-  InstallerPhase.mdbBoot,
-  InstallerPhase.mdbArtifact,
-};
-
-extension InstallerPhaseWait on InstallerPhase {
-  bool get isWait => kWaitPhases.contains(this);
-}
-
 /// Major step grouping for sidebar display
 enum MajorStep {
   prepare('Prepare', [InstallerPhase.welcome, InstallerPhase.notices, InstallerPhase.physicalPrep]),

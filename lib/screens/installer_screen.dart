@@ -1490,8 +1490,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
     final content = _phaseContent(l10n);
     // Waits draw over the screen the user just left, so only screens with
-    // something to show get remembered.
-    if (!_currentPhase.isWait) _frozenBackdrop = content;
+    // something to show get remembered. Decided by what was built, not by
+    // which phase built it: a phase that turns into a wait partway through
+    // would otherwise capture its own wait as the backdrop of the next
+    // rebuild, one level deeper every time.
+    if (content is! WaitScaffold) _frozenBackdrop = content;
     return content;
   }
 
@@ -2414,7 +2417,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         cancellationToken: cancellationToken,
         onProgress: (item, bytes, total) {
           if (_ownsDownloadGeneration(generation, cancellationToken)) {
-            setState(() {});
+            _repaintDownloadProgress();
           }
         },
       );
@@ -2437,6 +2440,24 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         });
       }
     }
+  }
+
+  DateTime? _downloadRepaintAt;
+
+  /// Progress arrives once per network chunk, which on a fast link is
+  /// hundreds of times a second, and every rebuild redraws the whole screen.
+  /// A bar cannot show more than a few updates a second anyway; the final
+  /// state is drawn by the completion path, not by this.
+  void _repaintDownloadProgress() {
+    if (!mounted) return;
+    final now = DateTime.now();
+    final last = _downloadRepaintAt;
+    if (last != null &&
+        now.difference(last) < const Duration(milliseconds: 250)) {
+      return;
+    }
+    _downloadRepaintAt = now;
+    setState(() {});
   }
 
   void _restartFailedDownloads() {
@@ -4764,13 +4785,21 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // human answers it, so before the first byte the true state is "waiting
       // for you", not "writing". Telling someone not to disconnect while
       // nothing is happening is how a stalled dialog becomes a pulled cable.
-      final awaitingAuth = Platform.isMacOS && _progress <= 0;
+      // While the step is the download, the bar is the download's.
+      final image = _downloadState.itemOfType(DownloadItemType.mdbFirmware);
+      final downloading = image != null &&
+          !image.isComplete &&
+          _waitSteps.isNotEmpty &&
+          _waitSteps[_waitStep.clamp(0, _waitSteps.length - 1)].label ==
+              l10n.waitingForMdbFirmware;
+      final progress = downloading ? image.progress : _progress;
+      final awaitingAuth = Platform.isMacOS && !downloading && _progress <= 0;
       return _waitPhase(
         title: l10n.flashingMdb,
         warning: awaitingAuth
             ? l10n.flashAwaitingAuthorisation
             : l10n.dbcFlashDoNotDisconnect,
-        progress: _progress > 0 ? _progress : null,
+        progress: progress > 0 ? progress : null,
       );
     }
     return PhaseLayout(
@@ -4938,10 +4967,25 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   Future<void> _flashMdb() async {
     if (_windowClosing || !mounted) return;
     final l10n = AppLocalizations.of(context)!;
+    bool mdbDownloadsReady() {
+      final image = _downloadState.itemOfType(DownloadItemType.mdbFirmware);
+      final bmap = _downloadState.itemOfType(DownloadItemType.mdbBmap);
+      return image != null &&
+          image.isComplete &&
+          (bmap == null || bmap.isComplete);
+    }
+
     // Timings from real runs: the path resolves in seconds, the bmap write of
     // a stage-0 image takes about a minute and a half. The flasher's own
-    // per-phase messages carry the detail and land in the log tail.
+    // per-phase messages carry the detail and land in the log tail. The
+    // download is a step of its own where it is still running, so the card
+    // does not sit on "waiting for device path" for a file that has not
+    // arrived.
     _beginWait([
+      if (!mdbDownloadsReady())
+        WaitStep(
+            label: l10n.waitingForMdbFirmware,
+            typical: const Duration(minutes: 3)),
       WaitStep(
           label: l10n.waitingForDevicePath,
           typical: const Duration(seconds: 15)),
@@ -4949,9 +4993,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           label: l10n.flashingMdb, typical: const Duration(seconds: 90)),
     ]);
     setState(() => _isProcessing = true);
-    final criticalOperation = _acquireCriticalOperation();
+    // Taken once the write is about to start, not here: the lease is what
+    // refuses to quit the installer, and there is nothing to protect while
+    // the image is still downloading.
+    CriticalOperationLease? criticalOperation;
 
     if (_isDryRun) {
+      criticalOperation = _acquireCriticalOperation();
       try {
         for (var i = 0; i <= 10; i++) {
           _setStatus(
@@ -4971,14 +5019,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     await DriverService.suppressAutoPlay();
     await DiskArbitrationService.armWatch();
     try {
-      bool mdbDownloadsReady() {
-        final image = _downloadState.itemOfType(DownloadItemType.mdbFirmware);
-        final bmap = _downloadState.itemOfType(DownloadItemType.mdbBmap);
-        return image != null &&
-            image.isComplete &&
-            (bmap == null || bmap.isComplete);
-      }
-
       if (!mdbDownloadsReady()) {
         _setStatus(l10n.waitingForMdbFirmware);
         await waitForDownloads(
@@ -4988,6 +5028,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         );
       }
       final mdbItem = _downloadState.itemOfType(DownloadItemType.mdbFirmware)!;
+      criticalOperation = _acquireCriticalOperation();
 
       // Resolve the block device path (macOS needs diskutil lookup)
       _setStatus(l10n.waitingForDevicePath);
@@ -5095,7 +5136,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     } catch (e, stackTrace) {
       debugPrint('Flash ERROR: $e');
       debugPrint('Flash STACKTRACE: $stackTrace');
-      criticalOperation.release();
+      criticalOperation?.release();
 
       final errText = e.toString();
       final downloadFailure = e is DownloadWaitFailure;
@@ -5177,7 +5218,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         await DriverService.restoreAutoPlay();
         await DiskArbitrationService.disarmWatch();
       } finally {
-        criticalOperation.release();
+        criticalOperation?.release();
       }
     }
   }
@@ -6460,9 +6501,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       });
       await _downloadService.downloadAll(
         _downloadState.items,
-        onProgress: (item, bytes, total) {
-          if (mounted) setState(() {});
-        },
+        onProgress: (item, bytes, total) => _repaintDownloadProgress(),
       );
     } catch (e) {
       if (!mounted) return;
