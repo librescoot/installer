@@ -737,6 +737,7 @@
   "actionLeaveBlockedStockMdb": "A stock main board has to be installed before anything else can be done",
   "planDbcNeedsLibrescootMdb": "The dashboard can only be reached through the MDB, and the tools that reach it are part of Librescoot. Install the MDB in this run, or leave the dashboard alone.",
   "planNothingToDo": "Nothing selected. Pick at least one action to continue.",
+  "planMdbInMassStorage": "The main board is in mass-storage mode, so nothing on it could be read. It gets a clean install. The dashboard could not be reached either; decide for it below.",
   "releaseMissingAssetsTitle": "This release cannot be installed",
   "releaseMissingAssetsBody": "The {tag} release does not publish everything the installer needs: {assets}. Go back and pick a different channel, or wait for a release that has them.",
   "@releaseMissingAssetsBody": {

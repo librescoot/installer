@@ -253,4 +253,38 @@ void main() {
             'in this run'),
         findsOneWidget);
   });
+
+  testWidgets('a locked MDB shows its note and offers no choice', (tester) async {
+    // The direct mass-storage route: the MDB cannot be read and can only be
+    // clean-installed, so its radios show what will happen rather than ask.
+    // The dashboard card stays a choice.
+    const unknownMdb = BoardState(
+      board: Board.mdb,
+      isLibrescoot: false,
+      provenance: StateProvenance.unknown,
+    );
+    final plan = InstallPlan.directMassStorage();
+    await tester.pumpWidget(_host(InstallPlanPanel(
+      plan: plan,
+      mdbState: unknownMdb,
+      dbcState: _stockDbc,
+      targetVersion: 'v1.3.0',
+      mdbLockedNote: 'locked note',
+      onChanged: (_) {},
+    )));
+
+    expect(find.text('locked note'), findsOneWidget);
+    final tiles = tester
+        .widgetList<RadioListTile<BoardAction>>(
+            find.byType(RadioListTile<BoardAction>))
+        .toList();
+    // Three per board, MDB first.
+    expect(tiles.length, 6);
+    for (final tile in tiles.take(3)) {
+      expect(tile.enabled, isFalse, reason: 'MDB ${tile.value} must be locked');
+    }
+    final dbcClean = tiles.skip(3).firstWhere(
+        (t) => t.value == BoardAction.cleanInstall);
+    expect(dbcClean.enabled, isTrue);
+  });
 }

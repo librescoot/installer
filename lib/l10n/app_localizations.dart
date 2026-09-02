@@ -3002,6 +3002,12 @@ abstract class AppLocalizations {
   /// **'Nothing selected. Pick at least one action to continue.'**
   String get planNothingToDo;
 
+  /// No description provided for @planMdbInMassStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'The main board is in mass-storage mode, so nothing on it could be read. It gets a clean install. The dashboard could not be reached either; decide for it below.'**
+  String get planMdbInMassStorage;
+
   /// No description provided for @releaseMissingAssetsTitle.
   ///
   /// In en, this message translates to:

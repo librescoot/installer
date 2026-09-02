@@ -15,6 +15,7 @@ class InstallPlanPanel extends StatelessWidget {
     required this.targetVersion,
     required this.onChanged,
     this.tilesAvailable = true,
+    this.mdbLockedNote,
   });
 
   final InstallPlan plan;
@@ -26,6 +27,12 @@ class InstallPlanPanel extends StatelessWidget {
   /// The tiles were fetched, so installing them is a choice that can be made
   /// here. Skipping the download on the first screen takes it away.
   final bool tilesAvailable;
+
+  /// Shown on the MDB card in place of a choice. Set on the route that found
+  /// the board already in U-Boot mass storage: nothing on it can be read and
+  /// nothing but a clean install can follow, so the radios are shown for what
+  /// will happen rather than offered.
+  final String? mdbLockedNote;
 
   @override
   Widget build(BuildContext context) {
@@ -92,6 +99,7 @@ class InstallPlanPanel extends StatelessWidget {
   ) {
     assert(state.board == boardPlan.board,
         'state and boardPlan must describe the same board');
+    final locked = state.board == Board.mdb && mdbLockedNote != null;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -102,6 +110,11 @@ class InstallPlanPanel extends StatelessWidget {
             const SizedBox(height: 4),
             Text(_versionLabel(l10n, state),
                 style: Theme.of(context).textTheme.bodySmall),
+            if (locked) ...[
+              const SizedBox(height: 8),
+              Text(mdbLockedNote!,
+                  style: Theme.of(context).textTheme.bodySmall),
+            ],
             const SizedBox(height: 12),
             // RadioListTile's own groupValue/onChanged were deprecated after
             // Flutter 3.32 and this checkout is 3.41.9, so selection state
@@ -121,7 +134,8 @@ class InstallPlanPanel extends StatelessWidget {
                   ])
                     RadioListTile<BoardAction>(
                       value: action,
-                      enabled: !(action == BoardAction.upgrade &&
+                      enabled: !locked &&
+                          !(action == BoardAction.upgrade &&
                               !boardPlan.canUpgrade) &&
                           !_leavingStockMdbIsPointless(action, state),
                       title: Text(_actionLabel(l10n, action)),

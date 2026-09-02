@@ -1716,6 +1716,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Nothing selected. Pick at least one action to continue.';
 
   @override
+  String get planMdbInMassStorage =>
+      'The main board is in mass-storage mode, so nothing on it could be read. It gets a clean install. The dashboard could not be reached either; decide for it below.';
+
+  @override
   String get releaseMissingAssetsTitle => 'This release cannot be installed';
 
   @override

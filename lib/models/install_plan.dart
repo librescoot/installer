@@ -118,8 +118,12 @@ class InstallPlan {
   /// Conservative plan when the MDB is already in U-Boot mass storage.
   ///
   /// Its installed state cannot be inspected, and the normal release queue
-  /// contains minimal stage-0 images rather than self-contained full images.
-  /// Both boards therefore need the artifact that completes a clean install.
+  /// contains minimal stage-0 images rather than self-contained full images,
+  /// so the MDB is a clean install with the artifact that completes it. The
+  /// board in mass storage says nothing about the dashboard, which sits on
+  /// the other end of the same USB port and cannot be asked either: it is
+  /// left alone until the plan screen hears otherwise, since a clean install
+  /// there formats a data partition nobody has looked at.
   static InstallPlan directMassStorage({bool installTiles = false}) =>
       InstallPlan(
         mdb: const BoardPlan(
@@ -129,7 +133,7 @@ class InstallPlan {
         ),
         dbc: const BoardPlan(
           board: Board.dbc,
-          action: BoardAction.cleanInstall,
+          action: BoardAction.leave,
           blocker: UpgradeBlocker.stateUnknown,
         ),
         installTiles: installTiles,

@@ -1743,6 +1743,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Keine Aktion ausgewählt. Wähle mindestens eine Aktion, um fortzufahren.';
 
   @override
+  String get planMdbInMassStorage =>
+      'Das Hauptboard ist im Mass-Storage-Modus, es konnte nichts darauf gelesen werden. Es wird neu installiert. Auch das Display war nicht erreichbar; entscheide unten, was damit passiert.';
+
+  @override
   String get releaseMissingAssetsTitle =>
       'Diese Veröffentlichung kann nicht installiert werden';
 

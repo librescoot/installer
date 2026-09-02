@@ -2,10 +2,12 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// Entering with the MDB already in U-Boot mass storage bypasses both the
-/// health check and plan screen. The release image flashed there is only the
-/// minimal bootstrap, so losing the implicit clean-install plan skips its
-/// .mender artifact and leaves the scooter on the bootstrap image.
+/// Entering with the MDB already in U-Boot mass storage bypasses the health
+/// check. The release image flashed there is only the minimal bootstrap, so
+/// losing the implicit clean-install plan skips its .mender artifact and
+/// leaves the scooter on the bootstrap image. The plan screen is still
+/// visited: the board in mass storage says nothing about the dashboard, and
+/// the run used to assume a clean install there without asking.
 void main() {
   late String massStorageBranch;
 
@@ -23,15 +25,16 @@ void main() {
     massStorageBranch = source.substring(branch, end);
   });
 
-  test('seeds a direct-mass-storage plan before entering the flash phase', () {
+  test('seeds a direct-mass-storage plan and shows it before flashing', () {
     final seed = massStorageBranch.indexOf('InstallPlan.directMassStorage(');
-    final flash = massStorageBranch.indexOf(
-      '_setPhase(InstallerPhase.mdbFlash)',
+    final plan = massStorageBranch.indexOf(
+      '_setPhase(InstallerPhase.installPlan)',
     );
 
     expect(seed, isNot(-1));
-    expect(flash, isNot(-1));
-    expect(seed, lessThan(flash));
+    expect(plan, isNot(-1));
+    expect(seed, lessThan(plan));
+    expect(massStorageBranch, contains('_directMassStorageRoute = true'));
   });
 
   test('does not reinterpret explicit local full images as stage 0', () {

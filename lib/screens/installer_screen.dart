@@ -239,6 +239,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   InstallPlan? _plan;
+
+  /// The MDB was found already in U-Boot mass storage, so nothing on either
+  /// board was read: the plan screen shows the MDB as the clean install it
+  /// has to be and asks about the dashboard, and the flash starts without the
+  /// UMS phase, whose SSH work has no board to talk to.
+  bool _directMassStorageRoute = false;
   BoardState _mdbState = const BoardState(
     board: Board.mdb,
     isLibrescoot: false,
@@ -2948,20 +2954,26 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     _usbDeviceSeen = true;
 
     if (_device!.mode == DeviceMode.massStorage) {
-      // This route never saw the boards, so it also never visited the plan
-      // screen. The normal release queue carries minimal stage-0 images: they
-      // erase /data but still need their artifacts installed afterwards.
-      // Give that implicit choice an explicit plan before any later phase
-      // asks whether an MDB artifact or reboot is required. Local --*-image
-      // arguments are self-contained full images and keep their legacy null
-      // plan semantics.
+      // This route never saw the boards. The normal release queue carries
+      // minimal stage-0 images: they erase /data but still need their
+      // artifacts installed afterwards, so the MDB is a clean install and
+      // says so before any later phase asks whether an artifact or reboot is
+      // required. The dashboard is a separate board that this route cannot
+      // see any more than it can see the MDB, so it goes through the plan
+      // screen rather than being assumed. Local --*-image arguments are
+      // self-contained full images and keep their legacy null plan semantics.
       if (_plan == null && !launchArgs.hasLocalImages) {
         setState(() {
           _plan = InstallPlan.directMassStorage(
             installTiles: _downloadState.wantsOfflineMaps,
           );
           _expectMinimalMdb = true;
+          _directMassStorageRoute = true;
         });
+        _setStatus(l10n.mdbDetectedUmsSkipping);
+        await Future.delayed(const Duration(seconds: 1));
+        _setPhase(InstallerPhase.installPlan);
+        return;
       }
       _setStatus(l10n.mdbDetectedUmsSkipping);
       await Future.delayed(const Duration(seconds: 1));
@@ -4340,7 +4352,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     return PhaseLayout(
       title: l10n.installPlanHeading,
       subtitle: l10n.installPlanIntro(_downloadState.releaseTag ?? ''),
-      onBack: () => _setPhase(InstallerPhase.healthCheck),
+      // The health check needs a board that answers, which the one in mass
+      // storage does not.
+      onBack: _directMassStorageRoute
+          ? null
+          : () => _setPhase(InstallerPhase.healthCheck),
       backLabel: l10n.backButton,
       actions: [
         PhaseAction(
@@ -4355,6 +4371,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         dbcState: _dbcState,
         targetVersion: _downloadState.releaseTag ?? '',
         tilesAvailable: _downloadState.wantsOfflineMaps,
+        mdbLockedNote:
+            _directMassStorageRoute ? l10n.planMdbInMassStorage : null,
         onChanged: (p) => setState(() => _plan = p),
       ),
     );
@@ -4429,7 +4447,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _skippedPhases.addAll(MajorStep.dbcFlash.phases);
     }
 
-    if (plan.needsMdbStage0) {
+    if (_directMassStorageRoute) {
+      // Already in mass storage, so the UMS phase has nothing to do and
+      // nothing to talk to.
+      _skippedPhases.add(InstallerPhase.mdbToUms);
+      _expectMinimalMdb = true;
+      _setPhase(InstallerPhase.mdbFlash);
+    } else if (plan.needsMdbStage0) {
       _expectMinimalMdb = plan.mdb.action == BoardAction.cleanInstall;
       _setPhase(InstallerPhase.mdbToUms);
     } else if (plan.needsMdbWork) {

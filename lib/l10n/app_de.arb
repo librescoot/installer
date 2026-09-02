@@ -613,6 +613,7 @@
   "actionLeaveBlockedStockMdb": "Das Serien-Hauptboard muss installiert werden, bevor weitere Aktionen möglich sind",
   "planDbcNeedsLibrescootMdb": "Das DBC ist nur über das MDB erreichbar und die benötigten Werkzeuge gehören zu Librescoot. Installiere in diesem Vorgang das MDB mit oder lasse das DBC unverändert.",
   "planNothingToDo": "Keine Aktion ausgewählt. Wähle mindestens eine Aktion, um fortzufahren.",
+  "planMdbInMassStorage": "Das Hauptboard ist im Mass-Storage-Modus, es konnte nichts darauf gelesen werden. Es wird neu installiert. Auch das Display war nicht erreichbar; entscheide unten, was damit passiert.",
   "releaseMissingAssetsTitle": "Diese Veröffentlichung kann nicht installiert werden",
   "releaseMissingAssetsBody": "Die Veröffentlichung {tag} enthält nicht alle benötigten Dateien: {assets}. Gehe zurück und wähle einen anderen Kanal oder warte auf eine vollständige Veröffentlichung.",
   "@releaseMissingAssetsBody": {

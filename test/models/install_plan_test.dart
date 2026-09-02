@@ -149,21 +149,39 @@ void main() {
   });
 
   group('directMassStorage', () {
-    test('treats both minimal stage-0 images as clean installs', () {
+    test('the MDB is a clean install, the dashboard is left for the user', () {
+      // The board in mass storage says nothing about the dashboard, and a
+      // clean install there formats a data partition nobody has looked at.
       final plan = InstallPlan.directMassStorage(installTiles: true);
 
       expect(plan.mdb.action, BoardAction.cleanInstall);
-      expect(plan.dbc.action, BoardAction.cleanInstall);
+      expect(plan.dbc.action, BoardAction.leave);
       expect(plan.mdb.blocker, UpgradeBlocker.stateUnknown);
       expect(plan.dbc.blocker, UpgradeBlocker.stateUnknown);
       expect(plan.installTiles, isTrue);
     });
 
-    test('requires the MDB artifact, reboot path, and dashboard handoff', () {
+    test('requires the MDB artifact and reboot path', () {
       final plan = InstallPlan.directMassStorage();
 
       expect(plan.needsMdbStage0, isTrue);
       expect(plan.needsMdbArtifact, isTrue);
+      expect(plan.needsHandoff, isFalse);
+    });
+
+    test('asking for the dashboard is not stranded: the MDB is being installed',
+        () {
+      final plan = InstallPlan.directMassStorage().withDbc(const BoardPlan(
+        board: Board.dbc,
+        action: BoardAction.cleanInstall,
+        blocker: UpgradeBlocker.stateUnknown,
+      ));
+      const unknownMdb = BoardState(
+        board: Board.mdb,
+        isLibrescoot: false,
+        provenance: StateProvenance.unknown,
+      );
+      expect(plan.dbcWorkStrandedOn(unknownMdb), isFalse);
       expect(plan.needsHandoff, isTrue);
     });
   });
