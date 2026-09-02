@@ -30,4 +30,39 @@ void main() {
     // depending on how the sentinel is spelled.
     expect(shouldDisengageMasterLearning(0), isTrue);
   });
+
+  group('the answer to learn:start', () {
+    // It used to go unread. On a build whose boot-time master learning mode
+    // refuses the command, the installer showed a learning screen anyway, and
+    // the first tap became the master with no event to say so.
+    test('ok starts the session', () {
+      expect(learnStartOutcome('ok'), LearnStartOutcome.started);
+      expect(learnStartOutcome(' OK\n'), LearnStartOutcome.started);
+    });
+
+    test('a session already running is the goal, not an error', () {
+      expect(
+        learnStartOutcome('error:already in learn mode'),
+        LearnStartOutcome.started,
+      );
+    });
+
+    test('the armed master mode is disengaged and asked again', () {
+      // That answer only exists while no master is stored, which is the one
+      // board where set-master:NONE erases nothing.
+      expect(
+        learnStartOutcome('error:in master learning mode'),
+        LearnStartOutcome.disengageMasterAndRetry,
+      );
+    });
+
+    test('silence and anything else is a failure to show', () {
+      expect(learnStartOutcome(null), LearnStartOutcome.failed);
+      expect(learnStartOutcome(''), LearnStartOutcome.failed);
+      expect(
+        learnStartOutcome('error:unknown command'),
+        LearnStartOutcome.failed,
+      );
+    });
+  });
 }

@@ -8411,6 +8411,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
 
     try {
+      // The count read below is meant to answer about the instance started
+      // here, and an earlier instance leaves its answer behind: on an image
+      // where the service ran at boot, the one stopped at mdb-boot published
+      // long before this start. Deleted first, so a value means this
+      // instance is up and consuming.
+      await _sshService.runCommand(
+        'redis-cli hdel system keycard-master-count >/dev/null 2>&1; true',
+      );
       // Queued before the start, every time, so it is waiting when the
       // command watcher comes up. A board with no master enters master
       // learning mode on each service start, and the earlier guard push is
@@ -8725,15 +8733,29 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         debugPrint('UI: failed to read authorized count before learn: $e');
         _keycardAuthorizedCountBefore = 0;
       }
-      try {
-        await _sshService.redisLpush('scooter:keycard', 'learn:start');
-      } catch (e) {
-        debugPrint('UI: failed to start keycard learning: $e');
+      // Read, not fired and forgotten: a build still in boot-time master
+      // learning mode refuses this, and a learning screen over a reader
+      // that is not learning hands the next tap to that mode, which crowns
+      // the card as master and says nothing.
+      var answer = await _keycardCommand('learn:start');
+      var outcome = learnStartOutcome(answer);
+      if (outcome == LearnStartOutcome.disengageMasterAndRetry) {
+        debugPrint(
+          'UI: learn:start refused by master learning mode, disengaging',
+        );
+        await _keycardCommand('set-master:NONE');
+        answer = await _keycardCommand('learn:start');
+        outcome = learnStartOutcome(answer);
+      }
+      if (outcome != LearnStartOutcome.started) {
+        debugPrint(
+          'UI: failed to start keycard learning: ${answer ?? "no answer"}',
+        );
         if (mounted) {
           _setStatus(
             AppLocalizations.of(
               context,
-            )!.keycardStartLearningFailed(e.toString()),
+            )!.keycardStartLearningFailed(answer ?? 'no answer'),
           );
         }
         return;

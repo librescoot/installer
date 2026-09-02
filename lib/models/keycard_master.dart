@@ -20,3 +20,34 @@
 /// is recoverable and is what the operator is at the reader to do anyway.
 /// Sending costs a card that cannot be got back.
 bool shouldDisengageMasterLearning(int? masterCount) => masterCount == 0;
+
+/// What the installer does with keycard-service's answer to `learn:start`.
+enum LearnStartOutcome {
+  /// The service is in learn mode, taps will arrive as events.
+  started,
+
+  /// The service refused because it is still waiting to crown the next tap
+  /// as master. Only builds before the command fix answer this, and they
+  /// answer it exactly when no master is stored, so disengaging with
+  /// `set-master:NONE` and asking again destroys nothing.
+  disengageMasterAndRetry,
+
+  /// Anything else, including silence: showing a learning screen over a
+  /// service that is not learning is how a tap ends up somewhere the owner
+  /// did not put it.
+  failed,
+}
+
+LearnStartOutcome learnStartOutcome(String? result) {
+  switch (result?.trim().toLowerCase()) {
+    case 'ok':
+    // The service got there before the command did: a master tap enters
+    // learn mode by itself, and a session already running is the goal.
+    case 'error:already in learn mode':
+      return LearnStartOutcome.started;
+    case 'error:in master learning mode':
+      return LearnStartOutcome.disengageMasterAndRetry;
+    default:
+      return LearnStartOutcome.failed;
+  }
+}
