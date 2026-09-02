@@ -395,6 +395,7 @@
   "finalSteps": "Letzte Schritte:",
   "finishOnDevice": "Der Roller schließt die Installation selbstständig ab. Lass ihn eingeschaltet und behalte die aktuelle Kabelverbindung bei, bis der Vorgang beendet ist.",
   "finishReconnectDbc": "Der Laptop ist wieder mit dem MDB verbunden. Schließe das DBC-Kabel wieder an, damit die Installation abgeschlossen werden kann.",
+  "finishReconnectDbcNoDashboardWork": "Der Roller schließt die Installation selbstständig ab; der Laptop wird nicht mehr gebraucht. Zieh das Laptop-Kabel ab, schließe das DBC-Kabel wieder an und warte, bis der Roller entsperrt.",
   "finishConfirmed": "Die Installation ist abgeschlossen. Der Roller ist entsperrt und fahrbereit.",
   "closeInstaller": "Installer schließen",
   "disconnectUsbFromLaptopFinal": "Laptop-USB-Kabel vom MDB abziehen",

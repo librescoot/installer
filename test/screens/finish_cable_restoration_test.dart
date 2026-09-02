@@ -18,8 +18,19 @@ void main() {
     final end = source.indexOf('\n    final confirmed', start);
     final call = source.substring(start, end);
     expect(call, contains('laptopOccupiesMdbUsb: _device != null'));
-    expect(call, contains('dashboardWorkPending: _plan?.needsHandoff'));
+    expect(call, isNot(contains('needsHandoff')));
     expect(call, isNot(contains('needsDbcWork')));
+  });
+
+  test('the pending wording sends an MDB-only run to the cable', () {
+    // Nothing on the board needs the laptop once the phases are queued: it
+    // installs, reboots and unlocks on its own. Holding the owner at the
+    // laptop "until it finishes" kept them from the one thing left to do.
+    final start = source.indexOf('Widget _finishStatus(');
+    final end = source.indexOf('\n    final color =', start);
+    final body = source.substring(start, end);
+    expect(body, contains('l10n.finishReconnectDbcNoDashboardWork'));
+    expect(body, contains('_plan?.needsHandoff'));
   });
 
   test('restoration names disconnect, secured DBC cable, and cover', () {

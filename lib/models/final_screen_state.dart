@@ -17,23 +17,19 @@ enum FinalScreenState {
   completed,
 }
 
-/// [dashboardWorkPending] is whether the plan still has anything to do on
-/// the far side of the cable swap: dashboard firmware or map tiles. Without
-/// it the board finishes on whichever cable is in the port, the laptop's
-/// included, so asking for the DBC cable "to continue" would be asking for
-/// something the install does not need. The cable still goes back for
-/// reassembly, which the confirmed states keep saying.
+/// The state is about the port and the record only. What the cable is for,
+/// finishing the dashboard or merely reassembling, is the plan's to say and
+/// is said in the wording, not here.
 FinalScreenState finalScreenState({
   required bool laptopOccupiesMdbUsb,
   required bool completionConfirmed,
-  bool dashboardWorkPending = true,
 }) {
   if (completionConfirmed) {
     return laptopOccupiesMdbUsb
         ? FinalScreenState.completedReconnectDbc
         : FinalScreenState.completed;
   }
-  return laptopOccupiesMdbUsb && dashboardWorkPending
+  return laptopOccupiesMdbUsb
       ? FinalScreenState.reconnectDbc
       : FinalScreenState.finishingOnDevice;
 }

@@ -2096,6 +2096,12 @@ abstract class AppLocalizations {
   /// **'The laptop is connected to the MDB again. Reconnect the DBC cable to continue the dashboard work.'**
   String get finishReconnectDbc;
 
+  /// No description provided for @finishReconnectDbcNoDashboardWork.
+  ///
+  /// In en, this message translates to:
+  /// **'The scooter is completing the installation on its own; the laptop is no longer needed. Unplug it, reconnect the DBC cable, and wait for the scooter to unlock.'**
+  String get finishReconnectDbcNoDashboardWork;
+
   /// No description provided for @finishConfirmed.
   ///
   /// In en, this message translates to:

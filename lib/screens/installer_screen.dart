@@ -9833,9 +9833,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final state = finalScreenState(
       laptopOccupiesMdbUsb: _device != null,
       completionConfirmed: _finishCompletionConfirmed,
-      // No plan is the legacy full-image route, which does hand the
-      // dashboard over.
-      dashboardWorkPending: _plan?.needsHandoff ?? true,
     );
     final confirmed = state == FinalScreenState.completed ||
         state == FinalScreenState.completedReconnectDbc;
@@ -9903,7 +9900,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             : l10n.finishTransferSkippedPending)
         : switch (state) {
             FinalScreenState.finishingOnDevice => l10n.finishOnDevice,
-            FinalScreenState.reconnectDbc => l10n.finishReconnectDbc,
+            // With dashboard work queued the cable is what lets it run. With
+            // none, the board installs, reboots and unlocks on its own and
+            // the laptop is only in the way of reassembly. No plan is the
+            // legacy full-image route, which does hand the dashboard over.
+            FinalScreenState.reconnectDbc => (_plan?.needsHandoff ?? true)
+                ? l10n.finishReconnectDbc
+                : l10n.finishReconnectDbcNoDashboardWork,
             FinalScreenState.completedReconnectDbc ||
             FinalScreenState.completed =>
               l10n.finishConfirmed,

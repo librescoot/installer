@@ -1179,6 +1179,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Der Laptop ist wieder mit dem MDB verbunden. Schließe das DBC-Kabel wieder an, damit die Installation abgeschlossen werden kann.';
 
   @override
+  String get finishReconnectDbcNoDashboardWork =>
+      'Der Roller schließt die Installation selbstständig ab; der Laptop wird nicht mehr gebraucht. Zieh das Laptop-Kabel ab, schließe das DBC-Kabel wieder an und warte, bis der Roller entsperrt.';
+
+  @override
   String get finishConfirmed =>
       'Die Installation ist abgeschlossen. Der Roller ist entsperrt und fahrbereit.';
 

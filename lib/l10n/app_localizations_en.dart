@@ -1162,6 +1162,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'The laptop is connected to the MDB again. Reconnect the DBC cable to continue the dashboard work.';
 
   @override
+  String get finishReconnectDbcNoDashboardWork =>
+      'The scooter is completing the installation on its own; the laptop is no longer needed. Unplug it, reconnect the DBC cable, and wait for the scooter to unlock.';
+
+  @override
   String get finishConfirmed =>
       'Requested work complete. Reassemble the scooter and verify that it unlocks before riding.';
 

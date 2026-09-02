@@ -23,20 +23,6 @@ void main() {
       );
     });
 
-    test('a plan with no dashboard work finishes on the laptop cable', () {
-      // The coordinator installs the MDB artifact, reboots and unlocks with
-      // whatever is in the port. The DBC cable is for reassembly, not for
-      // the install, so the screen must not say the install needs it.
-      expect(
-        finalScreenState(
-          laptopOccupiesMdbUsb: true,
-          completionConfirmed: false,
-          dashboardWorkPending: false,
-        ),
-        FinalScreenState.finishingOnDevice,
-      );
-    });
-
     test('keeps the cable step after a confirmed reconnect', () {
       expect(
         finalScreenState(
