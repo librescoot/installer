@@ -993,7 +993,11 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
             ? (upgradeMode ? 'upgrade' : 'cleanInstall')
             : 'leave',
         releaseTag: releaseTag,
-        region: region?.slug ?? '',
+        region: recordedRegion(
+          tilesStaged:
+              osmTilesLocalPath != null || valhallaTilesLocalPath != null,
+          region: region,
+        ),
         dashboardResult: 'complete',
       );
       await _ssh.uploadFile(
@@ -1016,6 +1020,13 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
   /// that had in fact started one. The brackets keep the pattern from
   /// matching its own command line.
   static const String _trampolinePattern = 'installer/scripts/[t]rampoline.sh';
+
+  /// The region the completion record names. It answers which region the
+  /// maps came from, so it names one only when maps were staged: a region is
+  /// selected whenever the IP lookup found one, maps or not, and a run with
+  /// maps off was recorded as a Schleswig-Holstein install.
+  static String recordedRegion({required bool tilesStaged, Region? region}) =>
+      tilesStaged ? region?.slug ?? '' : '';
 
   /// Start the trampoline script on MDB in background.
   Future<void> start({required String runId}) async {

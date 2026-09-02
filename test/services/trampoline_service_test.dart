@@ -464,4 +464,30 @@ VALHALLA="{{VALHALLA_TILES_FILE}}"
       );
     });
   });
+
+  group('recordedRegion', () {
+    const region = Region(
+        name: 'Schleswig-Holstein',
+        slug: 'schleswig-holstein',
+        country: 'Deutschland');
+
+    test('names the region only when maps were staged', () {
+      expect(
+        TrampolineService.recordedRegion(tilesStaged: true, region: region),
+        'schleswig-holstein',
+      );
+    });
+
+    test('a selected region with maps off is not recorded', () {
+      // The IP lookup preselects a region whether or not maps are wanted.
+      expect(
+        TrampolineService.recordedRegion(tilesStaged: false, region: region),
+        '',
+      );
+      expect(
+        TrampolineService.recordedRegion(tilesStaged: true, region: null),
+        '',
+      );
+    });
+  });
 }
