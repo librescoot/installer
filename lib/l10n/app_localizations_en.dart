@@ -2314,6 +2314,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get keycardReaderUnreachable => 'Reader not reachable';
 
   @override
+  String get keycardReaderMissing => 'No keycard reader found';
+
+  @override
+  String get keycardReaderMissingHint =>
+      'The reader sits in the dashboard housing and is wired to the MDB through the DBC harness. Connect the harness, then retry.';
+
+  @override
   String get keycardReaderScanning => 'Hold a card to the reader';
 
   @override

@@ -4022,6 +4022,18 @@ abstract class AppLocalizations {
   /// **'Reader not reachable'**
   String get keycardReaderUnreachable;
 
+  /// No description provided for @keycardReaderMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'No keycard reader found'**
+  String get keycardReaderMissing;
+
+  /// No description provided for @keycardReaderMissingHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The reader sits in the dashboard housing and is wired to the MDB through the DBC harness. Connect the harness, then retry.'**
+  String get keycardReaderMissingHint;
+
   /// No description provided for @keycardReaderScanning.
   ///
   /// In en, this message translates to:

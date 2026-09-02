@@ -2353,6 +2353,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get keycardReaderUnreachable => 'Kartenleser nicht erreichbar';
 
   @override
+  String get keycardReaderMissing => 'Kein Kartenleser gefunden';
+
+  @override
+  String get keycardReaderMissingHint =>
+      'Der Leser sitzt im Display-Gehäuse und hängt über den DBC-Kabelbaum am MDB. Schließe den Kabelbaum an und versuche es erneut.';
+
+  @override
   String get keycardReaderScanning => 'Schlüsselkarte an den Leser halten';
 
   @override

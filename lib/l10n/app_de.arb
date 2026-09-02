@@ -920,6 +920,8 @@
   "keycardReaderReady": "Bereit",
   "keycardRetryReader": "Kartenleser erneut versuchen",
   "keycardReaderUnreachable": "Kartenleser nicht erreichbar",
+  "keycardReaderMissing": "Kein Kartenleser gefunden",
+  "keycardReaderMissingHint": "Der Leser sitzt im Display-Gehäuse und hängt über den DBC-Kabelbaum am MDB. Schließe den Kabelbaum an und versuche es erneut.",
   "keycardReaderScanning": "Schlüsselkarte an den Leser halten",
   "keycardCardsTaught": "{count, plural, =0{Keine Schlüsselkarte angelernt} =1{1 Schlüsselkarte angelernt} other{{count} Schlüsselkarten angelernt}}",
   "@keycardCardsTaught": {

@@ -8560,7 +8560,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       );
     }
 
-    final capability = await _keycardDetectCapability();
+    final capability = await _keycardCheckReader(
+      await _keycardDetectCapability(),
+    );
     await _keycardRefreshCounts();
     if (!mounted) return;
 
@@ -8646,8 +8648,40 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// drive it are dead regardless of the link being up.
   bool get _canDriveKeycard =>
       (_sshService.isConnected &&
-          _keycardCapability != KeycardCapability.unreachable) ||
+          _keycardCapability != KeycardCapability.unreachable &&
+          _keycardCapability != KeycardCapability.noReader) ||
       _isDryRun;
+
+  /// A service that answers the probe may still have no reader: it retries
+  /// the chip in the background and serves commands meanwhile, so the
+  /// learning screen came up over a dashboard that was not plugged in. The
+  /// fault it raises on the failed connect is the only sign, and the first
+  /// attempt fails within a couple of seconds of the start, so this waits
+  /// that long for it. Nothing marks the opposite, so a healthy reader
+  /// costs the full wait.
+  Future<KeycardCapability> _keycardCheckReader(
+    KeycardCapability capability,
+  ) async {
+    if (capability == KeycardCapability.unreachable || _isDryRun) {
+      return capability;
+    }
+    try {
+      for (var i = 0; i < 12; i++) {
+        final faults = await _sshService.runCommand(
+          'redis-cli SMEMBERS keycard:fault 2>/dev/null; true',
+        );
+        if (keycardReaderMissing(faults)) {
+          debugPrint('UI: keycard-service reports no reader (fault set: '
+              '${faults.trim().replaceAll('\n', ' ')})');
+          return KeycardCapability.noReader;
+        }
+        await Future.delayed(const Duration(milliseconds: 250));
+      }
+    } catch (e) {
+      debugPrint('UI: keycard fault read failed (ok): $e');
+    }
+    return capability;
+  }
 
   /// Probe the keycard-service for new-command support by sending
   /// `learn:master:stop` and inspecting `keycard.command-result`. The new
@@ -9273,12 +9307,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final preparing = _keycardStage == _KeycardStage.loading ||
         _keycardStage == _KeycardStage.done;
     final unreachable = _keycardCapability == KeycardCapability.unreachable;
-    final (state, colour) = switch ((preparing, unreachable, scanning)) {
-      (true, _, _) => (l10n.keycardReaderPreparing, Colors.grey.shade400),
+    final noReader = _keycardCapability == KeycardCapability.noReader;
+    final (state, colour) = switch ((preparing, unreachable, noReader, scanning)) {
+      (true, _, _, _) => (l10n.keycardReaderPreparing, Colors.grey.shade400),
       // Nobody answered the capability probe, so there is no reader to hold a
       // card to. Saying "Ready" here would be the panel's only lie.
-      (_, true, _) => (l10n.keycardReaderUnreachable, Colors.orange),
-      (_, _, true) => (l10n.keycardReaderScanning, Colors.amber),
+      (_, true, _, _) => (l10n.keycardReaderUnreachable, Colors.orange),
+      // The service answered and said so itself.
+      (_, _, true, _) => (l10n.keycardReaderMissing, Colors.orange),
+      (_, _, _, true) => (l10n.keycardReaderScanning, Colors.amber),
       _ => (l10n.keycardReaderReady, kAccent),
     };
     // Taps arrive as events before the count hash settles, so the running
@@ -9336,7 +9373,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           // ordinary case and a zero here would read as something missing.
           if ((masters ?? 0) > 0)
             line(l10n.keycardMastersRegistered(masters!)),
-          if (cards == 0 && !unreachable) ...[
+          if (noReader) ...[
+            const SizedBox(height: 12),
+            Text(
+              l10n.keycardReaderMissingHint,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+            ),
+          ],
+          if (cards == 0 && !unreachable && !noReader) ...[
             const SizedBox(height: 12),
             Text(
               l10n.keycardNeedOneToFinish,
@@ -9364,7 +9408,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // Nobody answered the probe, so Start is dead. The only ways out used
       // to be skipping the step or restarting the installer; this runs the
       // entry again, service start and probe included.
-      if (_keycardCapability == KeycardCapability.unreachable)
+      if (_keycardCapability == KeycardCapability.unreachable ||
+          _keycardCapability == KeycardCapability.noReader)
         PhaseAction(
           label: l10n.keycardRetryReader,
           icon: Icons.refresh,

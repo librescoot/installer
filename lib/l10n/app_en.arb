@@ -1072,6 +1072,8 @@
   "keycardReaderReady": "Ready",
   "keycardRetryReader": "Retry reader",
   "keycardReaderUnreachable": "Reader not reachable",
+  "keycardReaderMissing": "No keycard reader found",
+  "keycardReaderMissingHint": "The reader sits in the dashboard housing and is wired to the MDB through the DBC harness. Connect the harness, then retry.",
   "keycardReaderScanning": "Hold a card to the reader",
   "keycardCardsTaught": "{count, plural, =0{No keycards registered} =1{1 keycard registered} other{{count} keycards registered}}",
   "@keycardCardsTaught": {
