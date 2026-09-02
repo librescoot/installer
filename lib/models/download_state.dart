@@ -3,16 +3,18 @@ import 'region.dart';
 
 enum DownloadChannel { stable, testing, nightly }
 
-/// Order defines download priority (lowest index = downloaded first). The
-/// artifacts come first because every action except Leave alone needs them,
-/// while the stage-0 images are only needed by a clean install.
+/// Order defines download priority (lowest index = downloaded first). It
+/// follows the install: the MDB is flashed with its stage-0 image before
+/// anything else is needed, its artifact goes on after the first boot, and
+/// the DBC files are only staged once the MDB is done. An upgrade, which
+/// needs the artifacts alone, waits for one image it will not use.
 enum DownloadItemType {
-  mdbArtifact,
-  dbcArtifact,
   mdbFirmware,
-  dbcFirmware,
   mdbBmap,
+  mdbArtifact,
+  dbcFirmware,
   dbcBmap,
+  dbcArtifact,
   osmTiles,
   valhallaTiles,
 }

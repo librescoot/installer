@@ -61,9 +61,9 @@ class DownloadProgressWidget extends StatelessWidget {
       switch (type) {
         DownloadItemType.mdbArtifact => l10n.assetChipMdbArtifact,
         DownloadItemType.dbcArtifact => l10n.assetChipDbcArtifact,
-        DownloadItemType.mdbFirmware => l10n.downloadMdbFirmware,
+        DownloadItemType.mdbFirmware => l10n.assetChipMdbImage,
         DownloadItemType.mdbBmap => l10n.assetChipMdbBlockMap,
-        DownloadItemType.dbcFirmware => l10n.downloadDbcFirmware,
+        DownloadItemType.dbcFirmware => l10n.assetChipDbcImage,
         DownloadItemType.dbcBmap => l10n.assetChipDbcBlockMap,
         DownloadItemType.osmTiles => l10n.downloadMapTiles,
         DownloadItemType.valhallaTiles => l10n.downloadRoutingTiles,

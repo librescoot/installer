@@ -1245,16 +1245,16 @@ class AppLocalizationsDe extends AppLocalizations {
   String get downloadsFinishedHint => 'Du kannst jetzt offline weitermachen.';
 
   @override
-  String get assetChipMdbArtifact => 'MDB-Firmware-Paket';
+  String get assetChipMdbArtifact => 'MDB-Firmware';
 
   @override
-  String get assetChipDbcArtifact => 'DBC-Firmware-Paket';
+  String get assetChipDbcArtifact => 'DBC-Firmware';
 
   @override
-  String get assetChipMdbImage => 'MDB-Systemabbild';
+  String get assetChipMdbImage => 'MDB-Grundsystem';
 
   @override
-  String get assetChipDbcImage => 'DBC-Systemabbild';
+  String get assetChipDbcImage => 'DBC-Grundsystem';
 
   @override
   String get assetChipMdbBlockMap => 'MDB-Blockzuordnung';
@@ -1644,7 +1644,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get phaseMdbArtifactTitle => 'MDB-Update';
 
   @override
-  String get phaseMdbArtifactDescription => 'Firmware-Paket installieren';
+  String get phaseMdbArtifactDescription => 'Firmware installieren';
 
   @override
   String get majorStepMdbUpgrade => 'MDB aktualisieren';
@@ -1724,7 +1724,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get upgradeBlockedMinimalImage =>
-      'Dieses Board läuft mit einem Bootstrap-Systemabbild und muss neu installiert werden';
+      'Dieses Board läuft nur mit dem Grundsystem und muss neu installiert werden';
 
   @override
   String get upgradeBlockedNoMender =>
@@ -1767,19 +1767,19 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get assetMdbArtifact => 'das MDB-Firmware-Paket';
+  String get assetMdbArtifact => 'die MDB-Firmware';
 
   @override
-  String get assetDbcArtifact => 'das DBC-Firmware-Paket';
+  String get assetDbcArtifact => 'die DBC-Firmware';
 
   @override
-  String get assetMdbImage => 'das MDB-Systemabbild';
+  String get assetMdbImage => 'das MDB-Grundsystem';
 
   @override
-  String get assetDbcImage => 'das DBC-Systemabbild';
+  String get assetDbcImage => 'das DBC-Grundsystem';
 
   @override
-  String get artifactStaging => 'Firmware-Paket wird übertragen…';
+  String get artifactStaging => 'Firmware wird übertragen…';
 
   @override
   String artifactInstalling(int percent) {
@@ -1794,7 +1794,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get artifactStillMinimal =>
-      'Das MDB ist mit dem Bootstrap-Systemabbild gestartet; das Firmware-Paket wurde nicht installiert. Versuche es erneut oder installiere stattdessen das vollständige Systemabbild.';
+      'Das MDB ist mit dem Grundsystem gestartet; die Firmware wurde nicht installiert. Versuche es erneut oder installiere stattdessen das vollständige Systemabbild.';
 
   @override
   String artifactVersionMismatch(String found, String expected) {
@@ -1807,11 +1807,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get artifactStagingInBackground =>
-      'Firmware-Paket wird im Hintergrund übertragen…';
+      'Firmware wird im Hintergrund übertragen…';
 
   @override
   String get artifactNoneDownloaded =>
-      'Für dieses Board wurde kein Firmware-Paket heruntergeladen.';
+      'Für dieses Board wurde keine Firmware heruntergeladen.';
 
   @override
   String get dbcImageMissing =>
@@ -1835,7 +1835,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get artifactPreflightNoMender =>
-      'Dieses Board hat keinen Update-Client und kann daher kein Firmware-Paket aufnehmen.';
+      'Dieses Board hat keinen Update-Client und kann daher keine Firmware-Aktualisierung aufnehmen.';
 
   @override
   String artifactPreflightOtaBusy(String status) {
@@ -1859,7 +1859,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get fallBackWipeBody =>
-      'Beim Installieren des vollständigen Systemabbilds wird die Datenpartition neu formatiert. Einstellungen, angelernte Schlüsselkarten und Offline-Karten gehen verloren. Die begonnene Aktualisierung hätte diese Daten erhalten.\n\nEin erneuter Versuch mit dem Firmware-Paket erhält die Daten. Installiere das vollständige Systemabbild nur, wenn das Paket weiterhin fehlschlägt.';
+      'Beim Installieren des vollständigen Systemabbilds wird die Datenpartition neu formatiert. Einstellungen, angelernte Schlüsselkarten und Offline-Karten gehen verloren. Die begonnene Aktualisierung hätte diese Daten erhalten.\n\nEin erneuter Versuch mit der Firmware-Aktualisierung erhält die Daten. Installiere das vollständige Systemabbild nur, wenn das Paket weiterhin fehlschlägt.';
 
   @override
   String get fallBackWipeConfirm => 'Löschen und Systemabbild installieren';
@@ -1872,7 +1872,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcCleanInstallBody =>
-      'Die zuletzt bekannte DBC-Version basiert auf dem letzten gemeinsamen Betrieb mit dem MDB. Ein als aktualisierbar eingestuftes Board hat daher möglicherweise keinen Update-Client. Bei einer Neuinstallation wird zuerst das Bootstrap-Systemabbild installiert. Dabei wird die Datenpartition des DBC formatiert und die Offline-Karten gehen verloren. Die Daten auf dem MDB, einschließlich Einstellungen und angelernter Schlüsselkarten, bleiben erhalten.\n\nStecke dafür das Kabel erneut um: Der Installer überträgt die Dateien, du schließt das DBC-Kabel wieder am MDB an, danach läuft der Vorgang automatisch.';
+      'Die zuletzt bekannte DBC-Version basiert auf dem letzten gemeinsamen Betrieb mit dem MDB. Ein als aktualisierbar eingestuftes Board hat daher möglicherweise keinen Update-Client. Bei einer Neuinstallation wird zuerst das Grundsystem installiert. Dabei wird die Datenpartition des DBC formatiert und die Offline-Karten gehen verloren. Die Daten auf dem MDB, einschließlich Einstellungen und angelernter Schlüsselkarten, bleiben erhalten.\n\nStecke dafür das Kabel erneut um: Der Installer überträgt die Dateien, du schließt das DBC-Kabel wieder am MDB an, danach läuft der Vorgang automatisch.';
 
   @override
   String get dbcCleanInstallConfirm => 'DBC löschen und installieren';

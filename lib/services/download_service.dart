@@ -703,8 +703,8 @@ class DownloadService {
       }
     }
 
-    // Sort by enum index so downloads proceed in priority order:
-    // MDB firmware -> DBC firmware -> OSM tiles -> routing tiles
+    // Sort by enum index so downloads proceed in the order the install
+    // consumes them: MDB image, MDB artifact, DBC files, tiles.
     items.sort((a, b) => a.type.index.compareTo(b.type.index));
     return items;
   }

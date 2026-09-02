@@ -346,8 +346,8 @@ void main() {
         fullImageBoards: const {Board.mdb, Board.dbc},
       );
       expect(items.length, 3);
-      expect(items[0].type, DownloadItemType.mdbArtifact);
-      expect(items[1].type, DownloadItemType.mdbFirmware);
+      expect(items[0].type, DownloadItemType.mdbFirmware);
+      expect(items[1].type, DownloadItemType.mdbArtifact);
       expect(items[2].type, DownloadItemType.dbcFirmware);
     });
 
@@ -416,7 +416,7 @@ void main() {
       expect(total, lessThan(520 * 1000 * 1000));
     });
 
-    test('artifacts sort ahead of images so they download first', () async {
+    test('files download in the order the install consumes them', () async {
       final service = DownloadService(
         client: _manifestClient({'stable': _release('v1.2.1', fullRelease())}),
       );
@@ -424,13 +424,14 @@ void main() {
         channel: DownloadChannel.stable,
         wantsOfflineMaps: false,
       );
-      final firstImage = items.indexWhere(
-        (i) => i.filename.endsWith('.sdimg.gz'),
-      );
-      final lastArtifact = items.lastIndexWhere(
-        (i) => i.filename.endsWith('.mender'),
-      );
-      expect(lastArtifact, lessThan(firstImage));
+      int at(DownloadItemType type) =>
+          items.indexWhere((i) => i.type == type);
+      // The MDB flash is the first thing that waits on a file, so its image
+      // leads; its artifact is needed one boot later; the DBC files only
+      // once the MDB is done.
+      expect(at(DownloadItemType.mdbFirmware), lessThan(at(DownloadItemType.mdbArtifact)));
+      expect(at(DownloadItemType.mdbArtifact), lessThan(at(DownloadItemType.dbcFirmware)));
+      expect(at(DownloadItemType.dbcFirmware), lessThan(at(DownloadItemType.dbcArtifact)));
     });
 
     test('a valid SHA256 cache entry is restored as complete', () async {
