@@ -2397,9 +2397,14 @@ echo timeout
     if (batteryPresent == 'true' || batteryPresent == 'false') {
       health.batteryPresent = batteryPresent == 'true';
     }
-    health.batteryCharge = int.tryParse(
-      await redisHget('battery:0', 'charge') ?? '',
-    );
+    // battery-service publishes the hash with every field at its default
+    // when no pack is fitted, so an absent pack reads as 0% and "nearly
+    // empty" beside "not present". Only a fitted pack has a charge to judge.
+    if (health.batteryPresent == true) {
+      health.batteryCharge = int.tryParse(
+        await redisHget('battery:0', 'charge') ?? '',
+      );
+    }
     return health;
   }
 

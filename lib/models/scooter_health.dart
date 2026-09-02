@@ -25,8 +25,12 @@ class ScooterHealth {
   /// The board runs off the AUX battery, so an install completes on a nearly
   /// flat pack; what it costs is the scooter afterwards, and a bench left on
   /// a pack this low goes flat overnight.
-  bool? get batteryChargeOk =>
-      batteryCharge == null ? null : batteryCharge! >= 10;
+  /// Null without a fitted pack: the hash carries a 0 for one that is not
+  /// there, and judging that is how "not present" and "nearly empty" came to
+  /// stand on the same screen.
+  bool? get batteryChargeOk => batteryPresent != true || batteryCharge == null
+      ? null
+      : batteryCharge! >= 10;
 
   /// Every precondition measured and met. An unread value is not a pass.
   bool get allOk =>

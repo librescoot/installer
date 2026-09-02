@@ -78,7 +78,7 @@ class HealthCheckPanel extends StatelessWidget {
           // Its own row rather than a figure in the one above, the same way
           // the CBB keeps charge and health apart: fitted and charged are
           // different questions and a board can pass one and fail the other.
-          if (health.batteryCharge != null) ...[
+          if (health.batteryPresent == true && health.batteryCharge != null) ...[
             _row(
               l10n.mainBatteryCharge,
               '${health.batteryCharge}%',

@@ -94,4 +94,29 @@ void main() {
       expect(ScooterHealth().batteryChargeOk, isNull);
     });
   });
+
+  group('main battery charge needs a pack', () {
+    test('an absent pack has no charge verdict, whatever the hash says', () {
+      // battery-service publishes every field at its default for a slot
+      // with nothing in it, so the charge reads 0 beside "not present".
+      final h = ScooterHealth()
+        ..batteryPresent = false
+        ..batteryCharge = 0;
+      expect(h.batteryChargeOk, isNull);
+    });
+
+    test('a fitted pack is judged', () {
+      final h = ScooterHealth()
+        ..batteryPresent = true
+        ..batteryCharge = 5;
+      expect(h.batteryChargeOk, isFalse);
+      h.batteryCharge = 40;
+      expect(h.batteryChargeOk, isTrue);
+    });
+
+    test('a pack nobody could ask about has no verdict either', () {
+      final h = ScooterHealth()..batteryCharge = 0;
+      expect(h.batteryChargeOk, isNull);
+    });
+  });
 }
