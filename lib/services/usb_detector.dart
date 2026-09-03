@@ -1329,7 +1329,7 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
       // checks at the bottom of this method unreachable in exactly the case
       // they exist for, so a board sitting in its boot ROM read as no board
       // at all for as long as it sat there.
-      if (result.exitCode != 0) return _detectLinuxRecovery();
+      if (result.exitCode != 0) return await _detectLinuxRecovery();
 
       final output = result.stdout.toString();
 
