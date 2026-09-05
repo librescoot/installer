@@ -21,6 +21,38 @@
 /// Sending costs a card that cannot be got back.
 bool shouldDisengageMasterLearning(int? masterCount) => masterCount == 0;
 
+bool ownsKeycardMasterStart({
+  required int startGeneration,
+  required int currentGeneration,
+  required int? ownerGeneration,
+  required bool mounted,
+  required bool windowClosing,
+  required bool inKeycardPhase,
+  required bool masterStage,
+}) =>
+    mounted &&
+    !windowClosing &&
+    inKeycardPhase &&
+    masterStage &&
+    startGeneration == currentGeneration &&
+    ownerGeneration == startGeneration;
+
+bool ownsKeycardMasterEvent({
+  required int eventGeneration,
+  required int currentGeneration,
+  required int? ownerGeneration,
+  required bool mounted,
+  required bool windowClosing,
+  required bool inKeycardPhase,
+  required bool masterStage,
+}) =>
+    mounted &&
+    !windowClosing &&
+    inKeycardPhase &&
+    masterStage &&
+    eventGeneration == currentGeneration &&
+    ownerGeneration == eventGeneration;
+
 /// What the installer does with keycard-service's answer to `learn:start`.
 enum LearnStartOutcome {
   /// The service is in learn mode, taps will arrive as events.

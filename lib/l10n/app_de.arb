@@ -163,6 +163,8 @@
   "resumeActorInstaller": "im Installer",
   "resumeLogHeading": "Letzte Zeilen aus dem Protokoll des Rollers",
   "awaitingUnlockHeading": "Roller entsperren",
+  "unlockWaitCancelled": "Abgebrochen. Der Installer braucht den Roller im Zustand geparkt. Entsperre ihn mit der Keycard oder der App und versuch es dann erneut.",
+  "parkWaitCancelled": "Abgebrochen. Der Installer braucht den Roller im Zustand geparkt. Stell ihn ab und versuch es dann erneut.",
   "awaitingUnlockDetail": "Entsperre den Roller, damit der Installer fortfahren kann.",
   "awaitingUnlockHintKeycard": "Halte die Schlüsselkarte an den Leser am Lenker",
   "awaitingUnlockHintPhone": "Oder verwende ein gekoppeltes Handy",
@@ -285,6 +287,14 @@
   "dbcLedHint": "DBC-LED: orange = startet, grün = bootet, aus = läuft",
   "mdbStillUms": "MDB weiterhin im UMS-Modus. Der Flashvorgang war möglicherweise nicht erfolgreich. Neuer Versuch…",
   "waitingForMdbRestart": "Warte auf den Neustart des Rollers…",
+  "mdbBootGaveUp": "Der Roller ist nach {minutes} Minuten nicht zurückgekommen. Ein Board, das das Image nicht übernommen hat, bleibt im Massenspeichermodus und wirkt dadurch tot: kein Licht, kein Netzwerk. Zieh das USB-Kabel ab, steck es wieder ein und versuch es erneut.",
+  "@mdbBootGaveUp": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "mdbDetectedNetwork": "MDB im Netzwerkmodus erkannt. Warte auf eine stabile Verbindung…",
   "pingStable": "Ping stabil: {count}/10",
   "waitingStableConnection": "Warte auf eine stabile Verbindung…",

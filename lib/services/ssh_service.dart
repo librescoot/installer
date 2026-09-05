@@ -13,6 +13,18 @@ import 'package:pointycastle/export.dart' as pc;
 import 'package:yaml/yaml.dart';
 import 'package:path/path.dart' as path;
 
+class SshChannelOpenTimeout implements Exception {
+  final String operation;
+  final Duration timeout;
+
+  const SshChannelOpenTimeout(this.operation, this.timeout);
+
+  @override
+  String toString() =>
+      'SSH channel never opened: the far end did not answer in '
+      '${timeout.inSeconds}s during $operation';
+}
+
 /// SSH connection info for a device
 class DeviceInfo {
   final String host;
@@ -48,6 +60,7 @@ class SshService {
   static const String dbcHost = '192.168.7.2';
   static const int sshPort = 22;
   static const String sshUser = 'root';
+
   /// Short on purpose. An attempt already in flight against an unreachable
   /// host cannot notice the host arriving, so a long timeout is a window in
   /// which a board that comes back is missed. On the local USB link a healthy
@@ -242,6 +255,13 @@ done
   Map<String, String>? _deviceConfig;
   bool _sftpAvailable = false;
 
+  static const Duration channelOpenTimeout = Duration(seconds: 10);
+
+  static const Duration livenessInterval = Duration(seconds: 10);
+  static const int livenessFailureLimit = 3;
+
+  static bool traceProtocol = false;
+
   /// How long the SFTP capability probe waits for a subsystem that may never
   /// answer. Short: a working one responds immediately, and the fallback is
   /// always available, so this is paid only to learn that it is needed.
@@ -255,6 +275,7 @@ done
   String _lastHost = mdbHost;
   String? _lastPassword;
   Future<void>? _reconnectInFlight;
+  int _connectionGeneration = 0;
   int _redisQueueSequence = 0;
 
   /// Auth key injected at build time via --dart-define=AUTH_KEY=...
@@ -363,8 +384,9 @@ done
   /// failures are logged and swallowed so a missing `hwclock`/`timedatectl`
   /// never blocks the install.
   Future<void> syncDeviceTime() async {
-    if (_client == null) return;
+    if (_client == null && _lastPassword == null) return;
     try {
+      await _ensureConnected('device time sync');
       final utc = DateTime.now().toUtc();
       String two(int v) => v.toString().padLeft(2, '0');
       final stamp =
@@ -427,6 +449,7 @@ done
     String host, {
     bool stopPowerManager = true,
   }) async {
+    final connectionGeneration = ++_connectionGeneration;
     // Auth strategy:
     //   1. empty password (Librescoot)
     //   2. bundled credential matched against banner version (stock OS)
@@ -438,22 +461,49 @@ done
     String? manualPassword;
 
     while (true) {
-      final socket = await SSHSocket.connect(
-        host,
-        sshPort,
-        timeout: connectionTimeout,
-      );
+      if (!connectionAttemptIsCurrent(
+        attemptGeneration: connectionGeneration,
+        currentGeneration: _connectionGeneration,
+      )) {
+        throw StateError('SSH connection superseded by a newer attempt');
+      }
+      late SSHSocket socket;
+      try {
+        socket = await SSHSocket.connect(
+          host,
+          sshPort,
+          timeout: connectionTimeout,
+        );
+      } catch (e) {
+        if (isPreAuthDrop(e) && preAuthRetries < maxPreAuthRetries) {
+          preAuthRetries++;
+          debugPrint(
+            'SSH: connection dropped before authentication, retry '
+            '$preAuthRetries/$maxPreAuthRetries in '
+            '${preAuthRetryDelay.inSeconds}s',
+          );
+          await Future.delayed(preAuthRetryDelay);
+          continue;
+        }
+        rethrow;
+      }
       debugPrint('SSH: connected socket to $host:$sshPort');
+      if (!connectionAttemptIsCurrent(
+        attemptGeneration: connectionGeneration,
+        currentGeneration: _connectionGeneration,
+      )) {
+        unawaited(socket.close());
+        throw StateError('SSH connection superseded by a newer attempt');
+      }
 
       var bannerVersionSeen = authVersion;
       String? attemptedPassword;
-      _client = SSHClient(
+      final client = SSHClient(
         socket,
         username: sshUser,
-        // Idle for minutes at a time while the user pairs a phone or teaches
-        // in keycards; without this the far end can drop the session and the
-        // next command fails for no visible reason.
-        keepAliveInterval: const Duration(seconds: 5),
+        keepAliveInterval: null,
+        printDebug: traceProtocol ? _traceLine : null,
+        printTrace: traceProtocol ? _traceLine : null,
         onPasswordRequest: () {
           String pw;
           if (stage == 0) {
@@ -491,15 +541,30 @@ done
         // that is an unrecoverable hang rather than a failure: the retry below
         // only sees exceptions, so a stalled handshake never reaches it and
         // the screen sits on "reconnecting" for as long as anyone waits.
-        await _client!.authenticated.timeout(connectionTimeout);
+        await client.authenticated.timeout(connectionTimeout);
+        if (!connectionAttemptIsCurrent(
+          attemptGeneration: connectionGeneration,
+          currentGeneration: _connectionGeneration,
+        )) {
+          client.close();
+          throw StateError('SSH connection superseded by a newer attempt');
+        }
         debugPrint('SSH: authentication successful');
         _lastHost = host;
         _lastPassword = attemptedPassword ?? '';
+        _client?.close();
+        _client = client;
+        _startLiveness(client);
         break;
       } catch (e) {
         debugPrint('SSH: authentication failed: $e');
-        _client?.close();
-        _client = null;
+        client.close();
+        if (!connectionAttemptIsCurrent(
+          attemptGeneration: connectionGeneration,
+          currentGeneration: _connectionGeneration,
+        )) {
+          throw StateError('SSH connection superseded by a newer attempt');
+        }
 
         // Not a rejected credential: a host that is not answering yet. Hold
         // the stage and the password where they are and come back.
@@ -598,10 +663,20 @@ done
       );
     }
 
-    // Stock runs dropbear, which has no working sftp subsystem, and os-release
-    // has just told us which distribution this is. Skipping the probe outright
-    // is better than probing well: the answer is already known and the probe
-    // costs a timeout to reach it.
+    String? serial;
+    try {
+      final result = await runCommand(
+        'cat /sys/fsl_otp/HW_OCOTP_CFG1 /sys/fsl_otp/HW_OCOTP_CFG0 2>/dev/null'
+        ' || cat /sys/devices/soc0/serial_number 2>/dev/null',
+      );
+      serial = _parseSerial(result);
+      if (serial != null) {
+        debugPrint('SSH: parsed serial $serial');
+      }
+    } catch (e) {
+      debugPrint('SSH: serial read failed: $e');
+    }
+
     final osId = detected.osId ?? '';
     if (osId.isNotEmpty && !osId.startsWith('librescoot')) {
       _sftpAvailable = false;
@@ -616,9 +691,7 @@ done
       // A few bytes to /tmp is the smallest operation that exercises the thing
       // that actually fails, and the file is removed on the way out.
       try {
-        final sftp = await _requireClient(
-          'SFTP probe',
-        ).sftp().timeout(sftpProbeTimeout);
+        final sftp = await _openSftp('SFTP probe', timeout: sftpProbeTimeout);
         try {
           const probePath = '/tmp/.installer-sftp-probe';
           final file = await sftp
@@ -636,37 +709,20 @@ done
                 .done
                 .timeout(sftpProbeTimeout);
           } finally {
-            await file.close();
+            await file.close().timeout(sftpProbeTimeout);
           }
           await sftp.remove(probePath).timeout(sftpProbeTimeout);
           _sftpAvailable = true;
           debugPrint('SSH: SFTP available');
         } finally {
-          sftp.close();
+          try {
+            await sftp.close().timeout(sftpProbeTimeout);
+          } catch (_) {}
         }
       } catch (e) {
         _sftpAvailable = false;
         debugPrint('SSH: SFTP not available ($e), uploads will use cat');
       }
-    }
-
-    // Get serial number
-    String? serial;
-    try {
-      // OCOTP UID is (CFG1 << 32) | CFG0, high word first when concatenated.
-      // fsl_otp is the NXP vendor driver (stock 4.x and librescoot 5.4
-      // kernels); mainline kernels (1.2.0+ MDBs on linux-fslc 6.12) expose
-      // the same value preformatted at /sys/devices/soc0/serial_number.
-      final result = await runCommand(
-        'cat /sys/fsl_otp/HW_OCOTP_CFG1 /sys/fsl_otp/HW_OCOTP_CFG0 2>/dev/null'
-        ' || cat /sys/devices/soc0/serial_number 2>/dev/null',
-      );
-      serial = _parseSerial(result);
-      if (serial != null) {
-        debugPrint('SSH: parsed serial $serial');
-      }
-    } catch (e) {
-      debugPrint('SSH: serial read failed: $e');
     }
 
     return DeviceInfo(
@@ -820,6 +876,88 @@ done
     return client;
   }
 
+  void _invalidateClient([SSHClient? expected]) {
+    final client = _client;
+    if (expected != null && !identical(client, expected)) return;
+    _stopLiveness();
+    client?.close();
+    if (identical(_client, client)) _client = null;
+  }
+
+  static void _traceLine(String? line) => debugPrint('SSH/proto: $line');
+
+  Timer? _livenessTimer;
+
+  void _startLiveness(SSHClient client) {
+    _stopLiveness();
+    var misses = 0;
+    var inFlight = false;
+    _livenessTimer = Timer.periodic(livenessInterval, (timer) async {
+      if (!identical(_client, client)) {
+        timer.cancel();
+        return;
+      }
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        await client.ping().timeout(livenessInterval);
+        misses = 0;
+      } catch (_) {
+        misses++;
+        if (misses < livenessFailureLimit) return;
+        if (!identical(_client, client)) return;
+        debugPrint(
+          'SSH: no answer to $livenessFailureLimit keepalives, '
+          'dropping the session',
+        );
+        timer.cancel();
+        _invalidateClient(client);
+      } finally {
+        inFlight = false;
+      }
+    });
+  }
+
+  void _stopLiveness() {
+    _livenessTimer?.cancel();
+    _livenessTimer = null;
+  }
+
+  Future<SSHSession> _openSession(
+    String operation,
+    String command, {
+    Duration timeout = channelOpenTimeout,
+    SSHClient? expected,
+  }) async {
+    final client = expected ?? _requireClient(operation);
+    if (!identical(_client, client)) {
+      throw Exception('SSH session replaced during $operation');
+    }
+    try {
+      return await client.execute(command).timeout(timeout);
+    } on TimeoutException {
+      _invalidateClient(client);
+      throw SshChannelOpenTimeout(operation, timeout);
+    }
+  }
+
+  Future<SftpClient> _openSftp(
+    String operation, {
+    Duration timeout = channelOpenTimeout,
+    SSHClient? expected,
+  }) async {
+    final client = expected ?? _requireClient(operation);
+    if (!identical(_client, client)) {
+      throw Exception('SSH session replaced during $operation');
+    }
+    try {
+      return await client.sftp().timeout(timeout);
+    } on TimeoutException {
+      _invalidateClient(client);
+      throw SshChannelOpenTimeout(operation, timeout);
+    }
+  }
+
   /// Re-establish the session if it is gone, for a caller that wants the
   /// reconnect to happen at a point it can show rather than lazily inside the
   /// next upload.
@@ -844,25 +982,30 @@ done
     bool replayOnDisconnect = false,
   }) async {
     await _ensureConnected('command');
+    SSHClient? operationClient;
 
     return executeWithReplayPolicy(
-      execute: () => _runCommandOnce(command, timeout),
+      execute: () {
+        operationClient = _requireClient('command');
+        return _runCommandOnce(command, timeout, expected: operationClient);
+      },
       reconnect: () async {
         debugPrint('SSH: replay-safe command disconnected, reconnecting once');
         await _reconnect();
       },
-      invalidateConnection: () {
-        _client?.close();
-        _client = null;
-      },
-      isDisconnect: (error) =>
-          _looksLikeDisconnect(error.toString().toLowerCase()),
+      invalidateConnection: () => _invalidateClient(operationClient),
+      isDisconnect: isLostConnection,
       replayOnDisconnect: replayOnDisconnect && _lastPassword != null,
     );
   }
 
-  Future<String> _runCommandOnce(String command, Duration timeout) async {
-    final session = await _requireClient('command').execute(command);
+  Future<String> _runCommandOnce(
+    String command,
+    Duration timeout, {
+    SSHClient? expected,
+  }) async {
+    final client = expected ?? _requireClient('command');
+    final session = await _openSession('command', command, expected: client);
     final stdout = StringBuffer();
     final stderr = StringBuffer();
 
@@ -887,8 +1030,13 @@ done
     } catch (_) {
       // A timed-out session stays open otherwise, and every stalled command
       // costs another channel until the connection hits its limit and stops
-      // accepting new ones.
+      try {
+        session.kill(SSHSignal.TERM);
+      } catch (killError) {
+        debugPrint('SSH: could not signal the remote command: $killError');
+      }
       session.close();
+      _invalidateClient(client);
       rethrow;
     }
 
@@ -921,7 +1069,12 @@ done
       await _reconnect();
     }
 
-    final session = await _requireClient('streaming command').execute(command);
+    final client = _requireClient('streaming command');
+    final session = await _openSession(
+      'streaming command',
+      command,
+      expected: client,
+    );
     final stdout = StringBuffer();
     final stderr = StringBuffer();
 
@@ -959,6 +1112,7 @@ done
         debugPrint('SSH: could not signal the remote command: $killError');
       }
       session.close();
+      _invalidateClient(client);
       // The drains are still listening on streams that are about to end.
       // Swallow whatever they finish with: the error being reported is [e],
       // and an unhandled one from here would take the isolate down instead.
@@ -1069,7 +1223,14 @@ done
     }
   }
 
+  @visibleForTesting
+  static bool connectionAttemptIsCurrent({
+    required int attemptGeneration,
+    required int currentGeneration,
+  }) => attemptGeneration == currentGeneration;
+
   Future<void> _doReconnect() async {
+    final generation = _connectionGeneration;
     final pw = _lastPassword;
     if (pw == null) {
       throw Exception('No prior connection to recover');
@@ -1080,19 +1241,38 @@ done
       sshPort,
       timeout: connectionTimeout,
     );
+    if (!connectionAttemptIsCurrent(
+          attemptGeneration: generation,
+          currentGeneration: _connectionGeneration,
+        ) ||
+        _lastPassword != pw) {
+      unawaited(socket.close());
+      throw StateError('SSH reconnect cancelled by disconnect');
+    }
     final client = SSHClient(
-      keepAliveInterval: const Duration(seconds: 5),
+      keepAliveInterval: null,
+      printDebug: traceProtocol ? _traceLine : null,
+      printTrace: traceProtocol ? _traceLine : null,
       socket,
       username: sshUser,
       onPasswordRequest: () => pw,
     );
     try {
-      await client.authenticated;
+      await client.authenticated.timeout(connectionTimeout);
     } catch (e) {
       client.close();
       rethrow;
     }
+    if (!connectionAttemptIsCurrent(
+          attemptGeneration: generation,
+          currentGeneration: _connectionGeneration,
+        ) ||
+        _lastPassword != pw) {
+      client.close();
+      throw StateError('SSH reconnect cancelled by disconnect');
+    }
     _client = client;
+    _startLiveness(client);
     debugPrint('SSH: silent reconnect succeeded');
   }
 
@@ -1111,7 +1291,7 @@ done
 
     if (_sftpAvailable) {
       try {
-        await _uploadViaSftp(content, remotePath, onProgress).timeout(timeout);
+        await _uploadViaSftp(content, remotePath, onProgress, timeout);
       } catch (e) {
         debugPrint('SSH: SFTP upload failed ($e), falling back to cat');
         _sftpAvailable = false;
@@ -1119,10 +1299,10 @@ done
         // is long enough for the session to have gone with it. The fallback
         // needs a client of its own rather than the one checked on entry.
         await _ensureConnected('upload fallback');
-        await _uploadViaCat(content, remotePath).timeout(timeout);
+        await _uploadViaCat(content, remotePath, timeout);
       }
     } else {
-      await _uploadViaCat(content, remotePath).timeout(timeout);
+      await _uploadViaCat(content, remotePath, timeout);
     }
 
     // Make executable if needed
@@ -1135,16 +1315,20 @@ done
     Uint8List content,
     String remotePath,
     void Function(int bytesSent, int totalBytes)? onProgress,
+    Duration timeout,
   ) async {
-    final sftp = await _requireClient('SFTP upload').sftp();
+    final client = _requireClient('SFTP upload');
+    final sftp = await _openSftp('SFTP upload', expected: client);
     try {
-      final file = await sftp.open(
-        remotePath,
-        mode:
-            SftpFileOpenMode.write |
-            SftpFileOpenMode.create |
-            SftpFileOpenMode.truncate,
-      );
+      final file = await sftp
+          .open(
+            remotePath,
+            mode:
+                SftpFileOpenMode.write |
+                SftpFileOpenMode.create |
+                SftpFileOpenMode.truncate,
+          )
+          .timeout(timeout);
       try {
         const chunkSize = 64 * 1024;
         final stream = Stream<Uint8List>.fromIterable(
@@ -1159,27 +1343,58 @@ done
           stream,
           onProgress: (total) => onProgress?.call(total, content.length),
         );
-        await writer.done;
+        await writer.done.timeout(timeout);
       } finally {
-        await file.close();
+        try {
+          await file.close().timeout(channelOpenTimeout);
+        } catch (_) {}
       }
+    } catch (e) {
+      _invalidateClient(client);
+      rethrow;
     } finally {
-      sftp.close();
+      try {
+        await sftp.close().timeout(channelOpenTimeout);
+      } catch (_) {}
     }
   }
 
-  Future<void> _uploadViaCat(Uint8List content, String remotePath) async {
-    final session = await _requireClient('upload').execute('cat > $remotePath');
-    session.stdin.add(content);
-    await session.stdin.close();
-    // Drain stdout/stderr to prevent blocking
+  Future<void> _uploadViaCat(
+    Uint8List content,
+    String remotePath,
+    Duration timeout,
+  ) async {
+    final session = await _openSession('upload', 'cat > $remotePath');
     final stdoutDone = () async {
       await for (final _ in session.stdout) {}
     }();
     final stderrDone = () async {
       await for (final _ in session.stderr) {}
     }();
-    await Future.wait([stdoutDone, stderrDone, session.done]);
+    final deadline = DateTime.now().add(timeout);
+    try {
+      session.stdin.add(content);
+      final closeTimeout = deadline.difference(DateTime.now());
+      await session.stdin.close().timeout(
+        closeTimeout.isNegative ? Duration.zero : closeTimeout,
+      );
+      final waitTimeout = deadline.difference(DateTime.now());
+      await Future.wait([
+        stdoutDone,
+        stderrDone,
+        session.done,
+      ]).timeout(waitTimeout.isNegative ? Duration.zero : waitTimeout);
+    } catch (e) {
+      try {
+        session.kill(SSHSignal.TERM);
+      } catch (killError) {
+        debugPrint('SSH: could not signal the remote cat: $killError');
+      }
+      session.close();
+      unawaited(stdoutDone.catchError((_) {}));
+      unawaited(stderrDone.catchError((_) {}));
+      rethrow;
+    }
     // A full /data or a path that cannot be opened fails on the far side
     // with nothing on this one but the exit status. Awaiting done alone
     // reported those as uploaded, and the phase that needed the file failed
@@ -1805,7 +2020,9 @@ sync
           debugPrint('SSH: service mode was already live, leaving it');
           return true;
         case 'unsupported':
-          debugPrint('SSH: no service mode on this board, using the manual path');
+          debugPrint(
+            'SSH: no service mode on this board, using the manual path',
+          );
           return false;
         default:
           debugPrint('SSH: service mode did not come up ($answer)');
@@ -1863,7 +2080,6 @@ echo timeout
     );
   }
 
-
   /// Reboot the device
   Future<void> reboot() async {
     // No guard: every command here goes through runCommand, which reconnects
@@ -1885,6 +2101,7 @@ echo timeout
         requested = true;
         break;
       } catch (e) {
+        if (e is SshChannelOpenTimeout) rethrow;
         final error = e.toString().toLowerCase();
         if (_looksLikeDisconnect(error)) {
           debugPrint('SSH: reboot likely triggered (connection dropped): $cmd');
@@ -1909,13 +2126,18 @@ echo timeout
     disconnect();
   }
 
-  bool _looksLikeDisconnect(String error) {
+  static bool _looksLikeDisconnect(String error) {
     return error.contains('connection reset') ||
         error.contains('broken pipe') ||
         error.contains('socket') ||
         error.contains('eof') ||
         error.contains('closed');
   }
+
+  @visibleForTesting
+  static bool isLostConnection(Object error) =>
+      error is SshChannelOpenTimeout ||
+      _looksLikeDisconnect(error.toString().toLowerCase());
 
   Future<Uint8List> _readToolAsset(String fileName) async {
     final bundleCandidates = <String>[
@@ -1984,10 +2206,11 @@ echo timeout
   }
 
   /// Disconnect from device. Clears the cached auth so any subsequent
-  /// [runCommand] will fail loudly instead of silently re-establishing , 
   /// the reboot path relies on this so we don't auto-reconnect to a device
   /// that's mid-reboot.
   void disconnect() {
+    _connectionGeneration++;
+    _stopLiveness();
     _client?.close();
     _client = null;
     _lastPassword = null;
@@ -2063,7 +2286,7 @@ echo timeout
         'state==1 { state=2; next } '
         'state==2 { sub(/^[0-9]+\\) "/, ""); sub(/"\$/, ""); print; fflush(); state=0; next }'
         "'";
-    final session = await _requireClient('redis subscribe').execute(cmd);
+    final session = await _openSession('redis subscribe', cmd);
     final controller = StreamController<String>();
     final decoder = const Utf8Decoder(allowMalformed: true);
     var buf = '';
@@ -2104,7 +2327,7 @@ echo timeout
         await stderrSub.cancel();
       } catch (_) {}
       if (!controller.isClosed) {
-        await controller.close();
+        unawaited(controller.close());
       }
     }
 
@@ -2475,9 +2698,10 @@ echo timeout
     await _ensureConnected('file download');
     SSHSession? session;
     try {
-      session = await _requireClient(
+      session = await _openSession(
         'file download',
-      ).execute('cat ${_shellEscape(remotePath)}');
+        'cat ${_shellEscape(remotePath)}',
+      );
       final chunks = <int>[];
       final stdoutDone = () async {
         await for (final data in session!.stdout) {
@@ -2495,6 +2719,8 @@ echo timeout
       ]).timeout(const Duration(seconds: 30));
       if (session.exitCode != 0) return null;
       return Uint8List.fromList(chunks);
+    } on SshChannelOpenTimeout {
+      rethrow;
     } catch (_) {
       // Swallowing the error is deliberate (a missing file is a null), but the
       // session has to go regardless: a timeout here otherwise leaks a channel
@@ -2515,7 +2741,8 @@ echo timeout
     await _ensureConnected('diagnostic download');
     SSHSession? session;
     try {
-      session = await _requireClient('diagnostic download').execute(
+      session = await _openSession(
+        'diagnostic download',
         'tail -c $maxBytes -- ${_shellEscape(remotePath)}',
       );
       final chunks = <int>[];
@@ -2527,10 +2754,15 @@ echo timeout
       final stderrDone = () async {
         await for (final _ in session!.stderr) {}
       }();
-      await Future.wait([stdoutDone, stderrDone, session.done])
-          .timeout(const Duration(seconds: 10));
+      await Future.wait([
+        stdoutDone,
+        stderrDone,
+        session.done,
+      ]).timeout(const Duration(seconds: 10));
       if (session.exitCode != 0) return null;
       return Uint8List.fromList(chunks);
+    } on SshChannelOpenTimeout {
+      rethrow;
     } catch (_) {
       session?.close();
       return null;
@@ -2803,7 +3035,8 @@ echo timeout
       final out = await runCommand(
         'head -n1 $installerLastInstall 2>/dev/null || '
         'head -n1 $legacyLastInstall 2>/dev/null; true',
-      ).timeout(const Duration(seconds: 10));
+        timeout: const Duration(seconds: 10),
+      );
       return out.trim().toLowerCase() == 'result: success';
     } catch (_) {
       return false;
@@ -2818,7 +3051,8 @@ echo timeout
         "if pgrep -f '^/bin/sh /data/onboot\\.sh' >/dev/null 2>&1 "
         '|| ls $installerScriptsDir/[0-9][0-9]-*.sh >/dev/null 2>&1; '
         'then echo yes; else echo no; fi',
-      ).timeout(const Duration(seconds: 10));
+        timeout: const Duration(seconds: 10),
+      );
       return out.trim().endsWith('yes');
     } catch (_) {
       return false;
@@ -2835,7 +3069,8 @@ echo timeout
       final out = await runCommand(
         'pgrep -f "/data/(installer/(scripts/)?)?trampoline.sh" '
         '>/dev/null && echo yes || echo no',
-      ).timeout(const Duration(seconds: 10));
+        timeout: const Duration(seconds: 10),
+      );
       return out.trim().endsWith('yes');
     } catch (_) {
       return false;
@@ -2848,13 +3083,13 @@ echo timeout
     try {
       final out = await runCommand(
         'tail -n $lines /data/installer/trampoline.log 2>/dev/null; true',
-      ).timeout(const Duration(seconds: 20));
+        timeout: const Duration(seconds: 20),
+      );
       return out.trimRight();
     } catch (_) {
       return '';
     }
   }
-
 
   Future<void> writeInstallRunState({
     required String runId,

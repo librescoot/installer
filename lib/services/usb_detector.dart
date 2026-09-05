@@ -2,6 +2,28 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 
+import 'network_service.dart';
+
+Future<ProcessResult> runBounded(
+  String executable,
+  List<String> arguments, {
+  Duration timeout = const Duration(seconds: 10),
+  Map<String, String>? environment,
+}) async {
+  Process? proc;
+  try {
+    proc = await Process.start(executable, arguments, environment: environment);
+    final out = proc.stdout.transform(systemEncoding.decoder).join();
+    final err = proc.stderr.transform(systemEncoding.decoder).join();
+    final code = await proc.exitCode.timeout(timeout);
+    return ProcessResult(proc.pid, code, await out, await err);
+  } on TimeoutException {
+    debugPrint('USB: $executable ${arguments.join(' ')} timed out');
+    proc?.kill(ProcessSignal.sigkill);
+    return ProcessResult(proc?.pid ?? 0, -1, '', 'timed out');
+  }
+}
+
 /// Outcome of asking the OS whether a disk carries boot or system.
 enum SystemDiskVerdict {
   /// The storage stack confirmed it carries neither.
@@ -113,18 +135,19 @@ class UsbDevice {
   }
 
   @override
-  String toString() => 'UsbDevice($name, VID=${vendorId.toRadixString(16)}, '
+  String toString() =>
+      'UsbDevice($name, VID=${vendorId.toRadixString(16)}, '
       'PID=${productId.toRadixString(16)}, mode=$mode, size=$sizeFormatted, '
       'removable=$isRemovable, systemDisk=${systemDiskVerdict.name})';
 }
 
 /// Device operating modes
 enum DeviceMode {
-  ethernet,     // 0525:A4A2 - SSH access available
-  hijacked,     // 0525:A4A2 present, but another driver holds it (no SSH)
-  massStorage,  // 0525:A4A5 - Ready for firmware write
-  recoveryDbc,  // 15A2:0061 - DBC i.MX6SL ROM in serial-download mode
-  recoveryMdb,  // 15A2:007D - MDB i.MX6UL ROM in serial-download mode
+  ethernet, // 0525:A4A2 - SSH access available
+  hijacked, // 0525:A4A2 present, but another driver holds it (no SSH)
+  massStorage, // 0525:A4A5 - Ready for firmware write
+  recoveryDbc, // 15A2:0061 - DBC i.MX6SL ROM in serial-download mode
+  recoveryMdb, // 15A2:007D - MDB i.MX6UL ROM in serial-download mode
   unknown,
 }
 
@@ -149,6 +172,7 @@ class UsbDetector {
     if (cls.isEmpty) return DeviceMode.ethernet;
     return cls == 'net' ? DeviceMode.ethernet : DeviceMode.hijacked;
   }
+
   static const int massStoragePid = 0xA4A5;
   static const int nxpVendorId = 0x15A2;
   static const int recoveryPidDbc = 0x0061;
@@ -159,7 +183,10 @@ class UsbDetector {
   UsbDevice? _lastDevice;
   bool _pollInFlight = false;
   int _pollGeneration = 0;
+  int _deviceEventGeneration = 0;
   Map<String, dynamic>? _macDiskInfoCache;
+  String? _macDiskInfoCacheIdentity;
+  String? _macObservedDeviceIdentity;
   bool _macDiskProbeInFlight = false;
   int _macDiskProbeAttempts = 0;
   static const int _maxMacDiskProbeAttempts = 12;
@@ -174,33 +201,50 @@ class UsbDetector {
 
   /// Seed the macOS disk probe cache, standing in for a probe that has landed.
   @visibleForTesting
-  void seedMacDiskInfoForTest(Map<String, dynamic>? info) =>
-      _macDiskInfoCache = info;
+  void seedMacDiskInfoForTest(Map<String, dynamic>? info) {
+    _macDiskInfoCache = info;
+    _macDiskInfoCacheIdentity = info == null
+        ? null
+        : _macObservedDeviceIdentity ?? _lastDevice?.id;
+  }
 
   Stream<UsbDevice?> get deviceStream => _deviceController.stream;
   UsbDevice? get currentDevice => _lastDevice;
+
+  int get deviceEventGeneration => _deviceEventGeneration;
 
   /// Resolve the block device path for a mass storage device.
   /// On macOS, runs diskutil to find the matching external disk.
   Future<String?> resolveDevicePath() async {
     if (!Platform.isMacOS) return _lastDevice?.path;
-    if (_macDiskInfoCache != null) return _macDiskInfoCache!['path'] as String?;
+    if (_macDiskInfoCache != null) {
+      final identity = _macObservedDeviceIdentity ?? _lastDevice?.id;
+      if (identity == _macDiskInfoCacheIdentity) {
+        return _macDiskInfoCache!['path'] as String?;
+      }
+      _macDiskInfoCache = null;
+      _macDiskInfoCacheIdentity = null;
+      _macDiskProbeAttempts = 0;
+    }
+    final pollingGeneration = _pollGeneration;
+    final deviceGeneration = _deviceEventGeneration;
+    final deviceIdentity =
+        _macObservedDeviceIdentity ?? _lastDevice?.id ?? 'usb-0525-a4-a5';
     final info = await _findMacOSDiskInfo();
-    if (info != null) {
+    if (info != null &&
+        macDiskProbeResultBelongsTo(
+          probePollingGeneration: pollingGeneration,
+          currentPollingGeneration: _pollGeneration,
+          probeDeviceGeneration: deviceGeneration,
+          currentDeviceGeneration: _deviceEventGeneration,
+          probeDeviceIdentity: deviceIdentity,
+          currentDeviceIdentity: _lastDevice?.id,
+        )) {
       _macDiskInfoCache = info;
       return info['path'] as String?;
     }
     return null;
   }
-
-  /// How long a single poll may take before its result is abandoned.
-  ///
-  /// Nothing under detectDevice() bounds its own subprocesses, and a wedged
-  /// diskutil or PowerShell would otherwise hold the in-flight guard forever
-  /// and stop detection for good. Generous on purpose: a cold Windows host
-  /// legitimately spends several seconds in its PnP queries, and cutting a
-  /// working probe short is worse than waiting for it.
-  static const Duration pollTimeout = Duration(seconds: 30);
 
   /// Start monitoring for USB devices
   void startMonitoring({Duration interval = const Duration(seconds: 1)}) {
@@ -219,6 +263,7 @@ class UsbDetector {
     _pollingTimer?.cancel();
     _pollingTimer = null;
     _pollGeneration++;
+    _macDiskProbeInFlight = false;
     // Release the guard as well. Whatever is still running out there is now
     // orphaned by the generation bump and can no longer touch anything, so
     // holding the guard for it would only delay the first poll after a
@@ -233,14 +278,12 @@ class UsbDetector {
     _pollInFlight = true;
     final generation = _pollGeneration;
     try {
-      final device = await detectDevice().timeout(pollTimeout);
+      final device = await detectDevice();
       // Superseded while we were away by a stop, or by the stop inside a
       // restart. This answer describes a device state nobody is waiting for
-      // any more, and applying it would undo whatever replaced it. A poll
-      // that runs past pollTimeout never reaches here at all: the await
-      // throws and its late result is simply dropped.
       if (generation != _pollGeneration) return;
-      final changed = device?.id != _lastDevice?.id ||
+      final changed =
+          device?.id != _lastDevice?.id ||
           device?.mode != _lastDevice?.mode ||
           device?.path != _lastDevice?.path ||
           device?.sizeBytes != _lastDevice?.sizeBytes ||
@@ -250,8 +293,9 @@ class UsbDetector {
         // Computed before _lastDevice is replaced, or the comparison is
         // against the value we are about to overwrite and never fires.
         final modeChanged = device?.mode != _lastDevice?.mode;
+        final identityChanged = device?.id != _lastDevice?.id;
         _lastDevice = device;
-        if (device == null || modeChanged) {
+        if (device == null || modeChanged || identityChanged) {
           // The cached path can outlive the device (USB drop, power-cycle),
           // and it also outlives a mode change: mass storage to ethernet
           // leaves a disk node cached for a board that no longer presents
@@ -264,11 +308,15 @@ class UsbDetector {
           // enumerated exhausts the cap and then never probes again, which
           // is the state that most needs another look.
           _macDiskInfoCache = null;
+          _macDiskInfoCacheIdentity = null;
           _macDiskProbeAttempts = 0;
         }
-        debugPrint(device == null
-            ? 'USB detector: device disconnected'
-            : 'USB detector: detected ${device.name} mode=${device.mode.name}');
+        _deviceEventGeneration++;
+        debugPrint(
+          device == null
+              ? 'USB detector: device disconnected'
+              : 'USB detector: detected ${device.name} mode=${device.mode.name}',
+        );
         _deviceController.add(device);
       }
     } catch (e) {
@@ -320,17 +368,14 @@ class UsbDetector {
   /// Windows by querying PnP for VID_15A2 + the relevant PID.
   Future<UsbDevice?> _detectWindowsRecovery() async {
     try {
-      final result = await Process.run(
-        'powershell',
-        [
-          '-NoProfile',
-          '-Command',
-          r'''
+      final result = await runBounded('powershell', [
+        '-NoProfile',
+        '-Command',
+        r'''
 $dev = Get-PnpDevice -PresentOnly | Where-Object { $_.InstanceId -like "*VID_15A2*" } | Select-Object -First 1 InstanceId
 if ($dev) { $dev.InstanceId }
 ''',
-        ],
-      );
+      ]);
       if (result.exitCode != 0) return null;
       final id = result.stdout.toString().trim().toUpperCase();
       if (id.isEmpty) return null;
@@ -363,17 +408,14 @@ if ($dev) { $dev.InstanceId }
     // Use PowerShell instead of wmic to avoid cmd.exe '&' escaping issues
     // and wmic's UTF-16/HTML-encoded CSV output.
     try {
-      final result = await Process.run(
-        'powershell',
-        [
-          '-NoProfile',
-          '-Command',
-          r'''
+      final result = await runBounded('powershell', [
+        '-NoProfile',
+        '-Command',
+        r'''
 $dev = Get-CimInstance Win32_NetworkAdapter | Where-Object { $_.PNPDeviceID -like "*VID_0525&PID_A4A2*" } | Select-Object -First 1 Name,NetConnectionID,PNPDeviceID
 if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.PNPDeviceID)" }
 ''',
-        ],
-      );
+      ]);
 
       if (result.exitCode != 0) return null;
 
@@ -406,12 +448,10 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.PNPDeviceID)" }
     // In UMS mode the PNPDeviceID is USBSTOR\DISK&VEN_LINUX&PROD_UMS_DISK_0,
     // not USB\VID_0525, so we match on both patterns.
     try {
-      final result = await Process.run(
-        'powershell',
-        [
-          '-NoProfile',
-          '-Command',
-          r'''
+      final result = await runBounded('powershell', [
+        '-NoProfile',
+        '-Command',
+        r'''
 $dev = Get-CimInstance Win32_DiskDrive | Where-Object {
   $_.PNPDeviceID -like "*VID_0525*" -or
   $_.PNPDeviceID -like "*VEN_LINUX*PROD_UMS*"
@@ -420,8 +460,7 @@ if ($dev) {
   "$($dev.Model)`t$($dev.PNPDeviceID)`t$($dev.DeviceID)`t$($dev.Index)`t$($dev.MediaType)"
 }
 ''',
-        ],
-      );
+      ]);
 
       if (result.exitCode != 0) return null;
 
@@ -436,31 +475,25 @@ if ($dev) {
       final mediaType = parts.length > 4 ? parts[4].trim() : '';
 
       if (pnpId.isNotEmpty) {
-          final sizeBytes = await _windowsDiskSize(int.tryParse(indexStr));
+        final sizeBytes = await _windowsDiskSize(int.tryParse(indexStr));
 
-          // Check if this is removable media
-          final isRemovable = mediaType.toLowerCase().contains('removable');
+        final isRemovable = mediaType.toLowerCase().contains('removable');
 
-          // CRITICAL: Check if this might be a system disk
-          final probe = await _windowsSystemDiskVerdict(deviceId);
+        final probe = await _windowsSystemDiskVerdict(deviceId);
 
-          // The enumeration can return a disk the storage stack has released.
-          // Downstream that reads as a board in mass storage, the state that
-          // means a flash has not taken, and triggers another write against a
-          // path that no longer opens.
-          if (!probe.present) return null;
+        if (!probe.present) return null;
 
-          return UsbDevice(
-            id: pnpId,
-            name: model,
-            path: deviceId,
-            vendorId: targetVendorId,
-            productId: massStoragePid,
-            mode: DeviceMode.massStorage,
-            sizeBytes: sizeBytes,
-            isRemovable: isRemovable,
-            systemDiskVerdict: probe.verdict,
-          );
+        return UsbDevice(
+          id: pnpId,
+          name: model,
+          path: deviceId,
+          vendorId: targetVendorId,
+          productId: massStoragePid,
+          mode: DeviceMode.massStorage,
+          sizeBytes: sizeBytes,
+          isRemovable: isRemovable,
+          systemDiskVerdict: probe.verdict,
+        );
       }
     } catch (_) {}
     return null;
@@ -481,14 +514,11 @@ if ($dev) {
   Future<int?> _windowsDiskSize(int? diskNumber) async {
     if (diskNumber == null) return null;
     try {
-      final result = await Process.run(
-        'powershell',
-        [
-          '-NoProfile',
-          '-Command',
-          '(Get-Disk -Number $diskNumber -ErrorAction Stop).Size',
-        ],
-      );
+      final result = await runBounded('powershell', [
+        '-NoProfile',
+        '-Command',
+        '(Get-Disk -Number $diskNumber -ErrorAction Stop).Size',
+      ]);
       if (result.exitCode != 0) {
         debugPrint(
           'USB detector: disk size query failed for disk $diskNumber '
@@ -498,7 +528,9 @@ if ($dev) {
       }
       return int.tryParse(result.stdout.toString().trim());
     } catch (e) {
-      debugPrint('USB detector: disk size query threw for disk $diskNumber: $e');
+      debugPrint(
+        'USB detector: disk size query threw for disk $diskNumber: $e',
+      );
       return null;
     }
   }
@@ -510,7 +542,7 @@ if ($dev) {
   /// driver has it". See [modeForPnpClass].
   Future<UsbDevice?> _detectWindowsPnpEthernet() async {
     try {
-      final result = await Process.run(
+      final result = await runBounded(
         'powershell',
         [
           '-NoProfile',
@@ -588,9 +620,10 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)`t$($dev.PNPClass)" }
       } catch (_) {}
       try {
         isRemovable =
-            (await File('$sysBlockRoot/$name/removable').readAsString())
-                    .trim() ==
-                '1';
+            (await File(
+              '$sysBlockRoot/$name/removable',
+            ).readAsString()).trim() ==
+            '1';
       } catch (_) {}
     }
     return LinuxDiskInfo(
@@ -603,14 +636,21 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)`t$($dev.PNPClass)" }
     );
   }
 
-  Future<SystemDiskVerdict> linuxSystemDiskVerdict(String diskPath,
-      {String mountsPath = '/proc/mounts'}) async {
-    final base = diskPath.startsWith('/dev/') ? diskPath.substring(5) : diskPath;
+  Future<SystemDiskVerdict> linuxSystemDiskVerdict(
+    String diskPath, {
+    String mountsPath = '/proc/mounts',
+  }) async {
+    final base = diskPath.startsWith('/dev/')
+        ? diskPath.substring(5)
+        : diskPath;
     if (base.isEmpty) return SystemDiskVerdict.systemDisk;
     try {
       final mounts = await File(mountsPath).readAsString();
       // sda matches sda and sda1..sdaN, and must not match sdaa or sdb.
-      final owned = RegExp('^${RegExp.escape(base)}' r'(p?\d+)?$');
+      final owned = RegExp(
+        '^${RegExp.escape(base)}'
+        r'(p?\d+)?$',
+      );
       for (final line in mounts.split('\n')) {
         final fields = line.split(' ');
         if (fields.length < 2) continue;
@@ -649,13 +689,12 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)`t$($dev.PNPClass)" }
       return const WindowsDiskProbe(verdict: SystemDiskVerdict.unknown);
     }
     return switch (answer) {
-      'system' =>
-        const WindowsDiskProbe(verdict: SystemDiskVerdict.systemDisk),
+      'system' => const WindowsDiskProbe(verdict: SystemDiskVerdict.systemDisk),
       'ok' => const WindowsDiskProbe(verdict: SystemDiskVerdict.notSystem),
       'absent' => const WindowsDiskProbe(
-          verdict: SystemDiskVerdict.unknown,
-          present: false,
-        ),
+        verdict: SystemDiskVerdict.unknown,
+        present: false,
+      ),
       _ => const WindowsDiskProbe(verdict: SystemDiskVerdict.unknown),
     };
   }
@@ -668,8 +707,10 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)`t$($dev.PNPClass)" }
   /// versions. Match the field, not the layout.
   @visibleForTesting
   static bool? parseMacRemovable(String info) {
-    final match =
-        RegExp(r'Removable Media:\s*(\S+)', multiLine: true).firstMatch(info);
+    final match = RegExp(
+      r'Removable Media:\s*(\S+)',
+      multiLine: true,
+    ).firstMatch(info);
     if (match == null) return null;
     final value = match.group(1)!.toLowerCase();
     if (value == 'removable') return true;
@@ -698,13 +739,11 @@ if ($dev) { "$($dev.Name)`t$($dev.PNPDeviceID)`t$($dev.PNPClass)" }
     }
 
     try {
-      final result = await Process.run(
-        'powershell',
-        [
-          '-NoProfile',
-          '-NonInteractive',
-          '-Command',
-          '''
+      final result = await runBounded('powershell', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        '''
 \$ErrorActionPreference = 'Stop'
 \$n = $diskNumber
 try {
@@ -726,8 +765,7 @@ try {
   if (\$letters -contains \$env:SystemDrive) { 'system' } else { 'ok' }
 } catch { 'unknown' }
 ''',
-        ],
-      );
+      ]);
 
       final answer = result.stdout.toString().trim().toLowerCase();
       final probe = _parseWindowsDiskProbe(result.exitCode, answer);
@@ -760,19 +798,16 @@ try {
   Future<List<UsbDiskInfo>> listUsbDisks({String? detectedPath}) async {
     if (!Platform.isWindows) return const [];
     try {
-      final result = await Process.run(
-        'powershell',
-        [
-          '-NoProfile',
-          '-NonInteractive',
-          '-Command',
-          r'''
+      final result = await runBounded('powershell', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        r'''
 Get-CimInstance Win32_DiskDrive | ForEach-Object {
   "$($_.Index)`t$($_.Model)`t$($_.Size)`t$($_.InterfaceType)`t$($_.DeviceID)`t$($_.PNPDeviceID)"
 }
 ''',
-        ],
-      );
+      ]);
       if (result.exitCode != 0) return const [];
 
       final disks = <UsbDiskInfo>[];
@@ -789,15 +824,18 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
         if (!isUsb) continue;
 
         final devicePath = parts[4].trim();
-        disks.add(UsbDiskInfo(
-          index: index,
-          model: parts[1].trim().isEmpty ? 'Disk $index' : parts[1].trim(),
-          sizeBytes: int.tryParse(parts[2].trim()),
-          bus: bus.isEmpty ? 'USB' : bus,
-          path: devicePath,
-          isDetectedTarget: detectedPath != null &&
-              devicePath.toUpperCase() == detectedPath.toUpperCase(),
-        ));
+        disks.add(
+          UsbDiskInfo(
+            index: index,
+            model: parts[1].trim().isEmpty ? 'Disk $index' : parts[1].trim(),
+            sizeBytes: int.tryParse(parts[2].trim()),
+            bus: bus.isEmpty ? 'USB' : bus,
+            path: devicePath,
+            isDetectedTarget:
+                detectedPath != null &&
+                devicePath.toUpperCase() == detectedPath.toUpperCase(),
+          ),
+        );
       }
       disks.sort((a, b) => a.index.compareTo(b.index));
       return disks;
@@ -820,7 +858,10 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
     // Fallback: if MDB is reachable, treat as ethernet mode so installer can
     // proceed even when USB metadata probing is flaky.
     try {
-      final ping = await Process.run('ping', ['-c', '1', '-W', '1', '192.168.7.1']);
+      final ping = await runBounded(
+        'ping',
+        NetworkService.pingArgs('192.168.7.1'),
+      );
       if (ping.exitCode == 0) {
         return UsbDevice(
           id: 'net-192.168.7.1',
@@ -846,22 +887,48 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
 
       final output = result.stdout.toString();
       final lower = output.toLowerCase();
-      final hasVendor0525 = RegExp(r'"idvendor"\s*=\s*(?:1317|0x0*525)\b').hasMatch(lower);
-      final hasPidA4A2 = RegExp(r'"idproduct"\s*=\s*(?:42146|0x0*a4a2)\b').hasMatch(lower);
-      final hasPidA4A5 = RegExp(r'"idproduct"\s*=\s*(?:42149|0x0*a4a5)\b').hasMatch(lower);
-      final hasVendor15A2 = RegExp(r'"idvendor"\s*=\s*(?:5538|0x0*15a2)\b').hasMatch(lower);
-      final hasPid0061 = RegExp(r'"idproduct"\s*=\s*(?:97|0x0*61)\b').hasMatch(lower);
-      final hasPid007D = RegExp(r'"idproduct"\s*=\s*(?:125|0x0*7d)\b').hasMatch(lower);
+      final previousDeviceIdentity = _macObservedDeviceIdentity;
+      _macObservedDeviceIdentity = null;
+      final hasVendor0525 = RegExp(
+        r'"idvendor"\s*=\s*(?:1317|0x0*525)\b',
+      ).hasMatch(lower);
+      final hasPidA4A2 = RegExp(
+        r'"idproduct"\s*=\s*(?:42146|0x0*a4a2)\b',
+      ).hasMatch(lower);
+      final hasPidA4A5 = RegExp(
+        r'"idproduct"\s*=\s*(?:42149|0x0*a4a5)\b',
+      ).hasMatch(lower);
+      final hasVendor15A2 = RegExp(
+        r'"idvendor"\s*=\s*(?:5538|0x0*15a2)\b',
+      ).hasMatch(lower);
+      final hasPid0061 = RegExp(
+        r'"idproduct"\s*=\s*(?:97|0x0*61)\b',
+      ).hasMatch(lower);
+      final hasPid007D = RegExp(
+        r'"idproduct"\s*=\s*(?:125|0x0*7d)\b',
+      ).hasMatch(lower);
 
       // Check Librescoot modes. Prioritize mass storage in case both PIDs
       // appear in a noisy aggregate IORegistry dump.
       if (hasVendor0525) {
         if (hasPidA4A5) {
           // Return immediately so step progression never blocks on disk tooling.
-          _kickMacDiskInfoProbe();
+          _macObservedDeviceIdentity = parseIoregDeviceIdentity(
+            output,
+            productId: massStoragePid,
+          );
+          final deviceIdentity =
+              _macObservedDeviceIdentity ?? 'usb-0525-a4-a5-unresolved';
+          if (previousDeviceIdentity != null &&
+              previousDeviceIdentity != deviceIdentity) {
+            _macDiskInfoCache = null;
+            _macDiskInfoCacheIdentity = null;
+            _macDiskProbeAttempts = 0;
+          }
+          _kickMacDiskInfoProbe(deviceIdentity: deviceIdentity);
           final diskInfo = _macDiskInfoCache;
           return UsbDevice(
-            id: 'usb-0525-a4a5',
+            id: deviceIdentity,
             name: 'Librescoot MDB (Mass Storage)',
             path: diskInfo?['path'] ?? '',
             vendorId: targetVendorId,
@@ -880,8 +947,14 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
         }
 
         if (hasPidA4A2) {
+          _macObservedDeviceIdentity = parseIoregDeviceIdentity(
+            output,
+            productId: ethernetPid,
+          );
+          final deviceIdentity =
+              _macObservedDeviceIdentity ?? 'usb-0525-a4-a2-unresolved';
           return UsbDevice(
-            id: 'usb-0525-a4a2',
+            id: deviceIdentity,
             name: 'Librescoot MDB (Ethernet)',
             path: '', // Will be determined by network interface
             vendorId: targetVendorId,
@@ -956,10 +1029,13 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
     return null;
   }
 
-  Future<ProcessResult?> _runWithFallback(List<String> commands, List<String> args) async {
+  Future<ProcessResult?> _runWithFallback(
+    List<String> commands,
+    List<String> args,
+  ) async {
     for (final command in commands) {
       try {
-        return await Process.run(command, args);
+        return await runBounded(command, args);
       } catch (_) {
         continue;
       }
@@ -971,7 +1047,6 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
   ///
   /// macOS 26 renamed the datatype from `SPUSBDataType` to
   /// `SPUSBHostDataType`. The legacy name still exits 0 there but returns an
-  /// empty report, which is indistinguishable from "no devices attached" , 
   /// so an empty result falls through to the next candidate instead of being
   /// treated as an answer.
   Future<ProcessResult?> _runSystemProfilerUsb() async {
@@ -987,38 +1062,88 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
     return null;
   }
 
-  void _kickMacDiskInfoProbe() {
-    if (_macDiskProbeInFlight || _macDiskInfoCache != null) return;
+  void _kickMacDiskInfoProbe({required String deviceIdentity}) {
+    if (_macDiskProbeInFlight) return;
+    if (_macDiskInfoCache != null) {
+      if (_macDiskInfoCacheIdentity == deviceIdentity) return;
+      _macDiskInfoCache = null;
+      _macDiskInfoCacheIdentity = null;
+      _macDiskProbeAttempts = 0;
+    }
     if (_macDiskProbeAttempts >= _maxMacDiskProbeAttempts) return;
     _macDiskProbeInFlight = true;
     _macDiskProbeAttempts++;
-    debugPrint('USB detector: starting macOS disk metadata probe (#$_macDiskProbeAttempts)');
+    final pollingGeneration = _pollGeneration;
+    final deviceGeneration = _deviceEventGeneration;
+    debugPrint(
+      'USB detector: starting macOS disk metadata probe (#$_macDiskProbeAttempts)',
+    );
     () async {
       try {
-        final info = await _findMacOSDiskInfo().timeout(
-          const Duration(milliseconds: 800),
-          onTimeout: () {
-            debugPrint('USB detector: disk metadata probe timed out');
-            return null;
-          },
-        );
-        if (info != null) {
+        final info = await _findMacOSDiskInfo();
+        if (info != null &&
+            macDiskProbeResultBelongsTo(
+              probePollingGeneration: pollingGeneration,
+              currentPollingGeneration: _pollGeneration,
+              probeDeviceGeneration: deviceGeneration,
+              currentDeviceGeneration: _deviceEventGeneration,
+              probeDeviceIdentity: deviceIdentity,
+              currentDeviceIdentity: _lastDevice?.id,
+            )) {
           _macDiskInfoCache = info;
+          _macDiskInfoCacheIdentity = deviceIdentity;
           _macDiskProbeAttempts = 0;
           debugPrint(
             'USB detector: disk metadata updated '
             '(path=${info["path"]}, size=${info["size"]}, removable=${info["removable"]}, systemDisk=${info["systemDisk"]})',
           );
+        } else if (info != null) {
+          debugPrint('USB detector: discarded stale disk metadata probe');
         } else {
           debugPrint('USB detector: disk metadata probe returned no data');
         }
       } catch (_) {
         debugPrint('USB detector: disk metadata probe failed');
       } finally {
-        _macDiskProbeInFlight = false;
+        if (macDiskProbeResultBelongsTo(
+          probePollingGeneration: pollingGeneration,
+          currentPollingGeneration: _pollGeneration,
+          probeDeviceGeneration: deviceGeneration,
+          currentDeviceGeneration: _deviceEventGeneration,
+          probeDeviceIdentity: deviceIdentity,
+          currentDeviceIdentity: _lastDevice?.id,
+        )) {
+          _macDiskProbeInFlight = false;
+        }
       }
     }();
   }
+
+  static bool acceptsFreshMassStorageTarget({
+    required int failureGeneration,
+    required int currentGeneration,
+    required UsbDevice? device,
+    required String? path,
+  }) =>
+      currentGeneration > failureGeneration &&
+      device != null &&
+      device.mode == DeviceMode.massStorage &&
+      path != null &&
+      path.isNotEmpty;
+
+  @visibleForTesting
+  static bool macDiskProbeResultBelongsTo({
+    required int probePollingGeneration,
+    required int currentPollingGeneration,
+    required int probeDeviceGeneration,
+    required int currentDeviceGeneration,
+    required String probeDeviceIdentity,
+    required String? currentDeviceIdentity,
+  }) =>
+      probePollingGeneration == currentPollingGeneration &&
+      probeDeviceGeneration == currentDeviceGeneration &&
+      (currentDeviceIdentity == null ||
+          currentDeviceIdentity == probeDeviceIdentity);
 
   Future<Map<String, dynamic>?> _findMacOSDiskInfo() async {
     try {
@@ -1042,16 +1167,24 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
       // means we refuse to guess rather than risk flashing the wrong disk.
       final usbDiskNum = await _findLibrescootUsbDiskNumber();
       if (usbDiskNum == null) {
-        debugPrint('USB detector: could not resolve Librescoot USB disk identity, refusing to select a target');
+        debugPrint(
+          'USB detector: could not resolve Librescoot USB disk identity, refusing to select a target',
+        );
         return null;
       }
-      final pickedDiskNum = int.tryParse(RegExp(r'/dev/disk(\d+)').firstMatch(diskPath)?.group(1) ?? '');
+      final pickedDiskNum = int.tryParse(
+        RegExp(r'/dev/disk(\d+)').firstMatch(diskPath)?.group(1) ?? '',
+      );
       if (pickedDiskNum != usbDiskNum) {
-        debugPrint('USB detector: heuristic pick $diskPath does not match USB-identified disk$usbDiskNum, refusing to select a target');
+        debugPrint(
+          'USB detector: heuristic pick $diskPath does not match USB-identified disk$usbDiskNum, refusing to select a target',
+        );
         return null;
       }
       final rawPath = diskPath.replaceFirst('/dev/disk', '/dev/rdisk');
-      debugPrint('USB detector: diskutil selected $diskPath (confirmed via USB identity)');
+      debugPrint(
+        'USB detector: diskutil selected $diskPath (confirmed via USB identity)',
+      );
 
       debugPrint('USB detector: diskutil info $diskPath');
       final infoResult = await _runWithFallback(
@@ -1062,7 +1195,9 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
 
       final info = infoResult.stdout.toString();
       int? sizeBytes;
-      final sizeMatch = RegExp(r'Disk Size:\s+[\d.]+ \w+ \((\d+) Bytes\)').firstMatch(info);
+      final sizeMatch = RegExp(
+        r'Disk Size:\s+[\d.]+ \w+ \((\d+) Bytes\)',
+      ).firstMatch(info);
       if (sizeMatch != null) {
         sizeBytes = int.tryParse(sizeMatch.group(1)!);
       }
@@ -1103,7 +1238,9 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
 
     for (final rawLine in lines) {
       final line = rawLine.trimRight();
-      final diskMatch = RegExp(r'^/dev/disk\d+ \(external, physical\):$').firstMatch(line);
+      final diskMatch = RegExp(
+        r'^/dev/disk\d+ \(external, physical\):$',
+      ).firstMatch(line);
       if (diskMatch != null) {
         flushCurrent();
         currentDisk = line.split(' ').first;
@@ -1176,6 +1313,48 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
   /// identity that cannot be established stays unresolved, and the caller
   /// refuses to pick a target rather than guess.
   @visibleForTesting
+  static String? parseIoregDeviceIdentity(
+    String output, {
+    required int productId,
+  }) {
+    final vendorRe = RegExp(
+      r'"idVendor"\s*=\s*(0x[0-9a-f]+|\d+)',
+      caseSensitive: false,
+    );
+    final productRe = RegExp(
+      r'"idProduct"\s*=\s*(0x[0-9a-f]+|\d+)',
+      caseSensitive: false,
+    );
+    final identityRe = RegExp(
+      r',\s*id\s+(0x[0-9a-f]+)\s*>\s*$',
+      caseSensitive: false,
+    );
+
+    int? vendor;
+    int? product;
+    String? identity;
+    for (final line in output.split('\n')) {
+      final header = line.indexOf('+-o ');
+      if (header >= 0) {
+        vendor = null;
+        product = null;
+        identity = identityRe.firstMatch(line)?.group(1);
+        continue;
+      }
+      final vendorMatch = vendorRe.firstMatch(line);
+      if (vendorMatch != null) vendor = int.tryParse(vendorMatch.group(1)!);
+      final productMatch = productRe.firstMatch(line);
+      if (productMatch != null) product = int.tryParse(productMatch.group(1)!);
+      if (vendor == targetVendorId &&
+          product == productId &&
+          identity != null) {
+        return 'ioreg:$identity';
+      }
+    }
+    return null;
+  }
+
+  @visibleForTesting
   int? parseIoregDiskNumber(String output) {
     final disk = ioregBsdNameUnder(
       output,
@@ -1194,7 +1373,8 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
   /// driver stack hangs off the device, but the interface it publishes sits
   /// under that device's node exactly as an IOMedia does, and the indent
   /// tracking below is what attributes it to the right device.
-  static String? parseIoregEthernetInterface(String output) => ioregBsdNameUnder(
+  static String? parseIoregEthernetInterface(String output) =>
+      ioregBsdNameUnder(
         output,
         productId: ethernetPid,
         bsdRe: RegExp(r'"BSD Name"\s*=\s*"(en\d+)"', caseSensitive: false),
@@ -1228,10 +1408,14 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
   }) {
     // ioreg prints these in decimal, but accept the hex form too: the rest of
     // this file does, and misreading an id here costs a flash target.
-    final vendorRe =
-        RegExp(r'"idVendor"\s*=\s*(0x[0-9a-f]+|\d+)', caseSensitive: false);
-    final productRe =
-        RegExp(r'"idProduct"\s*=\s*(0x[0-9a-f]+|\d+)', caseSensitive: false);
+    final vendorRe = RegExp(
+      r'"idVendor"\s*=\s*(0x[0-9a-f]+|\d+)',
+      caseSensitive: false,
+    );
+    final productRe = RegExp(
+      r'"idProduct"\s*=\s*(0x[0-9a-f]+|\d+)',
+      caseSensitive: false,
+    );
 
     int? lastVendor;
     int? lastProduct;
@@ -1285,12 +1469,20 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
 
       final windowStart = (i - 5).clamp(0, lines.length);
       final windowEnd = (i + 5).clamp(0, lines.length);
-      final window = lines.sublist(windowStart, windowEnd).join('\n').toLowerCase();
+      final window = lines
+          .sublist(windowStart, windowEnd)
+          .join('\n')
+          .toLowerCase();
       if (!window.contains('product id: 0xa4a5')) continue;
 
       for (var j = i + 1; j < lines.length; j++) {
-        if (RegExp(r'product id:', caseSensitive: false).hasMatch(lines[j])) break;
-        final bsdMatch = RegExp(r'BSD Name:\s*disk(\d+)', caseSensitive: false).firstMatch(lines[j]);
+        if (RegExp(r'product id:', caseSensitive: false).hasMatch(lines[j])) {
+          break;
+        }
+        final bsdMatch = RegExp(
+          r'BSD Name:\s*disk(\d+)',
+          caseSensitive: false,
+        ).firstMatch(lines[j]);
         if (bsdMatch != null) {
           return int.tryParse(bsdMatch.group(1)!);
         }
@@ -1305,14 +1497,23 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
     final info = diskInfo;
 
     // Internal physical media is likely a system disk.
-    final internalMatch = RegExp(r'^\s*Internal:\s+Yes\s*$', multiLine: true).hasMatch(info);
+    final internalMatch = RegExp(
+      r'^\s*Internal:\s+Yes\s*$',
+      multiLine: true,
+    ).hasMatch(info);
     if (internalMatch) return true;
 
     // APFS/system-volume signals tied to internal disk are strong indicators.
-    if (RegExp(r'^\s*APFS Physical Store Disk:\s+disk0s\d+\s*$', multiLine: true).hasMatch(info)) {
+    if (RegExp(
+      r'^\s*APFS Physical Store Disk:\s+disk0s\d+\s*$',
+      multiLine: true,
+    ).hasMatch(info)) {
       return true;
     }
-    if (RegExp(r'^\s*Part of Whole:\s+disk0\s*$', multiLine: true).hasMatch(info)) {
+    if (RegExp(
+      r'^\s*Part of Whole:\s+disk0\s*$',
+      multiLine: true,
+    ).hasMatch(info)) {
       return true;
     }
 
@@ -1322,7 +1523,7 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
   Future<UsbDevice?> _detectLinux() async {
     try {
       // Use lsusb for device detection
-      final result = await Process.run('lsusb', ['-d', '0525:']);
+      final result = await runBounded('lsusb', ['-d', '0525:']);
 
       // Not `return null`: lsusb exits 1 when nothing matches, and a board in
       // serial-download mode is 15a2, never 0525. Returning here made the SDP
@@ -1370,7 +1571,7 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
   /// notes.
   Future<UsbDevice?> _detectLinuxRecovery() async {
     try {
-      final dbc = await Process.run('lsusb', ['-d', '15a2:0061']);
+      final dbc = await runBounded('lsusb', ['-d', '15a2:0061']);
       if (dbc.exitCode == 0 && dbc.stdout.toString().isNotEmpty) {
         return UsbDevice(
           id: 'usb-15a2-0061',
@@ -1383,7 +1584,7 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
       }
     } catch (_) {}
     try {
-      final mdb = await Process.run('lsusb', ['-d', '15a2:007d']);
+      final mdb = await runBounded('lsusb', ['-d', '15a2:007d']);
       if (mdb.exitCode == 0 && mdb.stdout.toString().isNotEmpty) {
         return UsbDevice(
           id: 'usb-15a2-007d',
@@ -1408,12 +1609,13 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
     try {
       final blockDir = Directory('/sys/block');
       if (!blockDir.existsSync()) return null;
-      final names = blockDir
-          .listSync()
-          .map((e) => e.path.split('/').last)
-          .where((n) => n.startsWith('sd'))
-          .toList()
-        ..sort();
+      final names =
+          blockDir
+              .listSync()
+              .map((e) => e.path.split('/').last)
+              .where((n) => n.startsWith('sd'))
+              .toList()
+            ..sort();
       for (final name in names) {
         if (_linuxBlockIsMdb(name)) return '/dev/$name';
       }

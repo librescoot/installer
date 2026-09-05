@@ -5,18 +5,23 @@ import 'package:librescoot_installer/models/finish_handover.dart';
 /// itself. Running it when the cable is on the dashboard cannot work and
 /// leaves the user watching a wait that never lands.
 void main() {
+  test('a coordinator failure stays blocked and retryable', () {
+    final state = finishEntryFailureState();
+    expect(state.blocked, isTrue);
+    expect(state.awaitingHandover, isFalse);
+  });
+
   FinishHandover call({
     bool dryRun = false,
     bool linkUp = true,
     bool deviceArmed = true,
     bool? deviceReported = false,
-  }) =>
-      finishHandover(
-        dryRun: dryRun,
-        linkUp: linkUp,
-        deviceArmed: deviceArmed,
-        deviceReported: deviceReported,
-      );
+  }) => finishHandover(
+    dryRun: dryRun,
+    linkUp: linkUp,
+    deviceArmed: deviceArmed,
+    deviceReported: deviceReported,
+  );
 
   test('an armed run that reported back needs nothing from the laptop', () {
     expect(call(deviceReported: true), FinishHandover.none);
@@ -36,13 +41,14 @@ void main() {
     // the whole install on this route, and calling it "nothing to do" left the
     // owner reassembling a scooter with a staged artifact and no phase queued
     // to install it.
-    expect(call(deviceReported: null, deviceArmed: false),
-        FinishHandover.blocked);
+    expect(
+      call(deviceReported: null, deviceArmed: false),
+      FinishHandover.blocked,
+    );
   });
 
   test('a run with no trampoline behind it is the laptop\'s to finish', () {
-    expect(call(deviceArmed: false, deviceReported: false),
-        FinishHandover.run);
+    expect(call(deviceArmed: false, deviceReported: false), FinishHandover.run);
   });
 
   test('a dry run owes nothing: nothing was staged', () {

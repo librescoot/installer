@@ -24,18 +24,25 @@ void main() {
     expect(setPhase, contains('Future.microtask(_startMdbBoot);'));
     expect(build, isNot(contains('Future.microtask')));
     expect(build, contains('_mdbBootAttempt.isFailed'));
-    expect(build, contains('onPressed: _startMdbBoot'));
+    expect(
+      build,
+      contains('onPressed: () => _startMdbBoot(explicitRetry: true)'),
+    );
   });
 
-  test('privilege, data, and reconnect failures block for retry', () {
+  test('privilege, data, reconnect and giving up all block for retry', () {
     final start = source.indexOf('Future<void> _waitForMdbBoot(');
     final end = source.indexOf('DeviceFinish _buildDeviceFinish', start);
     final block = source.substring(start, end);
 
     expect(source, isNot(contains('_mdbBootStarted')));
-    expect(RegExp(r'_failMdbBoot\(generation,').allMatches(block).length, 3);
+    expect(
+      RegExp(r'_failMdbBoot\(generation,').allMatches(block).length,
+      greaterThanOrEqualTo(4),
+    );
     expect(block, contains('on DataPartitionWaitException catch (e)'));
     expect(block, contains('l10n.sshReconnectionFailed(e.toString())'));
+    expect(block, contains('l10n.mdbBootGaveUp(_mdbBootCeiling.inMinutes)'));
   });
 
   test('success and reflash invalidate the running generation', () {

@@ -74,4 +74,6 @@ test/goldens/failures/
 # Local tooling output, never part of the project
 .beans/
 .playwright-mcp/
+.superpowers/
+/cli/
 /*.png

@@ -950,6 +950,18 @@ abstract class AppLocalizations {
   /// **'Unlock your scooter'**
   String get awaitingUnlockHeading;
 
+  /// No description provided for @unlockWaitCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancelled. The installer needs the scooter parked before it can carry on. Unlock it with the keycard or the app, then try again.'**
+  String get unlockWaitCancelled;
+
+  /// No description provided for @parkWaitCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancelled. The installer needs the scooter parked before it can carry on. Park it, then try again.'**
+  String get parkWaitCancelled;
+
   /// No description provided for @awaitingUnlockDetail.
   ///
   /// In en, this message translates to:
@@ -1597,6 +1609,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Waiting for the scooter to restart...'**
   String get waitingForMdbRestart;
+
+  /// No description provided for @mdbBootGaveUp.
+  ///
+  /// In en, this message translates to:
+  /// **'The scooter has not come back after {minutes} minutes. A board that did not take the image stays in mass-storage mode, which looks dead: no lights, no network. Unplug the USB cable, plug it back in, and try again.'**
+  String mdbBootGaveUp(int minutes);
 
   /// No description provided for @mdbDetectedNetwork.
   ///

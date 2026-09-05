@@ -4,6 +4,15 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 
+class RootInvocation {
+  final List<String> argv;
+  final Map<String, String> environment;
+
+  const RootInvocation(this.argv, this.environment);
+
+  bool get isDirect => argv.isEmpty;
+}
+
 /// Service for handling privilege elevation across platforms.
 ///
 /// Strategy: Self-elevate the entire app on startup to avoid
@@ -35,8 +44,6 @@ class ElevationService {
       return _elevateWindows(executable, args);
     } else if (Platform.isMacOS) {
       return _elevateMacOS(executable, args);
-    } else if (Platform.isLinux) {
-      return _elevateLinux(executable, args);
     }
 
     return false;
@@ -57,10 +64,18 @@ class ElevationService {
     // Check effective UID
     try {
       final result = await Process.run('id', ['-u']);
-      return result.stdout.toString().trim() == '0';
+      if (result.exitCode == 0) {
+        return result.stdout.toString().trim() == '0';
+      }
     } catch (_) {
-      return false;
     }
+    try {
+      final status = await File('/proc/self/status').readAsString();
+      final uid = RegExp(r'^Uid:\s*(\d+)', multiLine: true).firstMatch(status);
+      if (uid != null) return uid.group(1) == '0';
+    } catch (_) {
+    }
+    return false;
   }
 
   /// Quote a single argument the way CommandLineToArgvW expects.
@@ -195,46 +210,89 @@ class ElevationService {
     }
   }
 
-  static Future<bool> _elevateLinux(String executable, List<String> args) async {
-    // Try pkexec first (PolicyKit), fall back to gksudo/kdesudo
-    final elevators = ['pkexec', 'gksudo', 'kdesudo', 'sudo'];
-
-    for (final elevator in elevators) {
-      try {
-        final which = await Process.run('which', [elevator]);
-        if (which.exitCode != 0) continue;
-
-        final process = await Process.start(
-          elevator,
-          [executable, ...args],
-        );
-
-        // Process.start returns as soon as the child is spawned; the
-        // relaunched app is long-running, so we can't just await exitCode
-        // like the sync elevation paths do. Instead, race a short window:
-        // pkexec exits 126 immediately if the user cancels the auth dialog
-        // and 127 if authentication itself fails, so a quick non-zero exit
-        // is a reliable "declined" signal. If nothing has happened after
-        // the window, assume the elevated relaunch is up and running.
-        final exitCode = await process.exitCode
-            .timeout(const Duration(seconds: 2), onTimeout: () => 0);
-        if (exitCode != 0) {
-          // A fast non-zero exit means the user cancelled/declined the
-          // prompt (or auth failed), not that this elevator is missing.
-          // Report failure rather than silently trying the next one, so
-          // the caller shows the elevation-required dialog instead of
-          // treating this as "elevation started" and exiting the app.
-          debugPrint('Elevation: $elevator exited $exitCode within window, treating as declined');
-          return false;
-        }
-        // Still running after the window: assume the elevated relaunch is
-        // up and the caller should exit.
-        return true;
-      } catch (_) {
-        continue;
-      }
+  static Future<bool> hasCommand(String name) async {
+    final pathEnv = Platform.environment['PATH'] ??
+        '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin';
+    for (final dir in pathEnv.split(':')) {
+      if (dir.isEmpty) continue;
+      if (await File(path.join(dir, name)).exists()) return true;
     }
     return false;
+  }
+
+  static Future<RootInvocation?> linuxRootPrefix({
+    Future<bool> Function()? isRoot,
+    Future<bool> Function(String name)? hasCommandOverride,
+    Future<String?> Function()? findAskpass,
+  }) async {
+    final rootCheck = isRoot ?? _isUnixRoot;
+    final have = hasCommandOverride ?? hasCommand;
+    final askpassFor = findAskpass ?? _findLinuxAskpass;
+    if (await rootCheck()) return const RootInvocation([], {});
+    if (await have('pkexec')) {
+      return const RootInvocation(['pkexec'], {});
+    }
+    if (await have('sudo')) {
+      final askpass = await askpassFor();
+      if (askpass != null) {
+        return RootInvocation(const ['sudo', '-A'], {
+          'SUDO_ASKPASS': askpass,
+        });
+      }
+    }
+    return null;
+  }
+
+  static String macOsAskpassScript(String reason) => '#!/bin/sh\n'
+      'osascript'
+      ' -e \'display dialog "Librescoot Installer needs your administrator'
+      ' password $reason." with title "Librescoot Installer"'
+      ' default answer "" with hidden answer with icon caution\''
+      ' -e \'text returned of result\'\n';
+
+  static final Map<String, Future<String?>> _macOsAskpass = {};
+
+  static Future<String?> macOsAskpassPath(String reason) {
+    return _macOsAskpass.putIfAbsent(reason, () async {
+      try {
+        final dir =
+            await Directory.systemTemp.createTemp('librescoot_askpass_');
+        final script = File(path.join(dir.path, 'askpass.sh'));
+        await script.writeAsString(macOsAskpassScript(reason));
+        await Process.run('chmod', ['0700', script.path]);
+        return script.path;
+      } catch (e) {
+        debugPrint('Elevation: could not write the askpass helper ($e)');
+        return null;
+      }
+    });
+  }
+
+  static Future<RootInvocation?> macOSRootPrefix(String reason) async {
+    if (await _isUnixRoot()) return const RootInvocation([], {});
+    if (!await hasCommand('sudo')) return null;
+    final askpass = await macOsAskpassPath(reason);
+    if (askpass == null) return null;
+    return RootInvocation(const ['sudo', '-A'], {'SUDO_ASKPASS': askpass});
+  }
+
+  static Future<String?> _findLinuxAskpass() async {
+    final fromEnv = Platform.environment['SUDO_ASKPASS'];
+    if (fromEnv != null && fromEnv.isNotEmpty && await File(fromEnv).exists()) {
+      return fromEnv;
+    }
+    const candidates = [
+      '/usr/bin/ssh-askpass',
+      '/usr/bin/ksshaskpass',
+      '/usr/bin/lxqt-openssh-askpass',
+      '/usr/bin/x11-ssh-askpass',
+      '/usr/libexec/openssh/ssh-askpass',
+      '/usr/lib/ssh/x11-ssh-askpass',
+    ];
+    for (final c in candidates) {
+      if (await File(c).exists()) return c;
+    }
+    return null;
   }
 
   /// Run a command with elevation (for cases where we need to run

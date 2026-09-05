@@ -323,11 +323,24 @@ class AutoPlayServiceLease {
     return result;
   }
 
+  static const Duration _netCommandTimeout = Duration(seconds: 10);
+
   static Future<ProcessResult> _defaultRunProcess(
     String executable,
     List<String> arguments,
-  ) {
-    return Process.run(executable, arguments);
+  ) async {
+    Process? proc;
+    try {
+      proc = await Process.start(executable, arguments);
+      final out = proc.stdout.transform(systemEncoding.decoder).join();
+      final err = proc.stderr.transform(systemEncoding.decoder).join();
+      final code = await proc.exitCode.timeout(_netCommandTimeout);
+      return ProcessResult(proc.pid, code, await out, await err);
+    } on TimeoutException {
+      debugPrint('AutoPlay: $executable ${arguments.join(' ')} timed out');
+      proc?.kill();
+      return ProcessResult(proc?.pid ?? 0, -1, '', 'timed out');
+    }
   }
 }
 

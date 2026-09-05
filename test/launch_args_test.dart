@@ -20,4 +20,19 @@ void main() {
     );
     expect(relaunch, contains('--keycards=46DCC300,161B4501'));
   });
+
+  test('--ssh-trace is off by default and survives the elevated relaunch', () {
+    expect(LaunchArgs.fromArgs(const []).sshTrace, isFalse);
+
+    final args = LaunchArgs.fromArgs(const ['--ssh-trace']);
+    expect(args.sshTrace, isTrue);
+    expect(
+      args.relaunchArgs(
+        channelName: 'stable',
+        regionSlug: null,
+        wantsOfflineMaps: false,
+      ),
+      contains('--ssh-trace'),
+    );
+  });
 }

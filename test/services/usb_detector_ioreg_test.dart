@@ -17,22 +17,43 @@ void main() {
     expect(detector.parseIoregDiskNumber(_macos26Sample), 8);
   });
 
+  test('uses the IORegistry object id as the gadget identity', () {
+    expect(
+      UsbDetector.parseIoregDeviceIdentity(
+        _macos26Sample,
+        productId: UsbDetector.massStoragePid,
+      ),
+      'ioreg:0x10002f8a1',
+    );
+    expect(
+      UsbDetector.parseIoregDeviceIdentity(
+        _macos26Sample.replaceFirst('0x10002f8a1', '0x200000001'),
+        productId: UsbDetector.massStoragePid,
+      ),
+      'ioreg:0x200000001',
+    );
+  });
+
   test('returns null in ethernet mode (no mass-storage PID, no disk)', () {
     expect(detector.parseIoregDiskNumber(_ethernetModeSample), isNull);
   });
 
   test('never matches a partition slice', () {
-    expect(detector.parseIoregDiskNumber('''
+    expect(
+      detector.parseIoregDiskNumber('''
     "idVendor" = 1317
     "idProduct" = 42149
         "BSD Name" = "disk8s1"
-'''), isNull);
+'''),
+      isNull,
+    );
   });
 
   test('attributes the disk to the gadget, not a foreign USB drive', () {
     // The dangerous case: another USB disk enumerated first. Picking disk3
     // here would hand the flasher an unrelated drive.
-    expect(detector.parseIoregDiskNumber('''
+    expect(
+      detector.parseIoregDiskNumber('''
   +-o SomeOtherDrive
     "idVendor" = 1234
     "idProduct" = 5678
@@ -41,11 +62,14 @@ void main() {
     "idVendor" = 1317
     "idProduct" = 42149
         "BSD Name" = "disk8"
-'''), 8);
+'''),
+      8,
+    );
   });
 
   test('attributes correctly when the gadget enumerates first', () {
-    expect(detector.parseIoregDiskNumber('''
+    expect(
+      detector.parseIoregDiskNumber('''
   +-o USB download gadget
     "idVendor" = 1317
     "idProduct" = 42149
@@ -54,14 +78,17 @@ void main() {
     "idVendor" = 1234
     "idProduct" = 5678
         "BSD Name" = "disk3"
-'''), 8);
+'''),
+      8,
+    );
   });
 
   test('a device publishing no ids cannot inherit the gadget identity', () {
     // The gadget enumerated but its media has not attached yet, and the next
     // device declares no descriptor properties of its own. Its disk must not
     // be read as the gadget's.
-    expect(detector.parseIoregDiskNumber('''
+    expect(
+      detector.parseIoregDiskNumber('''
   +-o USB download gadget  <class IOUSBHostDevice, id 0x1>
     |   "idProduct" = 42149
     |   "idVendor" = 1317
@@ -69,13 +96,16 @@ void main() {
     |   "USB Product Name" = "Foreign"
     | +-o Foreign Media  <class IOMedia, id 0x3>
     |       "BSD Name" = "disk3"
-'''), isNull);
+'''),
+      isNull,
+    );
   });
 
   test('a foreign disk behind the same hub is not the gadget disk', () {
     // The hub publishes ids, so a child that publishes none would otherwise
     // fall back to whatever the previous child left behind.
-    expect(detector.parseIoregDiskNumber('''
+    expect(
+      detector.parseIoregDiskNumber('''
 +-o Hub  <class IOUSBHostDevice, id 0x1>
   |   "idVendor" = 1111
   |   "idProduct" = 2222
@@ -85,17 +115,22 @@ void main() {
   | +-o SomeOtherDrive  <class IOUSBHostDevice, id 0x3>
   |   | +-o Foreign Media  <class IOMedia, id 0x4>
   |   |       "BSD Name" = "disk3"
-'''), isNull);
+'''),
+      isNull,
+    );
   });
 
   test('reads hex-formatted ids', () {
-    expect(detector.parseIoregDiskNumber('''
+    expect(
+      detector.parseIoregDiskNumber('''
   +-o USB download gadget  <class IOUSBHostDevice, id 0x1>
     |   "idProduct" = 0xa4a5
     |   "idVendor" = 0x525
     | +-o Linux UMS disk 0 Media  <class IOMedia, id 0x2>
     |       "BSD Name" = "disk8"
-'''), 8);
+'''),
+      8,
+    );
   });
 
   test('returns null on empty or junk input', () {

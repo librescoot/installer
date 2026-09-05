@@ -493,6 +493,14 @@ class AppLocalizationsDe extends AppLocalizations {
   String get awaitingUnlockHeading => 'Roller entsperren';
 
   @override
+  String get unlockWaitCancelled =>
+      'Abgebrochen. Der Installer braucht den Roller im Zustand geparkt. Entsperre ihn mit der Keycard oder der App und versuch es dann erneut.';
+
+  @override
+  String get parkWaitCancelled =>
+      'Abgebrochen. Der Installer braucht den Roller im Zustand geparkt. Stell ihn ab und versuch es dann erneut.';
+
+  @override
   String get awaitingUnlockDetail =>
       'Entsperre den Roller, damit der Installer fortfahren kann.';
 
@@ -878,6 +886,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get waitingForMdbRestart => 'Warte auf den Neustart des Rollers…';
+
+  @override
+  String mdbBootGaveUp(int minutes) {
+    return 'Der Roller ist nach $minutes Minuten nicht zurückgekommen. Ein Board, das das Image nicht übernommen hat, bleibt im Massenspeichermodus und wirkt dadurch tot: kein Licht, kein Netzwerk. Zieh das USB-Kabel ab, steck es wieder ein und versuch es erneut.';
+  }
 
   @override
   String get mdbDetectedNetwork =>

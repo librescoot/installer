@@ -282,6 +282,10 @@ class TrampolineService {
   final SshService _ssh;
   bool _pythonServerStarted = false;
 
+  static const Duration _uploadStallTimeout = Duration(seconds: 60);
+
+  static const Duration _uploadConnectTimeout = Duration(seconds: 10);
+
   TrampolineService(this._ssh);
 
   /// Pure substitution, split out of [generateScript] so it can be tested
@@ -482,7 +486,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
           .getUrl(Uri.parse('$_mdbUploadUrl/'))
           .timeout(const Duration(seconds: 3));
       final resp = await req.close().timeout(const Duration(seconds: 3));
-      await resp.drain<void>();
+      await resp.drain<void>().timeout(const Duration(seconds: 3));
       if (resp.statusCode == 200) {
         debugPrint('Trampoline: permanent data-server detected, skipping Python server');
         _pythonServerStarted = false;
@@ -510,11 +514,14 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     debugPrint('Trampoline: waiting for upload server...');
     final client = HttpClient();
     try {
-      for (var i = 0; i < 30; i++) {
+      final deadline = DateTime.now().add(const Duration(seconds: 30));
+      for (var i = 0; DateTime.now().isBefore(deadline); i++) {
         try {
-          final req = await client.getUrl(Uri.parse('$_mdbUploadUrl/'));
+          final req = await client
+              .getUrl(Uri.parse('$_mdbUploadUrl/'))
+              .timeout(const Duration(seconds: 2));
           final resp = await req.close().timeout(const Duration(seconds: 2));
-          await resp.drain<void>();
+          await resp.drain<void>().timeout(const Duration(seconds: 2));
           debugPrint('Trampoline: HTTP upload server ready (attempt ${i + 1})');
           _pythonServerStarted = true;
           return;
@@ -557,7 +564,11 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
         : '/$remotePath';
 
     // Raw socket: write HTTP headers then stream file data with real progress
-    final socket = await Socket.connect('192.168.7.1', 8080);
+    final socket = await Socket.connect(
+      '192.168.7.1',
+      8080,
+      timeout: _uploadConnectTimeout,
+    );
     try {
       // Send HTTP PUT header
       final header = 'PUT $remoteFilename HTTP/1.1\r\n'
@@ -578,7 +589,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
           final readSize = remaining < chunkSize ? remaining : chunkSize;
           final chunk = await raf.read(readSize);
           socket.add(chunk);
-          await socket.flush();
+          await socket.flush().timeout(_uploadStallTimeout);
           sent += chunk.length;
 
           final now = DateTime.now();
@@ -591,17 +602,18 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
         await raf.close();
       }
 
-      // Read response
-      final response = await socket.fold<List<int>>(
-        <int>[],
-        (prev, chunk) => prev..addAll(chunk),
-      );
+      final response = await socket
+          .fold<List<int>>(
+            <int>[],
+            (prev, chunk) => prev..addAll(chunk),
+          )
+          .timeout(_uploadStallTimeout);
       final responseStr = String.fromCharCodes(response);
       if (!responseStr.contains('200')) {
         throw Exception('HTTP upload failed: $responseStr');
       }
     } finally {
-      await socket.close();
+      socket.destroy();
     }
   }
 

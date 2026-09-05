@@ -19,16 +19,18 @@ class ScriptedDetector extends UsbDetector {
   }
 }
 
-UsbDevice device(DeviceMode mode) => UsbDevice(
-      id: mode == DeviceMode.massStorage ? 'usb-0525-a4a5' : 'usb-0525-a4a2',
-      name: 'Librescoot MDB',
-      path: mode == DeviceMode.massStorage ? '/dev/rdisk16' : '',
-      vendorId: UsbDetector.targetVendorId,
-      productId: mode == DeviceMode.massStorage
-          ? UsbDetector.massStoragePid
-          : UsbDetector.ethernetPid,
-      mode: mode,
-    );
+UsbDevice device(DeviceMode mode, {String? id}) => UsbDevice(
+  id:
+      id ??
+      (mode == DeviceMode.massStorage ? 'usb-0525-a4a5' : 'usb-0525-a4a2'),
+  name: 'Librescoot MDB',
+  path: mode == DeviceMode.massStorage ? '/dev/rdisk16' : '',
+  vendorId: UsbDetector.targetVendorId,
+  productId: mode == DeviceMode.massStorage
+      ? UsbDetector.massStoragePid
+      : UsbDetector.ethernetPid,
+  mode: mode,
+);
 
 void main() {
   late ScriptedDetector detector;
@@ -49,8 +51,7 @@ void main() {
   /// completing an already-completed future throws.
   Future<void> settle(UsbDevice? answer) async {
     for (var i = 0; i < 20; i++) {
-      final pending =
-          detector.calls.where((c) => !c.isCompleted).toList();
+      final pending = detector.calls.where((c) => !c.isCompleted).toList();
       if (pending.isNotEmpty) {
         pending.first.complete(answer);
         await Future<void>.delayed(Duration.zero);
@@ -72,8 +73,25 @@ void main() {
     // clear-on-null never fires.
     await settle(device(DeviceMode.ethernet));
 
-    expect(detector.hasMacDiskInfoCache, isFalse,
-        reason: 'mass storage to ethernet must not leave a disk node cached');
+    expect(
+      detector.hasMacDiskInfoCache,
+      isFalse,
+      reason: 'mass storage to ethernet must not leave a disk node cached',
+    );
+  });
+
+  test('a same-mode replacement clears the cached disk node', () async {
+    detector.startMonitoring(interval: const Duration(milliseconds: 10));
+    await settle(device(DeviceMode.massStorage, id: 'gadget-a'));
+
+    detector.seedMacDiskInfoForTest({'path': '/dev/rdisk16'});
+    await settle(device(DeviceMode.massStorage, id: 'gadget-b'));
+
+    expect(
+      detector.hasMacDiskInfoCache,
+      isFalse,
+      reason: 'same-mode identity changes must not reuse the old disk path',
+    );
   });
 
   test('a device going away still clears it', () async {
@@ -93,7 +111,10 @@ void main() {
 
     await settle(device(DeviceMode.massStorage));
 
-    expect(detector.hasMacDiskInfoCache, isTrue,
-        reason: 'an unchanged device must not cost us a good probe result');
+    expect(
+      detector.hasMacDiskInfoCache,
+      isTrue,
+      reason: 'an unchanged device must not cost us a good probe result',
+    );
   });
 }

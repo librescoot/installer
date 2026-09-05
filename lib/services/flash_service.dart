@@ -7,6 +7,7 @@ import 'package:path/path.dart' as path;
 
 import '../l10n/app_localizations.dart';
 import 'disk_arbitration_service.dart';
+import 'elevation_service.dart';
 import 'usb_detector.dart' show SystemDiskVerdict;
 
 /// Progress callback for flashing operations
@@ -16,15 +17,22 @@ class SafetyCheck {
   final bool passed;
   final List<String> errors;
 
-  SafetyCheck({
-    required this.passed,
-    this.errors = const [],
-  });
+  SafetyCheck({required this.passed, this.errors = const []});
+}
+
+class FlashStalledException implements Exception {
+  final String message;
+  const FlashStalledException(this.message);
+
+  @override
+  String toString() => message;
 }
 
 /// Service for writing firmware images to devices
 class FlashService {
   AppLocalizations? l10n;
+
+  static const Duration _flashStallTimeout = Duration(minutes: 3);
 
   /// User area of the eMMC every MDB carries: 15269888 sectors of 512 bytes.
   /// Matched exactly. Every platform supplies the raw device size, and a host
@@ -72,17 +80,23 @@ class FlashService {
 
     // CRITICAL: Never flash system disk
     if (isSystemDisk) {
-      errors.add('DANGER: This appears to be a system disk. Flashing is blocked.');
+      errors.add(
+        'DANGER: This appears to be a system disk. Flashing is blocked.',
+      );
     }
 
     // Must be correct vendor ID
     if (vendorId != 0x0525) {
-      errors.add('Wrong vendor ID: 0x${vendorId.toRadixString(16)} (expected 0x0525)');
+      errors.add(
+        'Wrong vendor ID: 0x${vendorId.toRadixString(16)} (expected 0x0525)',
+      );
     }
 
     // Must be in mass storage mode (PID A4A5)
     if (productId != 0xA4A5) {
-      errors.add('Wrong product ID: 0x${productId.toRadixString(16)} (expected 0xa4a5)');
+      errors.add(
+        'Wrong product ID: 0x${productId.toRadixString(16)} (expected 0xa4a5)',
+      );
     }
 
     // One value, not a range: a range wide enough for "any small disk" also
@@ -157,8 +171,10 @@ class FlashService {
       // on it is refused above regardless of name.
       if (devicePath == '/dev/sda' &&
           systemDiskVerdict != SystemDiskVerdict.notSystem) {
-        errors.add('DANGER: /dev/sda could not be confirmed as the scooter. '
-            'Refusing, because it is commonly the system disk.');
+        errors.add(
+          'DANGER: /dev/sda could not be confirmed as the scooter. '
+          'Refusing, because it is commonly the system disk.',
+        );
       }
       // Never allow nvme0n1 (system NVMe)
       if (devicePath.contains('nvme0n1')) {
@@ -166,10 +182,7 @@ class FlashService {
       }
     }
 
-    return SafetyCheck(
-      passed: errors.isEmpty,
-      errors: errors,
-    );
+    return SafetyCheck(passed: errors.isEmpty, errors: errors);
   }
 
   /// Windows entry point for the Go flasher. Uses the bmap fast path when
@@ -183,13 +196,25 @@ class FlashService {
   }) async {
     final flasherPath = await _getFlasherPath();
     if (flasherPath == null) {
-      throw Exception('librescoot-flasher-windows-amd64.exe not found in app bundle');
+      throw Exception(
+        'librescoot-flasher-windows-amd64.exe not found in app bundle',
+      );
     }
 
-    await _writeWithGoFlasher(flasherPath, imagePath, devicePath, bmapPath, true, onProgress);
+    await _writeWithGoFlasher(
+      flasherPath,
+      imagePath,
+      devicePath,
+      bmapPath,
+      true,
+      onProgress,
+    );
   }
 
-  Future<int?> _estimateImageSizeBytes(String imagePath, bool isCompressed) async {
+  Future<int?> _estimateImageSizeBytes(
+    String imagePath,
+    bool isCompressed,
+  ) async {
     try {
       if (!isCompressed) {
         return await File(imagePath).length();
@@ -209,11 +234,17 @@ class FlashService {
   }
 
   Future<List<String>> _findLinuxPartitions(String devicePath) async {
-    final result = await Process.run(
-        'lsblk', ['-rpn', '-o', 'PATH,TYPE', devicePath]);
-    if (result.exitCode != 0) {
+    final result = await _runBounded('lsblk', 'lsblk', [
+      '-rpn',
+      '-o',
+      'PATH,TYPE',
+      devicePath,
+    ]);
+    if (result == null || result.exitCode != 0) {
       throw Exception(
-          'Could not enumerate partitions on $devicePath: ${result.stderr}');
+        'Could not enumerate partitions on $devicePath: '
+        '${result?.stderr ?? 'command timed out'}',
+      );
     }
     return [
       for (final line in result.stdout.toString().split('\n'))
@@ -224,12 +255,23 @@ class FlashService {
   }
 
   Future<List<String>> _linuxMountTargets(String partition) async {
-    final result = await Process.run(
-        'findmnt', ['-rn', '-S', partition, '-o', 'TARGET']);
+    final result = await _runBounded('findmnt', 'findmnt', [
+      '-rn',
+      '-S',
+      partition,
+      '-o',
+      'TARGET',
+    ]);
     // findmnt returns 1 when there are no matches.
+    if (result == null) {
+      throw Exception(
+        'Could not inspect mounts for $partition: command timed out',
+      );
+    }
     if (result.exitCode != 0 && result.exitCode != 1) {
       throw Exception(
-          'Could not inspect mounts for $partition: ${result.stderr}');
+        'Could not inspect mounts for $partition: ${result.stderr}',
+      );
     }
     return result.stdout
         .toString()
@@ -239,29 +281,163 @@ class FlashService {
         .toList();
   }
 
+  static Future<ProcessResult?> _runBounded(
+    String label,
+    String executable,
+    List<String> args, {
+    Duration timeout = const Duration(seconds: 30),
+    Map<String, String>? environment,
+  }) async {
+    Process? proc;
+    try {
+      proc = await Process.start(executable, args, environment: environment);
+      final out = proc.stdout.transform(systemEncoding.decoder).join();
+      final err = proc.stderr.transform(systemEncoding.decoder).join();
+      final code = await proc.exitCode.timeout(timeout);
+      return ProcessResult(proc.pid, code, await out, await err);
+    } on TimeoutException {
+      debugPrint('Flash: $label timed out after ${timeout.inSeconds}s');
+      proc?.kill(ProcessSignal.sigkill);
+      if (proc != null) {
+        try {
+          await proc.exitCode.timeout(const Duration(seconds: 1));
+        } catch (_) {}
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Flash: $label could not run: $e');
+      return null;
+    }
+  }
+
+  static Future<void> _syncOrCarryOn() async {
+    if (await _runBounded(
+          'sync',
+          'sync',
+          const [],
+          timeout: const Duration(seconds: 30),
+        ) ==
+        null) {
+      debugPrint('Flash: host flush did not complete, continuing without it');
+    }
+  }
+
+  @visibleForTesting
+  static String shellQuote(String s) => "'${s.replaceAll("'", "'\\''")}'";
+
   Future<void> _prepareLinuxTarget(String devicePath) async {
     final partitions = await _findLinuxPartitions(devicePath);
-    await Process.run('sync', []);
+    await _syncOrCarryOn();
+
     for (final partition in partitions) {
       for (final target in await _linuxMountTargets(partition)) {
         debugPrint('Flash: unmounting $partition from $target');
-        final result = await Process.run('umount', ['--', target]);
-        if (result.exitCode != 0) {
-          throw Exception(
-              'Refusing to flash: could not unmount $partition from $target: '
-              '${result.stderr}');
+        final direct = await _runBounded('umount $target', 'umount', [
+          '--',
+          target,
+        ]);
+        if (direct != null && direct.exitCode == 0) continue;
+        debugPrint(
+          'Flash: plain umount of $target did not take'
+          '${direct == null ? ' (timed out)' : ': ${direct.stderr}'}',
+        );
+
+        final viaUdisks = await _runBounded(
+          'udisksctl unmount $partition',
+          'udisksctl',
+          ['unmount', '-b', partition, '--no-user-interaction'],
+        );
+        if (viaUdisks != null && viaUdisks.exitCode == 0) {
+          debugPrint('Flash: udisksctl released $partition');
+          continue;
         }
+        debugPrint(
+          'Flash: udisksctl did not release $partition'
+          '${viaUdisks == null ? ' (timed out)' : ': ${viaUdisks.stderr}'}',
+        );
       }
     }
+
+    final stubborn = <String>[];
+    for (final partition in partitions) {
+      stubborn.addAll(await _linuxMountTargets(partition));
+    }
+    if (stubborn.isNotEmpty) {
+      final root = await ElevationService.linuxRootPrefix();
+      if (root == null) {
+        throw Exception(
+          'Refusing to flash: ${stubborn.join(', ')} is still mounted and '
+          'this system offers no way to ask for the rights to unmount it. '
+          'Unmount it by hand, or relaunch the installer with sudo.',
+        );
+      }
+      final script = stubborn
+          .map((t) => 'umount -- ${shellQuote(t)}')
+          .join('\n');
+      debugPrint('Flash: elevating to unmount ${stubborn.join(', ')}');
+      final argv = [...root.argv, 'sh', '-c', script];
+      final elevated = await _runBounded(
+        'elevated umount',
+        argv.first,
+        argv.sublist(1),
+        environment: {...Platform.environment, ...root.environment},
+      );
+      if (elevated == null) {
+        throw Exception(
+          'Refusing to flash: unmounting ${stubborn.join(', ')} did not '
+          'finish. The board may have dropped off the bus.',
+        );
+      }
+    }
+
     for (final partition in partitions) {
       final remaining = await _linuxMountTargets(partition);
       if (remaining.isNotEmpty) {
-        throw Exception('Refusing to flash: $partition remains mounted at '
-            '${remaining.join(', ')}');
+        throw Exception(
+          'Refusing to flash: $partition remains mounted at '
+          '${remaining.join(', ')}',
+        );
       }
     }
-    debugPrint('Flash: all partitions below $devicePath are unmounted; '
-        'flasher will acquire O_EXCL');
+    debugPrint(
+      'Flash: all partitions below $devicePath are unmounted; '
+      'flasher will acquire O_EXCL',
+    );
+  }
+
+  Future<bool> _macOSHasMountedVolumes(String diskName) async {
+    final listed = await _runBounded('diskutil list $diskName', 'diskutil', [
+      'list',
+      diskName,
+    ]);
+    if (listed == null || listed.exitCode != 0) {
+      throw Exception(
+        'Refusing to flash: could not verify mounted volumes on $diskName',
+      );
+    }
+    final identifiers = <String>{diskName};
+    final output = listed.stdout.toString();
+    for (final match in RegExp(r'\bdisk\d+s\d+\b').allMatches(output)) {
+      identifiers.add(match.group(0)!);
+    }
+    for (final identifier in identifiers) {
+      final info = await _runBounded('diskutil info $identifier', 'diskutil', [
+        'info',
+        identifier,
+      ]);
+      if (info == null || info.exitCode != 0) {
+        throw Exception(
+          'Refusing to flash: could not verify mount state of $identifier',
+        );
+      }
+      if (RegExp(
+        r'^\s*Mounted:\s+Yes\s*$',
+        multiLine: true,
+      ).hasMatch(info.stdout.toString())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // ---- Two-phase flash ----
@@ -302,7 +478,13 @@ class FlashService {
     final isCompressed = imagePath.endsWith('.gz');
 
     if (Platform.isWindows) {
-      await _writeWindowsViaGoFlasher(imagePath, devicePath, isCompressed, onProgress, bmapPath: bmapPath);
+      await _writeWindowsViaGoFlasher(
+        imagePath,
+        devicePath,
+        isCompressed,
+        onProgress,
+        bmapPath: bmapPath,
+      );
     } else if (Platform.isMacOS) {
       final rawDevice = !devicePath.contains('rdisk')
           ? devicePath.replaceFirst('/dev/disk', '/dev/rdisk')
@@ -312,18 +494,18 @@ class FlashService {
       // Pre-claim the disk via DiskArbitration. With a claim held, Finder
       // won't auto-mount or pop the "Initialize / Erase / Ignore" dialog
       // for unrecognised partition tables, and authopen no longer hits
-      // EPERM on /dev/rdiskN. Falls back gracefully to the cheap force-
-      // unmount path if the helper isn't bundled or fails to claim. Usually
-      // the UMS-phase watch already claimed this disk and `claim` just
-      // confirms it; claiming here covers writes that skipped that phase.
       final leased = DiskArbitrationService.sharedHelper;
       final da = leased ?? DiskArbitrationService();
       final leaseOwnsHelper = leased != null;
       var daClaimed = false;
+      var unmountSucceeded = false;
+      var writerMayRemain = false;
       if (leaseOwnsHelper || await da.ensureStarted()) {
         daClaimed = await da.claim(diskName);
       } else {
-        debugPrint('Flash: daclaim helper unavailable, falling back to force-unmount');
+        debugPrint(
+          'Flash: daclaim helper unavailable, falling back to force-unmount',
+        );
       }
 
       try {
@@ -332,35 +514,77 @@ class FlashService {
         // pries Finder off the disk after the dialog has appeared.
         for (var attempt = 1; attempt <= 3; attempt++) {
           debugPrint('Flash: unmounting $diskName (attempt $attempt/3, force)');
-          final r = await Process.run('diskutil', ['unmountDisk', 'force', diskName]);
+          final r = await _runBounded(
+            'diskutil unmountDisk $diskName',
+            'diskutil',
+            ['unmountDisk', 'force', diskName],
+          );
+          if (r == null) {
+            if (attempt < 3) await Future.delayed(const Duration(seconds: 1));
+            continue;
+          }
           final stderr = (r.stderr as String).trim();
           final stdout = (r.stdout as String).trim();
-          debugPrint('Flash: unmount exit=${r.exitCode} stdout=$stdout stderr=$stderr');
-          if (r.exitCode == 0) break;
-          if (attempt < 3) await Future.delayed(const Duration(milliseconds: 500));
+          debugPrint(
+            'Flash: unmount exit=${r.exitCode} stdout=$stdout stderr=$stderr',
+          );
+          if (r.exitCode == 0) {
+            unmountSucceeded = true;
+            break;
+          }
+          if (attempt < 3) {
+            await Future.delayed(const Duration(milliseconds: 500));
+          }
+        }
+
+        if (!daClaimed && !unmountSucceeded) {
+          throw Exception(
+            'Refusing to flash: could not unmount $diskName or claim it '
+            'from Disk Arbitration.',
+          );
+        }
+        if (await _macOSHasMountedVolumes(diskName)) {
+          throw Exception(
+            'Refusing to flash: a volume on $diskName remains mounted.',
+          );
         }
 
         final flasherPath = await _getFlasherPath();
-        if (flasherPath != null) {
-          // Go flasher handles macOS authorization internally via Security.framework
-          await _writeWithGoFlasher(flasherPath, imagePath, rawDevice, bmapPath, true, onProgress);
-        } else {
-          // No flasher binary for this arch (e.g. older bundle without
-          // darwin-amd64). Fall back to a plain dd write: slower, no
-          // bmap fast path, no two-phase, but it gets the bits onto the
-          // device. We're already running as root via self-elevation.
-          debugPrint('Flash: no Go flasher for ${Abi.current()}, falling back to dd');
-          await _writeMacOSDdFallback(imagePath, rawDevice, onProgress);
+        try {
+          if (flasherPath != null) {
+            await _writeWithGoFlasher(
+              flasherPath,
+              imagePath,
+              rawDevice,
+              bmapPath,
+              true,
+              onProgress,
+            );
+          } else {
+            debugPrint(
+              'Flash: no Go flasher for ${Abi.current()}, falling back to dd',
+            );
+            await _writeMacOSDdFallback(imagePath, rawDevice, onProgress);
+          }
+        } on FlashStalledException {
+          writerMayRemain = true;
+          rethrow;
         }
       } finally {
-        if (daClaimed) await da.release(diskName);
+        if (!writerMayRemain && daClaimed) await da.release(diskName);
         // Only tear down a helper this call started: the board re-enumerates
         // after the write, so the leased watch is still needed.
-        if (!leaseOwnsHelper) await da.stop();
+        if (!writerMayRemain && !leaseOwnsHelper) await da.stop();
       }
     } else {
       // Linux: single pkexec elevation for both dd phases + verify
-      await _writeTwoPhaseLinux(imagePath, devicePath, isCompressed, onProgress, bmapPath: bmapPath);
+      await _writeTwoPhaseLinux(
+        imagePath,
+        devicePath,
+        isCompressed,
+        onProgress,
+        bmapPath: bmapPath,
+      );
     }
   }
 
@@ -385,7 +609,8 @@ class FlashService {
     void Function(double progress, String message)? onProgress,
   ) async {
     final isCompressed = imagePath.endsWith('.gz');
-    final totalBytes = await _estimateImageSizeBytes(imagePath, isCompressed) ?? 0;
+    final totalBytes =
+        await _estimateImageSizeBytes(imagePath, isCompressed) ?? 0;
     final totalMb = totalBytes / (1024 * 1024);
     onProgress?.call(0.0, 'dd fallback (no Go flasher for this CPU)...');
 
@@ -417,8 +642,11 @@ class FlashService {
         : '$dd if="$imagePath" of=$rawDevice bs=4m';
 
     debugPrint('Flash: dd fallback: $cmd');
-    final process = await Process.start('/bin/sh', ['-c', cmd],
-        environment: env.isEmpty ? null : env);
+    final process = await Process.start(
+      '/bin/sh',
+      ['-c', cmd],
+      environment: {...Platform.environment, ...env},
+    );
 
     // macOS dd prints status only on SIGINFO. Poke it every 2s so the user
     // sees something move. Only while we are root: under sudo the dd belongs
@@ -427,8 +655,11 @@ class FlashService {
     final ticker = isRoot
         ? Timer.periodic(const Duration(seconds: 2), (_) async {
             try {
-              final r =
-                  await Process.run('pgrep', ['-P', '${process.pid}', 'dd']);
+              final r = await Process.run('pgrep', [
+                '-P',
+                '${process.pid}',
+                'dd',
+              ]);
               final ddPid = int.tryParse(r.stdout.toString().trim());
               if (ddPid != null) {
                 await Process.run('kill', ['-INFO', '$ddPid']);
@@ -438,8 +669,26 @@ class FlashService {
         : null;
 
     final stderrBuf = StringBuffer();
-    process.stdout.listen((_) {});
-    await for (final chunk in process.stderr.transform(utf8.decoder)) {
+    final stalled = Completer<void>();
+    Timer? stall;
+    var exitCode = -1;
+    void resetStall() {
+      stall?.cancel();
+      stall = Timer(_flashStallTimeout, () {
+        if (!stalled.isCompleted) {
+          debugPrint('Flash: dd fallback stopped producing output');
+          try {
+            process.kill(ProcessSignal.sigkill);
+          } catch (_) {}
+          stalled.complete();
+        }
+      });
+    }
+
+    resetStall();
+    final stdoutSub = process.stdout.listen((_) {});
+    final stderrSub = process.stderr.transform(utf8.decoder).listen((chunk) {
+      resetStall();
       stderrBuf.write(chunk);
       // dd status lines look like: "12345678 bytes transferred in 4.2 secs"
       final m = RegExp(r'(\d+) bytes').firstMatch(chunk);
@@ -448,21 +697,43 @@ class FlashService {
         final mb = bytes / (1024 * 1024);
         if (totalBytes > 0) {
           final fraction = (bytes / totalBytes).clamp(0.0, 0.95);
-          onProgress?.call(fraction,
-              'dd: ${mb.toStringAsFixed(0)} / ${totalMb.toStringAsFixed(0)} MB');
+          onProgress?.call(
+            fraction,
+            'dd: ${mb.toStringAsFixed(0)} / ${totalMb.toStringAsFixed(0)} MB',
+          );
         } else {
           final mbStr = mb.toStringAsFixed(0);
-          onProgress?.call(0.0, 'dd: ${l10n?.flashProgressMb(mbStr) ?? '$mbStr MB written'}');
+          onProgress?.call(
+            0.0,
+            'dd: ${l10n?.flashProgressMb(mbStr) ?? '$mbStr MB written'}',
+          );
         }
       }
+    });
+    final processDone = process.exitCode.then<void>((code) {
+      exitCode = code;
+    });
+    try {
+      await Future.any<void>([processDone, stalled.future]);
+    } finally {
+      stall?.cancel();
+      ticker?.cancel();
+      await stdoutSub.cancel();
+      await stderrSub.cancel();
     }
-    ticker?.cancel();
 
-    final exit = await process.exitCode;
-    if (exit != 0) {
+    if (stalled.isCompleted) {
+      throw FlashStalledException(
+        'Flash stalled: the board stopped responding partway through the '
+        'write. The privileged writer may still own the device, so the '
+        'write must not be retried from this installer. Leave it connected '
+        'and contact support.',
+      );
+    }
+    if (exitCode != 0) {
       throw Exception('dd fallback failed: ${stderrBuf.toString().trim()}');
     }
-    await Process.run('sync', []);
+    await _syncOrCarryOn();
     onProgress?.call(1.0, 'dd: complete');
   }
 
@@ -472,7 +743,9 @@ class FlashService {
   String? _flasherBinaryName() {
     final abi = Abi.current();
     if (Platform.isWindows) {
-      if (abi == Abi.windowsArm64) return 'librescoot-flasher-windows-arm64.exe';
+      if (abi == Abi.windowsArm64) {
+        return 'librescoot-flasher-windows-arm64.exe';
+      }
       return 'librescoot-flasher-windows-amd64.exe';
     }
     if (Platform.isMacOS) {
@@ -499,7 +772,14 @@ class FlashService {
         // CMake installs it next to the executable with +x
         path.join(execDir, binaryName),
       // Flutter assets fallback (Windows, or dev mode)
-      path.join(execDir, 'data', 'flutter_assets', 'assets', 'tools', binaryName),
+      path.join(
+        execDir,
+        'data',
+        'flutter_assets',
+        'assets',
+        'tools',
+        binaryName,
+      ),
       path.join(Directory.current.path, 'assets', 'tools', binaryName),
     ];
     for (final candidate in candidates) {
@@ -508,7 +788,9 @@ class FlashService {
         return candidate;
       }
     }
-    debugPrint('Flash: Go flasher $binaryName (${Abi.current()}) not found in: $candidates');
+    debugPrint(
+      'Flash: Go flasher $binaryName (${Abi.current()}) not found in: $candidates',
+    );
     return null;
   }
 
@@ -522,10 +804,18 @@ class FlashService {
     void Function(double progress, String message)? onProgress,
   ) async {
     final flasherArgs = <String>[
-      '--image', imagePath,
-      '--device', devicePath,
-      if (bmapPath != null) ...['--bmap', bmapPath]
-      else ...['--two-phase', '--boot-blocks', '$bootAreaBlocks'],
+      '--image',
+      imagePath,
+      '--device',
+      devicePath,
+      if (bmapPath != null) ...[
+        '--bmap',
+        bmapPath,
+      ] else ...[
+        '--two-phase',
+        '--boot-blocks',
+        '$bootAreaBlocks',
+      ],
     ];
 
     // When we run from an AppImage, the bundled flasher lives inside a per-user
@@ -537,12 +827,17 @@ class FlashService {
     debugPrint('Flash: running: $flasherPath ${flasherArgs.join(' ')}');
 
     // Total bytes will be updated by TOTAL: output from flasher
-    var totalBytes = await _estimateImageSizeBytes(imagePath, imagePath.endsWith('.gz')) ?? 0;
+    var totalBytes =
+        await _estimateImageSizeBytes(imagePath, imagePath.endsWith('.gz')) ??
+        0;
     var totalMb = totalBytes / (1024 * 1024);
     // Stopwatch starts on first output (after auth/elevation)
     final stopwatch = Stopwatch();
 
-    onProgress?.call(0.0, bmapPath != null ? 'Bmap flash...' : 'Waiting for authorization...');
+    onProgress?.call(
+      0.0,
+      bmapPath != null ? 'Bmap flash...' : 'Waiting for authorization...',
+    );
 
     var sawChecksumMismatch = false;
 
@@ -557,83 +852,157 @@ class FlashService {
       // Unix, not root: elevate. Prefer pkexec (graphical polkit prompt), fall
       // back to sudo (+ a graphical askpass if one exists). argv is passed
       // directly so paths never need shell quoting.
-      final elev = await _elevationArgv();
+      final elev = await _elevationInvocation();
       if (elev == null) {
         throw Exception(
-            'Root is required to flash, but neither pkexec nor sudo was found. '
-            'Start the installer as root, e.g. `sudo ./Librescoot-Installer.AppImage`.');
+          'Root is required to flash, but no graphical elevation method is available. '
+          'Start the installer as root, e.g. `sudo ./Librescoot-Installer.AppImage`.',
+        );
       }
-      final env = <String, String>{};
-      if (elev.length >= 2 && elev[1] == '-A') {
-        final askpass = await _findAskpass();
-        if (askpass != null) env['SUDO_ASKPASS'] = askpass;
-      }
-      final argv = [...elev, flasherPath, ...flasherArgs];
-      debugPrint('Flash: elevating via ${elev.join(' ')}');
-      process = await Process.start(argv.first, argv.sublist(1),
-          environment: env.isEmpty ? null : env);
+      final argv = [...elev.argv, flasherPath, ...flasherArgs];
+      debugPrint('Flash: elevating via ${elev.argv.join(' ')}');
+      process = await Process.start(
+        argv.first,
+        argv.sublist(1),
+        environment: {...Platform.environment, ...elev.environment},
+      );
     }
     final output = StringBuffer();
 
-    await for (final chunk in process.stderr.transform(utf8.decoder)) {
-      if (!stopwatch.isRunning) stopwatch.start();
-      output.write(chunk);
-      for (final line in chunk.split('\n')) {
-        if (line.startsWith('TOTAL:')) {
-          final t = int.tryParse(line.substring(6).trim());
-          if (t != null && t > 0) {
-            totalBytes = t;
-            totalMb = totalBytes / (1024 * 1024);
-            debugPrint('Flash: TOTAL=$totalBytes');
-          }
-        }
-        if (line.startsWith('PHASE:')) {
-          final phase = line.substring(6).trim();
-          if (phase == 'A') onProgress?.call(0.0, 'Phase A: Writing partitions...');
-          if (phase == 'B') onProgress?.call(0.9, 'Phase B: Writing boot sector...');
-          if (phase == 'verify') {
-            onProgress?.call(
-              0.95,
-              l10n?.flashVerifyingReadback ??
-                  'Verifying boot-critical data on the device…',
-            );
-          }
-        }
-        if (line.startsWith('PROGRESS:')) {
-          final bytes = int.tryParse(line.substring(9).trim());
-          if (bytes != null && totalBytes > 0) {
-            final fraction = (bytes / totalBytes).clamp(0.0, 0.95);
-            final mb = bytes / (1024 * 1024);
-            final mbStr = mb.toStringAsFixed(0);
-            final totalMbStr = totalMb.toStringAsFixed(0);
-            final base = l10n?.flashProgressMbOfTotal(mbStr, totalMbStr)
-                ?? '$mbStr / $totalMbStr MB written';
-            String eta = '';
-            if (fraction > 0.01) {
-              final elapsed = stopwatch.elapsedMilliseconds / 1000;
-              final remaining = (elapsed / fraction) * (1.0 - fraction);
-              final mins = remaining ~/ 60;
-              final secs = (remaining % 60).floor();
-              eta = ': ${l10n?.flashProgressEta(mins, secs) ?? '${mins}m ${secs}s remaining'}';
-            }
-            onProgress?.call(fraction, '$base$eta');
-          }
-        }
-        if (line.startsWith('CHECKSUM MISMATCH')) {
-          debugPrint('Flash: $line');
-          sawChecksumMismatch = true;
-        }
-      }
+    process.stdout.listen((_) {});
+
+    Timer? stall;
+    var stalled = false;
+    final finished = Completer<void>();
+    late final StreamSubscription<String> stderrSub;
+
+    void endWait() {
+      if (!finished.isCompleted) finished.complete();
     }
 
-    final exitCode = await process.exitCode;
+    void resetStall() {
+      stall?.cancel();
+      stall = Timer(_flashStallTimeout, () {
+        stalled = true;
+        debugPrint(
+          'Flash: no output for ${_flashStallTimeout.inSeconds}s, '
+          'giving up on the flasher',
+        );
+        try {
+          process.kill();
+        } catch (e) {
+          debugPrint('Flash: could not signal the flasher: $e');
+        }
+        endWait();
+      });
+    }
+
+    resetStall();
+    try {
+      stderrSub = process.stderr
+          .transform(utf8.decoder)
+          .listen(
+            (chunk) {
+              resetStall();
+              if (!stopwatch.isRunning) stopwatch.start();
+              output.write(chunk);
+              for (final line in chunk.split('\n')) {
+                if (line.startsWith('TOTAL:')) {
+                  final t = int.tryParse(line.substring(6).trim());
+                  if (t != null && t > 0) {
+                    totalBytes = t;
+                    totalMb = totalBytes / (1024 * 1024);
+                    debugPrint('Flash: TOTAL=$totalBytes');
+                  }
+                }
+                if (line.startsWith('PHASE:')) {
+                  final phase = line.substring(6).trim();
+                  if (phase == 'A') {
+                    onProgress?.call(0.0, 'Phase A: Writing partitions...');
+                  }
+                  if (phase == 'B') {
+                    onProgress?.call(0.9, 'Phase B: Writing boot sector...');
+                  }
+                  if (phase == 'verify') {
+                    onProgress?.call(
+                      0.95,
+                      l10n?.flashVerifyingReadback ??
+                          'Verifying boot-critical data on the device…',
+                    );
+                  }
+                }
+                if (line.startsWith('PROGRESS:')) {
+                  final bytes = int.tryParse(line.substring(9).trim());
+                  if (bytes != null && totalBytes > 0) {
+                    final fraction = (bytes / totalBytes).clamp(0.0, 0.95);
+                    final mb = bytes / (1024 * 1024);
+                    final mbStr = mb.toStringAsFixed(0);
+                    final totalMbStr = totalMb.toStringAsFixed(0);
+                    final base =
+                        l10n?.flashProgressMbOfTotal(mbStr, totalMbStr) ??
+                        '$mbStr / $totalMbStr MB written';
+                    String eta = '';
+                    if (fraction > 0.01) {
+                      final elapsed = stopwatch.elapsedMilliseconds / 1000;
+                      final remaining = (elapsed / fraction) * (1.0 - fraction);
+                      final mins = remaining ~/ 60;
+                      final secs = (remaining % 60).floor();
+                      eta =
+                          ': ${l10n?.flashProgressEta(mins, secs) ?? '${mins}m ${secs}s remaining'}';
+                    }
+                    onProgress?.call(fraction, '$base$eta');
+                  }
+                }
+                if (line.startsWith('CHECKSUM MISMATCH')) {
+                  debugPrint('Flash: $line');
+                  sawChecksumMismatch = true;
+                }
+              }
+            },
+            onDone: endWait,
+            onError: (Object e) {
+              debugPrint('Flash: flasher stderr failed: $e');
+              endWait();
+            },
+          );
+      await finished.future;
+    } finally {
+      stall?.cancel();
+      await stderrSub.cancel();
+    }
+
+    var exitTimedOut = false;
+    final exitCode = stalled
+        ? -1
+        : await process.exitCode.timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              exitTimedOut = true;
+              try {
+                process.kill(ProcessSignal.sigkill);
+              } catch (_) {}
+              return -1;
+            },
+          );
     debugPrint('Flash: Go flasher exit code: $exitCode');
+
+    if (stalled || exitTimedOut) {
+      debugPrint('Flash: Go flasher output: ${output.toString()}');
+      throw FlashStalledException(
+        'Flash stalled: the board stopped responding partway through the '
+        'write. The privileged writer may still own the device, so the '
+        'write must not be retried from this installer. Leave it connected '
+        'and contact support.',
+      );
+    }
 
     // Fatal regardless of exit code: a checksum mismatch means the write is
     // corrupt even if the flasher process itself exited 0.
     if (sawChecksumMismatch) {
       debugPrint('Flash: Go flasher output: ${output.toString()}');
-      throw Exception('Flash verification FAILED: checksum mismatch detected during write. Check log.');
+      throw Exception(
+        'Flash verification FAILED: checksum mismatch detected during write. Check log.',
+      );
     }
 
     if (exitCode != 0) {
@@ -668,14 +1037,22 @@ class FlashService {
         // blockdev asks the block layer to flush and pass a cache sync to the
         // device; the bare sync afterwards covers anything still queued
         // elsewhere. Both are cheap against a write measured in minutes.
-        final r = await Process.run('blockdev', ['--flushbufs', devicePath]);
-        if (r.exitCode != 0) {
+        final r = await _runBounded('blockdev --flushbufs', 'blockdev', [
+          '--flushbufs',
+          devicePath,
+        ]);
+        if (r != null && r.exitCode != 0) {
           debugPrint('Flash: blockdev --flushbufs said: ${r.stderr}');
         }
-        await Process.run('sync', []);
+        final scoped = await _runBounded('sync $devicePath', 'sync', [
+          devicePath,
+        ]);
+        if (scoped == null || scoped.exitCode != 0) {
+          await _syncOrCarryOn();
+        }
         debugPrint('Flash: flushed $devicePath');
       } else if (Platform.isMacOS) {
-        await Process.run('sync', []);
+        await _syncOrCarryOn();
         debugPrint('Flash: flushed $devicePath');
       } else {
         // Windows writes to \\.\PHYSICALDRIVE without going through a
@@ -701,7 +1078,11 @@ class FlashService {
   static String _humanFlashError(String raw) {
     final kept = raw
         .split('\n')
-        .where((l) => !RegExp(r'^\s*(TOTAL:|PHASE:|PROGRESS:|VERIFY_PROGRESS:|Bmap:)').hasMatch(l))
+        .where(
+          (l) => !RegExp(
+            r'^\s*(TOTAL:|PHASE:|PROGRESS:|VERIFY_PROGRESS:|Bmap:)',
+          ).hasMatch(l),
+        )
         .map((l) => l.trimRight())
         .where((l) => l.isNotEmpty)
         .toList();
@@ -712,7 +1093,8 @@ class FlashService {
   /// pkexec/sudo-elevated root can't read) to a normal temp path. No-op
   /// outside an AppImage or off Linux.
   Future<String> _ensureFlasherRunnableAsRoot(String flasherPath) async {
-    final inAppImage = Platform.environment.containsKey('APPIMAGE') ||
+    final inAppImage =
+        Platform.environment.containsKey('APPIMAGE') ||
         flasherPath.contains('/.mount_');
     if (!Platform.isLinux || !inAppImage) return flasherPath;
     try {
@@ -724,25 +1106,33 @@ class FlashService {
       debugPrint('Flash: copied flasher out of AppImage mount to $dest');
       return dest;
     } catch (e) {
-      debugPrint('Flash: could not copy flasher out of AppImage ($e); using original');
+      debugPrint(
+        'Flash: could not copy flasher out of AppImage ($e); using original',
+      );
       return flasherPath;
     }
   }
 
-  /// Argv prefix to run a command as root, or null if neither pkexec nor sudo
-  /// is available. Prefers pkexec's graphical prompt; sudo gets `-A` when a
-  /// graphical askpass exists so it can prompt without a terminal.
-  Future<List<String>?> _elevationArgv() async {
-    if (await _hasCommand('pkexec')) return ['pkexec'];
+  Future<RootInvocation?> _elevationInvocation() async {
+    if (Platform.isLinux) {
+      return ElevationService.linuxRootPrefix();
+    }
+    if (await _hasCommand('pkexec')) {
+      return const RootInvocation(['pkexec'], {});
+    }
     if (await _hasCommand('sudo')) {
-      return (await _findAskpass()) != null ? ['sudo', '-A'] : ['sudo'];
+      final askpass = await _findAskpass();
+      if (askpass != null) {
+        return RootInvocation(const ['sudo', '-A'], {'SUDO_ASKPASS': askpass});
+      }
     }
     return null;
   }
 
   /// True if [name] is found on PATH (avoids depending on `which` existing).
   Future<bool> _hasCommand(String name) async {
-    final pathEnv = Platform.environment['PATH'] ??
+    final pathEnv =
+        Platform.environment['PATH'] ??
         '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin';
     for (final dir in pathEnv.split(':')) {
       if (dir.isEmpty) continue;
@@ -783,19 +1173,13 @@ class FlashService {
   /// which sudo reads as an empty password and refuses, so cancelling ends the
   /// flash rather than starting one nobody authorised.
   @visibleForTesting
-  static const String macOsAskpassScript = '#!/bin/sh\n'
-      'osascript'
-      ' -e \'display dialog "Librescoot Installer needs your administrator'
-      ' password to write to the card." with title "Librescoot Installer"'
-      ' default answer "" with hidden answer with icon caution\''
-      ' -e \'text returned of result\'\n';
+  static final String macOsAskpassScript = ElevationService.macOsAskpassScript(
+    _askpassReason,
+  );
 
-  /// An askpass helper for macOS: a script that asks through osascript and
-  /// prints what was typed, which is the contract `sudo -A` expects.
+  static const String _askpassReason = 'to write to the card';
+
   ///
-  /// It lives in a directory made by mkdtemp rather than at a fixed path,
-  /// because a predictable world-writable path is one another local user can
-  /// pre-create and have root run.
   Future<String?>? _macOsAskpassPath;
 
   Future<String?> _writeMacOsAskpass() async {
@@ -803,8 +1187,9 @@ class FlashService {
     // script under a running prompt is not worth the risk.
     return _macOsAskpassPath ??= () async {
       try {
-        final dir =
-            await Directory.systemTemp.createTemp('librescoot_askpass_');
+        final dir = await Directory.systemTemp.createTemp(
+          'librescoot_askpass_',
+        );
         final script = File(path.join(dir.path, 'askpass.sh'));
         await script.writeAsString(macOsAskpassScript);
         await Process.run('chmod', ['0700', script.path]);
@@ -830,25 +1215,30 @@ class FlashService {
     // flush, and verification window.
     await _prepareLinuxTarget(devicePath);
 
-    final isRoot = (await Process.run('id', ['-u'])).stdout.toString().trim() == '0';
+    final isRoot =
+        (await Process.run('id', ['-u'])).stdout.toString().trim() == '0';
 
     // Try Go flasher first (supports bmap for sparse writes)
     final flasherPath = await _getFlasherPath();
     if (flasherPath != null) {
-      await _writeWithGoFlasher(flasherPath, imagePath, devicePath, bmapPath, isRoot, onProgress);
+      await _writeWithGoFlasher(
+        flasherPath,
+        imagePath,
+        devicePath,
+        bmapPath,
+        isRoot,
+        onProgress,
+      );
       return;
     }
 
     debugPrint('Flash: Go flasher not found, falling back to dd');
-    final decompressPrefix = isCompressed
-        ? 'gunzip -c "$imagePath" |'
-        : '';
-    final inputArg = isCompressed
-        ? 'iflag=fullblock'
-        : 'if="$imagePath"';
+    final decompressPrefix = isCompressed ? 'gunzip -c "$imagePath" |' : '';
+    final inputArg = isCompressed ? 'iflag=fullblock' : 'if="$imagePath"';
 
     // Single shell script that does Phase A, Phase B, sync, and verify
-    final script = '''
+    final script =
+        '''
 set -e
 set -o pipefail
 echo "PHASE:A"
@@ -856,7 +1246,10 @@ $decompressPrefix dd $inputArg of=$devicePath bs=4M skip=$bootAreaBlocks seek=$b
 echo "PHASE:B"
 $decompressPrefix dd $inputArg of=$devicePath bs=4M count=$bootAreaBlocks oflag=direct status=progress 2>&1 | tr '\\r' '\\n'
 echo "PHASE:SYNC"
-sync
+# Named rather than bare: as root this can flush the device alone, so an
+# unrelated wedged filesystem on the host cannot hold the flash up. Older
+# coreutils has no `sync FILE`, hence the fallback.
+sync $devicePath 2>/dev/null || sync
 echo "PHASE:VERIFY"
 SRC_HASH=\$($decompressPrefix dd ${isCompressed ? 'iflag=fullblock' : 'if="$imagePath"'} bs=4M count=$bootAreaBlocks 2>/dev/null | md5sum | cut -d' ' -f1)
 DEV_HASH=\$(dd if=$devicePath bs=4M count=$bootAreaBlocks iflag=direct 2>/dev/null | md5sum | cut -d' ' -f1)
@@ -877,19 +1270,17 @@ echo "VERIFY:OK"
     // `set -o pipefail`; run the script under bash so that guard actually
     // works instead of being a fatal syntax error under `set -e`.
     var argv = <String>['/bin/bash', scriptFile.path];
-    Map<String, String>? env;
+    final env = <String, String>{};
     if (!isRoot) {
-      final elev = await _elevationArgv();
+      final elev = await _elevationInvocation();
       if (elev == null) {
         throw Exception(
-            'Root is required to flash, but neither pkexec nor sudo was found. '
-            'Start the installer as root, e.g. `sudo ./Librescoot-Installer.AppImage`.');
+          'Root is required to flash, but no graphical elevation method is available. '
+          'Start the installer as root, e.g. `sudo ./Librescoot-Installer.AppImage`.',
+        );
       }
-      if (elev.length >= 2 && elev[1] == '-A') {
-        final askpass = await _findAskpass();
-        if (askpass != null) env = {'SUDO_ASKPASS': askpass};
-      }
-      argv = [...elev, ...argv];
+      env.addAll(elev.environment);
+      argv = [...elev.argv, ...argv];
     }
 
     // Estimate total image size for progress calculation
@@ -897,19 +1288,26 @@ echo "VERIFY:OK"
     final totalBytes = imageSize ?? 0;
     // Phase A writes everything after boot area, Phase B writes boot area
     // Progress: Phase A = 0.0-0.9, Phase B = 0.9-0.95, Sync = 0.95, Verify = 0.97
-    final phaseABytes = totalBytes > bootAreaBytes ? totalBytes - bootAreaBytes : totalBytes;
+    final phaseABytes = totalBytes > bootAreaBytes
+        ? totalBytes - bootAreaBytes
+        : totalBytes;
 
     debugPrint('Flash: running two-phase script via ${argv.first}');
-    debugPrint('Flash: estimated image size: $totalBytes bytes, phase A: $phaseABytes bytes');
+    debugPrint(
+      'Flash: estimated image size: $totalBytes bytes, phase A: $phaseABytes bytes',
+    );
     onProgress?.call(0.0, 'Phase A: Writing partitions...');
 
-    final process = await Process.start(argv.first, argv.sublist(1), environment: env);
+    final process = await Process.start(
+      argv.first,
+      argv.sublist(1),
+      environment: {...Platform.environment, ...env},
+    );
 
     var currentPhase = 'A';
     final output = StringBuffer();
     final stopwatch = Stopwatch()..start();
-
-    await for (final chunk in process.stdout.transform(utf8.decoder)) {
+    void handleOutput(String chunk) {
       output.write(chunk);
       for (final line in chunk.split('\n')) {
         if (line.startsWith('PHASE:')) {
@@ -934,37 +1332,88 @@ echo "VERIFY:OK"
             String eta = '';
             if (currentPhase == 'A' && phaseABytes > 0) {
               final fraction = (bytes / phaseABytes).clamp(0.0, 1.0);
-              final progress = fraction * 0.9; // Phase A is 0-0.9
+              final progress = fraction * 0.9;
               if (fraction > 0.01) {
                 final elapsed = stopwatch.elapsedMilliseconds / 1000;
                 final remaining = (elapsed / fraction) * (1.0 - fraction);
                 final mins = (remaining / 60).floor();
                 final secs = (remaining % 60).floor();
-                eta = ': ${l10n?.flashProgressEta(mins, secs) ?? '${mins}m ${secs}s remaining'}';
+                eta =
+                    ': ${l10n?.flashProgressEta(mins, secs) ?? '${mins}m ${secs}s remaining'}';
               }
               final mbStr = mb.toStringAsFixed(0);
               final base = l10n?.flashProgressMb(mbStr) ?? '$mbStr MB written';
               onProgress?.call(progress, '$base$eta');
             } else if (currentPhase == 'B') {
               final mbStr = mb.toStringAsFixed(1);
-              onProgress?.call(0.92, l10n?.flashProgressBootSector(mbStr) ?? 'Boot sector: $mbStr MB written');
+              onProgress?.call(
+                0.92,
+                l10n?.flashProgressBootSector(mbStr) ??
+                    'Boot sector: $mbStr MB written',
+              );
             }
           }
         }
       }
     }
 
-    final exitCode = await process.exitCode;
+    var stalled = false;
+    final stalledSignal = Completer<void>();
+    Timer? stall;
+    void resetStall() {
+      stall?.cancel();
+      stall = Timer(_flashStallTimeout, () {
+        stalled = true;
+        debugPrint('Flash: two-phase dd fallback stopped producing output');
+        try {
+          process.kill(ProcessSignal.sigkill);
+        } catch (_) {}
+        if (!stalledSignal.isCompleted) stalledSignal.complete();
+      });
+    }
+
+    resetStall();
+    final stdoutSub = process.stdout.transform(utf8.decoder).listen((chunk) {
+      resetStall();
+      handleOutput(chunk);
+    });
+    final stderrSub = process.stderr.transform(utf8.decoder).listen((chunk) {
+      resetStall();
+      output.write(chunk);
+    });
+    var exitCode = -1;
+    final processDone = process.exitCode.then<void>((code) {
+      exitCode = code;
+    });
+    try {
+      await Future.any<void>([processDone, stalledSignal.future]);
+    } finally {
+      stall?.cancel();
+      await stdoutSub.cancel();
+      await stderrSub.cancel();
+    }
     debugPrint('Flash: two-phase script exit code: $exitCode');
 
     // Clean up script
-    try { await scriptFile.delete(); } catch (_) {}
+    try {
+      await scriptFile.delete();
+    } catch (_) {}
 
+    if (stalled) {
+      throw FlashStalledException(
+        'Flash stalled: the board stopped responding partway through the '
+        'write. The privileged writer may still own the device, so the '
+        'write must not be retried from this installer. Leave it connected '
+        'and contact support.',
+      );
+    }
     if (exitCode != 0) {
       final out = output.toString();
       debugPrint('Flash: script output: $out');
       if (out.contains('VERIFY:FAIL')) {
-        throw Exception('Boot sector verification FAILED: checksum mismatch. Check log.');
+        throw Exception(
+          'Boot sector verification FAILED: checksum mismatch. Check log.',
+        );
       }
       if (exitCode == 126) {
         throw Exception('Authorization was dismissed: flash incomplete');

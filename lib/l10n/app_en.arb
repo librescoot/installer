@@ -163,6 +163,8 @@
   "resumeActorInstaller": "in the installer",
   "resumeLogHeading": "Last lines from the scooter's log",
   "awaitingUnlockHeading": "Unlock your scooter",
+  "unlockWaitCancelled": "Cancelled. The installer needs the scooter parked before it can carry on. Unlock it with the keycard or the app, then try again.",
+  "parkWaitCancelled": "Cancelled. The installer needs the scooter parked before it can carry on. Park it, then try again.",
   "awaitingUnlockDetail": "Unlock the scooter so the installer can carry on.",
   "awaitingUnlockHintKeycard": "Hold your keycard against the reader on the handlebars",
   "awaitingUnlockHintPhone": "Or use Bluetooth if it is configured",
@@ -340,6 +342,14 @@
   "dbcLedHint": "DBC LED: orange = starting, green = booting, off = running",
   "mdbStillUms": "MDB still in UMS mode. Flash may not have taken. Retrying...",
   "waitingForMdbRestart": "Waiting for the scooter to restart...",
+  "mdbBootGaveUp": "The scooter has not come back after {minutes} minutes. A board that did not take the image stays in mass-storage mode, which looks dead: no lights, no network. Unplug the USB cable, plug it back in, and try again.",
+  "@mdbBootGaveUp": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "mdbDetectedNetwork": "MDB detected in network mode. Waiting for stable connection...",
   "pingStable": "Ping stable: {count}/10",
   "@pingStable": {

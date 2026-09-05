@@ -30,7 +30,11 @@ void main() {
     // Two write paths, one promise. If either stops flushing, the promise is
     // only true on the other one and which you got depends on your CPU.
     expect(source, contains('PHASE:SYNC'));
-    expect(source, contains("Process.run('sync', [])"));
+    final dd = source.substring(
+      source.indexOf("throw Exception('dd fallback failed:"),
+      source.indexOf("onProgress?.call(1.0, 'dd: complete');"),
+    );
+    expect(dd, contains('_syncOrCarryOn()'));
   });
 
   test('every platform is accounted for, including the one that does nothing',

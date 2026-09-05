@@ -127,6 +127,7 @@ case "\$1" in is-active) echo active ;; esac
       String? status,
       String serviceModeActive = 'false',
       List<String> nrfStatus = const ['idle'],
+      int nrfStatusCap = 600,
       String runId = 'run-test-1',
       String imageId = '',
       String bootedRoot = '/dev/mmcblk1p3',
@@ -149,10 +150,9 @@ case "\$1" in is-active) echo active ;; esac
         ).readAsStringSync().replaceAll('/data/', '${root.path}/'),
       );
       await script.writeAsString(
-        render(
-          mdbAction: mdbAction,
-          runId: runId,
-        ).replaceAll('/data/', '${root.path}/'),
+        render(mdbAction: mdbAction, runId: runId)
+            .replaceFirst('NRF_STATUS_CAP=600', 'NRF_STATUS_CAP=$nrfStatusCap')
+            .replaceAll('/data/', '${root.path}/'),
       );
       if (previousRoot != null) {
         await File(
@@ -367,10 +367,11 @@ case "\$1" in is-active) echo active ;; esac
         final result = await run(
           status: 'success',
           nrfStatus: const ['updating'],
+          nrfStatusCap: 5,
         );
         expect(result.exitCode, 0, reason: result.stderr.toString());
         final log = await callLog();
-        expect(statusReads(log), 600);
+        expect(statusReads(log), 5);
         expect(log.any((l) => l.contains('scooter:state unlock')), isTrue);
       });
 
