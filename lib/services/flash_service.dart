@@ -822,7 +822,19 @@ class FlashService {
     // FUSE mount (/tmp/.mount_*) that root can't read, so `pkexec <flasher>`
     // fails with "Error accessing ...: Permission denied" (exit 127). Copy it
     // out to a normal path root can exec.
+    final bundledFlasherPath = flasherPath;
     flasherPath = await _ensureFlasherRunnableAsRoot(flasherPath);
+    final temporaryFlasherDir = flasherPath == bundledFlasherPath
+        ? null
+        : path.dirname(flasherPath);
+    Future<void> cleanupTemporaryFlasher() async {
+      if (temporaryFlasherDir == null) return;
+      try {
+        await Directory(temporaryFlasherDir).delete(recursive: true);
+      } catch (e) {
+        debugPrint('Flash: could not remove temporary flasher: $e');
+      }
+    }
 
     debugPrint('Flash: running: $flasherPath ${flasherArgs.join(' ')}');
 
@@ -841,31 +853,36 @@ class FlashService {
 
     var sawChecksumMismatch = false;
 
-    final Process process;
-    if (Platform.isWindows) {
-      // Windows: run flasher directly (already elevated)
-      process = await Process.start(flasherPath, flasherArgs);
-    } else if (isRoot) {
-      // Unix: already root, run directly
-      process = await Process.start(flasherPath, flasherArgs);
-    } else {
-      // Unix, not root: elevate. Prefer pkexec (graphical polkit prompt), fall
-      // back to sudo (+ a graphical askpass if one exists). argv is passed
-      // directly so paths never need shell quoting.
-      final elev = await _elevationInvocation();
-      if (elev == null) {
-        throw Exception(
-          'Root is required to flash, but no graphical elevation method is available. '
-          'Start the installer as root, e.g. `sudo ./Librescoot-Installer.AppImage`.',
+    late final Process process;
+    try {
+      if (Platform.isWindows) {
+        // Windows: run flasher directly (already elevated)
+        process = await Process.start(flasherPath, flasherArgs);
+      } else if (isRoot) {
+        // Unix: already root, run directly
+        process = await Process.start(flasherPath, flasherArgs);
+      } else {
+        // Unix, not root: elevate. Prefer pkexec (graphical polkit prompt), fall
+        // back to sudo (+ a graphical askpass if one exists). argv is passed
+        // directly so paths never need shell quoting.
+        final elev = await _elevationInvocation();
+        if (elev == null) {
+          throw Exception(
+            'Root is required to flash, but no graphical elevation method is available. '
+            'Start the installer as root, e.g. `sudo ./Librescoot-Installer.AppImage`.',
+          );
+        }
+        final argv = [...elev.argv, flasherPath, ...flasherArgs];
+        debugPrint('Flash: elevating via ${elev.argv.join(' ')}');
+        process = await Process.start(
+          argv.first,
+          argv.sublist(1),
+          environment: {...Platform.environment, ...elev.environment},
         );
       }
-      final argv = [...elev.argv, flasherPath, ...flasherArgs];
-      debugPrint('Flash: elevating via ${elev.argv.join(' ')}');
-      process = await Process.start(
-        argv.first,
-        argv.sublist(1),
-        environment: {...Platform.environment, ...elev.environment},
-      );
+    } catch (_) {
+      await cleanupTemporaryFlasher();
+      rethrow;
     }
     final output = StringBuffer();
 
@@ -988,6 +1005,7 @@ class FlashService {
 
     if (stalled || exitTimedOut) {
       debugPrint('Flash: Go flasher output: ${output.toString()}');
+      await cleanupTemporaryFlasher();
       throw FlashStalledException(
         'Flash stalled: the board stopped responding partway through the '
         'write. The privileged writer may still own the device, so the '
@@ -1000,6 +1018,7 @@ class FlashService {
     // corrupt even if the flasher process itself exited 0.
     if (sawChecksumMismatch) {
       debugPrint('Flash: Go flasher output: ${output.toString()}');
+      await cleanupTemporaryFlasher();
       throw Exception(
         'Flash verification FAILED: checksum mismatch detected during write. Check log.',
       );
@@ -1009,12 +1028,15 @@ class FlashService {
       final out = output.toString();
       debugPrint('Flash: Go flasher output: $out');
       if (exitCode == 126) {
+        await cleanupTemporaryFlasher();
         throw Exception('Authorization was dismissed: flash incomplete');
       }
+      await cleanupTemporaryFlasher();
       throw Exception('Flash failed: ${_humanFlashError(out)}');
     }
 
     await _flushDevice(devicePath);
+    await cleanupTemporaryFlasher();
     onProgress?.call(1.0, 'Flash complete');
   }
 

@@ -27,21 +27,13 @@ class DriverInstallResult {
   });
 
   factory DriverInstallResult.alreadyInstalled([DriverDiagnosis? d]) =>
-      DriverInstallResult(
-        success: true,
-        alreadyInstalled: true,
-        diagnosis: d,
-      );
+      DriverInstallResult(success: true, alreadyInstalled: true, diagnosis: d);
 
   factory DriverInstallResult.installed([DriverDiagnosis? d]) =>
       DriverInstallResult(success: true, diagnosis: d);
 
   factory DriverInstallResult.needsReboot([DriverDiagnosis? d]) =>
-      DriverInstallResult(
-        success: true,
-        rebootRequired: true,
-        diagnosis: d,
-      );
+      DriverInstallResult(success: true, rebootRequired: true, diagnosis: d);
 
   factory DriverInstallResult.failed(String error, [DriverDiagnosis? d]) =>
       DriverInstallResult(success: false, error: error, diagnosis: d);
@@ -111,17 +103,18 @@ class DriverDiagnosis {
   DriverCandidate? get hijacker => isHijacked ? report!.incumbent : null;
 
   DriverDiagnosis withReport(DeviceDriverReport? value) => DriverDiagnosis(
-        state,
-        instanceId: instanceId,
-        currentClass: currentClass,
-        currentService: currentService,
-        problemCode: problemCode,
-        boundInf: boundInf,
-        report: value,
-      );
+    state,
+    instanceId: instanceId,
+    currentClass: currentClass,
+    currentService: currentService,
+    problemCode: problemCode,
+    boundInf: boundInf,
+    report: value,
+  );
 
   @override
-  String toString() => 'DriverDiagnosis(${state.name}, class=$currentClass, '
+  String toString() =>
+      'DriverDiagnosis(${state.name}, class=$currentClass, '
       'service=$currentService, problem=$problemCode, inf=$boundInf, '
       'id=$instanceId)';
 }
@@ -189,7 +182,8 @@ class DriverCandidate {
   int get matchIndex => rank & 0xFFF;
 
   @override
-  String toString() => 'DriverCandidate($infName, rank=0x'
+  String toString() =>
+      'DriverCandidate($infName, rank=0x'
       '${rank.toRadixString(16).padLeft(8, '0').toUpperCase()}, '
       'id=$matchingDeviceId)';
 }
@@ -251,17 +245,13 @@ class DeviceDriverReport {
   }
 }
 
-typedef AutoPlayProcessRunner = Future<ProcessResult> Function(
-  String executable,
-  List<String> arguments,
-);
+typedef AutoPlayProcessRunner =
+    Future<ProcessResult> Function(String executable, List<String> arguments);
 
 class AutoPlayServiceLease {
-  AutoPlayServiceLease({
-    bool? isWindows,
-    AutoPlayProcessRunner? runProcess,
-  })  : _isWindows = isWindows ?? Platform.isWindows,
-        _runProcess = runProcess ?? _defaultRunProcess;
+  AutoPlayServiceLease({bool? isWindows, AutoPlayProcessRunner? runProcess})
+    : _isWindows = isWindows ?? Platform.isWindows,
+      _runProcess = runProcess ?? _defaultRunProcess;
 
   final bool _isWindows;
   final AutoPlayProcessRunner _runProcess;
@@ -270,52 +260,49 @@ class AutoPlayServiceLease {
   bool _stoppedByInstaller = false;
 
   Future<void> suppress() => _enqueue(() async {
-        if (!_isWindows || _stateCaptured) return;
-        try {
-          final status = await _runProcess(
-            'powershell.exe',
-            const [
-              '-NoProfile',
-              '-NonInteractive',
-              '-Command',
-              r'[int](Get-Service -Name "ShellHWDetection").Status',
-            ],
-          );
-          if (status.exitCode != 0) return;
-          final state = int.tryParse(status.stdout.toString().trim());
-          if (state == null) return;
-          _stateCaptured = true;
-          if (state != 4) return;
+    if (!_isWindows || _stateCaptured) return;
+    try {
+      final status = await _runProcess('powershell.exe', const [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        r'[int](Get-Service -Name "ShellHWDetection").Status',
+      ]);
+      if (status.exitCode != 0) return;
+      final state = int.tryParse(status.stdout.toString().trim());
+      if (state == null) return;
+      _stateCaptured = true;
+      if (state != 4) return;
 
-          debugPrint('Driver: stopping ShellHWDetection service');
-          final stopped = await _runProcess(
-            'net',
-            const ['stop', 'ShellHWDetection'],
-          );
-          _stoppedByInstaller = stopped.exitCode == 0;
-        } catch (error) {
-          debugPrint('Driver: failed to suppress AutoPlay: $error');
-        }
-      });
+      debugPrint('Driver: stopping ShellHWDetection service');
+      final stopped = await _runProcess('net', const [
+        'stop',
+        'ShellHWDetection',
+      ]);
+      _stoppedByInstaller = stopped.exitCode == 0;
+    } catch (error) {
+      debugPrint('Driver: failed to suppress AutoPlay: $error');
+    }
+  });
 
   Future<void> restore() => _enqueue(() async {
-        if (!_isWindows || !_stateCaptured) return;
-        if (_stoppedByInstaller) {
-          try {
-            debugPrint('Driver: starting ShellHWDetection service');
-            final started = await _runProcess(
-              'net',
-              const ['start', 'ShellHWDetection'],
-            );
-            if (started.exitCode != 0) return;
-          } catch (error) {
-            debugPrint('Driver: failed to restore AutoPlay: $error');
-            return;
-          }
-        }
-        _stoppedByInstaller = false;
-        _stateCaptured = false;
-      });
+    if (!_isWindows || !_stateCaptured) return;
+    if (_stoppedByInstaller) {
+      try {
+        debugPrint('Driver: starting ShellHWDetection service');
+        final started = await _runProcess('net', const [
+          'start',
+          'ShellHWDetection',
+        ]);
+        if (started.exitCode != 0) return;
+      } catch (error) {
+        debugPrint('Driver: failed to restore AutoPlay: $error');
+        return;
+      }
+    }
+    _stoppedByInstaller = false;
+    _stateCaptured = false;
+  });
 
   Future<void> _enqueue(Future<void> Function() operation) {
     final result = _operations.then((_) => operation());
@@ -388,16 +375,18 @@ class DriverService {
       final fields = block.group(2) ?? '';
       final rank = int.tryParse(_xmlTag(fields, 'Rank') ?? '', radix: 16);
       if (infName.isEmpty || rank == null) continue;
-      candidates.add(DriverCandidate(
-        infName: infName,
-        rank: rank,
-        originalName: _xmlTag(fields, 'OriginalName'),
-        provider: _xmlTag(fields, 'ProviderName'),
-        className: _xmlTag(fields, 'ClassName'),
-        driverVersion: _xmlTag(fields, 'DriverVersion'),
-        signer: _xmlTag(fields, 'SignerName'),
-        matchingDeviceId: _xmlTag(fields, 'MatchingDeviceId'),
-      ));
+      candidates.add(
+        DriverCandidate(
+          infName: infName,
+          rank: rank,
+          originalName: _xmlTag(fields, 'OriginalName'),
+          provider: _xmlTag(fields, 'ProviderName'),
+          className: _xmlTag(fields, 'ClassName'),
+          driverVersion: _xmlTag(fields, 'DriverVersion'),
+          signer: _xmlTag(fields, 'SignerName'),
+          matchingDeviceId: _xmlTag(fields, 'MatchingDeviceId'),
+        ),
+      );
     }
 
     return DeviceDriverReport(
@@ -457,12 +446,12 @@ $inf = (Get-PnpDeviceProperty -InstanceId $d.InstanceId -KeyName 'DEVPKEY_Device
 Write-Output "PRESENT`t$($d.InstanceId)`t$($d.Class)`t$svc`t$pc`t$inf"
 """;
 
-    final r = await _runLogged(
-      'probe',
-      'powershell',
-      const ['-NoProfile', '-NonInteractive', '-Command', script],
-      timeout: const Duration(seconds: 30),
-    );
+    final r = await _runLogged('probe', 'powershell', const [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      script,
+    ], timeout: const Duration(seconds: 30));
 
     var diagnosis = parseBindingProbe(r.exitCode, r.stdout);
     if (withRanking && diagnosis.state != DriverBinding.notPresent) {
@@ -529,12 +518,14 @@ Write-Output "PRESENT`t$($d.InstanceId)`t$($d.Class)`t$svc`t$pc`t$inf"
     if (!Platform.isWindows) return null;
     // /deviceid takes the hardware ID directly, so no instance path lookup is
     // needed, and the whole query works without elevation.
-    final r = await _runLogged(
-      'enum-devices',
-      'pnputil',
-      ['/enum-devices', '/deviceid', _hardwareId, '/drivers', '/format', 'xml'],
-      timeout: const Duration(seconds: 30),
-    );
+    final r = await _runLogged('enum-devices', 'pnputil', [
+      '/enum-devices',
+      '/deviceid',
+      _hardwareId,
+      '/drivers',
+      '/format',
+      'xml',
+    ], timeout: const Duration(seconds: 30));
     if (!r.ok) return null;
     return parseEnumDevicesXml(r.stdout);
   }
@@ -574,13 +565,11 @@ Write-Output "PRESENT`t$($d.InstanceId)`t$($d.Class)`t$svc`t$pc`t$inf"
       infPath = await _extractDriverFiles();
       debugPrint('Driver: extracted INF to $infPath');
 
-      final add = await _runLogged(
-        'pnputil-add',
-        'pnputil',
-        ['/add-driver', infPath, '/install'],
-        runInShell: true,
-        timeout: const Duration(seconds: 120),
-      );
+      final add = await _runLogged('pnputil-add', 'pnputil', [
+        '/add-driver',
+        infPath,
+        '/install',
+      ], timeout: const Duration(seconds: 120));
       if (!add.ok) {
         return DriverInstallResult.failed(
           'pnputil /add-driver failed (exit ${add.exitCode}): ${add.combined}',
@@ -609,8 +598,10 @@ Write-Output "PRESENT`t$($d.InstanceId)`t$($d.Class)`t$svc`t$pc`t$inf"
       // back: this bypasses ranking entirely, which is the only way past an
       // incumbent that outranks us.
       var forced = await _forceInstallByHardwareId(infPath);
-      debugPrint('Driver: force-install ok=${forced.ok} '
-          'reboot=${forced.rebootRequired} detail=${forced.detail}');
+      debugPrint(
+        'Driver: force-install ok=${forced.ok} '
+        'reboot=${forced.rebootRequired} detail=${forced.detail}',
+      );
 
       post = await _waitForCorrectBinding(_rebindBudget);
       if (post.state == DriverBinding.correct) {
@@ -639,8 +630,10 @@ Write-Output "PRESENT`t$($d.InstanceId)`t$($d.Class)`t$svc`t$pc`t$inf"
         // by Constrained Language Mode. Remove and re-scan so Windows ranks
         // the device again. Only worth doing here: ranking is what put the
         // wrong driver on, so it is a last resort, not a retry.
-        debugPrint('Driver: force-install unavailable, '
-            'falling back to remove+scan on ${pre.instanceId}');
+        debugPrint(
+          'Driver: force-install unavailable, '
+          'falling back to remove+scan on ${pre.instanceId}',
+        );
         await _forceRebind(pre.instanceId!);
         post = await _waitForCorrectBinding(_rebindBudget);
         if (post.state == DriverBinding.correct) {
@@ -697,8 +690,9 @@ Write-Output "PRESENT`t$($d.InstanceId)`t$($d.Class)`t$svc`t$pc`t$inf"
   static String describeForSupport(DriverDiagnosis d) {
     final b = StringBuffer();
     b.writeln('Device:  ${d.instanceId ?? _hardwareId}');
-    final problem =
-        d.problemCode != 0 ? ' (problem code ${d.problemCode})' : '';
+    final problem = d.problemCode != 0
+        ? ' (problem code ${d.problemCode})'
+        : '';
     b.writeln('State:   ${d.state.name}$problem');
     b.writeln('Class:   ${d.currentClass ?? '?'}');
     b.writeln('Service: ${d.currentService ?? '?'}');
@@ -807,10 +801,7 @@ if ($ok) {
       'powershell',
       ['-NoProfile', '-NonInteractive', '-Command', script],
       runInShell: false,
-      environment: {
-        'LIBRESCOOT_INF': infPath,
-        'LIBRESCOOT_HWID': _hardwareId,
-      },
+      environment: {'LIBRESCOOT_INF': infPath, 'LIBRESCOOT_HWID': _hardwareId},
     );
     final detail = r.combined.trim();
     final reboot = detail.contains('reboot=True');
@@ -829,12 +820,10 @@ if ($ok) {
     // /remove-device exists on Win10 2004+. Pass the InstanceId as a single
     // argv element with runInShell: false so cmd.exe never sees the embedded
     // '&' characters.
-    final remove = await _runLogged(
-      'pnputil-remove',
-      'pnputil',
-      ['/remove-device', instanceId],
-      runInShell: false,
-    );
+    final remove = await _runLogged('pnputil-remove', 'pnputil', [
+      '/remove-device',
+      instanceId,
+    ], runInShell: false);
 
     if (!remove.ok) {
       debugPrint(
@@ -842,26 +831,16 @@ if ($ok) {
         'falling back to disable/enable cycle',
       );
       // Fallback for older builds: bounce the device.
-      await _runLogged(
-        'disable-enable',
-        'powershell',
-        [
-          '-NoProfile',
-          '-Command',
-          'Disable-PnpDevice -InstanceId "$instanceId" -Confirm:\$false; '
-              'Start-Sleep -Milliseconds 500; '
-              'Enable-PnpDevice  -InstanceId "$instanceId" -Confirm:\$false',
-        ],
-        runInShell: false,
-      );
+      await _runLogged('disable-enable', 'powershell', [
+        '-NoProfile',
+        '-Command',
+        'Disable-PnpDevice -InstanceId "$instanceId" -Confirm:\$false; '
+            'Start-Sleep -Milliseconds 500; '
+            'Enable-PnpDevice  -InstanceId "$instanceId" -Confirm:\$false',
+      ], runInShell: false);
     }
 
-    final scan = await _runLogged(
-      'pnputil-scan',
-      'pnputil',
-      ['/scan-devices'],
-      runInShell: true,
-    );
+    final scan = await _runLogged('pnputil-scan', 'pnputil', ['/scan-devices']);
     return scan.ok;
   }
 

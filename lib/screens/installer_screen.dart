@@ -26,6 +26,7 @@ import '../models/connect_failure.dart';
 import '../models/download_state.dart';
 import '../models/dashboard_messages.dart';
 import '../models/install_plan.dart';
+import '../models/install_gate.dart';
 import '../models/install_time_estimate.dart';
 import '../models/keycard_master.dart';
 import '../models/keycard_preset.dart';
@@ -47,6 +48,7 @@ import '../services/connect_diagnosis.dart';
 import '../services/critical_operation_coordinator.dart';
 import '../services/data_partition_service.dart';
 import '../services/debug_shell.dart';
+import '../services/dry_run_operation.dart';
 import '../services/finalize_script.dart';
 import '../services/install_phase_scripts.dart';
 import '../services/serial_polling_loop.dart';
@@ -101,6 +103,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   final List<bool> _prerequisiteChecks = [false, false, false, false];
   Map<DownloadChannel, ({String tag, String date})>? _availableChannels;
   bool _channelsLoading = true;
+  bool _channelsLoadFailed = false;
   // Regions on offer, derived from the published tile assets. Seeded with the
   // offline catalogue so the dropdown is populated immediately, then replaced
   // once the live listing resolves.
@@ -179,6 +182,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// phase. It stands in for [_isProcessing] there, which other phases read to
   /// decide whether to start their own work.
   bool _dbcStageInFlight = false;
+  int _dbcUploadGeneration = 0;
 
   String? _dbcStageError;
 
@@ -684,6 +688,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         setState(() {
           _availableChannels = channels;
           _channelsLoading = false;
+          _channelsLoadFailed = channels.isEmpty;
           // Default to best available: stable > testing > nightly. But only
           // if the user (or launchArgs --channel=) hasn't already chosen
           // one, otherwise the elevated relaunch's --channel=nightly would
@@ -701,9 +706,21 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       }
     } catch (_) {
       if (mounted) {
-        setState(() => _channelsLoading = false);
+        setState(() {
+          _channelsLoading = false;
+          _channelsLoadFailed = true;
+        });
       }
     }
+  }
+
+  void _retryChannelLoading() {
+    if (_channelsLoading) return;
+    setState(() {
+      _channelsLoading = true;
+      _channelsLoadFailed = false;
+    });
+    unawaited(_resolveAvailableChannels());
   }
 
   void _setPhase(InstallerPhase phase) {
@@ -1698,13 +1715,17 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           icon: Icons.arrow_forward,
           primary: true,
           onPressed:
-              _isProcessing ||
-                  _channelsLoading ||
-                  (_availableChannels?.isEmpty ?? true) ||
-                  (_downloadState.wantsOfflineMaps &&
-                      _downloadState.selectedRegion == null)
-              ? null
-              : _startClickedAdvanceToNotices,
+              canStartWelcome(
+                isProcessing: _isProcessing,
+                localImagesOnly: launchArgs.hasLocalImagesOnly,
+                channelsLoading: _channelsLoading,
+                channelsLoadFailed: _channelsLoadFailed,
+                hasChannels: _availableChannels?.isNotEmpty ?? false,
+                wantsOfflineMaps: _downloadState.wantsOfflineMaps,
+                hasRegion: _downloadState.selectedRegion != null,
+              )
+              ? _startClickedAdvanceToNotices
+              : null,
         ),
       ],
       child: Column(
@@ -1750,6 +1771,21 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                   ),
                 ],
               ),
+            )
+          else if (_channelsLoadFailed)
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.channelNoReleases,
+                    style: TextStyle(color: Colors.amber.shade300),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _retryChannelLoading,
+                  child: Text(l10n.retryButton),
+                ),
+              ],
             )
           else
             _buildChannelSelector(l10n),
@@ -1882,9 +1918,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   Widget _buildNotices(AppLocalizations l10n) {
     // Defer startup to avoid mutating state during build.
-    if (!_downloadsKicked &&
-        _downloadsFailed == null &&
-        !launchArgs.hasLocalImages) {
+    if (!_downloadsKicked && _downloadsFailed == null) {
       Future.microtask(_kickoffDownloads);
     }
     final missingAssets = _downloadState.missingRequiredTypes;
@@ -2277,7 +2311,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final l10n = AppLocalizations.of(context)!;
     if (_downloadState.wantsOfflineMaps &&
         _downloadState.selectedRegion == null &&
-        !launchArgs.hasLocalImages) {
+        !launchArgs.hasLocalImagesOnly) {
       _setStatus(l10n.selectRegionError);
       return;
     }
@@ -2641,32 +2675,41 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           for (final (i, step)
-              in <({String title, String description, String? before, String? after})>[
-                (
-                  title: l10n.keepScooterAwake,
-                  description: l10n.keepScooterAwakeDesc,
-                  before: null,
-                  after: null,
-                ),
-                (
-                  title: l10n.removeFootwellCover,
-                  description: l10n.removeFootwellCoverDesc,
-                  before: 'assets/images/lsi-unu_scooter_footwell_closed.jpg',
-                  after: 'assets/images/lsi-unu_scooter_footwell_open.jpg',
-                ),
-                (
-                  title: l10n.unscrewUsbCable,
-                  description: l10n.unscrewUsbCableDesc,
-                  before: 'assets/images/lsi-mdb_usb_connected.jpg',
-                  after: 'assets/images/lsi-mdb_usb_disconnected.jpg',
-                ),
-                (
-                  title: l10n.connectLaptopUsb,
-                  description: l10n.connectLaptopUsbDesc,
-                  before: null,
-                  after: null,
-                ),
-              ].indexed)
+              in <
+                    ({
+                      String title,
+                      String description,
+                      String? before,
+                      String? after,
+                    })
+                  >[
+                    (
+                      title: l10n.keepScooterAwake,
+                      description: l10n.keepScooterAwakeDesc,
+                      before: null,
+                      after: null,
+                    ),
+                    (
+                      title: l10n.removeFootwellCover,
+                      description: l10n.removeFootwellCoverDesc,
+                      before:
+                          'assets/images/lsi-unu_scooter_footwell_closed.jpg',
+                      after: 'assets/images/lsi-unu_scooter_footwell_open.jpg',
+                    ),
+                    (
+                      title: l10n.unscrewUsbCable,
+                      description: l10n.unscrewUsbCableDesc,
+                      before: 'assets/images/lsi-mdb_usb_connected.jpg',
+                      after: 'assets/images/lsi-mdb_usb_disconnected.jpg',
+                    ),
+                    (
+                      title: l10n.connectLaptopUsb,
+                      description: l10n.connectLaptopUsbDesc,
+                      before: null,
+                      after: null,
+                    ),
+                  ]
+                  .indexed)
             InstructionStep(
               number: i + 1,
               title: step.title,
@@ -4445,9 +4488,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         typical: const Duration(seconds: 15),
       ),
     ]);
+    if (!mounted) return;
     _setStatus(l10n.waitingForBatteryData);
+    if (!mounted) return;
     setState(() => _isProcessing = true);
     if (_isDryRun) {
+      if (!mounted) return;
       setState(
         () => _scooterHealth = ScooterHealth()
           ..auxCharge = 75
@@ -4455,7 +4501,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           ..cbbCharge = 92
           ..batteryPresent = true,
       );
-      setState(() => _isProcessing = false);
+      if (mounted) setState(() => _isProcessing = false);
       return;
     }
     if (_mdbStackMissing) {
@@ -4501,21 +4547,23 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         if (!mounted) return;
         health = await _sshService.queryHealth();
       }
+      if (!mounted) return;
       setState(() => _scooterHealth = health);
       await _sshService.logScooterStats('health-check');
+      if (!mounted) return;
 
       // Back up radio-gaga config before we flash anything
       _setStatus(l10n.backingUpConfig);
       final cacheDir = await DownloadService.getCacheDir();
       final backupPath = await _sshService.backupRadioGagaConfig(cacheDir.path);
-      if (backupPath != null) {
+      if (backupPath != null && mounted) {
         setState(() => _radioGagaBackupPath = backupPath);
         debugPrint('UI: radio-gaga config backed up to $backupPath');
       }
     } catch (e) {
-      _setStatus(l10n.healthCheckFailed(e.toString()));
+      if (mounted) _setStatus(l10n.healthCheckFailed(e.toString()));
     } finally {
-      setState(() => _isProcessing = false);
+      if (mounted) setState(() => _isProcessing = false);
     }
   }
 
@@ -5287,7 +5335,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // as vendorId 0 and block a perfectly good flash. If both are null we
       // genuinely cannot confirm what we are about to write to, and the
       // guard below refuses -- which is the outcome we want.
-      final target = _device ?? _usbDetector.currentDevice;
+      var target = _device ?? _usbDetector.currentDevice;
 
       // Windows could not say whether this disk carries boot or system. The
       // detector already matched it by vendor and product, so put that to the
@@ -5309,6 +5357,32 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         debugPrint('Flash: user confirmed $devicePath as the target');
       }
 
+      // The confirmation dialog and the path lookup both yield to the event
+      // loop. Re-probe immediately before any destructive validation so a
+      // removed disk cannot be replaced by another device at the same path.
+      final freshTarget = await _usbDetector.detectDevice();
+      final freshPath = await _usbDetector.resolveDevicePath();
+      if (!mounted) return;
+      final sameTarget = UsbDetector.isSameMassStorageTarget(
+        expected: target,
+        observed: freshTarget,
+        expectedPath: devicePath,
+        observedPath: freshPath,
+      );
+      if (!sameTarget || freshTarget == null || freshPath == null) {
+        debugPrint(
+          'Flash: target changed before write (old=$target/$devicePath '
+          'new=$freshTarget/$freshPath)',
+        );
+        criticalOperation.release();
+        _setStatus(l10n.noDevicePathFound);
+        _blockMdbFlash(ownershipUncertain: true);
+        return;
+      }
+      final verifiedTarget = freshTarget;
+      target = verifiedTarget;
+      devicePath = freshPath;
+
       // Linux has no verdict from the enumeration itself, so ask now, with the
       // resolved path in hand. Anything mounted on the disk answers this
       // without needing to know which disk is which.
@@ -5323,18 +5397,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       }
       final safetyCheck = flashService.validateDevice(
         devicePath: devicePath,
-        sizeBytes: target?.sizeBytes,
-        isRemovable: target?.isRemovable ?? false,
-        isSystemDisk: target?.isSystemDisk ?? false,
-        vendorId: target?.vendorId ?? 0,
-        productId: target?.productId ?? 0,
+        sizeBytes: verifiedTarget.sizeBytes,
+        isRemovable: verifiedTarget.isRemovable,
+        isSystemDisk: verifiedTarget.isSystemDisk,
+        vendorId: verifiedTarget.vendorId,
+        productId: verifiedTarget.productId,
         // Inert in validateDevice off Linux, but passed so a rule added
         // there later reads the real verdict rather than a constant unknown.
-        systemDiskVerdict:
-            linuxVerdict ??
-            target?.systemDiskVerdict ??
-            SystemDiskVerdict.unknown,
-        detectedPath: target?.path,
+        systemDiskVerdict: linuxVerdict ?? verifiedTarget.systemDiskVerdict,
+        detectedPath: verifiedTarget.path,
       );
       if (!safetyCheck.passed) {
         debugPrint(
@@ -6182,15 +6253,29 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// dashboard is the trampoline's work and cannot begin until the cable has
   /// been swapped.
   void _beginBackgroundUploads() {
+    final generation = ++_dbcUploadGeneration;
     if (_mdbArtifactPending) {
-      unawaited(_stageMdbArtifact().whenComplete(_beginBackgroundDbcUpload));
+      unawaited(
+        _stageMdbArtifact().whenComplete(() {
+          if (_ownsDbcUpload(generation)) {
+            _beginBackgroundDbcUpload();
+          }
+        }),
+      );
     } else {
       _beginBackgroundDbcUpload();
     }
   }
 
+  bool _ownsDbcUpload(int generation) =>
+      mounted && generation == _dbcUploadGeneration;
+
   void _beginBackgroundDbcUpload() {
-    if (!mounted) return;
+    _beginBackgroundDbcUploadForGeneration(_dbcUploadGeneration);
+  }
+
+  void _beginBackgroundDbcUploadForGeneration(int generation) {
+    if (!_ownsDbcUpload(generation)) return;
     if (!(_plan?.needsHandoff ?? true)) return;
     if (_dbcPrepStarted) return;
     _dbcPrepStarted = true;
@@ -6198,16 +6283,18 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     _dbcStageError = null;
     // The line goes away with the transfer, however it ends.
     unawaited(
-      _uploadDbcFiles(background: true)
+      _uploadDbcFiles(background: true, generation: generation)
           .catchError((Object e, StackTrace stack) {
             debugPrint('UI: background dashboard upload failed: $e\n$stack');
-            if (!mounted) return;
+            if (!_ownsDbcUpload(generation)) return;
             setState(() {
               _dbcStageError = e.toString();
               _dbcStageInFlight = false;
             });
           })
-          .whenComplete(() => _setBackgroundStatus(null)),
+          .whenComplete(() {
+            if (_ownsDbcUpload(generation)) _setBackgroundStatus(null);
+          }),
     );
   }
 
@@ -6392,7 +6479,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// which would make the free-space preflight meaningless.
   Future<bool> _waitForDataPartition() async {
     final result = await waitForMdbDataPartition(
-      runCommand: (command) => _sshService.runCommand(command),
+      runCommand: (command, timeout) =>
+          _sshService.runCommand(command, timeout: timeout),
       isCancelled: () => !mounted,
     );
     return result == DataPartitionWaitResult.ready;
@@ -6800,6 +6888,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           targetVersion: _downloadState.releaseTag,
           installTiles: _downloadState.wantsOfflineMaps,
         );
+    _dbcUploadGeneration++;
     setState(() {
       _plan = plan.withMdb(plan.mdb.withAction(BoardAction.fullImage));
       _artifactError = null;
@@ -7105,7 +7194,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final mapsOnly = !(_plan?.needsDbcWork ?? true);
     if (!_dbcPrepStarted && !busy) {
       _dbcPrepStarted = true;
-      Future.microtask(_uploadDbcFiles);
+      final generation = ++_dbcUploadGeneration;
+      Future.microtask(() => _uploadDbcFiles(generation: generation));
     }
     return PhaseLayout(
       title: mapsOnly ? l10n.preparingMapTransfer : l10n.preparingDbcFlash,
@@ -7152,6 +7242,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             primary: true,
             onPressed: () {
               _restartFailedDownloads();
+              _dbcUploadGeneration++;
               setState(() {
                 _dbcPrepStarted = false;
                 _dbcStageInFlight = false;
@@ -7159,8 +7250,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 _dbcPrepSubsteps = const [];
               });
               Future.microtask(() {
+                if (!mounted) return;
+                final generation = ++_dbcUploadGeneration;
                 setState(() => _dbcPrepStarted = true);
-                _uploadDbcFiles();
+                unawaited(_uploadDbcFiles(generation: generation));
               });
             },
           ),
@@ -7215,38 +7308,53 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// [background] when this runs behind another phase's screen: its progress
   /// then belongs on the overlay's second line, not in the status the phase
   /// is reporting for itself.
-  Future<void> _uploadDbcFiles({bool background = false}) async {
+  Future<void> _uploadDbcFiles({
+    bool background = false,
+    int? generation,
+  }) async {
+    final uploadGeneration = generation ?? ++_dbcUploadGeneration;
+    if (!_ownsDbcUpload(uploadGeneration)) return;
     final l10n = AppLocalizations.of(context)!;
     if (!_dbcStageInFlight) setState(() => _isProcessing = true);
-    final criticalOperation = _acquireCriticalOperation();
-
-    setState(() {
-      _dbcUploadReady = false;
-      _dbcPrepBlocked = false;
-    });
 
     if (_isDryRun) {
-      _setStatus('[DRY RUN] Simulating DBC upload...');
-      await Future.delayed(const Duration(seconds: 1));
-      criticalOperation.release();
-      _setStatus(l10n.filesStagedWaitingForHandoff, progress: 1);
       setState(() {
-        _isProcessing = false;
-        _dbcStageInFlight = false;
-        _dbcUploadReady = true;
+        _dbcUploadReady = false;
+        _dbcPrepBlocked = false;
       });
+      _setStatus('[DRY RUN] Simulating DBC upload...');
+      await const DryRunUploadOperation().execute(
+        coordinator: _criticalOperations,
+        delay: () => Future<void>.delayed(const Duration(seconds: 1)),
+        owns: () => _ownsDbcUpload(uploadGeneration),
+        onOwned: () {
+          _setStatus(l10n.filesStagedWaitingForHandoff, progress: 1);
+          setState(() {
+            _isProcessing = false;
+            _dbcStageInFlight = false;
+            _dbcUploadReady = true;
+          });
+        },
+      );
       return;
     }
 
+    final criticalOperation = _acquireCriticalOperation();
     try {
+      setState(() {
+        _dbcUploadReady = false;
+        _dbcPrepBlocked = false;
+      });
+
       if (!_dbcDownloadsReady) {
         if (!background) _setStatus(l10n.waitingForDownloads);
         await waitForDownloads(
           isReady: () => _dbcDownloadsReady,
           currentError: () => _downloadState.error,
-          isCancelled: () => !mounted,
+          isCancelled: () => !mounted || !_ownsDbcUpload(uploadGeneration),
         );
       }
+      if (!_ownsDbcUpload(uploadGeneration)) return;
 
       final trampolineService = TrampolineService(_sshService);
       final dbcImage = _downloadState.imageFor(Board.dbc);
@@ -7289,7 +7397,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           ? l10n.artifactNoneDownloaded
           : null;
       if (missing != null) {
-        criticalOperation.release();
         _setStatus(missing);
         // Retry re-runs the same check against the same queue, so on its own
         // it is a loop. The main board is already done by this point, so
@@ -7323,6 +7430,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         finish: _buildDeviceFinish(),
         messages: _buildDashboardMessages(),
         onProgress: (status, progress) {
+          if (!_ownsDbcUpload(uploadGeneration)) return;
           if (background) {
             _setBackgroundStatus(status, progress: progress);
           } else {
@@ -7330,7 +7438,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           }
         },
         onSubsteps: (steps) {
-          if (mounted) setState(() => _dbcPrepSubsteps = steps);
+          if (_ownsDbcUpload(uploadGeneration)) {
+            setState(() => _dbcPrepSubsteps = steps);
+          }
         },
         labels: SubstepLabels(
           checkExisting: l10n.substepCheckExisting,
@@ -7353,7 +7463,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       );
 
       // Starting the trampoline is an explicit user action after staging.
-      criticalOperation.release();
+      if (!_ownsDbcUpload(uploadGeneration)) return;
       _setStatus(l10n.filesStagedWaitingForHandoff, progress: 1);
       setState(() {
         _isProcessing = false;
@@ -7363,7 +7473,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     } on DownloadWaitCancelled {
       return;
     } catch (e) {
-      criticalOperation.release();
+      if (!_ownsDbcUpload(uploadGeneration)) return;
       _setStatus(l10n.uploadError(e.toString()));
       debugPrint('DBC prep error: $e');
       setState(() {
@@ -7949,6 +8059,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// Go back to the prep phase and re-stage everything for another
   /// trampoline run, whatever the plan now says.
   void _returnToDbcPrep() {
+    _reconnectAttempt.reset();
+    _dbcUploadGeneration++;
     setState(() {
       _dbcPrepStarted = false;
       _dbcPrepBlocked = false;
@@ -8135,43 +8247,48 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
 
     if (_isDryRun) {
-      await Future.delayed(const Duration(seconds: 1));
-      if (_dbcFlashSimulateError) {
-        _setStatus('[DRY RUN] DBC flash failed!');
-        setState(() => _isProcessing = false);
-        if (mounted) {
-          showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: Text(l10n.dbcFlashError),
-              content: const SingleChildScrollView(
-                child: SelectableText(
-                  '12:34:56 Trampoline started\n'
-                  '12:34:57 Waiting for laptop to disconnect...\n'
-                  '12:35:02 Laptop disconnected\n'
-                  '12:35:03 Powering on DBC...\n'
-                  '12:35:18 DBC is reachable\n'
-                  '12:35:19 Configuring DBC bootloader...\n'
-                  '12:35:25 Rebooting DBC...\n'
-                  '12:35:30 Switching USB to host mode...\n'
-                  '12:35:32 Waiting for DBC UMS device...\n'
-                  '12:37:32 ERROR: DBC UMS device not found within 120s',
-                  style: TextStyle(fontFamily: 'monospace', fontSize: 12),
+      await const DryRunReconnectOperation().execute(
+        delay: () => Future<void>.delayed(const Duration(seconds: 1)),
+        owns: () => _ownsReconnect(generation),
+        onOwned: () {
+          if (_dbcFlashSimulateError) {
+            _setStatus('[DRY RUN] DBC flash failed!');
+            setState(() => _isProcessing = false);
+            if (mounted) {
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: Text(l10n.dbcFlashError),
+                  content: const SingleChildScrollView(
+                    child: SelectableText(
+                      '12:34:56 Trampoline started\n'
+                      '12:34:57 Waiting for laptop to disconnect...\n'
+                      '12:35:02 Laptop disconnected\n'
+                      '12:35:03 Powering on DBC...\n'
+                      '12:35:18 DBC is reachable\n'
+                      '12:35:19 Configuring DBC bootloader...\n'
+                      '12:35:25 Rebooting DBC...\n'
+                      '12:35:30 Switching USB to host mode...\n'
+                      '12:35:32 Waiting for DBC UMS device...\n'
+                      '12:37:32 ERROR: DBC UMS device not found within 120s',
+                      style: TextStyle(fontFamily: 'monospace', fontSize: 12),
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: Text(l10n.closeButton),
+                    ),
+                  ],
                 ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: Text(l10n.closeButton),
-                ),
-              ],
-            ),
-          );
-        }
-        return;
-      }
-      _setStatus('[DRY RUN] DBC flash successful!');
-      _setPhase(InstallerPhase.finish);
+              );
+            }
+            return;
+          }
+          _setStatus('[DRY RUN] DBC flash successful!');
+          _setPhase(InstallerPhase.finish);
+        },
+      );
       return;
     }
 
@@ -8307,6 +8424,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _setStatus(l10n.dbcFlashFailed(status.message ?? ''));
       // Keep the evidence after the dialog closes.
       await _captureTrampolineEvidence(status.errorLog);
+      if (!_ownsReconnect(generation)) return;
       if (mounted && status.errorLog != null) {
         showDialog(
           context: context,
@@ -8327,6 +8445,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           ),
         );
       }
+      if (!_ownsReconnect(generation)) return;
       setState(() => _isProcessing = false);
     } else {
       _setStatus(l10n.trampolineStatusUnknown);
@@ -8334,6 +8453,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // case to be told nothing about: we have a status file we could not
       // make sense of, and the file itself is the only thing that explains why.
       await _captureTrampolineEvidence(status.message);
+      if (!_ownsReconnect(generation)) return;
       setState(() => _isProcessing = false);
     }
   }
@@ -8619,10 +8739,18 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   bool _bleWhitelistDisabled = false;
 
   Future<void> _startBluetoothPairing() async {
+    if (!canStartBluetoothPairing(
+      active: _btPairingActive,
+      starting: _bluetoothPairingStarting,
+    )) {
+      return;
+    }
     final l10n = AppLocalizations.of(context)!;
     final generation = ++_bluetoothPairingGeneration;
-    _btPairingActive = true;
-    _bluetoothPairingStarting = true;
+    setState(() {
+      _btPairingActive = true;
+      _bluetoothPairingStarting = true;
+    });
     String? claimedVehicleState;
     var claimedVehicleStateChange = false;
     bool isCurrent() =>
@@ -9277,8 +9405,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Future<void> _startKeycardLearning() async {
+    if (!canStartKeycardLearning(
+      learning: _keycardLearning,
+      starting: _keycardLearningStarting,
+    )) {
+      return;
+    }
     final generation = ++_keycardLearningGeneration;
-    _keycardLearningStarting = true;
+    setState(() => _keycardLearningStarting = true);
     bool isCurrent() =>
         mounted &&
         !_windowClosing &&
@@ -9344,7 +9478,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             )!.keycardStartLearningFailed(answer ?? 'no answer'),
           );
         }
-        _keycardLearningStarting = false;
+        if (mounted && isCurrent()) {
+          setState(() => _keycardLearningStarting = false);
+        }
         return;
       }
     }

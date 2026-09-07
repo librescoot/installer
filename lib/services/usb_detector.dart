@@ -453,8 +453,22 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.PNPDeviceID)" }
         '-Command',
         r'''
 $dev = Get-CimInstance Win32_DiskDrive | Where-Object {
-  $_.PNPDeviceID -like "*VID_0525*" -or
   $_.PNPDeviceID -like "*VEN_LINUX*PROD_UMS*"
+} | ForEach-Object {
+  # A generic Linux UMS disk name is not enough to identify the board: walk
+  # its PnP parents until the USB device supplies the expected VID/PID.
+  $node = Get-PnpDevice -InstanceId $_.PNPDeviceID -ErrorAction SilentlyContinue
+  $matched = $false
+  for ($i = 0; $node -and $i -lt 8; $i++) {
+    if ($node.InstanceId -match '^USB\\VID_0525&PID_A4A5(?:\\|$)') {
+      $matched = $true
+      break
+    }
+    $parent = (Get-PnpDeviceProperty -InstanceId $node.InstanceId -KeyName 'DEVPKEY_Device_Parent' -ErrorAction SilentlyContinue).Data
+    if ([string]::IsNullOrWhiteSpace($parent) -or $parent -eq $node.InstanceId) { break }
+    $node = Get-PnpDevice -InstanceId $parent -ErrorAction SilentlyContinue
+  }
+  if ($matched) { $_ }
 } | Select-Object -First 1 Model,PNPDeviceID,DeviceID,MediaType,Index
 if ($dev) {
   "$($dev.Model)`t$($dev.PNPDeviceID)`t$($dev.DeviceID)`t$($dev.Index)`t$($dev.MediaType)"
@@ -1130,6 +1144,27 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
       device.mode == DeviceMode.massStorage &&
       path != null &&
       path.isNotEmpty;
+
+  static bool isSameMassStorageTarget({
+    required UsbDevice? expected,
+    required UsbDevice? observed,
+    required String expectedPath,
+    required String? observedPath,
+  }) {
+    if (expected == null || observed == null) return false;
+    if (observed.mode != DeviceMode.massStorage ||
+        expected.mode != DeviceMode.massStorage) {
+      return false;
+    }
+    if (expectedPath.isEmpty || observedPath != expectedPath) return false;
+    if (expected.id != observed.id ||
+        expected.vendorId != observed.vendorId ||
+        expected.productId != observed.productId) {
+      return false;
+    }
+    return expected.sizeBytes == null ||
+        observed.sizeBytes == expected.sizeBytes;
+  }
 
   @visibleForTesting
   static bool macDiskProbeResultBelongsTo({

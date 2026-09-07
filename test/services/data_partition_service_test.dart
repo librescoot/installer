@@ -34,7 +34,7 @@ void main() {
     test('throws with diagnostics when the mount stays absent', () async {
       await expectLater(
         waitForMdbDataPartition(
-          runCommand: (command) async => 'absent root=/dev/mmcblk1p2',
+          runCommand: (command, timeout) async => 'absent root=/dev/mmcblk1p2',
           maxAttempts: 1,
         ),
         throwsA(
@@ -51,7 +51,7 @@ void main() {
       var attempt = 0;
       var delays = 0;
       final result = await waitForMdbDataPartition(
-        runCommand: (command) async => attempt++ == 0
+        runCommand: (command, timeout) async => attempt++ == 0
             ? 'absent root=/dev/mmcblk1p2'
             : 'ready root=/dev/mmcblk1p2 data=/dev/mmcblk1p4 type=ext4',
         maxAttempts: 2,
@@ -65,7 +65,7 @@ void main() {
     test('rejects a mounted wrong filesystem', () async {
       await expectLater(
         waitForMdbDataPartition(
-          runCommand: (command) async =>
+          runCommand: (command, timeout) async =>
               'wrong root=/dev/mmcblk1p2 data=tmpfs type=tmpfs',
           maxAttempts: 1,
         ),
@@ -85,7 +85,7 @@ void main() {
       // the log to repartition a board whose only problem is the link.
       await expectLater(
         waitForMdbDataPartition(
-          runCommand: (command) async =>
+          runCommand: (command, timeout) async =>
               throw Exception('SSH session lost before command'),
           maxAttempts: 1,
         ),
@@ -103,9 +103,36 @@ void main() {
       );
     });
 
+    test('passes the probe timeout to the command runner', () async {
+      Duration? seenTimeout;
+      await expectLater(
+        waitForMdbDataPartition(
+          runCommand: (command, timeout) async {
+            seenTimeout = timeout;
+            return 'absent root=/dev/mmcblk1p2';
+          },
+          maxAttempts: 1,
+          probeTimeout: const Duration(seconds: 3),
+        ),
+        throwsA(isA<DataPartitionWaitException>()),
+      );
+      expect(seenTimeout, const Duration(seconds: 3));
+    });
+
+    test('rejects a zero probe timeout', () async {
+      await expectLater(
+        waitForMdbDataPartition(
+          runCommand: (command, timeout) async => 'ready',
+          probeTimeout: Duration.zero,
+        ),
+        throwsArgumentError,
+      );
+    });
+
     test('cancels without throwing when the screen is disposed', () async {
       final result = await waitForMdbDataPartition(
-        runCommand: (command) async => fail('must not probe after disposal'),
+        runCommand: (command, timeout) async =>
+            fail('must not probe after disposal'),
         isCancelled: () => true,
       );
 

@@ -119,33 +119,37 @@ Future<List<String>> saveTrampolineDiagnostics({
   await target.create(recursive: true);
   final saved = <String>[];
   final summary = File(path.join(target.path, 'launch-diagnostics.txt'));
-  await summary.writeAsString([
-    'run-id: $runId',
-    '',
-    '[stdout]',
-    launch.stdout,
-    '',
-    '[trampoline log tail]',
-    launch.logTail,
-    '',
-    '[staging and disk space]',
-    launch.staging,
-    '',
-  ].join('\n'));
+  await summary.writeAsString(
+    [
+      'run-id: $runId',
+      '',
+      '[stdout]',
+      launch.stdout,
+      '',
+      '[trampoline log tail]',
+      launch.logTail,
+      '',
+      '[staging and disk space]',
+      launch.staging,
+      '',
+    ].join('\n'),
+  );
   saved.add(summary.path);
 
   final entries = trampolineDiagnosticFiles(runId).entries.toList();
   for (var offset = 0; offset < entries.length; offset += 8) {
     final end = (offset + 8).clamp(0, entries.length);
-    await Future.wait(entries.sublist(offset, end).map((entry) async {
-      try {
-        final bytes = await downloadFile(entry.value);
-        if (bytes == null) return;
-        final file = File(path.join(target.path, entry.key));
-        await file.writeAsBytes(bytes, flush: true);
-        saved.add(file.path);
-      } catch (_) {}
-    }));
+    await Future.wait(
+      entries.sublist(offset, end).map((entry) async {
+        try {
+          final bytes = await downloadFile(entry.value);
+          if (bytes == null) return;
+          final file = File(path.join(target.path, entry.key));
+          await file.writeAsBytes(bytes, flush: true);
+          saved.add(file.path);
+        } catch (_) {}
+      }),
+    );
   }
   return saved;
 }
@@ -188,12 +192,17 @@ String? remoteDirOf(String remotePath) {
 }
 
 String createInstallRunId({DateTime? now, int? processId}) {
-  final timestamp = (now ?? DateTime.now().toUtc())
-      .microsecondsSinceEpoch
+  final timestamp = (now ?? DateTime.now().toUtc()).microsecondsSinceEpoch
       .toRadixString(36);
   final process = (processId ?? pid).toRadixString(36);
   return 'run-$timestamp-$process';
 }
+
+@visibleForTesting
+bool uploadBodyIsComplete({
+  required int expectedBytes,
+  required int receivedBytes,
+}) => expectedBytes >= 0 && receivedBytes == expectedBytes;
 
 String serializeInstallRunState({
   required String runId,
@@ -258,6 +267,7 @@ class SubstepLabels {
   final String uploadScript;
   final String Function(String filename) uploadFile;
   final String Function(String filename) verifying;
+
   /// What each file is, for someone who is not going to recognise
   /// `valhalla_tiles_berlin.tar.zst`.
   final String imageName;
@@ -356,7 +366,10 @@ class TrampolineService {
         // the region is picked here, and the trampoline records it so the
         // dashboard does not have to re-identify it from the release manifest,
         // which needs network the vehicle may not have yet.
-        .replaceAll('{{TILES_REGION}}', installTiles && region != null ? region.slug : '')
+        .replaceAll(
+          '{{TILES_REGION}}',
+          installTiles && region != null ? region.slug : '',
+        )
         .replaceAll(
           '{{TILES_REGION_NAME}}',
           installTiles && region != null ? region.name : '',
@@ -381,7 +394,9 @@ class TrampolineService {
     DeviceFinish finish = DeviceFinish.laptop,
     DashboardMessages messages = DashboardMessages.english,
   }) async {
-    final template = await rootBundle.loadString('assets/trampoline.sh.template');
+    final template = await rootBundle.loadString(
+      'assets/trampoline.sh.template',
+    );
     return renderTemplate(
       template,
       finish: finish,
@@ -403,7 +418,8 @@ class TrampolineService {
       String localMd5;
       if (Platform.isWindows) {
         final localResult = await Process.run('powershell', [
-          '-NoProfile', '-Command',
+          '-NoProfile',
+          '-Command',
           '(Get-FileHash "$localPath" -Algorithm MD5).Hash',
         ]);
         if (localResult.exitCode != 0) return false;
@@ -415,7 +431,12 @@ class TrampolineService {
       } else {
         final localResult = await Process.run('md5sum', [localPath]);
         if (localResult.exitCode != 0) return false;
-        localMd5 = localResult.stdout.toString().split(' ').first.trim().toLowerCase();
+        localMd5 = localResult.stdout
+            .toString()
+            .split(' ')
+            .first
+            .trim()
+            .toLowerCase();
       }
 
       // A file that is not there yet is the normal case on a first upload,
@@ -426,7 +447,9 @@ class TrampolineService {
         '[ -f "$remotePath" ] && echo yes || echo no',
       )).trim();
       if (present != 'yes') {
-        debugPrint('Trampoline: $remotePath not on the device yet, will upload');
+        debugPrint(
+          'Trampoline: $remotePath not on the device yet, will upload',
+        );
         return false;
       }
 
@@ -438,9 +461,13 @@ class TrampolineService {
 
       final match = localMd5.isNotEmpty && localMd5 == remoteMd5;
       if (match) {
-        debugPrint('Trampoline: $remotePath already exists and matches (md5=$localMd5)');
+        debugPrint(
+          'Trampoline: $remotePath already exists and matches (md5=$localMd5)',
+        );
       } else {
-        debugPrint('Trampoline: $remotePath md5 mismatch: local=$localMd5 remote=$remoteMd5');
+        debugPrint(
+          'Trampoline: $remotePath md5 mismatch: local=$localMd5 remote=$remoteMd5',
+        );
       }
       return match;
     } catch (e) {
@@ -451,14 +478,19 @@ class TrampolineService {
 
   static const _uploadServerScript = '''
 import http.server, os, sys
+upload_root = os.environ.get('LIBRESCOOT_UPLOAD_ROOT', '/data')
 class H(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
         self.wfile.write(b"ok")
     def do_PUT(self):
-        path = '/data' + self.path
-        length = int(self.headers['Content-Length'])
+        path = upload_root + self.path
+        try:
+            length = int(self.headers['Content-Length'])
+        except (TypeError, ValueError):
+            self.send_error(400, 'Content-Length required')
+            return
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, 'wb') as f:
             remaining = length
@@ -467,13 +499,23 @@ class H(http.server.BaseHTTPRequestHandler):
                 if not chunk: break
                 f.write(chunk)
                 remaining -= len(chunk)
+        if remaining != 0:
+            try: os.remove(path)
+            except OSError: pass
+            self.send_error(400, 'truncated request body')
+            return
         self.send_response(200)
         self.end_headers()
     def log_message(self, *a): pass
 import socketserver
 socketserver.TCPServer.allow_reuse_address = True
-http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
+http.server.HTTPServer(
+    ('0.0.0.0', int(os.environ.get('LIBRESCOOT_UPLOAD_PORT', '8080'))), H
+).serve_forever()
 ''';
+
+  @visibleForTesting
+  static String get uploadServerScriptForTest => _uploadServerScript;
 
   static const _mdbUploadUrl = 'http://192.168.7.1:8080';
 
@@ -488,7 +530,9 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       final resp = await req.close().timeout(const Duration(seconds: 3));
       await resp.drain<void>().timeout(const Duration(seconds: 3));
       if (resp.statusCode == 200) {
-        debugPrint('Trampoline: permanent data-server detected, skipping Python server');
+        debugPrint(
+          'Trampoline: permanent data-server detected, skipping Python server',
+        );
         _pythonServerStarted = false;
         return;
       }
@@ -501,14 +545,20 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     // Kill any leftover server from previous runs
     debugPrint('Trampoline: cleaning up old upload server...');
     try {
-      await _ssh.runCommand('kill \$(pgrep -f upload_srv) 2>/dev/null; fuser -k 8080/tcp 2>/dev/null');
+      await _ssh.runCommand(
+        'kill \$(pgrep -f upload_srv) 2>/dev/null; fuser -k 8080/tcp 2>/dev/null',
+      );
     } catch (_) {}
     await Future.delayed(const Duration(seconds: 1));
 
     debugPrint('Trampoline: writing upload server script...');
-    await _ssh.runCommand("cat > /tmp/upload_srv.py << 'PYEOF'\n$_uploadServerScript\nPYEOF");
+    await _ssh.runCommand(
+      "cat > /tmp/upload_srv.py << 'PYEOF'\n$_uploadServerScript\nPYEOF",
+    );
     debugPrint('Trampoline: starting upload server...');
-    await _ssh.runCommand('nohup python3 /tmp/upload_srv.py > /tmp/upload_srv.log 2>&1 &');
+    await _ssh.runCommand(
+      'nohup python3 /tmp/upload_srv.py > /tmp/upload_srv.log 2>&1 &',
+    );
 
     // Wait for server to be ready: retry connection
     debugPrint('Trampoline: waiting for upload server...');
@@ -571,7 +621,8 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     );
     try {
       // Send HTTP PUT header
-      final header = 'PUT $remoteFilename HTTP/1.1\r\n'
+      final header =
+          'PUT $remoteFilename HTTP/1.1\r\n'
           'Host: 192.168.7.1:8080\r\n'
           'Content-Length: $fileSize\r\n'
           'Connection: close\r\n'
@@ -588,12 +639,18 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
           final remaining = fileSize - sent;
           final readSize = remaining < chunkSize ? remaining : chunkSize;
           final chunk = await raf.read(readSize);
+          if (chunk.isEmpty) {
+            throw Exception(
+              'HTTP upload ended before the complete file was read',
+            );
+          }
           socket.add(chunk);
           await socket.flush().timeout(_uploadStallTimeout);
           sent += chunk.length;
 
           final now = DateTime.now();
-          if (now.difference(lastProgress).inMilliseconds >= 500 || sent >= fileSize) {
+          if (now.difference(lastProgress).inMilliseconds >= 500 ||
+              sent >= fileSize) {
             onProgress?.call(sent, fileSize);
             lastProgress = now;
           }
@@ -602,15 +659,18 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
         await raf.close();
       }
 
+      if (!uploadBodyIsComplete(expectedBytes: fileSize, receivedBytes: sent)) {
+        throw Exception('HTTP upload ended before the complete file was sent');
+      }
       final response = await socket
-          .fold<List<int>>(
-            <int>[],
-            (prev, chunk) => prev..addAll(chunk),
-          )
+          .fold<List<int>>(<int>[], (prev, chunk) => prev..addAll(chunk))
           .timeout(_uploadStallTimeout);
       final responseStr = String.fromCharCodes(response);
       if (!responseStr.contains('200')) {
         throw Exception('HTTP upload failed: $responseStr');
+      }
+      if (!await _remoteFileMatches(localPath, remotePath)) {
+        throw Exception('HTTP upload verification failed for $remotePath');
       }
     } finally {
       socket.destroy();
@@ -649,7 +709,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
   ///
   /// Everything we stage lives under /data/installer/ so cleanup at finish
   /// is a single rm -rf. The only exception is /data/onboot.sh, which is
-  /// the path librescoot-onboot.service watches via ConditionPathExists , 
+  /// the path librescoot-onboot.service watches via ConditionPathExists ,
   /// the trampoline writes that one itself, and it self-deletes after it
   /// runs on the next boot.
   ///
@@ -709,14 +769,20 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
 
     if (dbcImageLocalPath != null) {
       final dbcFilename = File(dbcImageLocalPath).uri.pathSegments.last;
-      filesToUpload.add(_Upload(
-          dbcImageLocalPath, '/data/installer/$dbcFilename', l.imageName));
+      filesToUpload.add(
+        _Upload(dbcImageLocalPath, '/data/installer/$dbcFilename', l.imageName),
+      );
     }
 
     if (dbcBmapLocalPath != null) {
       final bmapFilename = File(dbcBmapLocalPath).uri.pathSegments.last;
-      filesToUpload.add(_Upload(
-          dbcBmapLocalPath, '/data/installer/$bmapFilename', l.imageMapName));
+      filesToUpload.add(
+        _Upload(
+          dbcBmapLocalPath,
+          '/data/installer/$bmapFilename',
+          l.imageMapName,
+        ),
+      );
     }
 
     // The DBC artifact is staged in /data/installer next to the image rather
@@ -724,29 +790,43 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     // trampoline is what puts it at the seed path over there.
     if (dbcArtifactLocalPath != null) {
       final artifactFilename = File(dbcArtifactLocalPath).uri.pathSegments.last;
-      filesToUpload.add(_Upload(dbcArtifactLocalPath,
-          '/data/installer/$artifactFilename', l.firmwareName));
+      filesToUpload.add(
+        _Upload(
+          dbcArtifactLocalPath,
+          '/data/installer/$artifactFilename',
+          l.firmwareName,
+        ),
+      );
     }
 
     if (osmTilesLocalPath != null && region != null) {
-      filesToUpload.add(_Upload(osmTilesLocalPath,
-          '/data/installer/${region.osmTilesFilename}', l.mapsName));
+      filesToUpload.add(
+        _Upload(
+          osmTilesLocalPath,
+          '/data/installer/${region.osmTilesFilename}',
+          l.mapsName,
+        ),
+      );
     }
     if (valhallaTilesLocalPath != null && region != null) {
       // Keep whatever name was downloaded: the routing tiles may be the zstd
       // form, and the trampoline decides what to do from the suffix.
-      final valhallaFilename =
-          File(valhallaTilesLocalPath).uri.pathSegments.last;
-      filesToUpload.add(_Upload(valhallaTilesLocalPath,
-          '/data/installer/$valhallaFilename', l.routingName));
+      final valhallaFilename = File(
+        valhallaTilesLocalPath,
+      ).uri.pathSegments.last;
+      filesToUpload.add(
+        _Upload(
+          valhallaTilesLocalPath,
+          '/data/installer/$valhallaFilename',
+          l.routingName,
+        ),
+      );
     }
 
     final substeps = <Substep>[
       Substep(id: 'check', label: l.checkExisting),
       for (final e in filesToUpload)
-        Substep(
-            id: 'up:${e.remote}',
-            label: l.uploadFile(e.name)),
+        Substep(id: 'up:${e.remote}', label: l.uploadFile(e.name)),
       if (dbcImageLocalPath != null)
         Substep(id: 'flasher', label: l.uploadFlasher),
       if (dbcImageLocalPath != null)
@@ -830,10 +910,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
               final detail =
                   '${mb.toStringAsFixed(0)} / ${totalMb.toStringAsFixed(0)} MB$eta';
               setStep(stepId, SubstepState.active, detail: detail);
-              onProgress?.call(
-                '${l.uploadFile(filename)} - $detail',
-                overall,
-              );
+              onProgress?.call('${l.uploadFile(filename)} - $detail', overall);
             },
           );
           setStep(stepId, SubstepState.done);
@@ -881,8 +958,12 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
       setStep('flasher', SubstepState.active);
       onProgress?.call(l.uploadFlasher, 0.94);
       try {
-        final flasherAsset = await rootBundle.load('assets/tools/librescoot-flasher-linux-arm');
-        debugPrint('Trampoline: loaded flasher-linux-arm (${flasherAsset.lengthInBytes} bytes)');
+        final flasherAsset = await rootBundle.load(
+          'assets/tools/librescoot-flasher-linux-arm',
+        );
+        debugPrint(
+          'Trampoline: loaded flasher-linux-arm (${flasherAsset.lengthInBytes} bytes)',
+        );
         await _ssh.uploadFile(
           flasherAsset.buffer.asUint8List(),
           '/data/installer/librescoot-flasher',
@@ -969,20 +1050,28 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     // dashboard is flashed, and ahead of the handover so the vehicle is on
     // its real image by the time anything unlocks it.
     await _ssh.uploadFile(
-      Uint8List.fromList(utf8.encode(MdbArtifactScript.render(
-        template: await MdbArtifactScript.loadTemplate(),
-        runId: runId,
-        artifactPath: mdbArtifactPath,
-      ))),
+      Uint8List.fromList(
+        utf8.encode(
+          MdbArtifactScript.render(
+            template: await MdbArtifactScript.loadTemplate(),
+            runId: runId,
+            artifactPath: mdbArtifactPath,
+          ),
+        ),
+      ),
       MdbArtifactScript.remotePath,
     );
     debugPrint('Trampoline: queued ${MdbArtifactScript.phaseName}');
 
     await _ssh.uploadFile(
-      Uint8List.fromList(utf8.encode(RebootPhaseScript.render(
-        template: await RebootPhaseScript.loadTemplate(),
-        runId: runId,
-      ))),
+      Uint8List.fromList(
+        utf8.encode(
+          RebootPhaseScript.render(
+            template: await RebootPhaseScript.loadTemplate(),
+            runId: runId,
+          ),
+        ),
+      ),
       RebootPhaseScript.remotePath,
     );
     debugPrint('Trampoline: queued ${RebootPhaseScript.phaseName}');
@@ -1050,9 +1139,7 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
     // pkill cannot match their own command line, and the kill is its own
     // command because a combined one would carry the pattern in the launcher's
     // arguments and take the launcher with it.
-    await _ssh.runCommand(
-      "pkill -f '$_trampolinePattern' 2>/dev/null; true",
-    );
+    await _ssh.runCommand("pkill -f '$_trampolinePattern' 2>/dev/null; true");
     await _ssh.runCommand(
       'rm -f ${SshService.installerLastInstall}; '
       'mkdir -p /data/installer; '
@@ -1091,10 +1178,8 @@ http.server.HTTPServer(('0.0.0.0', 8080), H).serve_forever()
   /// Collects launch evidence before cleanup removes the staging directory.
   Future<TrampolineLaunchDiagnostics> _whyNoTrampoline() async {
     final diagnostics = await collectTrampolineLaunchDiagnostics(
-      runCommand: (command) => _ssh.runCommand(
-        command,
-        timeout: const Duration(seconds: 15),
-      ),
+      runCommand: (command) =>
+          _ssh.runCommand(command, timeout: const Duration(seconds: 15)),
     );
 
     if (diagnostics.stdout.isEmpty) {

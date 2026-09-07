@@ -59,13 +59,16 @@ class DataPartitionWaitException implements Exception {
   }
 }
 
-typedef DataPartitionCommandRunner = Future<String> Function(String command);
+typedef DataPartitionCommandRunner =
+    Future<String> Function(String command, Duration timeout);
 typedef DataPartitionDelay = Future<void> Function(Duration duration);
 
 Future<DataPartitionWaitResult> waitForMdbDataPartition({
   required DataPartitionCommandRunner runCommand,
   int maxAttempts = 60,
   Duration interval = const Duration(seconds: 5),
+  Duration probeTimeout = const Duration(seconds: 8),
+  Duration overallTimeout = const Duration(minutes: 5),
   DataPartitionDelay? delay,
   bool Function()? isCancelled,
 }) async {
@@ -73,7 +76,18 @@ Future<DataPartitionWaitResult> waitForMdbDataPartition({
     throw ArgumentError.value(maxAttempts, 'maxAttempts', 'must be positive');
   }
 
+  if (probeTimeout <= Duration.zero) {
+    throw ArgumentError.value(probeTimeout, 'probeTimeout', 'must be positive');
+  }
+  if (overallTimeout <= Duration.zero) {
+    throw ArgumentError.value(
+      overallTimeout,
+      'overallTimeout',
+      'must be positive',
+    );
+  }
   final wait = delay ?? (duration) => Future<void>.delayed(duration);
+  final deadline = DateTime.now().add(overallTimeout);
   DataPartitionProbe? lastProbe;
   Object? lastError;
 
@@ -81,9 +95,14 @@ Future<DataPartitionWaitResult> waitForMdbDataPartition({
     if (isCancelled?.call() ?? false) {
       return DataPartitionWaitResult.cancelled;
     }
+    final remaining = deadline.difference(DateTime.now());
+    if (remaining <= Duration.zero) {
+      break;
+    }
+    final commandTimeout = remaining < probeTimeout ? remaining : probeTimeout;
     try {
       lastProbe = parseDataPartitionProbe(
-        await runCommand(mdbDataPartitionProbeCommand),
+        await runCommand(mdbDataPartitionProbeCommand, commandTimeout),
       );
       lastError = null;
       if (lastProbe.status == DataPartitionProbeStatus.ready) {
@@ -97,8 +116,9 @@ Future<DataPartitionWaitResult> waitForMdbDataPartition({
     if (isCancelled?.call() ?? false) {
       return DataPartitionWaitResult.cancelled;
     }
-    if (attempt + 1 < maxAttempts) {
-      await wait(interval);
+    if (attempt + 1 < maxAttempts && DateTime.now().isBefore(deadline)) {
+      final remaining = deadline.difference(DateTime.now());
+      await wait(remaining < interval ? remaining : interval);
     }
   }
 
