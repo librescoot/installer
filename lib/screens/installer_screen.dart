@@ -51,6 +51,7 @@ import '../services/debug_shell.dart';
 import '../services/dry_run_operation.dart';
 import '../services/finalize_script.dart';
 import '../services/install_phase_scripts.dart';
+import '../services/journey_log.dart';
 import '../services/serial_polling_loop.dart';
 import '../services/services.dart';
 import '../services/relaunch_target.dart';
@@ -725,6 +726,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   void _setPhase(InstallerPhase phase) {
     final leaving = _currentPhase;
+    logJourneyEvent('phase_changed', {'from': leaving.name, 'to': phase.name});
     setState(() {
       if (phase == InstallerPhase.mdbToUms && leaving != phase) {
         _mdbToUmsAttempt.reset();
@@ -2316,6 +2318,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       return;
     }
 
+    logJourneyEvent('install_started', {
+      'channel': _downloadState.channel.name,
+      'region': _downloadState.selectedRegion?.slug,
+      'offline_maps': _downloadState.wantsOfflineMaps,
+      'local_images': launchArgs.hasLocalImages,
+      'dry_run': _isDryRun,
+    });
     setState(() => _isProcessing = true);
 
     // macOS: don't self-elevate the GUI. TCC gates /dev/rdiskN by responsible
@@ -4468,7 +4477,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               alignment: WrapAlignment.end,
               spacing: 8,
               runSpacing: 8,
-              children: [for (final action in actions) action.build(context)],
+              children: [
+                for (final action in actions)
+                  action.build(context, screen: l10n.healthCheckHeading)
+              ],
             ),
           ],
         ],
@@ -4651,6 +4663,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       );
     }
     final plan = _plan!;
+    logJourneyEvent('plan_confirmed', {
+      'mdb': plan.mdb.action.name,
+      'dbc': plan.dbc.action.name,
+      'offline_maps': plan.installTiles,
+      'direct_mass_storage': _directMassStorageRoute,
+    });
     _skippedPhases.clear();
 
     if (!plan.needsMdbWork) {
