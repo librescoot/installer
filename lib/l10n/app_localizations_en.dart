@@ -141,6 +141,28 @@ class AppLocalizationsEn extends AppLocalizations {
       'Install Librescoot firmware on your scooter.';
 
   @override
+  String get updateAvailableTitle => 'Installer update available';
+
+  @override
+  String updateAvailableBody(String latestVersion, String currentVersion) {
+    return 'Librescoot Installer $latestVersion is available. You are using $currentVersion.';
+  }
+
+  @override
+  String updatePublishedDate(String date) {
+    return 'Published $date';
+  }
+
+  @override
+  String get updateReleaseNotesTitle => 'What’s new';
+
+  @override
+  String get updateNotNow => 'Not now';
+
+  @override
+  String get updateOpenDownloads => 'Open Downloads';
+
+  @override
   String get whatYouNeed => 'What you need:';
 
   @override

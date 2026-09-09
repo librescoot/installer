@@ -350,6 +350,42 @@ abstract class AppLocalizations {
   /// **'Install Librescoot firmware on your scooter.'**
   String get welcomeSubheading;
 
+  /// No description provided for @updateAvailableTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Installer update available'**
+  String get updateAvailableTitle;
+
+  /// No description provided for @updateAvailableBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Librescoot Installer {latestVersion} is available. You are using {currentVersion}.'**
+  String updateAvailableBody(String latestVersion, String currentVersion);
+
+  /// No description provided for @updatePublishedDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Published {date}'**
+  String updatePublishedDate(String date);
+
+  /// No description provided for @updateReleaseNotesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'What’s new'**
+  String get updateReleaseNotesTitle;
+
+  /// No description provided for @updateNotNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Not now'**
+  String get updateNotNow;
+
+  /// No description provided for @updateOpenDownloads.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Downloads'**
+  String get updateOpenDownloads;
+
   /// No description provided for @whatYouNeed.
   ///
   /// In en, this message translates to:

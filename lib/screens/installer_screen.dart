@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:path/path.dart' as path;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
@@ -55,6 +56,7 @@ import '../services/journey_log.dart';
 import '../services/serial_polling_loop.dart';
 import '../services/services.dart';
 import '../services/relaunch_target.dart';
+import '../services/update_service.dart';
 import '../services/window_close_coordinator.dart';
 import '../widgets/artifact_progress_panel.dart';
 import '../widgets/connect_failure_panel.dart';
@@ -93,6 +95,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   // Services
   late final UsbDetector _usbDetector;
   late final DownloadService _downloadService;
+  late final UpdateService _updateService;
   final SshService _sshService = SshService();
 
   // State
@@ -391,6 +394,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     );
     _usbDetector = UsbDetector();
     _downloadService = DownloadService();
+    _updateService = UpdateService();
     _deviceSub = _usbDetector.deviceStream.listen((device) {
       if (!mounted || _windowClosing) return;
       setState(() => _device = device);
@@ -410,6 +414,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     _resolveAvailableChannels();
     _loadAvailableRegions();
     _detectRegionFromIp();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_checkForInstallerUpdate());
+    });
   }
 
   Future<String?> _promptManualRootPassword({
@@ -560,6 +567,91 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (mounted) setState(() => _isElevated = elevated);
   }
 
+  Future<void> _checkForInstallerUpdate() async {
+    if (launchArgs.autoStart) return;
+
+    try {
+      final update = await _updateService.check(appVersion);
+      if (!mounted ||
+          update == null ||
+          _currentPhase != InstallerPhase.welcome ||
+          _isProcessing) {
+        return;
+      }
+
+      final l10n = AppLocalizations.of(context)!;
+      final publishedAt = update.publishedAt;
+      final releaseDate = publishedAt?.toIso8601String().substring(0, 10);
+      final releaseNotes = update.releaseNotes.trim();
+      final openDownloads = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: const Icon(Icons.system_update_alt, size: 36),
+          title: Text(l10n.updateAvailableTitle),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520, maxHeight: 420),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.updateAvailableBody(
+                      update.latestVersion,
+                      update.currentVersion,
+                    ),
+                  ),
+                  if (releaseDate != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.updatePublishedDate(releaseDate),
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
+                  ],
+                  if (releaseNotes.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    Text(
+                      l10n.updateReleaseNotesTitle,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 6),
+                    MarkdownBody(
+                      data: releaseNotes,
+                      selectable: true,
+                      onTapLink: (_, href, _) {
+                        final uri = href == null ? null : Uri.tryParse(href);
+                        if (uri != null &&
+                            (uri.scheme == 'https' || uri.scheme == 'http')) {
+                          unawaited(_openExternalUrl(href!));
+                        }
+                      },
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(l10n.updateNotNow),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Icons.open_in_new),
+              label: Text(l10n.updateOpenDownloads),
+            ),
+          ],
+        ),
+      );
+      if (openDownloads == true && mounted) {
+        await _openExternalUrl(UpdateService.downloadsUri.toString());
+      }
+    } catch (e) {
+      debugPrint('Installer update check failed: $e');
+    }
+  }
+
   Future<void> _detectResumeState() async {
     // Detection happens in _autoConnectMdb: no early jumping here.
   }
@@ -574,6 +666,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     _downloadCancellationToken?.cancel();
     _deviceSub?.cancel();
     _usbDetector.stopMonitoring();
+    _updateService.dispose();
     unawaited(_blePinPolling.stop());
     unawaited(_bleAdvRearming.stop());
     _keycardToastTimer?.cancel();

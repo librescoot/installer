@@ -142,6 +142,28 @@ class AppLocalizationsDe extends AppLocalizations {
       'Dieser Assistent führt dich durch die Installation der Librescoot-Firmware auf deinem Roller.';
 
   @override
+  String get updateAvailableTitle => 'Installer-Update verfügbar';
+
+  @override
+  String updateAvailableBody(String latestVersion, String currentVersion) {
+    return 'Librescoot Installer $latestVersion ist verfügbar. Du verwendest $currentVersion.';
+  }
+
+  @override
+  String updatePublishedDate(String date) {
+    return 'Veröffentlicht am $date';
+  }
+
+  @override
+  String get updateReleaseNotesTitle => 'Neu in dieser Version';
+
+  @override
+  String get updateNotNow => 'Später';
+
+  @override
+  String get updateOpenDownloads => 'Downloadseite öffnen';
+
+  @override
   String get whatYouNeed => 'Was du brauchst:';
 
   @override

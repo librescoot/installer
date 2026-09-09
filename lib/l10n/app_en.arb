@@ -42,6 +42,23 @@
   "majorStepSkippedSuffix": "skipped",
   "welcomeHeading": "Welcome to Librescoot Installer",
   "welcomeSubheading": "Install Librescoot firmware on your scooter.",
+  "updateAvailableTitle": "Installer update available",
+  "updateAvailableBody": "Librescoot Installer {latestVersion} is available. You are using {currentVersion}.",
+  "@updateAvailableBody": {
+    "placeholders": {
+      "latestVersion": {"type": "String"},
+      "currentVersion": {"type": "String"}
+    }
+  },
+  "updatePublishedDate": "Published {date}",
+  "@updatePublishedDate": {
+    "placeholders": {
+      "date": {"type": "String"}
+    }
+  },
+  "updateReleaseNotesTitle": "What’s new",
+  "updateNotNow": "Not now",
+  "updateOpenDownloads": "Open Downloads",
   "whatYouNeed": "What you need:",
   "prerequisiteScrewdriverPH2": "PH2 or H4 screwdriver for footwell screws",
   "prerequisiteScrewdriverFlat": "Flat head or PH1 screwdriver for USB cable",

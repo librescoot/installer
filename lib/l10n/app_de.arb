@@ -42,6 +42,23 @@
   "majorStepSkippedSuffix": "übersprungen",
   "welcomeHeading": "Willkommen beim Librescoot Installer",
   "welcomeSubheading": "Dieser Assistent führt dich durch die Installation der Librescoot-Firmware auf deinem Roller.",
+  "updateAvailableTitle": "Installer-Update verfügbar",
+  "updateAvailableBody": "Librescoot Installer {latestVersion} ist verfügbar. Du verwendest {currentVersion}.",
+  "@updateAvailableBody": {
+    "placeholders": {
+      "latestVersion": {"type": "String"},
+      "currentVersion": {"type": "String"}
+    }
+  },
+  "updatePublishedDate": "Veröffentlicht am {date}",
+  "@updatePublishedDate": {
+    "placeholders": {
+      "date": {"type": "String"}
+    }
+  },
+  "updateReleaseNotesTitle": "Neu in dieser Version",
+  "updateNotNow": "Später",
+  "updateOpenDownloads": "Downloadseite öffnen",
   "whatYouNeed": "Was du brauchst:",
   "prerequisiteScrewdriverPH2": "PH2-Kreuz- oder H4-Innensechskantschraubendreher für die vier Schrauben der Fußraumabdeckung",
   "prerequisiteScrewdriverFlat": "Schlitz- oder PH1-Schraubendreher für das USB-Kabel",
