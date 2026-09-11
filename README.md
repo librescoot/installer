@@ -4,7 +4,7 @@
 
 Part of the [Librescoot](https://librescoot.org/) open-source platform.
 
-Cross-platform desktop app for installing [Librescoot](https://librescoot.org) on unu scooters (MDB + DBC).
+Cross-platform desktop app for installing [Librescoot](https://librescoot.org) on the unu Scooter Pro (MDB + DBC).
 
 ## What it does
 
