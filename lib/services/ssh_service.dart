@@ -3001,7 +3001,8 @@ echo timeout
         final status = TrampolineStatus.parseCompletionRecord(record);
         if (expectedRunId == null) {
           if (status.result == TrampolineResult.success) return status;
-        } else if (status.completedFor(expectedRunId)) {
+        } else if (status.completionFor(expectedRunId) !=
+            InstallCompletionOutcome.notComplete) {
           return status;
         }
       }

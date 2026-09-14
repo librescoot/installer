@@ -60,6 +60,7 @@ import '../services/update_service.dart';
 import '../services/window_close_coordinator.dart';
 import '../widgets/artifact_progress_panel.dart';
 import '../widgets/connect_failure_panel.dart';
+import '../widgets/dbc_incomplete_notice.dart';
 import '../widgets/health_check_panel.dart';
 import '../widgets/brake_gesture.dart';
 import '../widgets/install_plan_panel.dart';
@@ -198,6 +199,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   bool _reconnectStarted = false;
   final bool _showElevatedHandoff = false;
   bool _dbcFlashSimulateError = false;
+  _DbcOutcome _dbcOutcome = _DbcOutcome.pending;
+  String? _dbcOutcomeReason;
+  String? _dbcFailureDetails;
 
   /// Set when the user opens the manual power-cut section rather than using
   /// the brake gesture. The installer cannot tell the two restarts apart from
@@ -1065,9 +1069,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // backup again. No answer may simply mean the device owns the disconnected
     // finish.
     var reported = await _deviceReportedFinished();
-    if (reported == true && mounted) {
-      setState(() => _finishCompletionConfirmed = true);
-    }
+    _recordDeviceCompletion(reported);
     var todo = finishHandover(
       dryRun: _isDryRun,
       linkUp: _sshService.isConnected,
@@ -1082,9 +1084,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       try {
         await _sshService.ensureConnected('finish');
         reported = await _deviceReportedFinished();
-        if (reported == true && mounted) {
-          setState(() => _finishCompletionConfirmed = true);
-        }
+        _recordDeviceCompletion(reported);
         todo = finishHandover(
           dryRun: _isDryRun,
           linkUp: _sshService.isConnected,
@@ -1117,6 +1117,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // coordinator beside the first. That run finishes on its own.
     if (todo == FinishHandover.run &&
         _deviceFinishArmed &&
+        !_dbcOutcome.isIncomplete &&
         await _sshService.installPhasesActive()) {
       debugPrint('UI: the device still has phases to run, not re-arming');
       todo = FinishHandover.none;
@@ -1176,7 +1177,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               region: _dashboardTransferSkipped
                   ? ''
                   : (_downloadState.selectedRegion?.slug ?? ''),
-              dashboardResult: _dashboardTransferSkipped
+              dashboardResult: _dbcOutcome.isIncomplete
+                  ? 'incomplete'
+                  : _dashboardTransferSkipped
                   ? 'skipped'
                   : ((_plan?.needsHandoff ?? false)
                         ? 'complete'
@@ -1254,7 +1257,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // and why nothing below can rely on SSH surviving.
     try {
       await _armInstallPhases(
-        expectDbcPhase: (_plan?.needsHandoff ?? false) && _deviceFinishArmed,
+        expectDbcPhase:
+            (_plan?.needsHandoff ?? false) &&
+            _deviceFinishArmed &&
+            !_dbcOutcome.isIncomplete,
       );
       await _sshService.startInstallPhasesDetached();
       _deviceFinishArmed = true;
@@ -1281,7 +1287,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// ends with. Null when the question could not be put: the answer then says
   /// nothing about the install, only that there is no link to ask over, and
   /// every step of the laptop-side finish needs that same link.
-  Future<bool?> _deviceReportedFinished() async {
+  Future<InstallCompletionOutcome?> _deviceReportedFinished() async {
     try {
       final out = await _sshService.runCommand(
         'cat ${SshService.installerLastInstall} 2>/dev/null || '
@@ -1290,11 +1296,35 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       );
       return TrampolineStatus.parseCompletionRecord(
         out,
-      ).completedFor(_installRunId);
+      ).completionFor(_installRunId);
     } catch (e) {
       debugPrint('UI: could not read the completion record ($e)');
       return null;
     }
+  }
+
+  void _recordDeviceCompletion(
+    InstallCompletionOutcome? outcome, {
+    bool verifyDashboard = false,
+  }) {
+    if (!mounted ||
+        outcome == null ||
+        outcome == InstallCompletionOutcome.notComplete) {
+      return;
+    }
+    setState(() {
+      _finishCompletionConfirmed = true;
+      if (outcome == InstallCompletionOutcome.incomplete) {
+        _dbcOutcome = _DbcOutcome.incomplete;
+        _dbcOutcomeReason ??= AppLocalizations.of(
+          context,
+        )!.dbcFinishedWithoutCompletionReason;
+      } else if (verifyDashboard && !_dbcOutcome.isIncomplete) {
+        _dbcOutcome = _DbcOutcome.verified;
+        _dbcOutcomeReason = null;
+        _dbcFailureDetails = null;
+      }
+    });
   }
 
   /// Refresh the final-screen verdict after the laptop can reach the MDB
@@ -1323,10 +1353,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             await _sshService.connectToMdbForStatus();
           }
           final completed = await _deviceReportedFinished();
-          if (completed == true) {
-            if (mounted) {
-              setState(() => _finishCompletionConfirmed = true);
-            }
+          if (completed != null &&
+              completed != InstallCompletionOutcome.notComplete) {
+            _recordDeviceCompletion(completed, verifyDashboard: true);
             debugPrint('UI: autonomous finish confirmed after reconnect');
             return;
           }
@@ -4572,7 +4601,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               runSpacing: 8,
               children: [
                 for (final action in actions)
-                  action.build(context, screen: l10n.healthCheckHeading)
+                  action.build(context, screen: l10n.healthCheckHeading),
               ],
             ),
           ],
@@ -7601,9 +7630,36 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// fire the trampoline (the last thing we do over SSH) and hand off to the
   /// swap-cables screen, which is the first place the user is told to touch
   /// the cable.
-  void _skipDashboardTransfer() {
+  Future<void> _skipDashboardTransfer() async {
+    final l10n = AppLocalizations.of(context)!;
+    if (!_dbcMapsOnly) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(l10n.finishWithoutDbcConfirmTitle),
+          content: Text(l10n.finishWithoutDbcConfirmBody),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(l10n.cancelButton),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(l10n.finishWithoutDbc),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+    _dbcUploadGeneration++;
     setState(() {
-      _dashboardTransferSkipped = true;
+      _dashboardTransferSkipped = _dbcMapsOnly;
+      if (!_dbcMapsOnly) {
+        _dbcOutcome = _DbcOutcome.incomplete;
+        _dbcOutcomeReason = l10n.dbcFinishedWithoutCompletionReason;
+      }
       _trampolineStartFailed = false;
       _trampolineStartInFlight = false;
       _dbcPrepBlocked = false;
@@ -8097,8 +8153,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               onPressed: () => _cleanInstallDbcAfterFailure(l10n),
             ),
           PhaseAction(
-            label: l10n.skipToFinish,
-            onPressed: () => _setPhase(InstallerPhase.finish),
+            label: l10n.finishWithoutDbc,
+            onPressed: () => _finishWithoutDbc(l10n),
           ),
           PhaseAction(
             label: l10n.retryVerification,
@@ -8120,6 +8176,25 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (_dbcOutcome.isIncomplete) ...[
+            DbcIncompleteNotice(
+              title: _dbcMapsOnly
+                  ? l10n.dbcMapsIncompleteHeading
+                  : l10n.dbcIncompleteHeading,
+              body: l10n.dbcIncompleteBody(
+                _dbcOutcomeReason ?? l10n.trampolineStatusUnknown,
+              ),
+              detailsLabel:
+                  _dbcFailureDetails == null && _dbcOutcomeReason == null
+                  ? null
+                  : l10n.showDetails,
+              onShowDetails:
+                  _dbcFailureDetails == null && _dbcOutcomeReason == null
+                  ? null
+                  : () => unawaited(_showAndAcknowledgeDbcFailureDetails(l10n)),
+            ),
+            const SizedBox(height: 16),
+          ],
           if (_reconnectSubsteps.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -8166,6 +8241,78 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (_plan?.mdb.action == BoardAction.upgrade) MajorStep.mdbInstall,
     if (_plan?.dbc.action == BoardAction.upgrade) MajorStep.dbcFlash,
   };
+
+  Future<void> _finishWithoutDbc(AppLocalizations l10n) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.finishWithoutDbcConfirmTitle),
+        content: Text(l10n.finishWithoutDbcConfirmBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l10n.cancelButton),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l10n.finishWithoutDbc),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    _reconnectAttempt.reset();
+    _dbcUploadGeneration++;
+    setState(() {
+      _dbcOutcome = _DbcOutcome.incomplete;
+      _dbcOutcomeReason ??= l10n.dbcFinishedWithoutCompletionReason;
+      _dashboardTransferSkipped = false;
+    });
+    await _acknowledgeDbcFailureSignals();
+    if (mounted) _setPhase(InstallerPhase.finish);
+  }
+
+  Future<void> _showDbcFailureDetails(AppLocalizations l10n) async {
+    final details = _dbcFailureDetails ?? _dbcOutcomeReason;
+    if (details == null || !mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.dbcFlashError),
+        content: SingleChildScrollView(
+          child: SelectableText(
+            details,
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(l10n.closeButton),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showAndAcknowledgeDbcFailureDetails(
+    AppLocalizations l10n,
+  ) async {
+    await _showDbcFailureDetails(l10n);
+    await _acknowledgeDbcFailureSignals();
+  }
+
+  Future<void> _acknowledgeDbcFailureSignals() async {
+    if (_isDryRun || !_sshService.isConnected) return;
+    try {
+      await _sshService.runCommand(
+        '[ -x /data/installer/stop-error-signals.sh ] && /data/installer/stop-error-signals.sh; '
+        '[ -x /data/stop-error-signals.sh ] && /data/stop-error-signals.sh; true',
+      );
+    } catch (_) {}
+  }
 
   /// Go back to the prep phase and re-stage everything for another
   /// trampoline run, whatever the plan now says.
@@ -8302,7 +8449,20 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     } catch (e) {
       debugPrint('UI: could not verify completion before Finish: $e');
     }
-    if (mounted) _setPhase(InstallerPhase.finish);
+    if (!mounted) return;
+    setState(() {
+      if (_finishCompletionConfirmed && !_dbcOutcome.isIncomplete) {
+        _dbcOutcome = _DbcOutcome.verified;
+        _dbcOutcomeReason = null;
+        _dbcFailureDetails = null;
+      } else if (!_finishCompletionConfirmed) {
+        _dbcOutcome = _DbcOutcome.incomplete;
+        _dbcOutcomeReason = AppLocalizations.of(
+          context,
+        )!.dbcFinishedWithoutCompletionReason;
+      }
+    });
+    _setPhase(InstallerPhase.finish);
   }
 
   Future<void> _startDbcVerification() async {
@@ -8325,7 +8485,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   void _failReconnect(String status) {
     if (!mounted) return;
     _setStatus(status);
-    setState(() => _isProcessing = false);
+    setState(() {
+      _isProcessing = false;
+      _dbcOutcome = _DbcOutcome.incomplete;
+      _dbcOutcomeReason = status;
+    });
   }
 
   Future<void> _verifyDbcFlash(int generation) async {
@@ -8363,40 +8527,35 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         owns: () => _ownsReconnect(generation),
         onOwned: () {
           if (_dbcFlashSimulateError) {
-            _setStatus('[DRY RUN] DBC flash failed!');
-            setState(() => _isProcessing = false);
-            if (mounted) {
-              showDialog(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: Text(l10n.dbcFlashError),
-                  content: const SingleChildScrollView(
-                    child: SelectableText(
-                      '12:34:56 Trampoline started\n'
-                      '12:34:57 Waiting for laptop to disconnect...\n'
-                      '12:35:02 Laptop disconnected\n'
-                      '12:35:03 Powering on DBC...\n'
-                      '12:35:18 DBC is reachable\n'
-                      '12:35:19 Configuring DBC bootloader...\n'
-                      '12:35:25 Rebooting DBC...\n'
-                      '12:35:30 Switching USB to host mode...\n'
-                      '12:35:32 Waiting for DBC UMS device...\n'
-                      '12:37:32 ERROR: DBC UMS device not found within 120s',
-                      style: TextStyle(fontFamily: 'monospace', fontSize: 12),
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: Text(l10n.closeButton),
-                    ),
-                  ],
-                ),
-              );
-            }
+            const reason = '[DRY RUN] DBC flash failed!';
+            const details =
+                '12:34:56 Trampoline started\n'
+                '12:34:57 Waiting for laptop to disconnect...\n'
+                '12:35:02 Laptop disconnected\n'
+                '12:35:03 Powering on DBC...\n'
+                '12:35:18 DBC is reachable\n'
+                '12:35:19 Configuring DBC bootloader...\n'
+                '12:35:25 Rebooting DBC...\n'
+                '12:35:30 Switching USB to host mode...\n'
+                '12:35:32 Waiting for DBC UMS device...\n'
+                '12:37:32 ERROR: DBC UMS device not found within 120s';
+            _setStatus(reason);
+            setStep('status', SubstepState.failed, detail: reason);
+            setState(() {
+              _isProcessing = false;
+              _dbcOutcome = _DbcOutcome.failed;
+              _dbcOutcomeReason = reason;
+              _dbcFailureDetails = details;
+            });
+            unawaited(_showDbcFailureDetails(l10n));
             return;
           }
           _setStatus('[DRY RUN] DBC flash successful!');
+          setState(() {
+            _dbcOutcome = _DbcOutcome.verified;
+            _dbcOutcomeReason = null;
+            _dbcFailureDetails = null;
+          });
           _setPhase(InstallerPhase.finish);
         },
       );
@@ -8441,7 +8600,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     setStep('ssh', SubstepState.active);
     _setStatus(l10n.connectingSsh);
     try {
-      await _sshService.connectToMdb();
+      await _sshService.connectToMdbForStatus();
     } catch (e) {
       if (!_ownsReconnect(generation)) return;
       setStep('ssh', SubstepState.failed, detail: e.toString());
@@ -8457,8 +8616,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final completed = await _deviceReportedFinished();
     if (!_ownsReconnect(generation)) return;
     setStep('completion', SubstepState.done);
-    if (completed == true) {
-      setState(() => _finishCompletionConfirmed = true);
+    if (completed != null &&
+        completed != InstallCompletionOutcome.notComplete) {
+      _recordDeviceCompletion(completed, verifyDashboard: true);
       _setPhase(InstallerPhase.finish);
       return;
     }
@@ -8504,11 +8664,19 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
     if (!_ownsReconnect(generation)) return;
     _reconnectStatusWaitStart = null;
-    setStep('status', SubstepState.done);
 
     if (status.result == TrampolineResult.success) {
-      // Stop the success blink once the laptop has read the verdict.
+      final hadIncompleteDbc = _dbcOutcome.isIncomplete;
+      setStep('status', SubstepState.done);
+      setState(() {
+        _dbcOutcome = _DbcOutcome.verified;
+        _dbcOutcomeReason = null;
+        _dbcFailureDetails = null;
+      });
+      // Stop the success blink once the laptop has read the verdict. A retry
+      // that recovered an earlier failure also acknowledges its red/hazards.
       await _stopBootLedBlink();
+      if (hadIncompleteDbc) await _acknowledgeDbcFailureSignals();
       if (!_ownsReconnect(generation)) return;
       // Say which version actually landed when the trampoline reported one.
       // It is absent on a tiles-only job and on any status file written
@@ -8523,49 +8691,35 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       if (!_ownsReconnect(generation)) return;
       _setPhase(InstallerPhase.finish);
     } else if (status.result == TrampolineResult.error) {
-      // Quiet the failure indicators (red blink + hazards) now that we're
-      // about to surface the actual error to the user. The helper also
-      // unmasks librescoot-keycard so a later reboot has a working reader.
-      try {
-        await _sshService.runCommand(
-          '[ -x /data/installer/stop-error-signals.sh ] && /data/installer/stop-error-signals.sh; '
-          '[ -x /data/stop-error-signals.sh ] && /data/stop-error-signals.sh; true',
-        );
-      } catch (_) {}
-      _setStatus(l10n.dbcFlashFailed(status.message ?? ''));
-      // Keep the evidence after the dialog closes.
+      final reason = l10n.dbcFlashFailed(status.message ?? '');
+      setStep('status', SubstepState.failed, detail: reason);
+      _setStatus(reason);
+      setState(() {
+        _isProcessing = false;
+        _dbcOutcome = _DbcOutcome.failed;
+        _dbcOutcomeReason = reason;
+        _dbcFailureDetails = status.errorLog;
+      });
+      // Establish the persistent danger state first. The vehicle's red/hazard
+      // signal is cleared only after the owner closes the retained details.
       await _captureTrampolineEvidence(status.errorLog);
       if (!_ownsReconnect(generation)) return;
-      if (mounted && status.errorLog != null) {
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: Text(l10n.dbcFlashError),
-            content: SingleChildScrollView(
-              child: SelectableText(
-                status.errorLog!,
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: Text(l10n.closeButton),
-              ),
-            ],
-          ),
-        );
-      }
-      if (!_ownsReconnect(generation)) return;
-      setState(() => _isProcessing = false);
+      await _showAndAcknowledgeDbcFailureDetails(l10n);
     } else {
-      _setStatus(l10n.trampolineStatusUnknown);
+      final reason = l10n.trampolineStatusUnknown;
+      setStep('status', SubstepState.failed, detail: reason);
+      _setStatus(reason);
+      setState(() {
+        _isProcessing = false;
+        _dbcOutcome = _DbcOutcome.incomplete;
+        _dbcOutcomeReason = reason;
+        _dbcFailureDetails = status.message;
+      });
       // The unknown branch used to log nothing at all, which is the worst
       // case to be told nothing about: we have a status file we could not
       // make sense of, and the file itself is the only thing that explains why.
       await _captureTrampolineEvidence(status.message);
       if (!_ownsReconnect(generation)) return;
-      setState(() => _isProcessing = false);
     }
   }
 
@@ -8582,13 +8736,23 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (_isDryRun || !_sshService.isConnected) return;
     try {
       final journal = await _sshService.runCommand(
-        'tail -n 200 /data/installer/trampoline-journal.log 2>/dev/null; true',
+        r'since=$(cat /data/installer/trampoline-started-at 2>/dev/null || true); '
+        r'if [ -z "$since" ]; then echo "trampoline start marker missing"; '
+        r'else '
+        r'echo "--- relevant service journal (info+, last 400) ---"; '
+        r'journalctl --no-pager --since "$since" -n 400 '
+        r'-u librescoot-onboot.service -u librescoot-vehicle.service '
+        r'-u librescoot-update.service -u systemd-networkd.service '
+        r'-u ppp-link.service 2>&1; '
+        r'echo "--- kernel journal (last 250) ---"; '
+        r'journalctl --no-pager --since "$since" -k -n 250 2>&1; '
+        r'fi; true',
         timeout: const Duration(seconds: 20),
       );
       if (journal.trim().isNotEmpty) {
-        appendLogRaw('--- trampoline journal (last 200 lines) ---');
+        appendLogRaw('--- relevant journal since trampoline start ---');
         appendLogRaw(journal.trimRight());
-        appendLogRaw('--- end trampoline journal ---');
+        appendLogRaw('--- end relevant journal ---');
       }
     } catch (e) {
       debugPrint('UI: could not fetch the trampoline journal (ok): $e');
@@ -10680,9 +10844,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       laptopOccupiesMdbUsb: _device != null,
       completionConfirmed: _finishCompletionConfirmed,
     );
-    final confirmed =
+    final deviceConfirmed =
         state == FinalScreenState.completed ||
         state == FinalScreenState.completedReconnectDbc;
+    final confirmed = deviceConfirmed && !_dbcOutcome.isIncomplete;
     return PhaseLayout(
       title: confirmed ? l10n.welcomeToLibrescoot : l10n.finishStatusTitle,
       actions: [
@@ -10712,9 +10877,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            confirmed ? Icons.celebration : Icons.autorenew,
+            _dbcOutcome.isIncomplete
+                ? Icons.warning_amber
+                : confirmed
+                ? Icons.celebration
+                : Icons.autorenew,
             size: 40,
-            color: kAccent,
+            color: _dbcOutcome.isIncomplete ? Colors.red.shade400 : kAccent,
           ),
           const SizedBox(height: 12),
           _finishStatus(l10n, state),
@@ -10735,9 +10904,26 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// Say only what the laptop can prove. A board-side handover is not a
   /// completion until this run's completion record is read after reconnect.
   Widget _finishStatus(AppLocalizations l10n, FinalScreenState state) {
-    final confirmed =
+    final deviceConfirmed =
         state == FinalScreenState.completed ||
         state == FinalScreenState.completedReconnectDbc;
+    final confirmed = deviceConfirmed && !_dbcOutcome.isIncomplete;
+    if (_dbcOutcome.isIncomplete) {
+      return DbcIncompleteNotice(
+        title: _dbcMapsOnly
+            ? l10n.dbcMapsIncompleteHeading
+            : l10n.finishWithoutDbcHeading,
+        body: l10n.finishWithoutDbcBody(
+          _dbcOutcomeReason ?? l10n.dbcFinishedWithoutCompletionReason,
+        ),
+        detailsLabel: _dbcFailureDetails == null && _dbcOutcomeReason == null
+            ? null
+            : l10n.showDetails,
+        onShowDetails: _dbcFailureDetails == null && _dbcOutcomeReason == null
+            ? null
+            : () => unawaited(_showAndAcknowledgeDbcFailureDetails(l10n)),
+      );
+    }
     final body = _dashboardTransferSkipped
         ? (confirmed
               ? l10n.finishTransferSkippedConfirmed
@@ -10813,8 +10999,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         state == FinalScreenState.reconnectDbc ||
         state == FinalScreenState.completedReconnectDbc;
     final completed =
-        state == FinalScreenState.completed ||
-        state == FinalScreenState.completedReconnectDbc;
+        !_dbcOutcome.isIncomplete &&
+        (state == FinalScreenState.completed ||
+            state == FinalScreenState.completedReconnectDbc);
     final steps = <({String title, String description})>[
       if (reconnectDbc)
         (
@@ -11059,7 +11246,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         '  mkdir -p ${SshService.installerHistoryDir}/$_installRunId; '
         // Keep stderr from failures before trampoline.log exists.
         '  for f in trampoline.log trampoline-status trampoline-journal.log '
-        '           trampoline-stdout.log finalize.log; do '
+        '           trampoline-started-at mdb-usb-link.log trampoline-stdout.log finalize.log; do '
         r'    [ -f "'
         '${SshService.installerDir}'
         r'/$f" ] && '
@@ -11086,6 +11273,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         '/data/tiles_*.mbtiles /data/valhalla_tiles_*.tar '
         '/data/trampoline.sh /data/trampoline.log /data/trampoline-status '
         '/data/trampoline-stdout.log /data/trampoline-journal.log '
+        '/data/trampoline-started-at /data/mdb-usb-link.log '
         '/data/stop-error-signals.sh /data/librescoot-flasher '
         '/data/onboot.sh.bak '
         '/data/test-trampoline-*.sh /data/test-step*.log; '
@@ -11117,6 +11305,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _setStatus(l10n.deletedCache((freed / 1024 / 1024).toStringAsFixed(0)));
     }
   }
+}
+
+enum _DbcOutcome { pending, verified, failed, incomplete }
+
+extension on _DbcOutcome {
+  bool get isIncomplete =>
+      this == _DbcOutcome.failed || this == _DbcOutcome.incomplete;
 }
 
 /// An install failure whose message is already in the user's language.

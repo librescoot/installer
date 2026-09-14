@@ -1167,6 +1167,43 @@ class AppLocalizationsEn extends AppLocalizations {
   String get closeButton => 'Close';
 
   @override
+  String get showDetails => 'Show details';
+
+  @override
+  String get dbcIncompleteHeading => 'DBC installation incomplete';
+
+  @override
+  String get dbcMapsIncompleteHeading => 'Dashboard map work incomplete';
+
+  @override
+  String dbcIncompleteBody(String reason) {
+    return 'The requested dashboard work was not verified as complete. $reason';
+  }
+
+  @override
+  String get finishWithoutDbc => 'Finish without completed DBC';
+
+  @override
+  String get finishWithoutDbcConfirmTitle => 'Finish without a completed DBC?';
+
+  @override
+  String get finishWithoutDbcConfirmBody =>
+      'The MDB work can be kept, but the requested DBC firmware is not verified as installed. The final result will remain incomplete until the DBC installation is retried successfully.';
+
+  @override
+  String get dbcFinishedWithoutCompletionReason =>
+      'You chose to finish without a verified DBC installation.';
+
+  @override
+  String get finishWithoutDbcHeading =>
+      'Installation incomplete: DBC not completed';
+
+  @override
+  String finishWithoutDbcBody(String reason) {
+    return 'The MDB may be usable, but the requested DBC installation did not complete. Do not treat this as a successful full installation. $reason';
+  }
+
+  @override
   String get trampolineStatusUnknown =>
       'The installer could not determine whether the dashboard work finished. Open the installer log for details.';
 

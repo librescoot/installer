@@ -1,3 +1,5 @@
+import 'trampoline_status.dart';
+
 /// Whether the laptop still has a finish to run when the last screen opens.
 ///
 /// The device closes its own install out when the trampoline was armed with
@@ -33,7 +35,7 @@ FinishHandover finishHandover({
   required bool dryRun,
   required bool linkUp,
   required bool deviceArmed,
-  required bool? deviceReported,
+  required InstallCompletionOutcome? deviceReported,
 }) {
   // Nothing was staged, so there is nothing to owe.
   if (dryRun) return FinishHandover.none;
@@ -41,10 +43,14 @@ FinishHandover finishHandover({
   if (deviceArmed) {
     if (!linkUp) return FinishHandover.none;
     if (deviceReported == null) return FinishHandover.none;
-    return deviceReported ? FinishHandover.none : FinishHandover.run;
+    return deviceReported == InstallCompletionOutcome.notComplete
+        ? FinishHandover.run
+        : FinishHandover.none;
   }
 
   if (!linkUp) return FinishHandover.blocked;
   if (deviceReported == null) return FinishHandover.blocked;
-  return deviceReported ? FinishHandover.none : FinishHandover.run;
+  return deviceReported == InstallCompletionOutcome.notComplete
+      ? FinishHandover.run
+      : FinishHandover.none;
 }

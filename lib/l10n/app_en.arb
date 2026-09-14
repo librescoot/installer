@@ -510,6 +510,30 @@
   },
   "dbcFlashError": "Dashboard work error",
   "closeButton": "Close",
+  "showDetails": "Show details",
+  "dbcIncompleteHeading": "DBC installation incomplete",
+  "dbcMapsIncompleteHeading": "Dashboard map work incomplete",
+  "dbcIncompleteBody": "The requested dashboard work was not verified as complete. {reason}",
+  "@dbcIncompleteBody": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "finishWithoutDbc": "Finish without completed DBC",
+  "finishWithoutDbcConfirmTitle": "Finish without a completed DBC?",
+  "finishWithoutDbcConfirmBody": "The MDB work can be kept, but the requested DBC firmware is not verified as installed. The final result will remain incomplete until the DBC installation is retried successfully.",
+  "dbcFinishedWithoutCompletionReason": "You chose to finish without a verified DBC installation.",
+  "finishWithoutDbcHeading": "Installation incomplete: DBC not completed",
+  "finishWithoutDbcBody": "The MDB may be usable, but the requested DBC installation did not complete. Do not treat this as a successful full installation. {reason}",
+  "@finishWithoutDbcBody": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
   "trampolineStatusUnknown": "The installer could not determine whether the dashboard work finished. Open the installer log for details.",
   "welcomeToLibrescoot": "Welcome to Librescoot",
   "finishStatusTitle": "Installation status",

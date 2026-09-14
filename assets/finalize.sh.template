@@ -51,6 +51,22 @@ if [ -f "$STATUS_FILE" ]; then
   esac
 fi
 
+# "Finish without completed DBC" is an explicit degraded handover, not a
+# successful dashboard install. Archive the DBC error, then allow finalization
+# to write a typed incomplete record. MDB boot/rollback checks below can still
+# make the whole handover fatal.
+if [ "$DASHBOARD_RESULT" = incomplete ] && [ "$INSTALL_OK" = no ]; then
+  STATUS_STAGE=$(sed -n 's/^stage: //p' "$STATUS_FILE" 2>/dev/null | head -n 1)
+  case "$STATUS_STAGE" in
+    *DBC*|*dbc*)
+      mkdir -p "$RUN_HISTORY_DIR/$RUN_ID"
+      cp "$STATUS_FILE" "$RUN_HISTORY_DIR/$RUN_ID/dbc-incomplete-status" 2>/dev/null || true
+      INSTALL_OK=yes
+      log "  archived the DBC failure and continuing an explicitly incomplete handover"
+      ;;
+  esac
+fi
+
 # u-boot rolls back a rootfs that does not commit, and the sweep has already
 # taken the status file, so absence would read as success and unlock a board
 # whose install never survived its first boot. os-release cannot lag, and only
@@ -82,7 +98,7 @@ if [ -f "$PREVIOUS_ROOT_FILE" ]; then
     rm -f "$PREVIOUS_ROOT_FILE"
   fi
 fi
-log "finalize starting (install_ok=$INSTALL_OK action=$MDB_ACTION)"
+log "finalize starting (install_ok=$INSTALL_OK dashboard_result=$DASHBOARD_RESULT action=$MDB_ACTION)"
 
 # Segment 4, the handover: settings back, service mode ended, the unlock. The
 # coordinator lights it before the reboot it performs, so on a run that

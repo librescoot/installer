@@ -5,6 +5,10 @@
 /// installed while the board it was about to be written to was still booting.
 enum TrampolineResult { success, running, error, unknown }
 
+enum DashboardResult { complete, incomplete, skipped, notRequested, unknown }
+
+enum InstallCompletionOutcome { complete, incomplete, notComplete }
+
 class InstallRunState {
   InstallRunState({
     required this.runId,
@@ -46,12 +50,12 @@ class InstallRunState {
   }
 
   TrampolineStatus toTrampolineStatus() => TrampolineStatus(
-        result: result,
-        runId: runId,
-        finishState: finishState,
-        stage: stage,
-        message: stage,
-      );
+    result: result,
+    runId: runId,
+    finishState: finishState,
+    stage: stage,
+    message: stage,
+  );
 }
 
 class TrampolineStatus {
@@ -65,6 +69,7 @@ class TrampolineStatus {
     this.runId,
     this.finishState,
     this.stage,
+    this.dashboardResult = DashboardResult.unknown,
   });
 
   final TrampolineResult result;
@@ -80,15 +85,24 @@ class TrampolineStatus {
   final String? runId;
   final String? finishState;
   final String? stage;
+  final DashboardResult dashboardResult;
 
-  bool completedFor(String expectedRunId) =>
-      result == TrampolineResult.success &&
-      runId == expectedRunId &&
-      finishState == 'complete';
+  InstallCompletionOutcome completionFor(String expectedRunId) {
+    if (result != TrampolineResult.success ||
+        runId != expectedRunId ||
+        finishState != 'complete') {
+      return InstallCompletionOutcome.notComplete;
+    }
+    return dashboardResult == DashboardResult.incomplete
+        ? InstallCompletionOutcome.incomplete
+        : InstallCompletionOutcome.complete;
+  }
 
   factory TrampolineStatus.parse(String content) {
     final lines = content.trim().split('\n');
-    if (lines.isEmpty) return TrampolineStatus(result: TrampolineResult.unknown);
+    if (lines.isEmpty) {
+      return TrampolineStatus(result: TrampolineResult.unknown);
+    }
 
     // The verdict is the first line and nothing else; the trampoline appends
     // its log after these fields, so scan the tail for `key: value`.
@@ -102,6 +116,14 @@ class TrampolineStatus {
       return null;
     }
 
+    final dashboardResult = switch (field('dashboard-result')) {
+      'complete' => DashboardResult.complete,
+      'incomplete' => DashboardResult.incomplete,
+      'skipped' => DashboardResult.skipped,
+      'not-requested' => DashboardResult.notRequested,
+      _ => DashboardResult.unknown,
+    };
+
     final resultLine = lines.first.trim().toLowerCase();
     if (resultLine == 'success') {
       return TrampolineStatus(
@@ -113,6 +135,7 @@ class TrampolineStatus {
         runId: field('run-id'),
         finishState: field('finish'),
         stage: field('stage'),
+        dashboardResult: dashboardResult,
       );
     } else if (resultLine == 'running' || resultLine == 'rebooting') {
       // `rebooting` is what older trampolines wrote at the same point.
@@ -125,6 +148,7 @@ class TrampolineStatus {
         runId: field('run-id'),
         finishState: field('finish'),
         stage: field('stage'),
+        dashboardResult: dashboardResult,
       );
     } else if (resultLine.startsWith('error')) {
       return TrampolineStatus(
@@ -137,6 +161,7 @@ class TrampolineStatus {
         runId: field('run-id'),
         finishState: field('finish'),
         stage: field('stage'),
+        dashboardResult: dashboardResult,
       );
     }
     return TrampolineStatus(result: TrampolineResult.unknown, message: content);

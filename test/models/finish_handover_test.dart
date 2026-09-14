@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/models/finish_handover.dart';
+import 'package:librescoot_installer/models/trampoline_status.dart';
 
 /// The laptop-side finish is for the runs the device did not close out
 /// itself. Running it when the cable is on the dashboard cannot work and
@@ -15,7 +16,8 @@ void main() {
     bool dryRun = false,
     bool linkUp = true,
     bool deviceArmed = true,
-    bool? deviceReported = false,
+    InstallCompletionOutcome? deviceReported =
+        InstallCompletionOutcome.notComplete,
   }) => finishHandover(
     dryRun: dryRun,
     linkUp: linkUp,
@@ -24,11 +26,21 @@ void main() {
   );
 
   test('an armed run that reported back needs nothing from the laptop', () {
-    expect(call(deviceReported: true), FinishHandover.none);
+    expect(
+      call(deviceReported: InstallCompletionOutcome.complete),
+      FinishHandover.none,
+    );
+    expect(
+      call(deviceReported: InstallCompletionOutcome.incomplete),
+      FinishHandover.none,
+    );
   });
 
   test('an armed run that failed still needs the laptop finish', () {
-    expect(call(deviceReported: false), FinishHandover.run);
+    expect(
+      call(deviceReported: InstallCompletionOutcome.notComplete),
+      FinishHandover.run,
+    );
   });
 
   test('no answer means no link, and what that costs depends on the run', () {
@@ -48,7 +60,13 @@ void main() {
   });
 
   test('a run with no trampoline behind it is the laptop\'s to finish', () {
-    expect(call(deviceArmed: false, deviceReported: false), FinishHandover.run);
+    expect(
+      call(
+        deviceArmed: false,
+        deviceReported: InstallCompletionOutcome.notComplete,
+      ),
+      FinishHandover.run,
+    );
   });
 
   test('a dry run owes nothing: nothing was staged', () {

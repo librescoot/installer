@@ -19,8 +19,7 @@ void main() {
   late String finish;
 
   setUpAll(() {
-    final source =
-        File('lib/screens/installer_screen.dart').readAsStringSync();
+    final source = File('lib/screens/installer_screen.dart').readAsStringSync();
     final start = source.indexOf('Future<void> _onEnterFinish() async {');
     expect(start, isNot(-1), reason: '_onEnterFinish not found');
     // Runs to the next method at the same indentation, which is the doc
@@ -43,7 +42,8 @@ void main() {
     expect(
       rebootCall.hasMatch(finish),
       isFalse,
-      reason: 'the finish sends a reboot; it should restore services and '
+      reason:
+          'the finish sends a reboot; it should restore services and '
           'unlock instead, the way the trampoline finish does',
     );
   });
@@ -53,29 +53,54 @@ void main() {
     // What this checks is that a run which never handed off to the trampoline
     // still queues every phase it needs and then starts the coordinator, or a
     // dashboard-less plan would stage an artifact and never install it.
-    expect(finish, contains('FinalizeScript.render('),
-        reason: 'the finish has to stage the phase it hands off to');
-    expect(finish, contains('MdbArtifactScript.render('),
-        reason: 'a run with no trampoline still has to install the artifact');
-    expect(finish, contains('RebootPhaseScript.render('),
-        reason: 'and still has to activate it');
-    expect(finish, contains('startInstallPhasesDetached()'),
-        reason: 'usb0-policy is forced to always-on at connect, so something '
-            'has to put the vehicle back');
+    expect(
+      finish,
+      contains('FinalizeScript.render('),
+      reason: 'the finish has to stage the phase it hands off to',
+    );
+    expect(
+      finish,
+      contains('MdbArtifactScript.render('),
+      reason: 'a run with no trampoline still has to install the artifact',
+    );
+    expect(
+      finish,
+      contains('RebootPhaseScript.render('),
+      reason: 'and still has to activate it',
+    );
+    expect(
+      finish,
+      contains('startInstallPhasesDetached()'),
+      reason:
+          'usb0-policy is forced to always-on at connect, so something '
+          'has to put the vehicle back',
+    );
     final finalize = File('assets/finalize.sh.template').readAsStringSync();
-    expect(finalize, contains('systemctl start librescoot-pm'),
-        reason: 'pm-service is stopped on every connect and started nowhere '
-            'else, so without this the scooter never suspends again');
-    expect(finalize, contains('systemctl restart librescoot-vehicle'),
-        reason: 'vehicle-service has to re-claim the blinker PWM channels, '
-            'which are left deactivated by the progress bar');
+    expect(
+      finalize,
+      contains('systemctl start librescoot-pm'),
+      reason:
+          'pm-service is stopped on every connect and started nowhere '
+          'else, so without this the scooter never suspends again',
+    );
+    expect(
+      finalize,
+      contains('systemctl restart librescoot-vehicle'),
+      reason:
+          'vehicle-service has to re-claim the blinker PWM channels, '
+          'which are left deactivated by the progress bar',
+    );
   });
 
   test('the attended finish unlocks the scooter as its success signal', () {
     final finalize = File('assets/finalize.sh.template').readAsStringSync();
-    expect(finalize, contains('lpush scooter:state unlock'),
-        reason: 'a scooter that unlocks itself is the signal the install '
-            'worked; an LED the owner has to interpret is not');
+    expect(
+      finalize,
+      contains('lpush scooter:state unlock'),
+      reason:
+          'a scooter that unlocks itself is the signal the install '
+          'worked; an LED the owner has to interpret is not',
+    );
   });
 
   test('the handover survives everything it takes down', () {
@@ -84,14 +109,21 @@ void main() {
     // vehicle-service tear down the USB gadget synchronously. A handoff that
     // is not detached dies at the first of them and takes the rest with it.
     final source = File('lib/services/ssh_service.dart').readAsStringSync();
-    final start =
-        source.indexOf('Future<void> startInstallPhasesDetached() async {');
+    final start = source.indexOf(
+      'Future<void> startInstallPhasesDetached() async {',
+    );
     expect(start, isNot(-1), reason: 'startInstallPhasesDetached not found');
     final body = source.substring(start, source.indexOf('\n  }', start));
-    expect(body, contains('systemd-run'),
-        reason: 'the phases outlive this session, so they need their own unit');
-    expect(body, contains('nohup'),
-        reason: 'and a fallback for a board where systemd-run will not start');
+    expect(
+      body,
+      contains('systemd-run'),
+      reason: 'the phases outlive this session, so they need their own unit',
+    );
+    expect(
+      body,
+      contains('nohup'),
+      reason: 'and a fallback for a board where systemd-run will not start',
+    );
     expect(body, contains('onboot.sh'));
   });
 
@@ -102,38 +134,53 @@ void main() {
     // reformats /data anyway, so the coordinator was never on the board that
     // needed it. Both places that queue phases run after the flash.
     final source = File('lib/screens/installer_screen.dart').readAsStringSync();
-    final tramp =
-        File('lib/services/trampoline_service.dart').readAsStringSync();
+    final tramp = File(
+      'lib/services/trampoline_service.dart',
+    ).readAsStringSync();
 
-    final calls = RegExp(r'installOnbootShim\(\)').allMatches(source).length +
+    final calls =
+        RegExp(r'installOnbootShim\(\)').allMatches(source).length +
         RegExp(r'installOnbootShim\(\)').allMatches(tramp).length;
     expect(calls, 1, reason: 'one definition, so it cannot drift');
-    expect(source,
-        contains('Future<void> _armInstallPhases({required bool expectDbcPhase})'));
+    expect(
+      source,
+      contains(
+        'Future<void> _armInstallPhases({required bool expectDbcPhase})',
+      ),
+    );
 
     final planStart = source.indexOf('Future<void> _startPlan() async {');
     final planEnd = source.indexOf('\n  /// ', planStart);
-    expect(source.substring(planStart, planEnd),
-        isNot(contains('installOnbootShim')),
-        reason: '_startPlan is before the flash that wipes /data');
+    expect(
+      source.substring(planStart, planEnd),
+      isNot(contains('installOnbootShim')),
+      reason: '_startPlan is before the flash that wipes /data',
+    );
 
     // Armed on both routes: a dashboard-less plan never reaches the trampoline.
     expect(
-        RegExp(r'await _armInstallPhases\(\n?\s*expectDbcPhase:')
-            .allMatches(source)
-            .length,
-        2,
-        reason: 'both queueing paths have to arm it');
+      RegExp(
+        r'await _armInstallPhases\(\n?\s*expectDbcPhase:',
+      ).allMatches(source).length,
+      2,
+      reason: 'both queueing paths have to arm it',
+    );
 
     // Only the trampoline writes 20-dbc.sh. The handover arms the coordinator
     // a second time, and a run whose trampoline never started has nobody left
     // to write it: declaring it there ends the run on "install phases never
     // ran: 20-dbc.sh" while everything that did run went fine.
     expect(
-        source,
-        contains('expectDbcPhase: (_plan?.needsHandoff ?? false) && '
-            '_deviceFinishArmed'),
-        reason: 'the handover expects the dashboard phase only from a run '
-            'that reached the trampoline');
+      source,
+      contains(
+        'expectDbcPhase:\n'
+        '            (_plan?.needsHandoff ?? false) &&\n'
+        '            _deviceFinishArmed &&\n'
+        '            !_dbcOutcome.isIncomplete',
+      ),
+      reason:
+          'the handover expects the dashboard phase only from a run '
+          'that reached the trampoline and was not explicitly abandoned',
+    );
   });
 }

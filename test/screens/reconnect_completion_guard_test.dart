@@ -5,7 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('completed reconnect leaves restored settings and services alone', () {
     final source = File('lib/screens/installer_screen.dart').readAsStringSync();
-    final start = source.indexOf('Future<void> _verifyDbcFlash(int generation)');
+    final start = source.indexOf(
+      'Future<void> _verifyDbcFlash(int generation)',
+    );
     final end = source.indexOf('\n  /// Put the trampoline', start);
     final reconnect = source.substring(start, end);
 
@@ -17,6 +19,8 @@ void main() {
       reconnect.substring(0, completion),
       contains('l10n.checkingCompletionRecord'),
     );
+    expect(reconnect, contains('connectToMdbForStatus()'));
+    expect(reconnect, isNot(contains('connectToMdb()')));
     expect(
       reconnect,
       isNot(contains("_disableInstallerHazards(label: 'reconnect')")),
@@ -24,16 +28,41 @@ void main() {
     expect(reconnect, isNot(contains("Substep(id: 'hazards'")));
 
     final guard = reconnect.substring(completion);
-    expect(guard, contains('if (completed == true)'));
-    expect(guard, contains('_finishCompletionConfirmed = true'));
+    expect(
+      guard,
+      contains('completed != InstallCompletionOutcome.notComplete'),
+    );
+    expect(guard, contains('_recordDeviceCompletion(completed'));
     expect(guard, contains('_setPhase(InstallerPhase.finish)'));
     expect(guard, contains('return;'));
+  });
+
+  test('an incomplete completion cannot be cleared by a stale callback', () {
+    final source = File('lib/screens/installer_screen.dart').readAsStringSync();
+    final start = source.indexOf('void _recordDeviceCompletion(');
+    final end = source.indexOf(
+      '\n  /// Refresh the final-screen verdict',
+      start,
+    );
+    final resolution = source.substring(start, end);
+
+    expect(
+      resolution,
+      contains('outcome == InstallCompletionOutcome.incomplete'),
+    );
+    expect(
+      resolution,
+      contains('verifyDashboard && !_dbcOutcome.isIncomplete'),
+    );
   });
 
   test('All done proactively checks an already reconnected MDB', () {
     final source = File('lib/screens/installer_screen.dart').readAsStringSync();
     final start = source.indexOf('Future<void> _finishAfterDbcSuccess()');
-    final end = source.indexOf('\n  Future<void> _verifyDbcFlash(int generation)', start);
+    final end = source.indexOf(
+      '\n  Future<void> _verifyDbcFlash(int generation)',
+      start,
+    );
     final finish = source.substring(start, end);
 
     final detect = finish.indexOf('_usbDetector.detectDevice()');

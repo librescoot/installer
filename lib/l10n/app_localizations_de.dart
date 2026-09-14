@@ -1184,6 +1184,44 @@ class AppLocalizationsDe extends AppLocalizations {
   String get closeButton => 'Schließen';
 
   @override
+  String get showDetails => 'Details anzeigen';
+
+  @override
+  String get dbcIncompleteHeading => 'DBC-Installation unvollständig';
+
+  @override
+  String get dbcMapsIncompleteHeading =>
+      'Display-Karten nicht vollständig installiert';
+
+  @override
+  String dbcIncompleteBody(String reason) {
+    return 'Die angeforderten Display-Arbeiten wurden nicht als abgeschlossen bestätigt. $reason';
+  }
+
+  @override
+  String get finishWithoutDbc => 'Ohne fertiges DBC abschließen';
+
+  @override
+  String get finishWithoutDbcConfirmTitle => 'Ohne fertiges DBC abschließen?';
+
+  @override
+  String get finishWithoutDbcConfirmBody =>
+      'Die MDB-Arbeiten können beibehalten werden, aber die angeforderte DBC-Firmware wurde nicht als installiert bestätigt. Das Endergebnis bleibt unvollständig, bis die DBC-Installation erfolgreich wiederholt wurde.';
+
+  @override
+  String get dbcFinishedWithoutCompletionReason =>
+      'Du hast den Vorgang ohne bestätigte DBC-Installation abgeschlossen.';
+
+  @override
+  String get finishWithoutDbcHeading =>
+      'Installation unvollständig: DBC nicht abgeschlossen';
+
+  @override
+  String finishWithoutDbcBody(String reason) {
+    return 'Das MDB ist möglicherweise nutzbar, aber die angeforderte DBC-Installation wurde nicht abgeschlossen. Behandle dies nicht als erfolgreiche vollständige Installation. $reason';
+  }
+
+  @override
   String get trampolineStatusUnknown =>
       'Der Installer konnte nicht feststellen, ob die Display-Arbeiten abgeschlossen wurden. Einzelheiten stehen im Installationsprotokoll.';
 

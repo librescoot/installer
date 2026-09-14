@@ -2096,6 +2096,66 @@ abstract class AppLocalizations {
   /// **'Close'**
   String get closeButton;
 
+  /// No description provided for @showDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Show details'**
+  String get showDetails;
+
+  /// No description provided for @dbcIncompleteHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'DBC installation incomplete'**
+  String get dbcIncompleteHeading;
+
+  /// No description provided for @dbcMapsIncompleteHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Dashboard map work incomplete'**
+  String get dbcMapsIncompleteHeading;
+
+  /// No description provided for @dbcIncompleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The requested dashboard work was not verified as complete. {reason}'**
+  String dbcIncompleteBody(String reason);
+
+  /// No description provided for @finishWithoutDbc.
+  ///
+  /// In en, this message translates to:
+  /// **'Finish without completed DBC'**
+  String get finishWithoutDbc;
+
+  /// No description provided for @finishWithoutDbcConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Finish without a completed DBC?'**
+  String get finishWithoutDbcConfirmTitle;
+
+  /// No description provided for @finishWithoutDbcConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The MDB work can be kept, but the requested DBC firmware is not verified as installed. The final result will remain incomplete until the DBC installation is retried successfully.'**
+  String get finishWithoutDbcConfirmBody;
+
+  /// No description provided for @dbcFinishedWithoutCompletionReason.
+  ///
+  /// In en, this message translates to:
+  /// **'You chose to finish without a verified DBC installation.'**
+  String get dbcFinishedWithoutCompletionReason;
+
+  /// No description provided for @finishWithoutDbcHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Installation incomplete: DBC not completed'**
+  String get finishWithoutDbcHeading;
+
+  /// No description provided for @finishWithoutDbcBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The MDB may be usable, but the requested DBC installation did not complete. Do not treat this as a successful full installation. {reason}'**
+  String finishWithoutDbcBody(String reason);
+
   /// No description provided for @trampolineStatusUnknown.
   ///
   /// In en, this message translates to:

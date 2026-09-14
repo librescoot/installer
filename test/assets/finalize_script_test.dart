@@ -132,6 +132,7 @@ case "\$1" in is-active) echo active ;; esac
       String imageId = '',
       String bootedRoot = '/dev/mmcblk1p3',
       String? previousRoot,
+      String dashboardResult = 'not-requested',
     }) async {
       await stubs(serviceModeActive: serviceModeActive, nrfStatus: nrfStatus);
       await Directory('${root.path}/installer').create(recursive: true);
@@ -150,8 +151,11 @@ case "\$1" in is-active) echo active ;; esac
         ).readAsStringSync().replaceAll('/data/', '${root.path}/'),
       );
       await script.writeAsString(
-        render(mdbAction: mdbAction, runId: runId)
-            .replaceFirst('NRF_STATUS_CAP=600', 'NRF_STATUS_CAP=$nrfStatusCap')
+        render(
+          mdbAction: mdbAction,
+          runId: runId,
+          dashboardResult: dashboardResult,
+        ).replaceFirst('NRF_STATUS_CAP=600', 'NRF_STATUS_CAP=$nrfStatusCap')
             .replaceAll('/data/', '${root.path}/'),
       );
       if (previousRoot != null) {
@@ -395,6 +399,33 @@ case "\$1" in is-active) echo active ;; esac
       expect(log, contains('unit librescoot-bootled-blink'));
       expect(log, contains('unit librescoot-bootled-hazards'));
       expect(log.any((l) => l.contains('scooter:state unlock')), isFalse);
+    });
+
+    test('an explicitly incomplete DBC run writes a durable record', () async {
+      final result = await run(
+        status: 'error: DBC verification failed\n'
+            'run-id: run-test-1\n'
+            'finish: pending\n'
+            'stage: verifying-dbc-artifact',
+        dashboardResult: 'incomplete',
+      );
+      expect(result.exitCode, 0, reason: result.stderr.toString());
+
+      final record = await File(
+        '${root.path}/installer/history/run-test-1/record',
+      ).readAsString();
+      expect(record, contains('result: success'));
+      expect(record, contains('dashboard-result: incomplete'));
+      expect(
+        File(
+          '${root.path}/installer/history/run-test-1/dbc-incomplete-status',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(
+        (await callLog()).any((l) => l.contains('scooter:state unlock')),
+        isTrue,
+      );
     });
 
     test('a failed run stays reachable so it can be retried', () async {
