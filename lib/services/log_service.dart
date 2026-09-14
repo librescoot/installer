@@ -107,6 +107,7 @@ class LogService {
       return;
     }
 
+    _writeLine('log file: $_filePath');
     _writeHeader(version: version, locale: locale, args: args);
 
     for (final line in _pending) {

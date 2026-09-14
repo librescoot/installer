@@ -355,9 +355,18 @@ void main() {
       final pending = TrampolineStatus.parseCompletionRecord(
         'result: success\nrun-id: run-abc-1\nfinish: pending\n',
       );
-      expect(complete.completedFor('run-abc-1'), isTrue);
-      expect(complete.completedFor('run-old-9'), isFalse);
-      expect(pending.completedFor('run-abc-1'), isFalse);
+      expect(
+        complete.completionFor('run-abc-1'),
+        InstallCompletionOutcome.complete,
+      );
+      expect(
+        complete.completionFor('run-old-9'),
+        InstallCompletionOutcome.notComplete,
+      );
+      expect(
+        pending.completionFor('run-abc-1'),
+        InstallCompletionOutcome.notComplete,
+      );
     });
 
     test('parses shared current-run progress', () {
@@ -436,6 +445,7 @@ MODE="{{MODE}}"
 DBC_IMAGE="{{DBC_IMAGE_PATH}}"
 DBC_MENDER="{{DBC_MENDER_PATH}}"
 DBC_TARGET="{{DBC_TARGET_VERSION}}"
+DBC_EXPECTED_ARTIFACT="{{DBC_EXPECTED_ARTIFACT}}"
 INSTALL_TILES={{INSTALL_TILES}}
 OSM="{{OSM_TILES_FILE}}"
 VALHALLA="{{VALHALLA_TILES_FILE}}"
@@ -485,6 +495,7 @@ VALHALLA="{{VALHALLA_TILES_FILE}}"
         dbcTargetVersion: 'v1.2.1',
       );
       expect(out, contains('DBC_TARGET="v1.2.1"'));
+      expect(out, contains('DBC_EXPECTED_ARTIFACT="release-v1.2.1"'));
     });
 
     test('an unset target renders empty rather than leaving a placeholder', () {
@@ -495,6 +506,7 @@ VALHALLA="{{VALHALLA_TILES_FILE}}"
         dbcMenderPath: '/data/installer/librescoot-unu-dbc-v1.2.1.mender',
       );
       expect(out, contains('DBC_TARGET=""'));
+      expect(out, contains('DBC_EXPECTED_ARTIFACT=""'));
     });
 
     test('an on-device finish renders the plan into the script', () {

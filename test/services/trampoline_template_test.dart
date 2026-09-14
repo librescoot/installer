@@ -170,15 +170,17 @@ void main() {
       expect(template, contains(r'lrem scooter:update:dbc 0 "$DBC_UPDATE_CMD"'));
     });
 
-    test('the direct mender fallback is reachable only when nothing answered',
-        () {
-      expect(template, contains(r'artifact_fail "error: DBC update-service refused the artifact'),
-          reason: 'an explicit refusal must not fall through to mender');
-      expect(template, contains(r'artifact_fail "error: DBC artifact install timed out'),
-          reason: 'an exhausted wait may still have an install in flight');
-      final absent = template.indexOf(r'DBC_OTA_VERDICT="absent"');
-      expect(absent, greaterThan(0),
-          reason: 'the fallback needs its own verdict, not a shared else');
+    test('upgrade and direct installs have one commit controller each', () {
+      expect(template,
+          contains(r'artifact_fail "error: DBC update-service refused the artifact'),
+          reason: 'an explicit service refusal must stop the upgrade');
+      expect(
+          template,
+          contains(
+              'update-service owns this path through reboot, commit, and lifecycle'));
+      expect(template,
+          contains('Never fall back to a second direct Mender writer.'));
+      expect(template, isNot(contains(r'DBC_OTA_VERDICT="absent"')));
     });
 
     test('stages the artifact to the OTA seed path on the DBC', () {
@@ -222,24 +224,23 @@ void main() {
           contains('artifact_fail "error: not enough space on the DBC'));
     });
 
-    test('a DBC that came back unchanged is a failure, not a success', () {
-      // Reading both values and comparing neither is what the MDB side used
-      // to do, and it reported a rolled-back install as done.
+    test('post-reboot health rejects an unchanged DBC identity', () {
       expect(template, contains(r'DBC_VER_BEFORE=$('));
-      expect(template, contains(r'DBC_ART_AFTER=$('));
+      expect(template, contains(r'DBC_BOOT_BEFORE=$('));
+      expect(template, contains(r'DBC_ROOT_BEFORE=$('));
       expect(
           template,
           contains(
-              'artifact_fail "error: could not read the DBC version after the artifact install"'));
-      expect(template,
-          contains(r'artifact_fail "error: the DBC came back on $DBC_VER instead of $DBC_TARGET'));
-      expect(template,
-          contains(r'artifact_fail "error: the DBC came back unchanged on $DBC_VER'));
+              r"installer-health.sh '$phase' '$DBC_EXPECTED_ARTIFACT' '$DBC_TARGET' '$DBC_BOOT_BEFORE' '$DBC_ROOT_BEFORE'"));
       expect(
           template,
           contains(
-              'artifact_fail "error: the DBC is still running the bootstrap image'),
-          reason: 'os-release cannot tell stage 0 from a full image');
+              'DBC health was not stable for three consecutive samples (changed boot and root, exact version and target root, and DBC-to-MDB Redis)'));
+      expect(
+          template,
+          contains(
+              r'''artifact_fail "error: target artifact $DBC_EXPECTED_ARTIFACT matches the bootstrap's committed artifact'''),
+          reason: 'post-commit evidence must distinguish target from bootstrap');
     });
   });
 

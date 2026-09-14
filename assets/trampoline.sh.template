@@ -18,6 +18,7 @@ MODE="{{MODE}}"                        # flash = write the stage-0 image first, 
 DBC_IMAGE="{{DBC_IMAGE_PATH}}"
 DBC_MENDER="{{DBC_MENDER_PATH}}"       # .mender staged on the MDB, empty when the DBC gets no artifact
 DBC_TARGET="{{DBC_TARGET_VERSION}}"    # VERSION_ID the DBC has to report once the artifact is live
+DBC_EXPECTED_ARTIFACT="{{DBC_EXPECTED_ARTIFACT}}" # exact committed Mender identity
 # Autonomous finish. When true, onboot does the work the installer's finish
 # phase would otherwise do over the laptop link, so the user never has to plug
 # back in on the happy path. Everything it needs is known before the cable swap.
@@ -352,6 +353,162 @@ probe_for_laptop_then_restore_host() {
   sleep 2
 }
 
+# A direct DBC install holds the vehicle lifecycle before the raw image write.
+# The acknowledged Redis flag survives the MDB reboot and is handed to the
+# generated phase below, so the same operation retains the hold through commit.
+DBC_VEHICLE_UPDATE=none
+DBC_HEARTBEAT_PID=""
+DBC_HEARTBEAT_INTERVAL="${DBC_HEARTBEAT_INTERVAL:-30}"
+dbc_update_flag() {
+  redis-cli -h localhost hget vehicle dbc-updating 2>/dev/null
+}
+dbc_update_heartbeat_claim() {
+  local value result
+  value=$(date +%s) || return 1
+  result=$(redis-cli -h localhost --raw eval \
+    'redis.call("HSET",KEYS[1],ARGV[3],ARGV[4]); redis.call("HSET",KEYS[1],ARGV[1],ARGV[2]); redis.call("PUBLISH",KEYS[1],ARGV[1]); return ARGV[2]' \
+    1 ota heartbeat:dbc "$value" heartbeat-owner:dbc "$RUN_ID" 2>/dev/null) || return 1
+  [ "$result" = "$value" ]
+}
+dbc_update_heartbeat_write() {
+  local value result
+  value=$(date +%s) || return 1
+  result=$(redis-cli -h localhost --raw eval \
+    'if redis.call("HGET",KEYS[1],ARGV[3])~=ARGV[4] then return "owner-mismatch" end; redis.call("HSET",KEYS[1],ARGV[1],ARGV[2]); redis.call("PUBLISH",KEYS[1],ARGV[1]); return ARGV[2]' \
+    1 ota heartbeat:dbc "$value" heartbeat-owner:dbc "$RUN_ID" 2>/dev/null) || return 1
+  [ "$result" = "$value" ]
+}
+dbc_update_heartbeat_start() {
+  [ -n "$DBC_HEARTBEAT_PID" ] && kill -0 "$DBC_HEARTBEAT_PID" 2>/dev/null && return 0
+  dbc_update_heartbeat_claim || return 1
+  (
+    while sleep "$DBC_HEARTBEAT_INTERVAL"; do
+      dbc_update_heartbeat_write || exit 1
+    done
+  ) &
+  DBC_HEARTBEAT_PID=$!
+  kill -0 "$DBC_HEARTBEAT_PID" 2>/dev/null
+}
+dbc_update_heartbeat_stop() {
+  local result
+  if [ -n "$DBC_HEARTBEAT_PID" ]; then
+    kill "$DBC_HEARTBEAT_PID" 2>/dev/null || true
+    wait "$DBC_HEARTBEAT_PID" 2>/dev/null || true
+    DBC_HEARTBEAT_PID=""
+  fi
+  result=$(redis-cli -h localhost --raw eval \
+    'if redis.call("HGET",KEYS[1],ARGV[2])~=ARGV[3] then return "owner-mismatch" end; redis.call("HSET",KEYS[1],ARGV[1],""); redis.call("HSET",KEYS[1],ARGV[2],""); redis.call("PUBLISH",KEYS[1],ARGV[1]); return "cleared"' \
+    1 ota heartbeat:dbc heartbeat-owner:dbc "$RUN_ID" 2>/dev/null) || return 1
+  [ "$result" = cleared ]
+}
+wait_flash_with_dbc_heartbeat() {
+  local flash_pid="$1" flash_rc
+  while kill -0 "$flash_pid" 2>/dev/null; do
+    if [ -z "$DBC_HEARTBEAT_PID" ] ||
+       ! kill -0 "$DBC_HEARTBEAT_PID" 2>/dev/null ||
+       ! dbc_update_heartbeat_write; then
+      log "ERROR: lost the installer DBC lifecycle heartbeat during flash"
+      kill "$flash_pid" 2>/dev/null || true
+      wait "$flash_pid" 2>/dev/null || true
+      return 125
+    fi
+    sleep 5
+  done
+  wait "$flash_pid"
+  flash_rc=$?
+  return "$flash_rc"
+}
+dbc_update_start() {
+  local flag waited
+  if [ "$DBC_VEHICLE_UPDATE" = active ]; then
+    dbc_update_heartbeat_start
+    return $?
+  fi
+  flag=$(dbc_update_flag) || {
+    log "ERROR: could not inspect the DBC lifecycle"
+    return 1
+  }
+  case "$flag" in
+    true)
+      log "ERROR: a DBC lifecycle is already active; refusing a second direct installer"
+      DBC_VEHICLE_UPDATE=foreign
+      return 1
+      ;;
+    false) ;;
+    *)
+      log "ERROR: DBC lifecycle state is unknown (${flag:-missing}); refusing a direct install"
+      return 1
+      ;;
+  esac
+  redis-cli -h localhost lpush scooter:update start-dbc >/dev/null 2>&1 || return 1
+  DBC_VEHICLE_UPDATE=requested
+  waited=0
+  while [ $waited -lt 30 ]; do
+    flag=$(dbc_update_flag) || flag=unknown
+    if [ "$flag" = true ]; then
+      DBC_VEHICLE_UPDATE=active
+      if ! dbc_update_heartbeat_start; then
+        log "ERROR: vehicle-service acknowledged the DBC lifecycle, but its heartbeat could not be established"
+        return 1
+      fi
+      log "  vehicle-service acknowledged the installer DBC lifecycle and heartbeat"
+      return 0
+    fi
+    [ "$flag" = false ] || return 1
+    waited=$((waited + 1))
+    sleep 1
+  done
+  return 1
+}
+dbc_update_complete() {
+  local flag waited
+  case "$DBC_VEHICLE_UPDATE" in none|foreign) return 0 ;; esac
+  # Stop and clear the publisher before releasing the lifecycle. Reversing this
+  # order can resurrect heartbeat:dbc after vehicle-service accepted complete.
+  dbc_update_heartbeat_stop || return 1
+  redis-cli -h localhost lpush scooter:update complete-dbc >/dev/null 2>&1 || return 1
+  waited=0
+  while [ $waited -lt 30 ]; do
+    flag=$(dbc_update_flag) || flag=unknown
+    if [ "$flag" = false ]; then
+      DBC_VEHICLE_UPDATE=none
+      log "  vehicle-service acknowledged release of the installer DBC lifecycle"
+      return 0
+    fi
+    [ "$flag" = true ] || return 1
+    waited=$((waited + 1))
+    sleep 1
+  done
+  return 1
+}
+
+collect_mdb_diagnostics() {
+  [ -s "$INSTALLER_DIR/trampoline-started-at" ] || return 0
+  local since
+  since=$(cat "$INSTALLER_DIR/trampoline-started-at" 2>/dev/null)
+  [ -n "$since" ] || return 0
+  log "--- MDB diagnostics since $since ---"
+  log "  run=$RUN_ID phase=${STEP_LABEL:-outer} boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null) usb0-carrier=$(cat /sys/class/net/usb0/carrier 2>/dev/null)"
+  for rp in /sys/kernel/debug/ci_hdrc.0/role /sys/kernel/debug/usb/ci_hdrc.0/role /sys/bus/platform/devices/ci_hdrc.0/role; do
+    [ -r "$rp" ] && { log "  usb-role: $rp=$(cat "$rp" 2>/dev/null)"; break; }
+  done
+  journalctl --no-pager --since "$since" -n 400 \
+    -u librescoot-onboot.service -u librescoot-vehicle.service \
+    -u librescoot-update.service -u systemd-networkd.service \
+    -u ppp-link.service 2>&1 |
+    while IFS= read -r line; do log "  $line"; done
+  journalctl --no-pager --since "$since" -k -n 250 2>&1 |
+    while IFS= read -r line; do log "  kernel: $line"; done
+  ip -br link 2>&1 | while IFS= read -r line; do log "  link: $line"; done
+  ip -br addr 2>&1 | while IFS= read -r line; do log "  addr: $line"; done
+  ip route show 2>&1 | while IFS= read -r line; do log "  route: $line"; done
+  redis-cli -h localhost hgetall vehicle 2>&1 |
+    while IFS= read -r line; do log "  vehicle: $line"; done
+  redis-cli -h localhost hgetall ota 2>&1 |
+    while IFS= read -r line; do log "  ota: $line"; done
+  log "--- end MDB diagnostics ---"
+}
+
 fail() {
   log "ERROR: $1"
   # Disarm what this run queued, as the rescue paths do. Left in place, the
@@ -363,11 +520,9 @@ fail() {
   # the verdict written just below.
   rm -f "$SCRIPTS_DIR"/[0-9][0-9]-*.sh "$SCRIPTS_DIR"/[0-9][0-9]-*.sh.tries \
     "$SCRIPTS_DIR/.expected"
-  # journalctl -f outlives this script otherwise: it is a child of the SSH
-  # session scope, not a service cgroup, so an abandoned failure keeps
-  # appending to the journal file until the disk notices.
-  [ -n "$JOURNAL_PID" ] && kill $JOURNAL_PID 2>/dev/null
+  collect_mdb_diagnostics
   write_status "error: $1"
+  dbc_update_complete || log "WARNING: installer DBC lifecycle release is unverified"
   # Status must survive a rescue reboot, so flush it early. Backgrounded:
   # a wedged USB device can hang a full sync, and the LED signals and
   # gadget restore below must still run regardless.
@@ -838,9 +993,10 @@ case "$MODE" in
   *) fail "unrecognised install mode: $MODE" ;;
 esac
 
-# Capture system journal in background for debugging
-journalctl -f --no-pager >> "$INSTALLER_DIR/trampoline-journal.log" 2>&1 &
-JOURNAL_PID=$!
+# Record one lower bound for retrospective diagnostics in both halves. A
+# follower would need process identity across handoff and reboot; bounded
+# journal queries are attributable and retain informational application logs.
+date -u '+%Y-%m-%dT%H:%M:%SZ' > "$INSTALLER_DIR/trampoline-started-at"
 
 if [ "$MODE" = "flash" ]; then
 
@@ -1059,10 +1215,9 @@ step_begin "Step 6: wait for DBC UMS device"
 TIMEOUT=300
 ELAPSED=0
 DBC_DEV=""
-# Remember where the captured journal stood when the wait started, so the
-# timeout analysis below only looks at bus activity from THIS window.
-# Earlier host-mode stints (step 3 probe) would otherwise pollute it.
-STEP6_JNL_START=$(wc -l < "$INSTALLER_DIR/trampoline-journal.log" 2>/dev/null || echo 0)
+# Retrospective query boundary for this wait only. Earlier host-mode probes
+# must not influence whether this cable swap saw a device.
+STEP6_STARTED_AT=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 STEP6_REPOWERED=""
 STEP6_RESCANNED=""
 while [ $ELAPSED -lt $TIMEOUT ]; do
@@ -1100,12 +1255,10 @@ if [ -z "$DBC_DEV" ]; then
   # If so, probe_for_laptop_then_restore_host calls fail() with a clear
   # message and never returns.
   probe_for_laptop_then_restore_host
-  # Classify what (if anything) the bus saw during the wait, from the
-  # journal we're already capturing. An unplugged cable and an unpowered
-  # device are electrically identical (no D+ pullup), so total silence
-  # means the cable most likely never reached the DBC; enumeration errors
-  # mean something is plugged but the link is bad.
-  STEP6_JNL=$(tail -n +$((STEP6_JNL_START + 1)) "$INSTALLER_DIR/trampoline-journal.log" 2>/dev/null | grep "usb 1-1")
+  # Classify what (if anything) the bus saw during this wait. An unplugged
+  # cable and an unpowered device are electrically identical (no D+ pullup),
+  # so total silence points at the cable; enumeration errors point at the link.
+  STEP6_JNL=$(journalctl --no-pager -k --since "$STEP6_STARTED_AT" -n 300 2>/dev/null | grep "usb 1-1")
   if [ -z "$STEP6_JNL" ]; then
     fail "No USB device was detected while waiting for the DBC. The USB cable is probably not plugged into the DBC. Connect the MDB's USB cable to the DBC and retry."
   elif echo "$STEP6_JNL" | grep -qiE "device descriptor read|device not accepting|unable to enumerate|error"; then
@@ -1118,6 +1271,10 @@ step_end
 
 # Safety
 echo "$DBC_DEV" | grep -q "mmcblk" && fail "SAFETY: $DBC_DEV is mmcblk - refusing!"
+
+# Reject a foreign updater before the first destructive DBC write and keep the
+# acknowledged hold through the generated post-reboot phase.
+dbc_update_start || fail "Could not establish an exclusive installer-owned DBC lifecycle before flashing the DBC"
 
 # Step 7: Flash DBC
 step_begin "Step 7: flash DBC"
@@ -1137,23 +1294,25 @@ while [ $ATTEMPT -lt 3 ]; do
   USING_DD=""
   if [ -x "$FLASHER" ] && [ -f "$DBC_BMAP" ]; then
     log "  using librescoot-flasher (bmap: $DBC_BMAP)"
-    $FLASHER --image "$DBC_IMAGE" --bmap "$DBC_BMAP" --device "$DBC_DEV" >> "$LOG_FILE" 2>&1
-    FLASH_RC=$?
+    $FLASHER --image "$DBC_IMAGE" --bmap "$DBC_BMAP" --device "$DBC_DEV" >> "$LOG_FILE" 2>&1 &
+    FLASH_PID=$!
   elif [ -x "$FLASHER" ]; then
     log "  using librescoot-flasher (sequential)"
-    $FLASHER --image "$DBC_IMAGE" --device "$DBC_DEV" >> "$LOG_FILE" 2>&1
-    FLASH_RC=$?
+    $FLASHER --image "$DBC_IMAGE" --device "$DBC_DEV" >> "$LOG_FILE" 2>&1 &
+    FLASH_PID=$!
   else
     USING_DD="yes"
     log "  using dd (oflag=direct), image size: $FLASH_TOTAL"
-    gunzip -c "$DBC_IMAGE" | dd bs=4M iflag=fullblock of=$DBC_DEV oflag=direct 2>> "$LOG_FILE"
-    # $? of a pipeline is dd's status (PIPESTATUS is bash-only and a bad
-    # substitution under busybox ash). A gunzip failure truncates the
-    # stream without failing dd; the boot-sector verify below catches it.
-    FLASH_RC=$?
+    gunzip -c "$DBC_IMAGE" | dd bs=4M iflag=fullblock of=$DBC_DEV oflag=direct 2>> "$LOG_FILE" &
+    # $! is dd, the last process in this POSIX pipeline. Killing it makes
+    # gunzip receive SIGPIPE, so a lost lifecycle heartbeat stops the write.
+    FLASH_PID=$!
   fi
 
+  wait_flash_with_dbc_heartbeat "$FLASH_PID"
+  FLASH_RC=$?
   flash_progress_monitor_stop
+  [ "$FLASH_RC" -ne 125 ] || fail "Lost the DBC lifecycle heartbeat during flash; the write was stopped"
   if [ "${FLASH_RC:-0}" -ne 0 ]; then
     log "  flash failed (rc=$FLASH_RC), retrying..."
     sleep 3
@@ -1316,7 +1475,9 @@ ONBOOT
 cat >> "$SCRIPTS_DIR/20-dbc.sh" << ONBOOT_VARS
 DBC_MENDER="$DBC_MENDER"
 DBC_TARGET="$DBC_TARGET"
+DBC_EXPECTED_ARTIFACT="$DBC_EXPECTED_ARTIFACT"
 MODE="$MODE"
+DBC_VEHICLE_UPDATE="$DBC_VEHICLE_UPDATE"
 FINISH_ON_DEVICE="$FINISH_ON_DEVICE"
 FINISH_LANGUAGE="$FINISH_LANGUAGE"
 FINISH_CHANNEL="$FINISH_CHANNEL"
@@ -1337,7 +1498,7 @@ tile_facts() {
 }
 
 # Writes /data/maps/metadata.json on the dashboard and mirrors it into the
-# `maps` hash in Redis. Composes the record fresh rather than merging: this runs
+# maps hash in Redis. Composes the record fresh rather than merging: this runs
 # during provisioning, and any previous update-check result described tiles that
 # are no longer installed.
 record_tiles() {
@@ -1494,7 +1655,7 @@ log() { echo "$(date '+%H:%M:%S') $1" >> "$LOG"; }
 # Log all errors, always: every command's stderr appends to the log.
 exec 2>>"$LOG"
 
-# One field of the `maps` hash, HSET then PUBLISH, matching the convention the
+# One field of the maps hash, HSET then PUBLISH, matching the convention the
 # rest of the platform uses so a live subscriber hears the change. Best effort:
 # Redis may not be up yet this early, and the dashboard restates all of it on
 # its next boot regardless.
@@ -1539,6 +1700,29 @@ dbc_ssh_bounded() {
     t=$((t+1)); sleep 3
   done
   return 1
+}
+
+# Commit is not retry-safe after transport loss, so its transport gets one
+# bounded attempt rather than dbc_ssh_bounded's three. Only this direct child
+# can be signalled; no PID is persisted across a boot or handoff.
+dbc_ssh_once_bounded() {
+  local secs="$1"; shift
+  local pid waited=0 rc
+  ssh -y -y root@$DBC_IP "$@" &
+  pid=$!
+  while kill -0 "$pid" 2>/dev/null && [ "$waited" -lt "$secs" ]; do
+    sleep 1
+    waited=$((waited + 1))
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    log "  one-shot remote command exceeded ${secs}s"
+    kill "$pid" 2>/dev/null
+    wait "$pid" 2>/dev/null || true
+    return 124
+  fi
+  wait "$pid"
+  rc=$?
+  return "$rc"
 }
 
 # The dashboard's own screen, used as a progress display.
@@ -1619,6 +1803,144 @@ systemctl mask librescoot-ums 2>/dev/null || true
 # transfer and leave the status stuck at running on a dark scooter. The finish
 # restarts it deliberately by rebooting.
 systemctl stop librescoot-pm 2>/dev/null || true
+
+# Direct installs own one vehicle lifecycle from before the Mender write until
+# the committed slot is verified. A queue write is only a request; the vehicle
+# flag is the acknowledgement that makes it safe to rely on the power hold.
+# Upgrade mode never calls these helpers because update-service owns that path.
+DBC_VEHICLE_UPDATE="${DBC_VEHICLE_UPDATE:-none}"
+DBC_HEARTBEAT_PID=""
+DBC_HEARTBEAT_INTERVAL="${DBC_HEARTBEAT_INTERVAL:-30}"
+dbc_update_flag() {
+  redis-cli -h localhost hget vehicle dbc-updating 2>/dev/null
+}
+dbc_update_heartbeat_claim() {
+  local value result
+  value=$(date +%s) || return 1
+  result=$(redis-cli -h localhost --raw eval \
+    'redis.call("HSET",KEYS[1],ARGV[3],ARGV[4]); redis.call("HSET",KEYS[1],ARGV[1],ARGV[2]); redis.call("PUBLISH",KEYS[1],ARGV[1]); return ARGV[2]' \
+    1 ota heartbeat:dbc "$value" heartbeat-owner:dbc "$RUN_ID" 2>/dev/null) || return 1
+  [ "$result" = "$value" ]
+}
+dbc_update_heartbeat_write() {
+  local value result
+  value=$(date +%s) || return 1
+  result=$(redis-cli -h localhost --raw eval \
+    'if redis.call("HGET",KEYS[1],ARGV[3])~=ARGV[4] then return "owner-mismatch" end; redis.call("HSET",KEYS[1],ARGV[1],ARGV[2]); redis.call("PUBLISH",KEYS[1],ARGV[1]); return ARGV[2]' \
+    1 ota heartbeat:dbc "$value" heartbeat-owner:dbc "$RUN_ID" 2>/dev/null) || return 1
+  [ "$result" = "$value" ]
+}
+dbc_update_heartbeat_start() {
+  [ -n "$DBC_HEARTBEAT_PID" ] && kill -0 "$DBC_HEARTBEAT_PID" 2>/dev/null && return 0
+  dbc_update_heartbeat_claim || return 1
+  (
+    while sleep "$DBC_HEARTBEAT_INTERVAL"; do
+      dbc_update_heartbeat_write || exit 1
+    done
+  ) &
+  DBC_HEARTBEAT_PID=$!
+  kill -0 "$DBC_HEARTBEAT_PID" 2>/dev/null
+}
+dbc_update_heartbeat_stop() {
+  local result
+  if [ -n "$DBC_HEARTBEAT_PID" ]; then
+    kill "$DBC_HEARTBEAT_PID" 2>/dev/null || true
+    wait "$DBC_HEARTBEAT_PID" 2>/dev/null || true
+    DBC_HEARTBEAT_PID=""
+  fi
+  result=$(redis-cli -h localhost --raw eval \
+    'if redis.call("HGET",KEYS[1],ARGV[2])~=ARGV[3] then return "owner-mismatch" end; redis.call("HSET",KEYS[1],ARGV[1],""); redis.call("HSET",KEYS[1],ARGV[2],""); redis.call("PUBLISH",KEYS[1],ARGV[1]); return "cleared"' \
+    1 ota heartbeat:dbc heartbeat-owner:dbc "$RUN_ID" 2>/dev/null) || return 1
+  [ "$result" = cleared ]
+}
+dbc_update_start() {
+  local flag waited
+  if [ "$DBC_VEHICLE_UPDATE" = active ]; then
+    flag=$(dbc_update_flag) || return 1
+    if [ "$flag" = true ]; then
+      dbc_update_heartbeat_start
+      return $?
+    fi
+    [ "$flag" = false ] || return 1
+    log "  pre-flash DBC lifecycle hold was released during handoff; re-establishing it"
+    DBC_VEHICLE_UPDATE=none
+  fi
+  flag=$(dbc_update_flag) || {
+    log "ERROR: could not inspect the DBC lifecycle"
+    return 1
+  }
+  case "$flag" in
+    true)
+      log "ERROR: a DBC lifecycle is already active; refusing a second direct installer"
+      DBC_VEHICLE_UPDATE=foreign
+      return 1
+      ;;
+    false) ;;
+    *)
+      log "ERROR: DBC lifecycle state is unknown (${flag:-missing}); refusing a direct install"
+      return 1
+      ;;
+  esac
+  if ! redis-cli -h localhost lpush scooter:update start-dbc >/dev/null 2>&1; then
+    log "ERROR: could not queue the installer DBC lifecycle request"
+    return 1
+  fi
+  DBC_VEHICLE_UPDATE=requested
+  waited=0
+  while [ $waited -lt 30 ]; do
+    flag=$(dbc_update_flag) || flag=unknown
+    if [ "$flag" = true ]; then
+      DBC_VEHICLE_UPDATE=active
+      if ! dbc_update_heartbeat_start; then
+        log "ERROR: vehicle-service acknowledged the DBC lifecycle, but its heartbeat could not be established"
+        return 1
+      fi
+      log "  vehicle-service acknowledged the installer DBC lifecycle and heartbeat"
+      return 0
+    fi
+    [ "$flag" = false ] || {
+      log "ERROR: DBC lifecycle became unknown while waiting for acknowledgement"
+      return 1
+    }
+    waited=$((waited + 1))
+    sleep 1
+  done
+  log "ERROR: vehicle-service did not acknowledge the installer DBC lifecycle within 30s"
+  return 1
+}
+dbc_update_complete() {
+  local flag waited
+  case "$DBC_VEHICLE_UPDATE" in
+    none|foreign) return 0 ;;
+  esac
+  # Stop and clear the publisher before releasing the lifecycle. Reversing this
+  # order can resurrect heartbeat:dbc after vehicle-service accepted complete.
+  if ! dbc_update_heartbeat_stop; then
+    log "WARNING: could not clear the installer DBC heartbeat"
+    return 1
+  fi
+  if ! redis-cli -h localhost lpush scooter:update complete-dbc >/dev/null 2>&1; then
+    log "WARNING: could not queue release of the installer DBC lifecycle"
+    return 1
+  fi
+  waited=0
+  while [ $waited -lt 30 ]; do
+    flag=$(dbc_update_flag) || flag=unknown
+    if [ "$flag" = false ]; then
+      DBC_VEHICLE_UPDATE=none
+      log "  vehicle-service acknowledged release of the installer DBC lifecycle"
+      return 0
+    fi
+    [ "$flag" = true ] || {
+      log "WARNING: DBC lifecycle state became unknown while waiting for release"
+      return 1
+    }
+    waited=$((waited + 1))
+    sleep 1
+  done
+  log "WARNING: vehicle-service did not acknowledge lifecycle release within 30s"
+  return 1
+}
 
 # The install is still running, so the dashboard LED stays amber and the guard
 # keeps re-asserting it. It goes dark in 90-finalize.sh, on the far side of the
@@ -1809,6 +2131,16 @@ else
   log "  WARNING: redis never answered in ${WAITED}s, continuing anyway"
 fi
 
+# The outer publisher ends with its process (or at the MDB reboot). Restart it
+# before any potentially long DBC boot/SSH wait; an acknowledged lifecycle with
+# no publisher expires after three minutes once the first heartbeat was seen.
+if [ "$MODE" = flash ] && ! dbc_update_start; then
+  write_status "error: the installer-owned DBC lifecycle heartbeat could not be resumed"
+  dbc_update_complete || log "WARNING: installer DBC lifecycle release is unverified"
+  signal_error
+  exit 1
+fi
+
 # Keep trying dbc on-wait until it succeeds - DBC may restart several times
 log "  powering on DBC (may take multiple attempts)..."
 CURRENT_STAGE="powering-dbc"
@@ -1906,6 +2238,10 @@ if [ $ELAPSED -ge 300 ]; then
   exit 0
 fi
 log "  DBC reachable"
+# Keep one boundary across this run's DBC reboot and retries, but never reuse a
+# marker from an older installer run.
+dbc_ssh "mkdir -p /data/installer; test \"\$(cat /data/installer/diagnostic-run-id 2>/dev/null)\" = '$RUN_ID' || { date -u '+%Y-%m-%dT%H:%M:%SZ' > /data/installer/diagnostic-started-at && printf '%s\\n' '$RUN_ID' > /data/installer/diagnostic-run-id; }" 2>/dev/null ||
+  log "WARNING: could not record the DBC diagnostic start time"
 dbc_console_init
 
 # Make sure something on the DBC can take a PUT under /data. data-server
@@ -2006,8 +2342,279 @@ upload_to_dbc() {
 # blink and hazards for whoever comes back to the vehicle. $1 becomes the
 # status file's first line and must start with "error: ".
 DBC_UPDATE_CMD=""
+dbc_install_diagnostics() {
+  local label="${1:-failure}" since
+  log "--- DBC install diagnostics ($label) ---"
+  log "  run=$RUN_ID phase=${CURRENT_STAGE:-post-reboot} boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null) usb0-carrier=$(cat /sys/class/net/usb0/carrier 2>/dev/null)"
+  for rp in /sys/kernel/debug/ci_hdrc.0/role /sys/kernel/debug/usb/ci_hdrc.0/role /sys/bus/platform/devices/ci_hdrc.0/role; do
+    [ -r "$rp" ] && { log "  usb-role: $rp=$(cat "$rp" 2>/dev/null)"; break; }
+  done
+  log "MDB links, addresses, and routes:"
+  ip -br link 2>&1 | while IFS= read -r line; do log "  link: $line"; done
+  ip -br addr 2>&1 | while IFS= read -r line; do log "  addr: $line"; done
+  ip route show 2>&1 | while IFS= read -r line; do log "  route: $line"; done
+  systemctl --no-pager --full status ppp-link.service librescoot-vehicle.service librescoot-update.service 2>&1 | tail -n 90 |
+    while IFS= read -r line; do log "  service: $line"; done
+  since=$(cat "$INSTALLER_DIR/trampoline-started-at" 2>/dev/null)
+  if [ -n "$since" ]; then
+    journalctl --no-pager --since "$since" -n 400 \
+      -u librescoot-onboot.service -u librescoot-vehicle.service \
+      -u librescoot-update.service -u systemd-networkd.service \
+      -u ppp-link.service 2>&1 |
+      while IFS= read -r line; do log "  MDB journal: $line"; done
+    journalctl --no-pager --since "$since" -k -n 250 2>&1 |
+      while IFS= read -r line; do log "  MDB kernel: $line"; done
+  else
+    log "  MDB diagnostic start marker missing; journal query skipped"
+  fi
+  redis-cli -h localhost hgetall vehicle 2>&1 |
+    while IFS= read -r line; do log "  vehicle: $line"; done
+  redis-cli -h localhost hgetall ota 2>&1 |
+    while IFS= read -r line; do log "  ota: $line"; done
+  dbc_ssh_bounded 20 '
+    echo "boot-id: $(cat /proc/sys/kernel/random/boot_id 2>/dev/null)"
+    . /etc/os-release 2>/dev/null
+    echo "version: ${VERSION_ID:-unknown}"
+    echo "artifact: $(mender-update show-artifact 2>&1)"
+    echo "mounted-root: $(awk '\''$5 == "/" { print $3 " " $10 }'\'' /proc/self/mountinfo)"
+    echo "mender provides:"
+    mender-update show-provides 2>&1
+    echo "updater mask recovery:"
+    cat /data/librescoot-installer/dbc-update-mask-recovery 2>&1 || true
+    echo "links and addresses:"
+    ip -br link 2>&1
+    ip -br addr 2>&1
+    echo "routes:"
+    ip route show 2>&1
+    echo "services:"
+    systemctl --no-pager --full status librescoot-update.service systemd-networkd.service ppp-link.service 2>&1 | tail -n 90
+    since=$(cat /data/installer/diagnostic-started-at 2>/dev/null)
+    if [ -n "$since" ]; then
+      echo "journal since $since:"
+      journalctl --no-pager --since "$since" -n 300 -u librescoot-update.service -u systemd-networkd.service -u ppp-link.service 2>&1
+      journalctl --no-pager --since "$since" -k -n 200 2>&1
+    else
+      echo "DBC diagnostic start marker missing; journal query skipped"
+    fi' 2>&1 | while IFS= read -r line; do log "  DBC: $line"; done
+  log "--- end DBC install diagnostics ---"
+}
+
+# Mask the updater in the inactive root before activation. The helper derives
+# both candidates from Mender's configuration and compares their resolved
+# block identities with the mounted root; it never guesses a partition number.
+write_dbc_updater_mask_helper() {
+  cat > "$INSTALLER_DIR/dbc-updater-mask.sh" << 'DBC_MASK_SCRIPT'
+#!/bin/sh
+set -eu
+ACTION="${1:-}"
+RUN_ID="${2:-}"
+EXPECTED_ARTIFACT="${3:-}"
+RECOVERY_DIR=/data/librescoot-installer
+RECOVERY="$RECOVERY_DIR/dbc-update-mask-recovery"
+MOUNTPOINT=/run/librescoot-installer-target
+UNIT=librescoot-update.service
+
+fail() { echo "mask-error: $1" >&2; exit 1; }
+field() { sed -n "s/^$1: //p" "$RECOVERY" 2>/dev/null | head -n 1; }
+root_id() {
+  awk '$5 == "/" { print $3 }' /proc/self/mountinfo
+}
+part_identity() {
+  local configured="$1" resolved base id
+  case "$configured" in
+    /dev/*) ;;
+    *) fail "Mender rootfs part is not an absolute /dev path: $configured" ;;
+  esac
+  case "$configured" in *[!A-Za-z0-9_./-]*) fail "unsafe Mender rootfs part: $configured" ;; esac
+  resolved=$(readlink -f "$configured") || fail "cannot resolve $configured"
+  [ -b "$resolved" ] || fail "$configured does not resolve to a block device"
+  base=${resolved##*/}
+  [ -r "/sys/class/block/$base/dev" ] || fail "cannot identify $resolved"
+  id=$(cat "/sys/class/block/$base/dev")
+  [ -n "$id" ] || fail "empty block identity for $resolved"
+  printf '%s|%s\n' "$resolved" "$id"
+}
+write_record() {
+  local state="$1" previous="$2" target="$3" target_id="$4" tmp
+  mkdir -p "$RECOVERY_DIR"
+  tmp="$RECOVERY.tmp.$$"
+  {
+    echo "run-id: $RUN_ID"
+    echo "state: $state"
+    echo "previous-state: $previous"
+    echo "target-device: $target"
+    echo "target-id: $target_id"
+    echo "expected-artifact: $EXPECTED_ARTIFACT"
+    echo "updated: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  } > "$tmp"
+  mv -f "$tmp" "$RECOVERY"
+  sync
+}
+
+case "$RUN_ID" in ''|*[!A-Za-z0-9._-]*) fail "invalid installer run id" ;; esac
+case "$EXPECTED_ARTIFACT" in ''|*[!A-Za-z0-9._+-]*) fail "invalid expected artifact" ;; esac
+
+case "$ACTION" in
+  prepare)
+    CONFIG=/etc/mender/mender.conf
+    [ -r "$CONFIG" ] || fail "Mender configuration is unreadable"
+    part_a=$(sed -n 's/^[[:space:]]*"RootfsPartA"[[:space:]]*:[[:space:]]*"\([^"]*\)"[[:space:]]*,\{0,1\}[[:space:]]*$/\1/p' "$CONFIG")
+    part_b=$(sed -n 's/^[[:space:]]*"RootfsPartB"[[:space:]]*:[[:space:]]*"\([^"]*\)"[[:space:]]*,\{0,1\}[[:space:]]*$/\1/p' "$CONFIG")
+    [ "$(printf '%s\n' "$part_a" | grep -c .)" -eq 1 ] || fail "RootfsPartA is missing or ambiguous"
+    [ "$(printf '%s\n' "$part_b" | grep -c .)" -eq 1 ] || fail "RootfsPartB is missing or ambiguous"
+    a=$(part_identity "$part_a")
+    b=$(part_identity "$part_b")
+    a_dev=${a%|*}; a_id=${a##*|}
+    b_dev=${b%|*}; b_id=${b##*|}
+    [ "$a_id" != "$b_id" ] || fail "RootfsPartA and RootfsPartB resolve to the same block device"
+    mounted=$(root_id)
+    [ "$(printf '%s\n' "$mounted" | grep -c .)" -eq 1 ] || fail "mounted root identity is missing or ambiguous"
+    if [ "$mounted" = "$a_id" ]; then
+      target="$b_dev"; target_id="$b_id"
+    elif [ "$mounted" = "$b_id" ]; then
+      target="$a_dev"; target_id="$a_id"
+    else
+      fail "mounted root $mounted matches neither configured Mender rootfs part"
+    fi
+    if awk -v id="$target_id" '$3 == id { found=1 } END { exit !found }' /proc/self/mountinfo; then
+      fail "inactive target $target is already mounted"
+    fi
+
+    mkdir -p "$MOUNTPOINT"
+    mount -o rw "$target" "$MOUNTPOINT" || fail "cannot mount inactive target $target"
+    cleanup() { umount "$MOUNTPOINT" 2>/dev/null || true; rmdir "$MOUNTPOINT" 2>/dev/null || true; }
+    trap cleanup EXIT HUP INT TERM
+    mounted_target=$(awk -v mp="$MOUNTPOINT" '$5 == mp { print $3 }' /proc/self/mountinfo)
+    [ "$mounted_target" = "$target_id" ] || fail "mounted target identity changed"
+    [ -e "$MOUNTPOINT/usr/lib/systemd/system/$UNIT" ] ||
+      [ -e "$MOUNTPOINT/lib/systemd/system/$UNIT" ] ||
+      fail "$UNIT is not installed in the inactive target"
+    unit_link="$MOUNTPOINT/etc/systemd/system/$UNIT"
+    mkdir -p "$MOUNTPOINT/etc/systemd/system"
+
+    previous=""
+    if [ -f "$RECOVERY" ]; then
+      [ "$(field run-id)" = "$RUN_ID" ] || fail "recovery evidence from another run already exists"
+      [ "$(field target-id)" = "$target_id" ] || fail "same-run recovery target identity changed"
+      [ "$(field expected-artifact)" = "$EXPECTED_ARTIFACT" ] || fail "same-run recovery artifact changed"
+      previous=$(field previous-state)
+      case "$previous" in absent|preexisting-mask) ;; *) fail "invalid previous mask state" ;; esac
+    elif [ -L "$unit_link" ] && [ "$(readlink "$unit_link")" = /dev/null ]; then
+      previous=preexisting-mask
+      write_record prepared "$previous" "$target" "$target_id"
+    elif [ -e "$unit_link" ] || [ -L "$unit_link" ]; then
+      fail "refusing to replace existing $unit_link"
+    else
+      previous=absent
+      write_record prepared "$previous" "$target" "$target_id"
+    fi
+
+    if [ "$previous" = absent ]; then
+      if [ -L "$unit_link" ] && [ "$(readlink "$unit_link")" = /dev/null ]; then
+        : # same-run recovery after the link landed but before the record advanced
+      else
+        [ ! -e "$unit_link" ] && [ ! -L "$unit_link" ] || fail "target mask path changed"
+        ln -s /dev/null "$unit_link" || fail "cannot mask $UNIT in target"
+      fi
+    fi
+    [ -L "$unit_link" ] && [ "$(readlink "$unit_link")" = /dev/null ] || fail "target updater mask verification failed"
+    write_record applied "$previous" "$target" "$target_id"
+    sync
+    umount "$MOUNTPOINT" || fail "cannot flush and unmount inactive target"
+    trap - EXIT HUP INT TERM
+    rmdir "$MOUNTPOINT" 2>/dev/null || true
+    echo "target-device: $target"
+    echo "target-id: $target_id"
+    echo "previous-state: $previous"
+    echo "recovery-record: $RECOVERY"
+    ;;
+  restore)
+    [ -f "$RECOVERY" ] || fail "updater mask recovery record is missing"
+    [ "$(field run-id)" = "$RUN_ID" ] || fail "updater mask belongs to another installer run"
+    [ "$(field expected-artifact)" = "$EXPECTED_ARTIFACT" ] || fail "recovery artifact does not match"
+    state=$(field state)
+    [ "$state" = applied ] || [ "$state" = restoring ] || [ "$state" = completed ] || fail "updater mask was not fully applied"
+    target_id=$(field target-id)
+    target=$(field target-device)
+    [ "$(root_id)" = "$target_id" ] || fail "running root is not the masked target"
+    artifact=$(mender-update show-artifact 2>/dev/null) || fail "cannot read committed artifact"
+    [ "$artifact" = "$EXPECTED_ARTIFACT" ] || fail "running artifact is $artifact, expected $EXPECTED_ARTIFACT"
+    previous=$(field previous-state)
+    if [ "$state" = completed ]; then
+      mkdir -p "$RECOVERY_DIR/history"
+      mv -f "$RECOVERY" "$RECOVERY_DIR/history/$RUN_ID-dbc-update-mask"
+      sync
+      echo "restored-state: $previous"
+      echo "completed-record: $RECOVERY_DIR/history/$RUN_ID-dbc-update-mask"
+      exit 0
+    fi
+    case "$previous" in
+      absent)
+        unit_link="/etc/systemd/system/$UNIT"
+        if [ -L "$unit_link" ] && [ "$(readlink "$unit_link")" = /dev/null ]; then
+          write_record restoring "$previous" "$target" "$target_id"
+          rm -f "$unit_link"
+        elif [ "$state" != restoring ] || [ -e "$unit_link" ] || [ -L "$unit_link" ]; then
+          fail "installed updater mask changed"
+        fi
+        systemctl daemon-reload
+        systemctl start "$UNIT" || fail "could not restart $UNIT"
+        ;;
+      preexisting-mask)
+        [ -L "/etc/systemd/system/$UNIT" ] &&
+          [ "$(readlink "/etc/systemd/system/$UNIT")" = /dev/null ] ||
+          fail "pre-existing updater mask changed"
+        ;;
+      *) fail "invalid previous mask state" ;;
+    esac
+    mkdir -p "$RECOVERY_DIR/history"
+    write_record completed "$previous" "$target" "$target_id"
+    mv -f "$RECOVERY" "$RECOVERY_DIR/history/$RUN_ID-dbc-update-mask"
+    sync
+    echo "restored-state: $previous"
+    echo "completed-record: $RECOVERY_DIR/history/$RUN_ID-dbc-update-mask"
+    ;;
+  *) fail "unknown action: $ACTION" ;;
+esac
+DBC_MASK_SCRIPT
+  chmod 700 "$INSTALLER_DIR/dbc-updater-mask.sh"
+}
+
+DBC_TARGET_MASKED=no
+DBC_TARGET_ROOT_ID=""
+prepare_dbc_updater_mask() {
+  local result="$INSTALLER_DIR/dbc-updater-mask.result"
+  write_dbc_updater_mask_helper || return 1
+  upload_to_dbc "$INSTALLER_DIR/dbc-updater-mask.sh" "/installer/dbc-updater-mask.sh" "DBC updater mask helper" || return 1
+  # From dispatch until the verified result is parsed, mutation is unknown.
+  # A lost SSH transport must retain and report the recovery record as if the
+  # mask landed, because retrying or restoring on a guess is unsafe.
+  DBC_TARGET_MASKED=unknown
+  if ! dbc_ssh_bounded 90 "sh /data/installer/dbc-updater-mask.sh prepare '$RUN_ID' '$DBC_EXPECTED_ARTIFACT'" > "$result"; then
+    return 1
+  fi
+  cat "$result" | while IFS= read -r line; do log "  updater mask: $line"; done
+  DBC_TARGET_ROOT_ID=$(sed -n 's/^target-id: //p' "$result" | head -n 1)
+  [ -n "$DBC_TARGET_ROOT_ID" ] || return 1
+  DBC_TARGET_MASKED=yes
+  return 0
+}
+restore_dbc_updater_mask() {
+  local result="$INSTALLER_DIR/dbc-updater-restore.result"
+  if ! dbc_ssh_bounded 90 "sh /data/installer/dbc-updater-mask.sh restore '$RUN_ID' '$DBC_EXPECTED_ARTIFACT'" > "$result"; then
+    return 1
+  fi
+  cat "$result" | while IFS= read -r line; do log "  updater restore: $line"; done
+  DBC_TARGET_MASKED=no
+  return 0
+}
+
 artifact_fail() {
   log "ERROR: $1"
+  if [ "$DBC_TARGET_MASKED" != no ]; then
+    log "  librescoot-update.service may remain masked; recovery evidence is retained at /data/librescoot-installer/dbc-update-mask-recovery on the DBC"
+  fi
+  dbc_install_diagnostics
   dbc_fail_say "$1"
   if [ -n "$DBC_UPDATE_CMD" ]; then
     redis-cli -h localhost lrem scooter:update:dbc 0 "$DBC_UPDATE_CMD" >/dev/null 2>&1 || true
@@ -2015,6 +2622,7 @@ artifact_fail() {
   fi
   CURRENT_STAGE="installing-dbc-artifact"
   write_status "$1"
+  dbc_update_complete || log "WARNING: installer DBC lifecycle release is unverified"
   dbc_power_off || true
   signal_error
   exit 1
@@ -2025,6 +2633,11 @@ artifact_fail() {
 # it, and an upgrade skipped straight here. /data survives a mender install,
 # so tiles copied afterwards are unaffected by the reboot below.
 if [ -n "$DBC_MENDER" ]; then
+  # Upgrade mode is update-service-managed. A direct install arrives with the
+  # lifecycle hold acknowledged before its stage-0 image was written.
+  if [ "$MODE" = flash ] && ! dbc_update_start; then
+    artifact_fail "error: the pre-flash installer-owned DBC lifecycle was not preserved"
+  fi
   # The trampoline body checked this before it rebooted the MDB, but the
   # reboot sits between the two. An artifact that was asked for and is not
   # here is an error, never "no artifact was requested".
@@ -2047,6 +2660,8 @@ if [ -n "$DBC_MENDER" ]; then
 
   DBC_ART_NAME=$(basename "$DBC_MENDER")
   DBC_ART_PATH="/data/ota/dbc/$DBC_ART_NAME"
+  [ -n "$DBC_TARGET" ] || artifact_fail "error: no expected DBC version was recorded; refusing an unverifiable install"
+  [ -n "$DBC_EXPECTED_ARTIFACT" ] || artifact_fail "error: no expected DBC artifact identity was recorded; refusing an unverifiable install"
   log "Installing DBC artifact $DBC_ART_NAME"
   dbc_say "{{MSG_INSTALLING}}"
 
@@ -2054,7 +2669,16 @@ if [ -n "$DBC_MENDER" ]; then
   # told from one that installed something. Read before anything is written.
   DBC_VER_BEFORE=$(ssh -y -y root@$DBC_IP 'grep ^VERSION_ID= /etc/os-release' 2>/dev/null | cut -d= -f2 | tr -d '"')
   DBC_ART_BEFORE=$(ssh -y -y root@$DBC_IP 'mender-update show-artifact' 2>/dev/null | head -n 1 | tr -d '\r')
-  log "  DBC currently runs ${DBC_VER_BEFORE:-unknown} (artifact ${DBC_ART_BEFORE:-unknown})"
+  DBC_BOOT_BEFORE=$(ssh -y -y root@$DBC_IP 'cat /proc/sys/kernel/random/boot_id' 2>/dev/null | tr -d '\r')
+  DBC_ROOT_BEFORE=$(ssh -y -y root@$DBC_IP "awk '\$5 == \"/\" { print \$3 }' /proc/self/mountinfo" 2>/dev/null | tr -d '\r')
+  [ -n "$DBC_BOOT_BEFORE" ] || artifact_fail "error: could not read the DBC boot identity before installation"
+  [ -n "$DBC_ROOT_BEFORE" ] || artifact_fail "error: could not read the DBC mounted-root identity before installation"
+  if [ "$MODE" = flash ]; then
+    [ -n "$DBC_ART_BEFORE" ] || artifact_fail "error: could not capture the bootstrap's committed DBC artifact identity"
+    [ "$DBC_ART_BEFORE" != "$DBC_EXPECTED_ARTIFACT" ] ||
+      artifact_fail "error: target artifact $DBC_EXPECTED_ARTIFACT matches the bootstrap's committed artifact, so post-commit success would be indistinguishable"
+  fi
+  log "  DBC currently runs ${DBC_VER_BEFORE:-unknown} (artifact ${DBC_ART_BEFORE:-unknown}, root $DBC_ROOT_BEFORE, boot $DBC_BOOT_BEFORE)"
 
   dbc_ssh "mkdir -p /data/ota/dbc" || log "WARNING: mkdir /data/ota/dbc failed"
 
@@ -2080,6 +2704,10 @@ if [ -n "$DBC_MENDER" ]; then
   if ! upload_to_dbc "$DBC_MENDER" "/ota/dbc/$DBC_ART_NAME" "DBC artifact"; then
     artifact_fail "error: failed to transfer the DBC artifact"
   fi
+  if ! upload_to_dbc "$INSTALLER_DIR/dbc-health.sh" "/ota/dbc/installer-health.sh" "DBC health probe" ||
+     ! dbc_ssh "chmod 755 /data/ota/dbc/installer-health.sh"; then
+    artifact_fail "error: failed to stage the DBC health probe"
+  fi
 
   # The artifact is on the dashboard; the tiles get the link now, beside the
   # install that follows.
@@ -2087,90 +2715,54 @@ if [ -n "$DBC_MENDER" ]; then
   install_tiles &
   TILES_JOB=$!
 
-  DBC_OTA_OK="no"
+  DBC_SERVICE_MANAGED="no"
   if [ "$MODE" = "upgrade" ]; then
-    # The board already runs update-service, so hand the artifact to it: it
-    # checks the artifact fits the target slot before running mender, and it
-    # applies the boot assets from the new rootfs at first start. It listens
-    # on the MDB's redis, not the DBC's.
-    #
-    # Flash mode deliberately does not do this. A stage-0 board has no
-    # update-service to answer, and scooter:update:dbc is a persistent queue,
-    # so the command would simply sit there until the rootfs we are about to
-    # install boots one, which would then reinstall the same artifact minutes
-    # after the installer told the user the job was done.
+    # update-service may reboot as soon as its install is staged, so finish the
+    # independent tile transfer before handing it control of the DBC.
+    if [ -n "${TILES_JOB:-}" ]; then
+      log "  waiting for the tile upload before service-managed activation"
+      wait "$TILES_JOB" 2>/dev/null || true
+      TILES_JOB=""
+      TILE_ERRORS=$(cat "$INSTALLER_DIR/tile-errors" 2>/dev/null || echo 0)
+      case "$TILE_ERRORS" in ''|*[!0-9]*) TILE_ERRORS=0 ;; esac
+      [ "$TILE_ERRORS" -eq 0 ] || artifact_fail "error: $TILE_ERRORS tile upload(s) failed before the DBC upgrade"
+    fi
+    # update-service owns this path through reboot, commit, and lifecycle
+    # completion. Never fall back to a second direct Mender writer.
+    DBC_SERVICE_MANAGED="yes"
     DBC_UPDATE_CMD="update-from-file:$DBC_ART_PATH"
-    redis-cli -h localhost hset ota status:dbc "" >/dev/null 2>&1 || true
-    redis-cli -h localhost lpush scooter:update:dbc "$DBC_UPDATE_CMD" >/dev/null 2>&1 || true
+    redis-cli -h localhost hset ota status:dbc "" >/dev/null 2>&1 ||
+      artifact_fail "error: Redis is unavailable; cannot hand the DBC upgrade to update-service"
+    redis-cli -h localhost lpush scooter:update:dbc "$DBC_UPDATE_CMD" >/dev/null 2>&1 ||
+      artifact_fail "error: could not queue the DBC upgrade"
 
-    DBC_OTA_VERDICT="timeout"
-    DBC_OTA_DRAINED="no"
     WAITED=0
     while [ $WAITED -lt 900 ]; do
       ST=$(redis-cli -h localhost hget ota status:dbc 2>/dev/null)
       case "$ST" in
-        pending-reboot|success) DBC_OTA_VERDICT="ok"; break ;;
-        error*|failed*) DBC_OTA_VERDICT="refused"; break ;;
+        error*|failed*) artifact_fail "error: DBC update-service refused the artifact: $ST" ;;
+        idle|success)
+          REPORTED_ARTIFACT=$(ssh -y -y root@$DBC_IP 'mender-update show-artifact' 2>/dev/null | head -n 1 | tr -d '\r')
+          if [ "$REPORTED_ARTIFACT" = "$DBC_EXPECTED_ARTIFACT" ]; then
+            DBC_UPDATE_CMD=""
+            log "  update-service committed and reports exact artifact $REPORTED_ARTIFACT"
+            break
+          fi
+          ;;
       esac
-      # Nothing picked the command up within 60s, so nothing is listening.
-      # Take it back out of the queue before falling back to mender, or it
-      # outlives this script.
-      if [ "$DBC_OTA_DRAINED" = "no" ] && [ $WAITED -ge 60 ] && [ -z "$ST" ]; then
-        DBC_OTA_DRAINED="yes"
-        # lrem prints how many it removed. A redis that is not answering prints
-        # nothing, which is not "0" and so used to read as "someone else took
-        # it": the script then waited out the full handshake timeout and blamed
-        # the artifact. Ask redis whether it is there before reading its answer.
-        LREM_OUT="$(redis-cli -h localhost lrem scooter:update:dbc 0 "$DBC_UPDATE_CMD" 2>/dev/null)"
-        if ! redis-cli -h localhost ping >/dev/null 2>&1; then
-          log "  redis is not answering, cannot hand off to update-service"
-          DBC_UPDATE_CMD=""
-          DBC_OTA_VERDICT="absent"
-          break
-        fi
-        if [ "$LREM_OUT" = "0" ]; then
-          # It was popped between two polls after all, so an update-service
-          # does exist here. Keep waiting rather than becoming a second
-          # writer on the same slot.
-          log "  queued command was consumed between polls, staying on the handshake"
-        else
-          DBC_UPDATE_CMD=""
-          DBC_OTA_VERDICT="absent"
-          break
-        fi
-      fi
       WAITED=$((WAITED + 5))
       sleep 5
     done
-
-    case "$DBC_OTA_VERDICT" in
-      ok)
-        DBC_OTA_OK="yes"
-        DBC_UPDATE_CMD=""
-        log "  update-service reports: $ST"
-        ;;
-      absent)
-        log "  no update-service response, installing with mender directly"
-        ;;
-      refused)
-        # update-service has already judged this artifact unfit for the
-        # target slot. Calling mender ourselves would reinstall exactly what
-        # it refused and would skip the boot assets it applies at first start.
-        artifact_fail "error: DBC update-service refused the artifact: $ST"
-        ;;
-      *)
-        # 900s with the handshake still in progress. The install may well be
-        # in flight, so a direct mender call here would be a second writer.
-        artifact_fail "error: DBC artifact install timed out after 900s (status: ${ST:-none})"
-        ;;
-    esac
-  fi
-
-  if [ "$DBC_OTA_OK" != "yes" ]; then
+    [ $WAITED -lt 900 ] || artifact_fail "error: DBC update-service did not verify $DBC_EXPECTED_ARTIFACT within 900s (status: ${ST:-none})"
+  else
     log "  running mender-update install on the DBC"
     if ! dbc_ssh_bounded 900 "mender-update install $DBC_ART_PATH"; then
       artifact_fail "error: DBC artifact install failed"
     fi
+    if ! prepare_dbc_updater_mask; then
+      artifact_fail "error: could not identify and mask librescoot-update.service in the inactive Mender rootfs; activation was refused"
+    fi
+    log "  inactive target $DBC_TARGET_ROOT_ID is masked and recovery evidence is durable"
   fi
 
   dbc_say "{{MSG_INSTALLED}}"
@@ -2184,94 +2776,133 @@ if [ -n "$DBC_MENDER" ]; then
     log "  tile upload finished with $TILE_ERRORS error(s)"
   fi
 
-  log "  rebooting DBC into the new rootfs"
-  dbc_ssh 'sync; reboot &' >> "$LOG" 2>&1 || log "  DBC reboot command failed"
-  sleep 20
-  ELAPSED=0
-  while [ $ELAPSED -lt 300 ]; do
-    ssh -y -y root@$DBC_IP 'echo ok' >/dev/null 2>&1 && break
-    if ! ping -c 1 -W 2 $DBC_IP >/dev/null 2>&1 && [ $((ELAPSED % 20)) -eq 0 ]; then
-      dbc_power_on || true
-    fi
-    ELAPSED=$((ELAPSED + 5))
-    sleep 5
-  done
-  if [ $ELAPSED -ge 300 ]; then
-    artifact_fail "error: DBC did not come back after the artifact install"
+  if [ "$DBC_SERVICE_MANAGED" != yes ]; then
+    log "  rebooting DBC into the new rootfs"
+    dbc_ssh 'sync; reboot &' >> "$LOG" 2>&1 ||
+      log "  DBC reboot transport ended before acknowledgement"
   fi
-  # Nothing here has proven the install took. u-boot rolls back a rootfs that
-  # never commits, and the rolled-back board answers SSH on the old version
-  # exactly as happily. An unreadable version is a failure too: written out
-  # empty it renders as an absent dbc: line and the screen falls back to a
-  # bare success message.
-  DBC_VER=$(ssh -y -y root@$DBC_IP 'grep ^VERSION_ID= /etc/os-release' 2>/dev/null | cut -d= -f2 | tr -d '"')
+
   CURRENT_STAGE="verifying-dbc-artifact"
   write_run_state "$CURRENT_STAGE"
-  DBC_ART_AFTER=$(ssh -y -y root@$DBC_IP 'mender-update show-artifact' 2>/dev/null | head -n 1 | tr -d '\r')
-  log "  DBC now runs ${DBC_VER:-unknown} (artifact ${DBC_ART_AFTER:-unknown})"
+
+  dbc_health_sample() {
+    local phase="$1" sample boot root version artifact target_root
+    target_root=""
+    if [ "$DBC_SERVICE_MANAGED" != yes ]; then
+      target_root="$DBC_TARGET_ROOT_ID"
+    fi
+    sample=$(dbc_ssh_bounded 12 "/data/ota/dbc/installer-health.sh '$phase' '$DBC_EXPECTED_ARTIFACT' '$DBC_TARGET' '$DBC_BOOT_BEFORE' '$DBC_ROOT_BEFORE' '$target_root'") || return 1
+    IFS='|' read -r boot root version artifact <<EOF
+$sample
+EOF
+    [ -n "$boot" ] && [ -n "$root" ] && [ -n "$version" ] || return 1
+    if [ "$phase" != precommit ]; then
+      [ "$artifact" = "$DBC_EXPECTED_ARTIFACT" ] || return 1
+    fi
+    DBC_HEALTH_BOOT="$boot"
+    DBC_HEALTH_ROOT="$root"
+    DBC_VER="$version"
+    DBC_ART_AFTER="$artifact"
+    return 0
+  }
+
+  # Three consecutive five-second samples prove a short stable interval, not
+  # one lucky SSH response. Each sample requires the changed boot and root,
+  # exact version and target root, and a DBC-originated Redis PING.
+  HEALTH_STABLE=0
+  HEALTH_LAST_IDENTITY=""
+  HEALTH_WAITED=0
+  if [ "$DBC_SERVICE_MANAGED" = yes ]; then
+    HEALTH_PHASE=managed
+  else
+    HEALTH_PHASE=precommit
+  fi
+  while [ $HEALTH_WAITED -lt 300 ] && [ $HEALTH_STABLE -lt 3 ]; do
+    if dbc_health_sample "$HEALTH_PHASE"; then
+      HEALTH_IDENTITY="$DBC_HEALTH_BOOT|$DBC_HEALTH_ROOT|$DBC_VER"
+      if [ -n "$HEALTH_LAST_IDENTITY" ] && [ "$HEALTH_LAST_IDENTITY" != "$HEALTH_IDENTITY" ]; then
+        HEALTH_STABLE=0
+      fi
+      HEALTH_LAST_IDENTITY="$HEALTH_IDENTITY"
+      HEALTH_STABLE=$((HEALTH_STABLE + 1))
+      log "  DBC health sample $HEALTH_STABLE/3: boot=$DBC_HEALTH_BOOT root=$DBC_HEALTH_ROOT version=$DBC_VER artifact=${DBC_ART_AFTER:-not-checked} redis=PONG"
+    else
+      HEALTH_STABLE=0
+      HEALTH_LAST_IDENTITY=""
+      log "  DBC health sample failed; stability reset"
+      [ $((HEALTH_WAITED % 20)) -eq 0 ] && dbc_power_on || true
+    fi
+    [ $HEALTH_STABLE -ge 3 ] && break
+    HEALTH_WAITED=$((HEALTH_WAITED + 5))
+    sleep 5
+  done
+  if [ $HEALTH_STABLE -lt 3 ]; then
+    dbc_install_diagnostics "unstable-post-reboot-health"
+    artifact_fail "error: DBC health was not stable for three consecutive samples (changed boot and root, exact version and target root, and DBC-to-MDB Redis)"
+  fi
+  dbc_install_diagnostics "post-activation"
   dbc_console_init
   dbc_say "{{MSG_RUNNING}}"
-  [ -n "$DBC_VER" ] || artifact_fail "error: could not read the DBC version after the artifact install"
-  if [ -n "$DBC_TARGET" ]; then
-    # Lower-cased and with the tag's optional v prefix dropped, the same
-    # normalisation the installer applies to the MDB.
-    DBC_VER_N=$(echo "$DBC_VER" | tr 'A-Z' 'a-z' | sed 's/^v//')
-    DBC_TARGET_N=$(echo "$DBC_TARGET" | tr 'A-Z' 'a-z' | sed 's/^v//')
-    if [ "$DBC_VER_N" != "$DBC_TARGET_N" ]; then
-      artifact_fail "error: the DBC came back on $DBC_VER instead of $DBC_TARGET, so the artifact install was rolled back"
+
+  dbc_commit_verified() {
+    dbc_health_sample committed || return 1
+    [ "$DBC_HEALTH_BOOT|$DBC_HEALTH_ROOT|$DBC_VER" = "$HEALTH_LAST_IDENTITY" ]
+  }
+
+  if [ "$DBC_SERVICE_MANAGED" != yes ]; then
+    # Recheck every shipped health dependency immediately before the one
+    # commit-capable action. Standalone pending state is not observable with
+    # the installed tooling, so it is neither inferred nor claimed here.
+    dbc_health_sample precommit || artifact_fail "error: DBC health changed immediately before commit; commit was not attempted"
+    [ "$DBC_HEALTH_BOOT|$DBC_HEALTH_ROOT|$DBC_VER" = "$HEALTH_LAST_IDENTITY" ] ||
+      artifact_fail "error: DBC identity changed immediately before commit; commit was not attempted"
+    COMMIT_OUT="$INSTALLER_DIR/dbc-commit.stdout"
+    COMMIT_ERR="$INSTALLER_DIR/dbc-commit.stderr"
+    if dbc_ssh_once_bounded 60 '
+      out=/tmp/installer-mender-commit.out
+      err=/tmp/installer-mender-commit.err
+      mender-update commit >"$out" 2>"$err"
+      rc=$?
+      printf "__MENDER_REMOTE_RC=%s\n" "$rc"
+      cat "$out"
+      cat "$err" >&2
+      rm -f "$out" "$err"
+      exit 0' >"$COMMIT_OUT" 2>"$COMMIT_ERR"; then
+      COMMIT_TRANSPORT=ok
+      COMMIT_REMOTE_RC=$(sed -n 's/^__MENDER_REMOTE_RC=//p' "$COMMIT_OUT" | tail -n 1)
+    else
+      COMMIT_TRANSPORT=failed
+      COMMIT_REMOTE_RC=unknown
     fi
-  elif [ "$DBC_VER" = "$DBC_VER_BEFORE" ] && [ "$DBC_ART_AFTER" = "$DBC_ART_BEFORE" ]; then
-    # No target to compare against, so fall back to "did anything change at
-    # all": a rollback leaves both readings exactly as they were.
-    artifact_fail "error: the DBC came back unchanged on $DBC_VER, so the artifact install was rolled back"
-  fi
-  # os-release cannot tell a stage-0 image from a full one, same distro and
-  # same VERSION_ID, so a clean install that rolled back would pass the
-  # version check above. The artifact name is the discriminator.
-  case "$DBC_ART_AFTER" in
-    *minimal*)
-      artifact_fail "error: the DBC is still running the bootstrap image ($DBC_ART_AFTER) after the artifact install"
-      ;;
-  esac
-  # Committed here, after the checks above proved this is the installed slot,
-  # and before anything cuts the power. bootlimit=1 gives the new slot exactly
-  # one tentative boot, this one: u-boot rolls back at the second start before
-  # the kernel loads, so no later boot can commit. The DBC's update-service
-  # does commit at its own start, but it races the power-off below with no
-  # ordering, and on a clean install the rollback target is the bootstrap,
-  # which does not carry it at all. A rolled-back board fails the checks
-  # first, so this never pins the old slot.
-  # A missed commit is a rollback on the next boot, so it is worth waiting and
-  # retrying for: the checks above can pass seconds after the reboot, while
-  # dropbear is still coming up and every ssh gets connection refused.
-  wait_dbc_ssh 120 || log "  WARNING: DBC SSH did not settle before the commit"
-  DBC_COMMITTED=""
-  for COMMIT_TRY in 1 2 3 4 5; do
-    if ssh -y -y root@$DBC_IP 'mender-update commit' >/dev/null 2>&1; then
-      DBC_COMMITTED="yes"
-      log "  committed the DBC slot (attempt $COMMIT_TRY)"
-      break
-    fi
-    # Already committed reads as a failure from mender-update, and the DBC's
-    # own update-service usually gets there first. Ask the board what it
-    # runs before spending another ten seconds on a retry: an installed,
-    # non-bootstrap artifact is the answer, whoever committed it.
-    case "$(ssh -y -y root@$DBC_IP 'mender-update show-artifact' 2>/dev/null)" in
-      *minimal*|'') ;;
-      *)
-        DBC_COMMITTED="yes"
-        log "  the DBC already reports the installed artifact, the slot is committed"
-        break
-        ;;
-    esac
-    log "  commit attempt $COMMIT_TRY/5 failed, retrying..."
-    sleep 10
-  done
-  if [ "$DBC_COMMITTED" != yes ]; then
-    case "$(ssh -y -y root@$DBC_IP 'mender-update show-artifact' 2>/dev/null)" in
-      *minimal*|'') artifact_fail "error: the DBC slot could not be committed and will roll back on its next boot" ;;
-      *) log "  the DBC reports the installed artifact, treating the slot as committed" ;;
-    esac
+    log "  commit dispatch: transport=$COMMIT_TRANSPORT remote-exit=$COMMIT_REMOTE_RC"
+    sed '/^__MENDER_REMOTE_RC=/d' "$COMMIT_OUT" 2>/dev/null |
+      while IFS= read -r line; do log "  commit stdout: $line"; done
+    cat "$COMMIT_ERR" 2>/dev/null |
+      while IFS= read -r line; do log "  commit stderr: $line"; done
+    [ "$COMMIT_TRANSPORT" = ok ] ||
+      artifact_fail "error: DBC commit transport was lost after dispatch; commit outcome is unknown (expected $DBC_EXPECTED_ARTIFACT)"
+    [ "$COMMIT_REMOTE_RC" = 0 ] ||
+      artifact_fail "error: DBC commit returned exit ${COMMIT_REMOTE_RC:-unknown}; commit outcome was not accepted"
+    dbc_commit_verified ||
+      artifact_fail "error: DBC commit returned success but the exact artifact and settled health could not be verified"
+    log "  commit verified: boot=$DBC_HEALTH_BOOT root=$DBC_HEALTH_ROOT version=$DBC_VER artifact=$DBC_ART_AFTER redis=PONG remote-exit=0"
+
+    # Keep the installed updater suppressed until commitment is proven. Release
+    # this run's lifecycle first; only then restore/start the service state this
+    # run changed, so boot maintenance cannot race the installer commit.
+    dbc_update_complete ||
+      artifact_fail "error: DBC commit is verified, but installer lifecycle release is unverified; updater mask retained"
+    dbc_power_on || true
+    wait_dbc_ssh 60 ||
+      artifact_fail "error: DBC commit is verified and lifecycle released, but the DBC is unreachable; updater mask retained"
+    restore_dbc_updater_mask ||
+      artifact_fail "error: DBC commit is verified and lifecycle released, but updater restoration failed; recovery evidence retained"
+    log "  installer lifecycle released before updater service restoration"
+  else
+    dbc_health_sample managed || artifact_fail "error: update-service reported completion, but exact committed artifact and DBC health were not verified"
+    [ "$DBC_HEALTH_BOOT|$DBC_HEALTH_ROOT|$DBC_VER" = "$HEALTH_LAST_IDENTITY" ] ||
+      artifact_fail "error: update-service completion identity changed after stable health"
+    log "  service-managed commit verified: boot=$DBC_HEALTH_BOOT root=$DBC_HEALTH_ROOT version=$DBC_VER artifact=$DBC_ART_AFTER redis=PONG"
   fi
   echo "$DBC_VER" > "$INSTALLER_DIR/dbc-version"
 
@@ -2304,6 +2935,9 @@ ONBOOT
 # Append tile installation commands with actual paths
 
 cat >> "$SCRIPTS_DIR/20-dbc.sh" << 'ONBOOT_END'
+# The artifact and tile work are done; let vehicle-service resume its normal
+# power policy before the explicit shutdown below.
+dbc_update_complete
 # Turn off DBC
 dbc_power_off || true
 
@@ -2345,8 +2979,6 @@ log "Total trampoline wall-clock: $(($(date +%s) - SCRIPT_T0))s"
 # it is its own systemd unit, so the animation, the amber and the front-light
 # pulse all carry on unbroken into the coordinator and, if it comes to one,
 # across the reboot.
-[ -n "$JOURNAL_PID" ] && kill $JOURNAL_PID 2>/dev/null
-
 # The dashboard work lives in onboot.sh and is reached one of two ways.
 #
 # The only thing a reboot contributes is gadget mode: the flash leaves the

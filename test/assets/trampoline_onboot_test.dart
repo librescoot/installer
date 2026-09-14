@@ -23,8 +23,9 @@ void main() {
     // TILES, ONBOOT_END). Taking only the first would check a fraction of
     // the script, so the body runs from the first chunk to the last
     // terminator, and everything outside it is the trampoline's own half.
-    final start =
-        source.indexOf("""cat > "\$SCRIPTS_DIR/20-dbc.sh" << 'ONBOOT'""");
+    final start = source.indexOf(
+      """cat > "\$SCRIPTS_DIR/20-dbc.sh" << 'ONBOOT'""",
+    );
     expect(start, isNot(-1), reason: 'post-reboot phase heredoc not found');
     final end = source.indexOf('\nONBOOT_END\n', start);
     expect(end, isNot(-1), reason: 'onboot heredoc is not terminated');
@@ -33,8 +34,10 @@ void main() {
     outer = source.substring(0, start) + source.substring(end);
   });
 
-  final defRe = RegExp(r'^[ \t]*([a-z_][a-z0-9_]*)[ \t]*\(\)[ \t]*\{',
-      multiLine: true);
+  final defRe = RegExp(
+    r'^[ \t]*([a-z_][a-z0-9_]*)[ \t]*\(\)[ \t]*\{',
+    multiLine: true,
+  );
 
   Set<String> definitionsIn(String body) =>
       defRe.allMatches(body).map((m) => m.group(1)!).toSet();
@@ -49,10 +52,11 @@ void main() {
       // A call is the name at the start of a command: line start, or after
       // a separator. Excludes mentions inside comments and longer words.
       final callRe = RegExp(
-          r'(^|[;&|]|\bthen\b|\belse\b|\bdo\b|&&|\|\|)[ \t]*' +
-              RegExp.escape(helper) +
-              r'(?=[ \t;&|)\n]|$)',
-          multiLine: true);
+        r'(^|[;&|]|\bthen\b|\belse\b|\bdo\b|&&|\|\|)[ \t]*' +
+            RegExp.escape(helper) +
+            r'(?=[ \t;&|)\n]|$)',
+        multiLine: true,
+      );
       for (final line in onboot.split('\n')) {
         final code = line.split('#').first;
         if (callRe.hasMatch(code)) {
@@ -62,9 +66,13 @@ void main() {
       }
     }
 
-    expect(missing, isEmpty,
-        reason: 'onboot.sh calls these but never defines them, so they fail '
-            'after the MDB reboot: ${missing.join(", ")}');
+    expect(
+      missing,
+      isEmpty,
+      reason:
+          'onboot.sh calls these but never defines them, so they fail '
+          'after the MDB reboot: ${missing.join(", ")}',
+    );
   });
 
   test('both halves source the signalling rather than carrying a copy', () {
@@ -73,24 +81,36 @@ void main() {
     // is a "not found" on a vehicle nobody is watching, which is exactly what
     // the phases the restructure added did.
     const source = r'. "$SCRIPTS_DIR/signal.sh"';
-    expect(outer, contains(source),
-        reason: 'the trampoline signals without sourcing the helpers');
-    expect(onboot, contains(source),
-        reason: 'the dashboard phase signals without sourcing the helpers');
+    expect(
+      outer,
+      contains(source),
+      reason: 'the trampoline signals without sourcing the helpers',
+    );
+    expect(
+      onboot,
+      contains(source),
+      reason: 'the dashboard phase signals without sourcing the helpers',
+    );
   });
 
-  test('the dashboard power and SSH helpers reach onboot.sh via device.sh',
-      () {
+  test('the dashboard power and SSH helpers reach onboot.sh via device.sh', () {
     // dbc_ssh, wait_dbc_ssh and the dashboard power helpers used to be
     // defined a second time in here, the specific duplication that stranded
     // a dashboard when only one copy got a fix. They are sourced from
     // device.sh now, the same way the signalling is sourced from signal.sh.
     const source = r'. "$SCRIPTS_DIR/device.sh"';
-    expect(outer, contains(source),
-        reason: 'the trampoline talks to the DBC without sourcing device.sh');
-    expect(onboot, contains(source),
-        reason: 'the dashboard phase talks to the DBC without sourcing '
-            'device.sh');
+    expect(
+      outer,
+      contains(source),
+      reason: 'the trampoline talks to the DBC without sourcing device.sh',
+    );
+    expect(
+      onboot,
+      contains(source),
+      reason:
+          'the dashboard phase talks to the DBC without sourcing '
+          'device.sh',
+    );
 
     final onbootHelpers = definitionsIn(onboot);
     for (final helper in [
@@ -102,16 +122,22 @@ void main() {
       'dbc_ssh',
       'wait_dbc_ssh',
     ]) {
-      expect(onbootHelpers, isNot(contains(helper)),
-          reason: '$helper should come from device.sh, not a local copy');
+      expect(
+        onbootHelpers,
+        isNot(contains(helper)),
+        reason: '$helper should come from device.sh, not a local copy',
+      );
     }
   });
 
   test('onboot.sh logs to a file it has defined', () {
     // The outer half writes lsc output to $LOG_FILE, onboot.sh to $LOG.
     // Copying a helper across without swapping the variable loses the output.
-    expect(onboot.contains(r'LOG_FILE'), isFalse,
-        reason: r'onboot.sh has no $LOG_FILE; it uses $LOG');
+    expect(
+      onboot.contains(r'LOG_FILE'),
+      isFalse,
+      reason: r'onboot.sh has no $LOG_FILE; it uses $LOG',
+    );
   });
 
   test('every unit the trampoline masks is unmasked and started again', () {
@@ -120,11 +146,17 @@ void main() {
     // back explicitly or the scooter is handed over with services missing.
     Set<String> units(String body, String verb) {
       final out = <String>{};
-      final re = RegExp(r'systemctl\s+(?:--\S+\s+)?' + verb + r'\s+([^\n|;&]+)');
+      final re = RegExp(
+        r'systemctl\s+(?:--\S+\s+)?' + verb + r'\s+([^\n|;&]+)',
+      );
       for (final m in re.allMatches(body)) {
         for (final tok in m.group(1)!.split(RegExp(r'\s+'))) {
           if (tok.isEmpty) continue;
-          if (tok.startsWith('-') || tok.startsWith('2>') || tok.startsWith('>')) break;
+          if (tok.startsWith('-') ||
+              tok.startsWith('2>') ||
+              tok.startsWith('>')) {
+            break;
+          }
           out.add(tok.replaceAll('.service', ''));
         }
       }
@@ -137,10 +169,16 @@ void main() {
     final started = units(whole, 'start');
 
     for (final unit in masked) {
-      expect(unmasked, contains(unit),
-          reason: '$unit is masked and never unmasked');
-      expect(started, contains(unit),
-          reason: '$unit is masked and never started again');
+      expect(
+        unmasked,
+        contains(unit),
+        reason: '$unit is masked and never unmasked',
+      );
+      expect(
+        started,
+        contains(unit),
+        reason: '$unit is masked and never started again',
+      );
     }
     // keycard-service is the one whose start is conditional: on a board with
     // no master card it auto-enters master-learning and would teach in
@@ -149,26 +187,42 @@ void main() {
     expect(unmasked, contains('librescoot-keycard'));
   });
 
-  test('the finish restores what it stopped and hands back a usable scooter',
-      () {
-    // The finish used to reboot, which restored pm-service, applied the usb0
-    // policy and released the LED in one go. It ends by unlocking instead,
-    // and a reboot would come back locked, so each of those has to be done
-    // directly. Any one of them dropped is silent: no power management on a
-    // parked scooter, or blinkers that stay dark.
-    final finalize = File('assets/finalize.sh.template').readAsStringSync();
-    expect(finalize, contains('systemctl start librescoot-pm'),
-        reason: 'pm-service is stopped on every connect and started by '
-            'nothing else');
-    expect(finalize, contains('systemctl restart librescoot-vehicle'),
-        reason: 'vehicle-service has to re-claim the PWM channels the '
-            'progress bar borrowed, or the blinkers stay dark');
-    expect(finalize, contains('lsc set scooter.usb0-policy auto'));
-    expect(finalize, contains('lpush scooter:state unlock'),
-        reason: 'the unlock is the success signal');
-    expect(outer.contains('if restore_gadget; then'), isTrue,
-        reason: 'the mid-flash handover should restore the role, not reboot');
-  });
+  test(
+    'the finish restores what it stopped and hands back a usable scooter',
+    () {
+      // The finish used to reboot, which restored pm-service, applied the usb0
+      // policy and released the LED in one go. It ends by unlocking instead,
+      // and a reboot would come back locked, so each of those has to be done
+      // directly. Any one of them dropped is silent: no power management on a
+      // parked scooter, or blinkers that stay dark.
+      final finalize = File('assets/finalize.sh.template').readAsStringSync();
+      expect(
+        finalize,
+        contains('systemctl start librescoot-pm'),
+        reason:
+            'pm-service is stopped on every connect and started by '
+            'nothing else',
+      );
+      expect(
+        finalize,
+        contains('systemctl restart librescoot-vehicle'),
+        reason:
+            'vehicle-service has to re-claim the PWM channels the '
+            'progress bar borrowed, or the blinkers stay dark',
+      );
+      expect(finalize, contains('lsc set scooter.usb0-policy auto'));
+      expect(
+        finalize,
+        contains('lpush scooter:state unlock'),
+        reason: 'the unlock is the success signal',
+      );
+      expect(
+        outer.contains('if restore_gadget; then'),
+        isTrue,
+        reason: 'the mid-flash handover should restore the role, not reboot',
+      );
+    },
+  );
 
   test('onboot.sh defines every function before it calls it', () {
     // Shell binds at execution, so a definition below its first call is a
@@ -207,9 +261,10 @@ void main() {
     final late = <String>[];
     for (final entry in defLine.entries) {
       final callRe = RegExp(
-          r'(^|[;&|]|\bthen\b|\belse\b|\bdo\b|&&|\|\|)[ \t]*' +
-              RegExp.escape(entry.key) +
-              r'(?=[ \t;&|)\n]|$)');
+        r'(^|[;&|]|\bthen\b|\belse\b|\bdo\b|&&|\|\|)[ \t]*' +
+            RegExp.escape(entry.key) +
+            r'(?=[ \t;&|)\n]|$)',
+      );
       for (var i = 0; i < lines.length; i++) {
         if (i == entry.value || inFunction[i]) continue;
         final code = lines[i].split('#').first;
@@ -219,16 +274,189 @@ void main() {
         }
         if (callRe.hasMatch(code)) {
           if (i < entry.value) {
-            late.add('${entry.key} (called line $i, '
-                'defined line ${entry.value})');
+            late.add(
+              '${entry.key} (called line $i, '
+              'defined line ${entry.value})',
+            );
           }
           break;
         }
       }
     }
 
-    expect(late, isEmpty,
-        reason: 'called before they are defined: ${late.join(", ")}');
+    expect(
+      late,
+      isEmpty,
+      reason: 'called before they are defined: ${late.join(", ")}',
+    );
+  });
+
+  test('the DBC lifecycle is acquired before the raw flash', () {
+    final acquire = outer.indexOf(
+      'dbc_update_start || fail "Could not establish an exclusive',
+    );
+    final flash = outer.indexOf('step_begin "Step 7: flash DBC"');
+    expect(acquire, greaterThan(-1));
+    expect(flash, greaterThan(acquire));
+    expect(
+      onboot,
+      contains('DBC_VEHICLE_UPDATE="\$DBC_VEHICLE_UPDATE"'),
+      reason: 'the acknowledged hold must cross into the generated phase',
+    );
+  });
+
+  test('the DBC artifact phase holds vehicle power until it finishes', () {
+    expect(onboot, contains('dbc_update_start()'));
+    expect(onboot, contains('hget vehicle dbc-updating'));
+    expect(onboot, contains('lpush scooter:update start-dbc'));
+    expect(onboot, contains('vehicle-service acknowledged the installer'));
+    expect(onboot, contains('dbc_update_complete()'));
+    expect(onboot, contains('lpush scooter:update complete-dbc'));
+    expect(onboot, contains('acknowledged release of the installer'));
+    expect(
+      onboot,
+      contains('if [ "\$MODE" = flash ] && ! dbc_update_start; then'),
+      reason:
+          'a direct install must stop when its lifecycle is not acknowledged',
+    );
+    expect(
+      onboot,
+      isNot(contains('[ "\$MODE" = upgrade ] && dbc_update_start')),
+      reason: 'upgrade-service owns the upgrade lifecycle',
+    );
+    expect(
+      onboot.indexOf('dbc_update_start'),
+      lessThan(onboot.indexOf('mender-update install')),
+    );
+    expect(
+      onboot.lastIndexOf('dbc_update_complete'),
+      lessThan(onboot.lastIndexOf('dbc_power_off || true')),
+    );
+  });
+
+  test('direct install masks the identified inactive Mender root', () {
+    for (final required in [
+      '"RootfsPartA"',
+      '"RootfsPartB"',
+      '/proc/self/mountinfo',
+      '/sys/class/block/\$base/dev',
+      'RootfsPartA and RootfsPartB resolve to the same block device',
+      'mounted root \$mounted matches neither configured Mender rootfs part',
+      'inactive target \$target is already mounted',
+      'ln -s /dev/null "\$unit_link"',
+      'target updater mask verification failed',
+      '/data/librescoot-installer/dbc-update-mask-recovery',
+    ]) {
+      expect(onboot, contains(required), reason: required);
+    }
+    final install = onboot.indexOf(
+      'dbc_ssh_bounded 900 "mender-update install \$DBC_ART_PATH"',
+    );
+    final mask = onboot.indexOf('if ! prepare_dbc_updater_mask;', install);
+    expect(install, greaterThan(-1));
+    expect(mask, greaterThan(install));
+    expect(mask, lessThan(onboot.indexOf('rebooting DBC into the new rootfs')));
+  });
+
+  test(
+    'commit is bounded, exact, and restores only after lifecycle release',
+    () {
+      expect(onboot, contains('dbc_ssh_once_bounded 60'));
+      expect(onboot, contains('__MENDER_REMOTE_RC='));
+      expect(onboot, contains('COMMIT_TRANSPORT=failed'));
+      expect(onboot, contains('COMMIT_REMOTE_RC=unknown'));
+      expect(
+        onboot,
+        contains(
+          'commit transport was lost after dispatch; commit outcome is unknown',
+        ),
+      );
+      expect(onboot, contains('[ "\$COMMIT_REMOTE_RC" = 0 ]'));
+      final health = File('assets/dbc-health.sh').readAsStringSync();
+      expect(health, contains('\$MENDER_UPDATE show-artifact'));
+      expect(health, contains('[ "\$artifact" = "\$EXPECTED_ARTIFACT" ]'));
+      expect(health, isNot(contains('pending')));
+      expect(health, isNot(contains('mender-status')));
+
+      final commit = onboot.indexOf('mender-update commit');
+      final release = onboot.indexOf('dbc_update_complete ||', commit);
+      final restore = onboot.indexOf('restore_dbc_updater_mask ||', release);
+      expect(commit, greaterThan(-1));
+      expect(release, greaterThan(commit));
+      expect(restore, greaterThan(release));
+    },
+  );
+
+  test('health is consecutive and rechecked around the one direct commit', () {
+    expect(onboot, contains('HEALTH_STABLE -lt 3'));
+    expect(onboot, contains('HEALTH_STABLE=0'));
+    expect(onboot, contains('dbc_health_sample "\$HEALTH_PHASE"'));
+    expect(onboot, contains('HEALTH_PHASE=precommit'));
+    expect(onboot, contains('HEALTH_PHASE=managed'));
+    expect(onboot, contains('dbc_health_sample precommit'));
+    expect(onboot, contains('dbc_health_sample committed'));
+    expect(onboot, contains('/data/ota/dbc/installer-health.sh'));
+    expect(onboot, contains('Standalone pending state is not observable'));
+    expect(
+      onboot,
+      contains(
+        '[ "\$DBC_HEALTH_BOOT|\$DBC_HEALTH_ROOT|\$DBC_VER" = '
+        '"\$HEALTH_LAST_IDENTITY" ]',
+      ),
+    );
+  });
+
+  test('direct install must distinguish the target from the bootstrap', () {
+    expect(onboot, contains('[ -n "\$DBC_ART_BEFORE" ] || artifact_fail'));
+    expect(
+      onboot,
+      contains('[ "\$DBC_ART_BEFORE" != "\$DBC_EXPECTED_ARTIFACT" ]'),
+    );
+    expect(onboot, contains('post-commit success would be indistinguishable'));
+  });
+
+  test('no bundled Mender status binary is staged or required', () {
+    final source = File('assets/trampoline.sh.template').readAsStringSync();
+    final service = File(
+      'lib/services/trampoline_service.dart',
+    ).readAsStringSync();
+    expect(File('assets/tools/mender-status-dbc').existsSync(), isFalse);
+    expect(source, isNot(contains('mender-status-dbc')));
+    expect(source, isNot(contains('/ota/dbc/mender-status')));
+    expect(service, isNot(contains('mender-status-dbc')));
+  });
+
+  test('the shell template and generated onboot phase parse', () {
+    final templateResult = Process.runSync('bash', ['-n', template.path]);
+    expect(
+      templateResult.exitCode,
+      0,
+      reason: templateResult.stderr.toString(),
+    );
+
+    final source = template.readAsStringSync();
+    final chunks = RegExp(
+      r'''cat >>? [^\n]*20-dbc\.sh" << (')?([A-Z_]+)\1?\n([\s\S]*?)\n\2\n''',
+    ).allMatches(source);
+    final generated = chunks
+        .map((chunk) {
+          final body = chunk.group(3)!;
+          return chunk.group(1) == "'" ? body : body.replaceAll(r'\$', r'$');
+        })
+        .join('\n');
+    final dir = Directory.systemTemp.createTempSync('installer_onboot_syntax_');
+    try {
+      final script = File('${dir.path}/20-dbc.sh')
+        ..writeAsStringSync(generated);
+      final generatedResult = Process.runSync('bash', ['-n', script.path]);
+      expect(
+        generatedResult.exitCode,
+        0,
+        reason: generatedResult.stderr.toString(),
+      );
+    } finally {
+      dir.deleteSync(recursive: true);
+    }
   });
 
   test('the tile upload is joined before the dashboard reboots', () {
@@ -240,8 +468,11 @@ void main() {
     final reboot = onboot.indexOf('rebooting DBC into the new rootfs');
     expect(job, isNot(-1), reason: 'the upload should start as a job');
     expect(join, isNot(-1), reason: 'the job should be waited on');
-    expect(join, lessThan(reboot),
-        reason: 'the wait must come before the reboot, not after');
+    expect(
+      join,
+      lessThan(reboot),
+      reason: 'the wait must come before the reboot, not after',
+    );
     expect(job, lessThan(join));
   });
 
@@ -250,10 +481,33 @@ void main() {
     // as a variable. Losing it reports a failed tile install as a success.
     // Escaped, because it is written through an unquoted heredoc: the raw
     // template carries the backslashes and only the generated script does not.
-    expect(onboot,
-        contains(r'echo "\$TILE_ERRORS" > "\$INSTALLER_DIR/tile-errors"'));
+    expect(
+      onboot,
+      contains(r'echo "\$TILE_ERRORS" > "\$INSTALLER_DIR/tile-errors"'),
+    );
     expect(onboot, contains(r'TILE_ERRORS=$(cat "$INSTALLER_DIR/tile-errors"'));
   });
+
+  test(
+    'unquoted onboot heredocs contain no command-substitution backticks',
+    () {
+      // The tile chunk is deliberately unquoted so that its staging paths are
+      // baked in. Backticks in even a comment execute while the phase is being
+      // generated, which previously emitted a misleading "maps: not found".
+      final source = File('assets/trampoline.sh.template').readAsStringSync();
+      final chunks = RegExp(
+        r'''cat >>? [^\n]*20-dbc\.sh" << ([A-Z_]+)\n([\s\S]*?)\n\1\n''',
+      ).allMatches(source);
+      expect(chunks, isNotEmpty);
+      for (final chunk in chunks) {
+        expect(
+          chunk.group(2),
+          isNot(contains('`')),
+          reason: '${chunk.group(1)} is unquoted and evaluates backticks',
+        );
+      }
+    },
+  );
 
   test('every substituted value onboot.sh reads is baked into it', () {
     // onboot.sh is built from heredocs. A quoted one keeps $VAR literal, so
@@ -263,15 +517,15 @@ void main() {
     // test silently rather than erroring.
     final source = File('assets/trampoline.sh.template').readAsStringSync();
 
-    final substituted = RegExp(r'^([A-Z0-9_]+)="\{\{[A-Z0-9_]+\}\}"',
-            multiLine: true)
-        .allMatches(source)
-        .map((m) => m.group(1)!)
-        .toSet();
+    final substituted = RegExp(
+      r'^([A-Z0-9_]+)="\{\{[A-Z0-9_]+\}\}"',
+      multiLine: true,
+    ).allMatches(source).map((m) => m.group(1)!).toSet();
     expect(substituted, isNotEmpty, reason: 'no substituted values found');
 
     final chunkRe = RegExp(
-        r'''cat >>? [^\n]*20-dbc\.sh" << (')?([A-Z_]+)\1?\n([\s\S]*?)\n\2\n''');
+      r'''cat >>? [^\n]*20-dbc\.sh" << (')?([A-Z_]+)\1?\n([\s\S]*?)\n\2\n''',
+    );
     final baked = <String>{};
     final assigned = <String>{};
     final readAtRuntime = <String>{};
@@ -280,28 +534,39 @@ void main() {
       final quoted = m.group(1) == "'";
       final body = m.group(3)!;
       if (!quoted) {
-        baked.addAll(RegExp(r'^([A-Z0-9_]+)=', multiLine: true)
-            .allMatches(body)
-            .map((x) => x.group(1)!));
+        baked.addAll(
+          RegExp(
+            r'^([A-Z0-9_]+)=',
+            multiLine: true,
+          ).allMatches(body).map((x) => x.group(1)!),
+        );
       } else {
-        assigned.addAll(RegExp(r'^\s*([A-Z0-9_]+)=', multiLine: true)
-            .allMatches(body)
-            .map((x) => x.group(1)!));
-        readAtRuntime.addAll(RegExp(r'\$\{?([A-Z0-9_]+)')
-            .allMatches(body)
-            .map((x) => x.group(1)!));
+        assigned.addAll(
+          RegExp(
+            r'^\s*([A-Z0-9_]+)=',
+            multiLine: true,
+          ).allMatches(body).map((x) => x.group(1)!),
+        );
+        readAtRuntime.addAll(
+          RegExp(r'\$\{?([A-Z0-9_]+)').allMatches(body).map((x) => x.group(1)!),
+        );
       }
     }
 
-    final missing = readAtRuntime
-        .intersection(substituted)
-        .where((v) => !baked.contains(v) && !assigned.contains(v))
-        .toList()
-      ..sort();
+    final missing =
+        readAtRuntime
+            .intersection(substituted)
+            .where((v) => !baked.contains(v) && !assigned.contains(v))
+            .toList()
+          ..sort();
 
-    expect(missing, isEmpty,
-        reason: 'onboot.sh reads these but nothing writes them into it, so '
-            'they are empty on the device: ${missing.join(", ")}');
+    expect(
+      missing,
+      isEmpty,
+      reason:
+          'onboot.sh reads these but nothing writes them into it, so '
+          'they are empty on the device: ${missing.join(", ")}',
+    );
   });
 
   test('the finish flag specifically reaches onboot.sh', () {
@@ -310,9 +575,8 @@ void main() {
     // reports the install as done.
     final source = File('assets/trampoline.sh.template').readAsStringSync();
     final vars = RegExp(
-            r'''cat >> [^\n]*20-dbc\.sh" << ONBOOT_VARS\n([\s\S]*?)\nONBOOT_VARS''')
-        .firstMatch(source)!
-        .group(1)!;
+      r'''cat >> [^\n]*20-dbc\.sh" << ONBOOT_VARS\n([\s\S]*?)\nONBOOT_VARS''',
+    ).firstMatch(source)!.group(1)!;
     for (final v in [
       'FINISH_ON_DEVICE',
       'FINISH_LANGUAGE',
@@ -329,8 +593,10 @@ void main() {
     expect(onboot, contains(r'RUN_STATE_FILE="$INSTALLER_DIR/run-state"'));
     expect(onboot, contains('write_run_state()'));
     expect(onboot, contains(r'echo "run-id: $RUN_ID"'));
-    expect(onboot,
-        contains(r'mv -f "$history_tmp" "$RUN_HISTORY_DIR/$RUN_ID/record"'));
+    expect(
+      onboot,
+      contains(r'mv -f "$history_tmp" "$RUN_HISTORY_DIR/$RUN_ID/record"'),
+    );
   });
 
   test('completion is written after the handover, before the severing', () {
@@ -356,8 +622,11 @@ void main() {
     // the call.
     expect(finalize, contains('lsc set scooter.usb0-policy auto'));
     expect(record, lessThan(finalize.lastIndexOf('end_service_mode')));
-    expect(finalize, contains(r'mv -f "$INSTALLER_DIR/.last-install.tmp"'),
-        reason: 'a reader must never see a half-written record');
+    expect(
+      finalize,
+      contains(r'mv -f "$INSTALLER_DIR/.last-install.tmp"'),
+      reason: 'a reader must never see a half-written record',
+    );
   });
 
   test('a board left alone gets its parked settings back', () {
@@ -366,11 +635,18 @@ void main() {
     // restore from. Treating leave as "untouched" strands the alarm off; the
     // wildcard arm deletes settings on a board this install never wrote to.
     final finalize = File('assets/finalize.sh.template').readAsStringSync();
-    expect(finalize, contains('upgrade|leave)'),
-        reason: 'leave keeps /data like upgrade and must restore, not wipe '
-            'and not skip');
-    expect(finalize, isNot(contains('        leave)')),
-        reason: 'leave must not have its own do-nothing arm');
+    expect(
+      finalize,
+      contains('upgrade|leave)'),
+      reason:
+          'leave keeps /data like upgrade and must restore, not wipe '
+          'and not skip',
+    );
+    expect(
+      finalize,
+      isNot(contains('        leave)')),
+      reason: 'leave must not have its own do-nothing arm',
+    );
   });
 
   test('the finish starts keycard-service unconditionally', () {
@@ -388,8 +664,11 @@ void main() {
       'keycard-master-count',
       'START_KEYCARD',
     ]) {
-      expect(onboot, isNot(contains(gate)),
-          reason: 'starting the reader must not depend on $gate');
+      expect(
+        onboot,
+        isNot(contains(gate)),
+        reason: 'starting the reader must not depend on $gate',
+      );
     }
   });
 
@@ -400,10 +679,15 @@ void main() {
     // its own start for that reason; this start under the amber guard was
     // the one that did not.
     final start = onboot.indexOf('systemctl start librescoot-keycard');
-    final stop =
-        onboot.lastIndexOf('lpush scooter:keycard learn:master:stop', start);
-    expect(stop, greaterThan(-1),
-        reason: 'learn:master:stop must be queued before the reader starts');
+    final stop = onboot.lastIndexOf(
+      'lpush scooter:keycard learn:master:stop',
+      start,
+    );
+    expect(
+      stop,
+      greaterThan(-1),
+      reason: 'learn:master:stop must be queued before the reader starts',
+    );
     expect(onboot.indexOf('systemctl start librescoot-keycard', stop), start);
   });
 
@@ -414,18 +698,22 @@ void main() {
     // the install the laptop never saw, which is the half nobody can produce
     // afterwards.
     final finishStart = onboot.indexOf('device_finish()');
-    final finishEnd =
-        onboot.indexOf('\n}\n\nif [ "\$ONBOOT_TRIES"', finishStart);
+    final finishEnd = onboot.indexOf(
+      '\n}\n\nif [ "\$ONBOOT_TRIES"',
+      finishStart,
+    );
     final finish = onboot.substring(finishStart, finishEnd);
-    final copy =
-        finish.indexOf(r'cp "$LOG" "$RUN_HISTORY_DIR/$RUN_ID/trampoline.log"');
+    final copy = finish.indexOf(
+      r'cp "$LOG" "$RUN_HISTORY_DIR/$RUN_ID/trampoline.log"',
+    );
     final sweep = finish.indexOf(r'find "$INSTALLER_DIR" -mindepth 1');
     expect(copy, greaterThanOrEqualTo(0), reason: 'the log is not kept');
     expect(sweep, greaterThan(copy), reason: 'the sweep runs before the copy');
     // And the rest of the finish has somewhere to write: appending to a path
     // under a directory that no longer exists loses every line silently.
-    final repoint =
-        finish.indexOf(r'LOG="$RUN_HISTORY_DIR/$RUN_ID/trampoline.log"');
+    final repoint = finish.indexOf(
+      r'LOG="$RUN_HISTORY_DIR/$RUN_ID/trampoline.log"',
+    );
     expect(repoint, greaterThan(sweep));
   });
 
@@ -442,14 +730,21 @@ void main() {
         offenders.add(line.trim());
       }
     }
-    expect(offenders, isEmpty,
-        reason: 'these run timeout on the dashboard, which does not have it: '
-            '${offenders.join(" | ")}');
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'these run timeout on the dashboard, which does not have it: '
+          '${offenders.join(" | ")}',
+    );
   });
 
   test('the long remote command is bounded from this side instead', () {
-    expect(onboot, contains('dbc_ssh_bounded'),
-        reason: 'the mender install needs a ceiling, applied on the MDB');
+    expect(
+      onboot,
+      contains('dbc_ssh_bounded'),
+      reason: 'the mender install needs a ceiling, applied on the MDB',
+    );
   });
 
   test('what was installed is recorded before the upload server goes away', () {
@@ -460,8 +755,11 @@ void main() {
     final record = src.indexOf(RegExp(r'^record_tiles$', multiLine: true));
     final teardown = src.indexOf('Stop DBC Python upload server');
     expect(record, greaterThan(-1), reason: 'record_tiles is never called');
-    expect(record, lessThan(teardown),
-        reason: 'record_tiles runs after the upload server is stopped');
+    expect(
+      record,
+      lessThan(teardown),
+      reason: 'record_tiles runs after the upload server is stopped',
+    );
   });
 
   test('tile metadata is uploaded, not echoed through a remote shell', () {
@@ -469,12 +767,18 @@ void main() {
     // busybox has no base64 applet, so the record has to go over the PUT
     // server like every other file.
     final src = File('assets/trampoline.sh.template').readAsStringSync();
-    expect(src, contains('"/maps/metadata.json"'),
-        reason: 'metadata.json is not uploaded to the dashboard');
+    expect(
+      src,
+      contains('"/maps/metadata.json"'),
+      reason: 'metadata.json is not uploaded to the dashboard',
+    );
     // The word appears in the comment explaining why; what must not appear is
     // an actual invocation.
-    expect(src, isNot(contains(RegExp(r'base64\s+-d'))),
-        reason: 'base64 is not available on the bootstrap image');
+    expect(
+      src,
+      isNot(contains(RegExp(r'base64\s+-d'))),
+      reason: 'base64 is not available on the bootstrap image',
+    );
   });
 
   test('the region reaches the recorded metadata', () {
@@ -483,8 +787,11 @@ void main() {
     final src = File('assets/trampoline.sh.template').readAsStringSync();
     expect(src, contains('TILES_REGION="{{TILES_REGION}}"'));
     expect(src, contains('TILES_REGION_NAME="{{TILES_REGION_NAME}}"'));
-    expect(src, contains(r'\\"region\\":\\"$TILES_REGION\\"'),
-        reason: 'the region is not written into metadata.json');
+    expect(
+      src,
+      contains(r'\\"region\\":\\"$TILES_REGION\\"'),
+      reason: 'the region is not written into metadata.json',
+    );
   });
 
   test('commands sent to the dashboard use binaries it actually has', () {
@@ -498,14 +805,21 @@ void main() {
     // Add to it only after checking the image recipe.
     const known = {
       // busybox
-      'cat', 'chmod', 'df', 'echo', 'grep', 'kill', 'mkdir', 'mv', 'printf',
-      'rm', 'sync', 'test', 'reboot', 'sh', 'true',
+      'cat', 'chmod', 'date', 'df', 'echo', 'exit', 'grep', 'ip',
+      'journalctl', 'kill', 'mkdir', 'mv', 'printf', 'rm', 'sync', 'tail',
+      'test', 'reboot', 'sh',
+      'true',
+      // journalctl is supplied by the bootstrap image's systemd; tail is a
+      // BusyBox applet used only for installer diagnostics.
       // systemd, in the image
       'systemctl',
       // busybox applets used to read back what was installed
       'sha256sum', 'stat', 'cut',
       // shipped explicitly by the bootstrap recipe
       'mender-update',
+      // shipped by the full DBC image; health checks use it only after booting
+      // the installed image, while bootstrap diagnostics tolerate its absence
+      'redis-cli',
       // also shipped by the bootstrap recipe, for unpacking .tar.zst routing
       // tiles while the dashboard still runs it
       'zstd',
@@ -517,7 +831,8 @@ void main() {
     // silently checked only the leading word of any command that quoted an
     // argument, which let three unverified binaries through.
     final re = RegExp(
-        r"""dbc_ssh(?:_bounded)?\s+(?:\d+\s+)?(["'])((?:\\.|(?!\1)[\s\S])*)\1""");
+      r"""dbc_ssh(?:_bounded)?\s+(?:\d+\s+)?(["'])((?:\\.|(?!\1)[\s\S])*)\1""",
+    );
     final calls = re.allMatches(source).map((m) => m.group(2)!).toList();
     expect(calls, isNotEmpty, reason: 'no dashboard commands found to check');
 
@@ -537,9 +852,13 @@ void main() {
       }
     }
 
-    expect(unknown, isEmpty,
-        reason: 'these run on the dashboard and are not known to exist there: '
-            '${unknown.join(", ")}. Check the bootstrap image recipe, then '
-            'either add them to the list or guard the call.');
+    expect(
+      unknown,
+      isEmpty,
+      reason:
+          'these run on the dashboard and are not known to exist there: '
+          '${unknown.join(", ")}. Check the bootstrap image recipe, then '
+          'either add them to the list or guard the call.',
+    );
   });
 }

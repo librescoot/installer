@@ -344,6 +344,10 @@ class TrampolineService {
         .replaceAll('{{DBC_IMAGE_PATH}}', dbcImagePath)
         .replaceAll('{{DBC_MENDER_PATH}}', dbcMenderPath)
         .replaceAll('{{DBC_TARGET_VERSION}}', dbcTargetVersion)
+        .replaceAll(
+          '{{DBC_EXPECTED_ARTIFACT}}',
+          dbcTargetVersion.isEmpty ? '' : 'release-$dbcTargetVersion',
+        )
         .replaceAll('{{FINISH_ON_DEVICE}}', finish.onDevice ? 'true' : 'false')
         .replaceAll('{{MDB_ACTION}}', finish.mdbAction.name)
         .replaceAll('{{MDB_TARGET_VERSION}}', finish.mdbTargetVersion)
@@ -380,9 +384,8 @@ class TrampolineService {
   ///
   /// [dbcImagePath] is empty in upgrade mode, where no stage-0 image is
   /// written. [dbcMenderPath] is empty when the DBC gets no artifact, which
-  /// is the tiles-only job. [dbcTargetVersion] is the VERSION_ID the DBC has
-  /// to report once the artifact is live; empty leaves the trampoline with
-  /// only "did anything change at all" to go on.
+  /// is the tiles-only job. [dbcTargetVersion] is the exact VERSION_ID the DBC
+  /// has to report once the artifact is live; artifact installs require it.
   Future<String> generateScript({
     required bool upgradeMode,
     String dbcImagePath = '',
@@ -919,6 +922,15 @@ http.server.HTTPServer(
       } finally {
         await _stopUploadServer();
       }
+    }
+
+    if (dbcArtifactLocalPath != null) {
+      final healthProbe = await rootBundle.load('assets/dbc-health.sh');
+      await _ssh.uploadFile(
+        healthProbe.buffer.asUint8List(),
+        '/data/installer/dbc-health.sh',
+      );
+      await _ssh.runCommand('chmod 755 /data/installer/dbc-health.sh');
     }
 
     // Routing tiles ship as .tar.zst and are unpacked on the dashboard, which
