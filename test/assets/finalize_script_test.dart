@@ -185,6 +185,29 @@ case "\$1" in is-active) echo active ;; esac
     Future<List<String>> callLog() async =>
         File(calls).existsSync() ? File(calls).readAsLines() : <String>[];
 
+    Future<void> writeGeneratedDbcError() async {
+      final source = File('assets/trampoline.sh.template').readAsStringSync();
+      final onboot = source.indexOf("<< 'ONBOOT'");
+      final start = source.indexOf('write_status() {', onboot);
+      final end = source.indexOf('\n\nwrite_completion_record()', start);
+      expect(start, greaterThan(onboot));
+      expect(end, greaterThan(start));
+      final function = source.substring(start, end);
+      final script = File('${root.path}/write-dbc-status.sh');
+      await script.writeAsString('''#!/bin/sh
+STATUS_FILE="${root.path}/installer/trampoline-status"
+RUN_ID=run-test-1
+LOG="${root.path}/installer/trampoline.log"
+CURRENT_STAGE=verifying-dbc-artifact
+: > "\$LOG"
+write_run_state() { :; }
+$function
+write_status "error: DBC verification failed"
+''');
+      final result = await Process.run('sh', [script.path]);
+      expect(result.exitCode, 0, reason: result.stderr.toString());
+    }
+
     setUp(() async {
       root = await Directory.systemTemp.createTemp('finalize-');
       calls = '${root.path}/calls.log';
@@ -402,13 +425,9 @@ case "\$1" in is-active) echo active ;; esac
     });
 
     test('an explicitly incomplete DBC run writes a durable record', () async {
-      final result = await run(
-        status: 'error: DBC verification failed\n'
-            'run-id: run-test-1\n'
-            'finish: pending\n'
-            'stage: verifying-dbc-artifact',
-        dashboardResult: 'incomplete',
-      );
+      await Directory('${root.path}/installer').create(recursive: true);
+      await writeGeneratedDbcError();
+      final result = await run(dashboardResult: 'incomplete');
       expect(result.exitCode, 0, reason: result.stderr.toString());
 
       final record = await File(

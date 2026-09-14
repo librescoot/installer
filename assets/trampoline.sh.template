@@ -1435,6 +1435,7 @@ write_status() {
     echo "$verdict"
     echo "run-id: $RUN_ID"
     echo "finish: pending"
+    echo "stage: ${CURRENT_STAGE:-post-reboot}"
     for field in "$@"; do echo "$field"; done
     cat "$LOG" 2>/dev/null
   } > "$status_tmp" && mv -f "$status_tmp" "$STATUS_FILE"
