@@ -142,6 +142,28 @@ class AppLocalizationsDe extends AppLocalizations {
       'Dieser Assistent führt dich durch die Installation der Librescoot-Firmware auf deinem Roller.';
 
   @override
+  String get updateAvailableTitle => 'Installer-Update verfügbar';
+
+  @override
+  String updateAvailableBody(String latestVersion, String currentVersion) {
+    return 'Librescoot Installer $latestVersion ist verfügbar. Du verwendest $currentVersion.';
+  }
+
+  @override
+  String updatePublishedDate(String date) {
+    return 'Veröffentlicht am $date';
+  }
+
+  @override
+  String get updateReleaseNotesTitle => 'Neu in dieser Version';
+
+  @override
+  String get updateNotNow => 'Später';
+
+  @override
+  String get updateOpenDownloads => 'Downloadseite öffnen';
+
+  @override
   String get whatYouNeed => 'Was du brauchst:';
 
   @override
@@ -491,6 +513,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get awaitingUnlockHeading => 'Roller entsperren';
+
+  @override
+  String get unlockWaitCancelled =>
+      'Abgebrochen. Der Installer braucht den Roller im Zustand geparkt. Entsperre ihn mit der Keycard oder der App und versuch es dann erneut.';
+
+  @override
+  String get parkWaitCancelled =>
+      'Abgebrochen. Der Installer braucht den Roller im Zustand geparkt. Stell ihn ab und versuch es dann erneut.';
 
   @override
   String get awaitingUnlockDetail =>
@@ -878,6 +908,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get waitingForMdbRestart => 'Warte auf den Neustart des Rollers…';
+
+  @override
+  String mdbBootGaveUp(int minutes) {
+    return 'Der Roller ist nach $minutes Minuten nicht zurückgekommen. Ein Board, das das Image nicht übernommen hat, bleibt im Massenspeichermodus und wirkt dadurch tot: kein Licht, kein Netzwerk. Zieh das USB-Kabel ab, steck es wieder ein und versuch es erneut.';
+  }
 
   @override
   String get mdbDetectedNetwork =>

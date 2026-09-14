@@ -31,6 +31,113 @@ void main() {
     expect(shouldDisengageMasterLearning(0), isTrue);
   });
 
+  group('master start ownership', () {
+    test('a skipped or closed stage cannot resume its start', () {
+      expect(
+        ownsKeycardMasterStart(
+          startGeneration: 2,
+          currentGeneration: 3,
+          ownerGeneration: 2,
+          mounted: true,
+          windowClosing: false,
+          inKeycardPhase: false,
+          masterStage: false,
+        ),
+        isFalse,
+      );
+      expect(
+        ownsKeycardMasterStart(
+          startGeneration: 2,
+          currentGeneration: 2,
+          ownerGeneration: 2,
+          mounted: true,
+          windowClosing: true,
+          inKeycardPhase: true,
+          masterStage: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('a newer start owns the mode instead of an old continuation', () {
+      expect(
+        ownsKeycardMasterStart(
+          startGeneration: 2,
+          currentGeneration: 3,
+          ownerGeneration: 3,
+          mounted: true,
+          windowClosing: false,
+          inKeycardPhase: true,
+          masterStage: true,
+        ),
+        isFalse,
+      );
+      expect(
+        ownsKeycardMasterStart(
+          startGeneration: 3,
+          currentGeneration: 3,
+          ownerGeneration: 3,
+          mounted: true,
+          windowClosing: false,
+          inKeycardPhase: true,
+          masterStage: true,
+        ),
+        isTrue,
+      );
+    });
+
+    test('a late master event loses generation, phase, and ownership', () {
+      expect(
+        ownsKeycardMasterEvent(
+          eventGeneration: 2,
+          currentGeneration: 3,
+          ownerGeneration: 2,
+          mounted: true,
+          windowClosing: false,
+          inKeycardPhase: true,
+          masterStage: true,
+        ),
+        isFalse,
+      );
+      expect(
+        ownsKeycardMasterEvent(
+          eventGeneration: 3,
+          currentGeneration: 3,
+          ownerGeneration: 3,
+          mounted: true,
+          windowClosing: false,
+          inKeycardPhase: false,
+          masterStage: true,
+        ),
+        isFalse,
+      );
+      expect(
+        ownsKeycardMasterEvent(
+          eventGeneration: 3,
+          currentGeneration: 3,
+          ownerGeneration: 2,
+          mounted: true,
+          windowClosing: false,
+          inKeycardPhase: true,
+          masterStage: true,
+        ),
+        isFalse,
+      );
+      expect(
+        ownsKeycardMasterEvent(
+          eventGeneration: 3,
+          currentGeneration: 3,
+          ownerGeneration: 3,
+          mounted: true,
+          windowClosing: false,
+          inKeycardPhase: true,
+          masterStage: true,
+        ),
+        isTrue,
+      );
+    });
+  });
+
   group('the answer to learn:start', () {
     // It used to go unread. On a build whose boot-time master learning mode
     // refuses the command, the installer showed a learning screen anyway, and

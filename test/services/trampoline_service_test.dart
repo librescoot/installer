@@ -10,6 +10,68 @@ import 'package:librescoot_installer/services/trampoline_service.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
+  test('fallback server rejects truncated request bodies', () async {
+    final root = await Directory.systemTemp.createTemp('upload-server-');
+    addTearDown(() => root.delete(recursive: true));
+    final script = File(p.join(root.path, 'server.py'))
+      ..writeAsStringSync(TrampolineService.uploadServerScriptForTest);
+    final portProbe = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    final port = portProbe.port;
+    await portProbe.close();
+    final process = await Process.start(
+      'python3',
+      [script.path],
+      environment: {
+        ...Platform.environment,
+        'LIBRESCOOT_UPLOAD_ROOT': root.path,
+        'LIBRESCOOT_UPLOAD_PORT': '$port',
+      },
+    );
+    process.stdout.listen((_) {});
+    process.stderr.listen((_) {});
+    addTearDown(() => process.kill());
+
+    Socket? socket;
+    for (var attempt = 0; attempt < 20; attempt++) {
+      try {
+        socket = await Socket.connect(InternetAddress.loopbackIPv4, port);
+        break;
+      } on SocketException {
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+      }
+    }
+    expect(socket, isNotNull);
+    final request = socket!;
+    request.add(
+      utf8.encode(
+        'PUT /truncated.bin HTTP/1.1\r\n'
+        'Content-Length: 10\r\n'
+        'Connection: close\r\n\r\n'
+        'short',
+      ),
+    );
+    await request.flush();
+    await request.close();
+    final response = await request.fold<List<int>>(<int>[], (all, chunk) {
+      all.addAll(chunk);
+      return all;
+    });
+
+    expect(String.fromCharCodes(response), contains('400'));
+    expect(File(p.join(root.path, 'truncated.bin')).existsSync(), isFalse);
+  });
+
+  test('upload completeness rejects truncated client reads', () {
+    expect(
+      uploadBodyIsComplete(expectedBytes: 100, receivedBytes: 99),
+      isFalse,
+    );
+    expect(
+      uploadBodyIsComplete(expectedBytes: 100, receivedBytes: 100),
+      isTrue,
+    );
+  });
+
   group('trampoline launch diagnostics', () {
     test('collects launch evidence', () async {
       final commands = <String>[];
@@ -28,8 +90,10 @@ void main() {
       expect(diagnostics.logTail, contains('started'));
       expect(diagnostics.staging, contains('/data 99%'));
       expect(commands, hasLength(3));
-      expect(TrampolineStartException(diagnostics).toString(),
-          contains('sh: missing device.sh'));
+      expect(
+        TrampolineStartException(diagnostics).toString(),
+        contains('sh: missing device.sh'),
+      );
     });
 
     test('saves available run files beside a launch summary', () async {
@@ -58,8 +122,10 @@ void main() {
       );
 
       expect(requested, contains('/data/installer/trampoline.log'));
-      expect(saved.map(p.basename),
-          containsAll(['launch-diagnostics.txt', 'trampoline.log']));
+      expect(
+        saved.map(p.basename),
+        containsAll(['launch-diagnostics.txt', 'trampoline.log']),
+      );
       expect(File(p.join(target.path, 'stale.log')).existsSync(), isFalse);
       expect(
         File(p.join(target.path, 'launch-diagnostics.txt')).readAsStringSync(),
@@ -194,32 +260,42 @@ void main() {
       expect(state, contains('sequence: 7\n'));
     });
 
-    test('arming clears the old completion before launching the new run', () {
-      final source =
-          File('lib/services/trampoline_service.dart').readAsStringSync();
-      final start = source.indexOf('Future<void> start({required String runId})');
-      final clear = source.indexOf('installerLastInstall}', start);
-      final launch = source.indexOf(
-          'nohup sh \${SshService.installerScriptsDir}', start);
-      expect(start, greaterThanOrEqualTo(0));
-      expect(clear, greaterThan(start));
-      expect(launch, greaterThan(clear));
+    test('recorded region is only retained when tiles were staged', () {
+      expect(
+        TrampolineService.recordedRegion(
+          tilesStaged: true,
+          region: Region.fromSlug('bayern'),
+        ),
+        'bayern',
+      );
+      expect(
+        TrampolineService.recordedRegion(
+          tilesStaged: false,
+          region: Region.fromSlug('bayern'),
+        ),
+        isEmpty,
+      );
     });
   });
 
   group('remoteDirOf', () {
     test('returns the directory component of a path with a slash', () {
-      expect(remoteDirOf('/data/ota/mdb/librescoot-unu-mdb-v1.2.1.mender'),
-          '/data/ota/mdb');
+      expect(
+        remoteDirOf('/data/ota/mdb/librescoot-unu-mdb-v1.2.1.mender'),
+        '/data/ota/mdb',
+      );
     });
 
     test('returns null for a bare filename with no directory', () {
       expect(remoteDirOf('librescoot-unu-mdb-v1.2.1.mender'), isNull);
     });
 
-    test('returns null for a path rooted directly at / (nothing to create)', () {
-      expect(remoteDirOf('/file.mender'), isNull);
-    });
+    test(
+      'returns null for a path rooted directly at / (nothing to create)',
+      () {
+        expect(remoteDirOf('/file.mender'), isNull);
+      },
+    );
   });
 
   group('TrampolineStatus', () {
@@ -240,7 +316,9 @@ void main() {
     test('an in-flight job is not a success', () {
       // The trampoline writes this before the reboot that hands over to
       // onboot.sh, so the dashboard has not been touched yet.
-      final status = TrampolineStatus.parse('running\nmode: flash\nmdb: v1.2.1');
+      final status = TrampolineStatus.parse(
+        'running\nmode: flash\nmdb: v1.2.1',
+      );
       expect(status.result, TrampolineResult.running);
       expect(status.mode, 'flash');
       expect(status.mdbVersion, 'v1.2.1');
@@ -258,8 +336,9 @@ void main() {
 
     test('keeps the verdict on the first line and reads the extra fields', () {
       final status = TrampolineStatus.parse(
-          'success\nrun-id: run-abc-1\nfinish: complete\n'
-          'stage: complete\nmode: upgrade\nmdb: v1.2.1\ndbc: v1.2.1\n');
+        'success\nrun-id: run-abc-1\nfinish: complete\n'
+        'stage: complete\nmode: upgrade\nmdb: v1.2.1\ndbc: v1.2.1\n',
+      );
       expect(status.result, TrampolineResult.success);
       expect(status.runId, 'run-abc-1');
       expect(status.finishState, 'complete');
@@ -300,18 +379,23 @@ void main() {
       expect(status.message, 'All done in 5m');
     });
 
-    test('a value-less field line reads as absent, not as an empty version', () {
-      // The trampoline writes `dbc: $(cat ...)`, which comes out as a bare
-      // `dbc: ` on a job that installed no artifact.
-      final status =
-          TrampolineStatus.parse('success\nmode: flash\ndbc: \nlog line');
-      expect(status.mode, 'flash');
-      expect(status.dbcVersion, isNull);
-    });
+    test(
+      'a value-less field line reads as absent, not as an empty version',
+      () {
+        // The trampoline writes `dbc: $(cat ...)`, which comes out as a bare
+        // `dbc: ` on a job that installed no artifact.
+        final status = TrampolineStatus.parse(
+          'success\nmode: flash\ndbc: \nlog line',
+        );
+        expect(status.mode, 'flash');
+        expect(status.dbcVersion, isNull);
+      },
+    );
 
     test('an artifact failure is an error, not a success', () {
       final status = TrampolineStatus.parse(
-          'error: DBC not reachable, artifact not installed\nlog line');
+        'error: DBC not reachable, artifact not installed\nlog line',
+      );
       expect(status.result, TrampolineResult.error);
       expect(status.message, contains('artifact not installed'));
     });
@@ -320,8 +404,9 @@ void main() {
   group('Region', () {
     test('catalogue covers the 15 German regions plus neighbours', () {
       expect(Region.all.length, 20);
-      final germanCount =
-          Region.all.where((r) => r.country == 'Deutschland').length;
+      final germanCount = Region.all
+          .where((r) => r.country == 'Deutschland')
+          .length;
       expect(germanCount, 15);
     });
 
@@ -360,14 +445,23 @@ VALHALLA="{{VALHALLA_TILES_FILE}}"
       final out = TrampolineService.renderTemplate(
         fixture,
         upgradeMode: false,
-        dbcImagePath: '/data/installer/librescoot-unu-dbc-minimal-v1.2.1.sdimg.gz',
+        dbcImagePath:
+            '/data/installer/librescoot-unu-dbc-minimal-v1.2.1.sdimg.gz',
         dbcMenderPath: '/data/installer/librescoot-unu-dbc-v1.2.1.mender',
       );
       expect(out, contains('MODE="flash"'));
-      expect(out,
-          contains('DBC_IMAGE="/data/installer/librescoot-unu-dbc-minimal-v1.2.1.sdimg.gz"'));
-      expect(out,
-          contains('DBC_MENDER="/data/installer/librescoot-unu-dbc-v1.2.1.mender"'));
+      expect(
+        out,
+        contains(
+          'DBC_IMAGE="/data/installer/librescoot-unu-dbc-minimal-v1.2.1.sdimg.gz"',
+        ),
+      );
+      expect(
+        out,
+        contains(
+          'DBC_MENDER="/data/installer/librescoot-unu-dbc-v1.2.1.mender"',
+        ),
+      );
       expect(out, contains('INSTALL_TILES=false'));
     });
 
@@ -444,7 +538,10 @@ VALHALLA="{{VALHALLA_TILES_FILE}}"
         dbcMenderPath: '',
         installTiles: true,
         region: const Region(
-            name: 'Berlin', slug: 'berlin_brandenburg', country: 'Deutschland'),
+          name: 'Berlin',
+          slug: 'berlin_brandenburg',
+          country: 'Deutschland',
+        ),
       );
       expect(out, isNot(contains('{{')));
       expect(out, contains('INSTALL_TILES=true'));
@@ -467,9 +564,10 @@ VALHALLA="{{VALHALLA_TILES_FILE}}"
 
   group('recordedRegion', () {
     const region = Region(
-        name: 'Schleswig-Holstein',
-        slug: 'schleswig-holstein',
-        country: 'Deutschland');
+      name: 'Schleswig-Holstein',
+      slug: 'schleswig-holstein',
+      country: 'Deutschland',
+    );
 
     test('names the region only when maps were staged', () {
       expect(

@@ -19,6 +19,9 @@ enum FinishHandover {
   blocked,
 }
 
+({bool blocked, bool awaitingHandover}) finishEntryFailureState() =>
+    (blocked: true, awaitingHandover: false);
+
 /// [deviceReported] is null when the completion record could not be read.
 ///
 /// What that means depends entirely on [deviceArmed]. With a trampoline

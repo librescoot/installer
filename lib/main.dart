@@ -7,6 +7,7 @@ import 'package:window_manager/window_manager.dart';
 import 'l10n/app_localizations.dart';
 import 'models/keycard_preset.dart';
 import 'screens/installer_screen.dart';
+import 'services/ssh_service.dart';
 import 'services/log_service.dart';
 import 'theme.dart';
 
@@ -97,6 +98,7 @@ class LaunchArgs {
   /// region selection).
   final bool noOfflineMaps;
   final bool dryRun;
+  final bool sshTrace;
   /// Log file the unelevated process already opened. The elevated relaunch
   /// appends to it instead of starting a second file, so one run produces one
   /// log the user can hand over.
@@ -114,6 +116,7 @@ class LaunchArgs {
     this.autoStart = false,
     this.noOfflineMaps = false,
     this.dryRun = false,
+    this.sshTrace = false,
     this.logFile,
     this.keycards = const [],
   });
@@ -123,6 +126,7 @@ class LaunchArgs {
     var autoStart = false;
     var noOfflineMaps = false;
     var dryRun = false;
+    var sshTrace = false;
     final keycards = <String>[];
     for (final arg in args) {
       if (arg.startsWith('--keycard=')) {
@@ -142,6 +146,7 @@ class LaunchArgs {
       if (arg == '--auto-start') autoStart = true;
       if (arg == '--no-offline-maps') noOfflineMaps = true;
       if (arg == '--dry-run') dryRun = true;
+      if (arg == '--ssh-trace') sshTrace = true;
     }
     return LaunchArgs(
       channel: channel,
@@ -152,6 +157,7 @@ class LaunchArgs {
       autoStart: autoStart,
       noOfflineMaps: noOfflineMaps,
       dryRun: dryRun,
+      sshTrace: sshTrace,
       logFile: logFile,
       keycards: normalizeKeycardUids(keycards),
     );
@@ -181,6 +187,7 @@ class LaunchArgs {
         if (dbcImage != null) '--dbc-image=$dbcImage',
         if (!wantsOfflineMaps) '--no-offline-maps',
         if (dryRun) '--dry-run',
+        if (sshTrace) '--ssh-trace',
         if (keycards.isNotEmpty) '--keycards=${keycards.join(',')}',
         if (LogService.filePath != null) '--log-file=${LogService.filePath}',
         '--auto-start',
@@ -222,6 +229,7 @@ void main(List<String> args) async {
     if (launchArgs.lang != null) {
       appLocale.value = Locale(launchArgs.lang!);
     }
+    SshService.traceProtocol = launchArgs.sshTrace;
 
     // Capture all debugPrint output into the global log
     final originalDebugPrint = debugPrint;

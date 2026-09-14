@@ -43,7 +43,8 @@ void main() {
     detector.dispose();
   });
 
-  test('a normal poll still updates state and emits', () async {
+  test('a normal poll advances the accepted device generation', () async {
+    expect(detector.deviceEventGeneration, 0);
     detector.startMonitoring(interval: const Duration(milliseconds: 10));
     expect(detector.calls, hasLength(1));
 
@@ -51,7 +52,78 @@ void main() {
     await pumpEventQueue();
 
     expect(detector.currentDevice?.id, 'a4a5');
+    expect(detector.deviceEventGeneration, 1);
     expect(emitted, hasLength(1));
+  });
+
+  test(
+    'a retry rejects the pre-failure identity until a fresh target arrives',
+    () {
+      final target = device('a4a5');
+      expect(
+        UsbDetector.acceptsFreshMassStorageTarget(
+          failureGeneration: 4,
+          currentGeneration: 4,
+          device: target,
+          path: '/dev/a4a5',
+        ),
+        isFalse,
+      );
+      expect(
+        UsbDetector.acceptsFreshMassStorageTarget(
+          failureGeneration: 4,
+          currentGeneration: 5,
+          device: target,
+          path: '',
+        ),
+        isFalse,
+      );
+      expect(
+        UsbDetector.acceptsFreshMassStorageTarget(
+          failureGeneration: 4,
+          currentGeneration: 5,
+          device: target,
+          path: '/dev/a4a5',
+        ),
+        isTrue,
+      );
+    },
+  );
+
+  test('a stale macOS probe loses both ownership generations', () {
+    expect(
+      UsbDetector.macDiskProbeResultBelongsTo(
+        probePollingGeneration: 3,
+        currentPollingGeneration: 3,
+        probeDeviceGeneration: 7,
+        currentDeviceGeneration: 8,
+        probeDeviceIdentity: 'usb-0525-a4-a5',
+        currentDeviceIdentity: 'usb-0525-a4-a5',
+      ),
+      isFalse,
+    );
+    expect(
+      UsbDetector.macDiskProbeResultBelongsTo(
+        probePollingGeneration: 3,
+        currentPollingGeneration: 4,
+        probeDeviceGeneration: 7,
+        currentDeviceGeneration: 7,
+        probeDeviceIdentity: 'usb-0525-a4-a5',
+        currentDeviceIdentity: 'usb-0525-a4-a5',
+      ),
+      isFalse,
+    );
+    expect(
+      UsbDetector.macDiskProbeResultBelongsTo(
+        probePollingGeneration: 3,
+        currentPollingGeneration: 3,
+        probeDeviceGeneration: 7,
+        currentDeviceGeneration: 7,
+        probeDeviceIdentity: 'usb-0525-a4-a5',
+        currentDeviceIdentity: 'usb-other',
+      ),
+      isFalse,
+    );
   });
 
   test(

@@ -135,28 +135,33 @@ class LogService {
       if (Platform.isWindows) {
         // explorer returns a non-zero exit code even on success, so the
         // result is not worth checking.
-        await Process.run('explorer', windowsExplorerArgs(target));
+        await _spawnViewer('explorer', windowsExplorerArgs(target));
       } else if (Platform.isMacOS) {
         // Reveal in the logged-in user's Finder session, which is a different
         // session from this process when we run elevated.
         final uid = await _macConsoleUid();
         if (uid != null) {
-          await Process.run('launchctl', ['asuser', uid, 'open', '-R', target]);
+          await _spawnViewer('launchctl', ['asuser', uid, 'open', '-R', target]);
         } else {
-          await Process.run('open', ['-R', target]);
+          await _spawnViewer('open', ['-R', target]);
         }
       } else {
         final dir = path.dirname(target);
         final sudoUser = Platform.environment['SUDO_USER'];
         if (sudoUser != null && sudoUser.isNotEmpty && sudoUser != 'root') {
-          await Process.run('sudo', ['-n', '-u', sudoUser, 'xdg-open', dir]);
+          await _spawnViewer('sudo', ['-n', '-u', sudoUser, 'xdg-open', dir]);
         } else {
-          await Process.run('xdg-open', [dir]);
+          await _spawnViewer('xdg-open', [dir]);
         }
       }
     } catch (e) {
       debugPrint('Log: could not reveal $target: $e');
     }
+  }
+
+  static Future<void> _spawnViewer(String exe, List<String> args) async {
+    final proc = await Process.start(exe, args, mode: ProcessStartMode.detached);
+    debugPrint('Log: opened the log folder with $exe (pid ${proc.pid})');
   }
 
   /// Explorer treats a quoted `/select,<path>` as an invalid switch. Keep

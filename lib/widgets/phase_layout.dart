@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/journey_log.dart';
 import '../theme.dart';
 
 /// The title and the actions are chrome, not content: a tint a shade off the
@@ -77,14 +78,24 @@ class PhaseAction {
   /// Destructive or risk-accepting, e.g. continuing past a failed check.
   final bool danger;
 
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, {required String screen}) {
     if (child != null) return child!;
     final label = Text(this.label);
+    final callback = onPressed == null
+        ? null
+        : () {
+            logJourneyEvent('button_pressed', {
+              'screen': screen,
+              'label': this.label,
+              'side': side.name,
+            });
+            onPressed!();
+          };
     if (primary) {
       return icon == null
-          ? FilledButton(onPressed: onPressed, style: style, child: label)
+          ? FilledButton(onPressed: callback, style: style, child: label)
           : FilledButton.icon(
-              onPressed: onPressed,
+              onPressed: callback,
               style: style,
               icon: Icon(icon, size: 18),
               label: label);
@@ -99,9 +110,9 @@ class PhaseAction {
     );
     final effective = style ?? fallback;
     return icon == null
-        ? OutlinedButton(onPressed: onPressed, style: effective, child: label)
+        ? OutlinedButton(onPressed: callback, style: effective, child: label)
         : OutlinedButton.icon(
-            onPressed: onPressed,
+            onPressed: callback,
             style: effective,
             icon: Icon(icon, size: 18),
             label: label);
@@ -223,7 +234,17 @@ class PhaseLayout extends StatelessWidget {
                   children: [
                     if (onBack != null) ...[
                       TextButton.icon(
-                        onPressed: onBack,
+                        onPressed: () {
+                          final label = backLabel ??
+                              MaterialLocalizations.of(context)
+                                  .backButtonTooltip;
+                          logJourneyEvent('button_pressed', {
+                            'screen': title,
+                            'label': label,
+                            'side': ActionSide.back.name,
+                          });
+                          onBack!();
+                        },
                         icon: const Icon(Icons.arrow_back, size: 18),
                         label: Text(backLabel ??
                             MaterialLocalizations.of(context)
@@ -241,7 +262,8 @@ class PhaseLayout extends StatelessWidget {
                           spacing: 8,
                           runSpacing: 8,
                           children: [
-                            for (final a in leaving) a.build(context)
+                            for (final a in leaving)
+                              a.build(context, screen: title)
                           ],
                         ),
                       ),
@@ -251,7 +273,9 @@ class PhaseLayout extends StatelessWidget {
                         crossAxisAlignment: WrapCrossAlignment.center,
                         spacing: 8,
                         runSpacing: 8,
-                        children: [for (final a in onward) a.build(context)],
+                        children: [
+                          for (final a in onward) a.build(context, screen: title)
+                        ],
                       ),
                     ),
                   ],

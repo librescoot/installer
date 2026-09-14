@@ -38,6 +38,34 @@ void main() {
         reason: 'the action bar must not scroll away with the body');
   });
 
+  testWidgets('phase buttons and back navigation log the visible choice',
+      (tester) async {
+    final messages = <String>[];
+    final previousDebugPrint = debugPrint;
+    debugPrint = (message, {wrapWidth}) {
+      if (message != null) messages.add(message);
+    };
+    try {
+      await tester.pumpWidget(host(PhaseLayout(
+        title: 'Dashboard work',
+        onBack: () {},
+        backLabel: 'Previous',
+        actions: [PhaseAction(label: 'Skip to finish', onPressed: () {})],
+        child: const Text('body'),
+      )));
+
+      await tester.tap(find.text('Skip to finish'));
+      await tester.tap(find.text('Previous'));
+    } finally {
+      debugPrint = previousDebugPrint;
+    }
+
+    expect(messages, containsAllInOrder([
+      'Journey: {"event":"button_pressed","screen":"Dashboard work","label":"Skip to finish","side":"forward"}',
+      'Journey: {"event":"button_pressed","screen":"Dashboard work","label":"Previous","side":"back"}',
+    ]));
+  });
+
   testWidgets('carrying on goes right, leaving goes left', (tester) async {
     await tester.pumpWidget(host(PhaseLayout(
       title: 'A phase',

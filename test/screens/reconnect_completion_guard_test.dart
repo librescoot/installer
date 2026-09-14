@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('completed reconnect leaves restored settings and services alone', () {
     final source = File('lib/screens/installer_screen.dart').readAsStringSync();
-    final start = source.indexOf('Future<void> _verifyDbcFlash()');
+    final start = source.indexOf('Future<void> _verifyDbcFlash(int generation)');
     final end = source.indexOf('\n  /// Put the trampoline', start);
     final reconnect = source.substring(start, end);
 
@@ -33,7 +33,7 @@ void main() {
   test('All done proactively checks an already reconnected MDB', () {
     final source = File('lib/screens/installer_screen.dart').readAsStringSync();
     final start = source.indexOf('Future<void> _finishAfterDbcSuccess()');
-    final end = source.indexOf('\n  Future<void> _verifyDbcFlash()', start);
+    final end = source.indexOf('\n  Future<void> _verifyDbcFlash(int generation)', start);
     final finish = source.substring(start, end);
 
     final detect = finish.indexOf('_usbDetector.detectDevice()');

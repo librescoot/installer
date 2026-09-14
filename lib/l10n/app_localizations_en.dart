@@ -141,6 +141,28 @@ class AppLocalizationsEn extends AppLocalizations {
       'Install Librescoot firmware on your scooter.';
 
   @override
+  String get updateAvailableTitle => 'Installer update available';
+
+  @override
+  String updateAvailableBody(String latestVersion, String currentVersion) {
+    return 'Librescoot Installer $latestVersion is available. You are using $currentVersion.';
+  }
+
+  @override
+  String updatePublishedDate(String date) {
+    return 'Published $date';
+  }
+
+  @override
+  String get updateReleaseNotesTitle => 'What’s new';
+
+  @override
+  String get updateNotNow => 'Not now';
+
+  @override
+  String get updateOpenDownloads => 'Open Downloads';
+
+  @override
   String get whatYouNeed => 'What you need:';
 
   @override
@@ -484,6 +506,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get awaitingUnlockHeading => 'Unlock your scooter';
+
+  @override
+  String get unlockWaitCancelled =>
+      'Cancelled. The installer needs the scooter parked before it can carry on. Unlock it with the keycard or the app, then try again.';
+
+  @override
+  String get parkWaitCancelled =>
+      'Cancelled. The installer needs the scooter parked before it can carry on. Park it, then try again.';
 
   @override
   String get awaitingUnlockDetail =>
@@ -864,6 +894,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get waitingForMdbRestart => 'Waiting for the scooter to restart...';
+
+  @override
+  String mdbBootGaveUp(int minutes) {
+    return 'The scooter has not come back after $minutes minutes. A board that did not take the image stays in mass-storage mode, which looks dead: no lights, no network. Unplug the USB cable, plug it back in, and try again.';
+  }
 
   @override
   String get mdbDetectedNetwork =>

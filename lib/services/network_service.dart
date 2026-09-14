@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:librescoot_installer/services/usb_detector.dart';
+import 'elevation_service.dart';
 
 /// Network interface information
 class NetworkInterface {
@@ -18,7 +19,8 @@ class NetworkInterface {
   });
 
   @override
-  String toString() => 'NetworkInterface($displayName, ip=$ipAddress, up=$isUp)';
+  String toString() =>
+      'NetworkInterface($displayName, ip=$ipAddress, up=$isUp)';
 }
 
 /// Thrown when configureInterface needs privileges we don't have.
@@ -35,6 +37,7 @@ class NetworkService {
   static const String targetIp = '192.168.7.50';
   static const String subnetMask = '255.255.255.0';
   static const String mdbIp = '192.168.7.1';
+  static const Duration _privilegedCommandTimeout = Duration(minutes: 2);
 
   /// Find the network interface for the Librescoot USB ethernet device
   Future<NetworkInterface?> findLibrescootInterface() async {
@@ -52,7 +55,9 @@ class NetworkService {
 
   /// Configure the interface with a static IP for MDB communication
   Future<bool> configureInterface(NetworkInterface iface) async {
-    debugPrint('Network: configureInterface(${iface.name}, ${iface.displayName})');
+    debugPrint(
+      'Network: configureInterface(${iface.name}, ${iface.displayName})',
+    );
     // If MDB is already reachable, network is effectively configured.
     // Avoid reconfiguring and requiring admin privileges unnecessarily.
     if (await isMdbReachable()) {
@@ -149,13 +154,16 @@ class NetworkService {
     };
   }
 
+  static List<String> pingArgs(String host) {
+    if (Platform.isWindows) return ['-n', '1', '-w', '1000', host];
+    if (Platform.isMacOS) return ['-c', '1', '-W', '1000', host];
+    return ['-c', '1', '-W', '1', host];
+  }
+
   /// Check if MDB is reachable
   Future<bool> isMdbReachable() async {
     try {
-      final result = await Process.run(
-        'ping',
-        Platform.isWindows ? ['-n', '1', '-w', '1000', mdbIp] : ['-c', '1', '-W', '1', mdbIp],
-      );
+      final result = await Process.run('ping', pingArgs(mdbIp));
       return result.exitCode == 0;
     } catch (_) {
       return false;
@@ -208,8 +216,9 @@ class NetworkService {
     await run('ifconfig ${iface ?? '-a'}', 'ifconfig', [iface ?? '-a']);
     await run('netstat -rn -f inet', 'netstat', ['-rn', '-f', 'inet']);
     if (iface != null) {
-      await run('networksetup service for $iface', 'networksetup',
-          ['-listnetworkserviceorder']);
+      await run('networksetup service for $iface', 'networksetup', [
+        '-listnetworkserviceorder',
+      ]);
     }
     buf.writeln('--- gadget interface lookup ---');
     buf.writeln(await findMacOSGadgetInterface() ?? '(none)');
@@ -220,17 +229,14 @@ class NetworkService {
     try {
       // Use PowerShell to find RNDIS network adapter: avoids cmd.exe '&'
       // escaping issues with wmic.
-      final result = await Process.run(
-        'powershell',
-        [
-          '-NoProfile',
-          '-Command',
-          r'''
+      final result = await Process.run('powershell', [
+        '-NoProfile',
+        '-Command',
+        r'''
 $dev = Get-CimInstance Win32_NetworkAdapter | Where-Object { $_.PNPDeviceID -like "*VID_0525&PID_A4A2*" } | Select-Object -First 1 Name,NetConnectionID,NetEnabled
 if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
 ''',
-        ],
-      );
+      ]);
 
       if (result.exitCode != 0) return null;
 
@@ -271,23 +277,23 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
 
   Future<bool> _configureWindows(NetworkInterface iface) async {
     try {
-      debugPrint('Network: netsh set address name="${iface.name}" static $targetIp $subnetMask');
-      // Use netsh to set static IP
-      final result = await Process.run(
-        'netsh',
-        [
-          'interface',
-          'ip',
-          'set',
-          'address',
-          'name=${iface.name}',
-          'static',
-          targetIp,
-          subnetMask,
-        ],
+      debugPrint(
+        'Network: netsh set address name="${iface.name}" static $targetIp $subnetMask',
       );
+      final result = await Process.run('netsh', [
+        'interface',
+        'ip',
+        'set',
+        'address',
+        'name=${iface.name}',
+        'static',
+        targetIp,
+        subnetMask,
+      ]);
 
-      debugPrint('Network: netsh exit=${result.exitCode} stdout=${result.stdout} stderr=${result.stderr}');
+      debugPrint(
+        'Network: netsh exit=${result.exitCode} stdout=${result.stdout} stderr=${result.stderr}',
+      );
 
       if (result.exitCode != 0) {
         debugPrint('Network: netsh failed: ${result.stderr}');
@@ -342,8 +348,10 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
     // and "board attached, interface not published" is the whole diagnosis,
     // and the second line is what tells us whether dropping the heuristic
     // changed the answer on a real Mac.
-    debugPrint('Network: no interface published under USB '
-        '${_hex(UsbDetector.targetVendorId)}:${_hex(UsbDetector.ethernetPid)}');
+    debugPrint(
+      'Network: no interface published under USB '
+      '${_hex(UsbDetector.targetVendorId)}:${_hex(UsbDetector.ethernetPid)}',
+    );
     try {
       final ifconfig = await Process.run('ifconfig', ['-a']);
       if (ifconfig.exitCode == 0) {
@@ -381,10 +389,14 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
   Future<String?> _runIoreg() async {
     for (final command in const ['/usr/sbin/ioreg', 'ioreg']) {
       try {
-        final result = await Process.run(
-          command,
-          const ['-r', '-c', 'IOUSBHostDevice', '-l', '-w', '0'],
-        );
+        final result = await Process.run(command, const [
+          '-r',
+          '-c',
+          'IOUSBHostDevice',
+          '-l',
+          '-w',
+          '0',
+        ]);
         if (result.exitCode == 0) return result.stdout.toString();
       } catch (_) {
         continue;
@@ -455,7 +467,8 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
   Future<bool> _configureMacOS(NetworkInterface iface) async {
     try {
       // If already configured correctly and reachable, don't reconfigure.
-      if (await _isMacOSInterfaceConfigured(iface.name) && await isMdbReachable()) {
+      if (await _isMacOSInterfaceConfigured(iface.name) &&
+          await isMdbReachable()) {
         return true;
       }
 
@@ -464,18 +477,22 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
       if (serviceName != null) {
         // Use networksetup for named services
         debugPrint('Network: networksetup -setmanual "$serviceName" $targetIp');
-        final result = await Process.run(
-          'networksetup',
-          ['-setmanual', serviceName, targetIp, subnetMask],
-        );
+        final result = await Process.run('networksetup', [
+          '-setmanual',
+          serviceName,
+          targetIp,
+          subnetMask,
+        ]);
         final out = result.stdout.toString().trim();
         final err = result.stderr.toString().trim();
         // Logged either way. This step deciding not to work is what sends the
         // run into the ifconfig fallback, and a run that ends there with no
         // record of why cannot be diagnosed from the log the user hands over.
-        debugPrint('Network: networksetup exit=${result.exitCode}'
-            '${out.isEmpty ? '' : ' stdout=$out'}'
-            '${err.isEmpty ? '' : ' stderr=$err'}');
+        debugPrint(
+          'Network: networksetup exit=${result.exitCode}'
+          '${out.isEmpty ? '' : ' stdout=$out'}'
+          '${err.isEmpty ? '' : ' stderr=$err'}',
+        );
 
         if (result.exitCode == 0) {
           await Future.delayed(const Duration(seconds: 2));
@@ -485,17 +502,41 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
         debugPrint('Network: no macOS network service owns ${iface.name}');
       }
 
-      // Fallback: use ifconfig directly
-      final result = await Process.run(
-        'ifconfig',
-        [iface.name, 'inet', targetIp, 'netmask', subnetMask],
+      if (await _isMacOSInterfaceConfigured(iface.name)) {
+        return await isMdbReachable();
+      }
+
+      if (_elevationDeclined) {
+        throw const NetworkPrivilegeException(_declinedMessage);
+      }
+
+      final root = await ElevationService.macOSRootPrefix(
+        'to set up the USB network',
       );
+      const ran = elevationSentinel;
+      final script =
+          'echo $ran; '
+          'ifconfig ${_shellQuote(iface.name)} inet '
+          '${_shellQuote(targetIp)} netmask ${_shellQuote(subnetMask)}';
+      if (root == null) {
+        _elevationDeclined = true;
+        throw const NetworkPrivilegeException(
+          'Setting up the USB network connection needs administrator access, '
+          'but this Mac has no way to request it. Enable administrator access '
+          'for the installer and retry.',
+        );
+      }
+      final argv = [...root.argv, 'sh', '-c', script];
+      final result = await runBounded(
+        argv.first,
+        argv.sublist(1),
+        timeout: _privilegedCommandTimeout,
+        environment: {...Platform.environment, ...root.environment},
+      );
+      final ranAtAll = result.stdout.toString().contains(ran);
 
       if (result.exitCode != 0) {
-        final denied = result.stderr
-            .toString()
-            .toLowerCase()
-            .contains('permission denied');
+        final denied = !ranAtAll;
         // A machine that has run a successful install before carries a saved
         // service configuration for this gadget, and macOS reapplies it when
         // the interface returns. So the board can already be reachable and
@@ -514,11 +555,8 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
           return true;
         }
         if (denied) {
-          throw const NetworkPrivilegeException(
-            'Configuring the USB network interface on macOS requires '
-            'administrator rights. Quit and relaunch the installer with: '
-            'sudo <path-to-installer>',
-          );
+          _elevationDeclined = true;
+          throw const NetworkPrivilegeException(_declinedMessage);
         }
         debugPrint('Network: ifconfig failed: ${result.stderr}');
         return false;
@@ -549,15 +587,17 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
   @visibleForTesting
   Future<String?> macOSServiceNameFor(String device) async {
     try {
-      final order =
-          await Process.run('networksetup', ['-listnetworkserviceorder']);
+      final order = await Process.run('networksetup', [
+        '-listnetworkserviceorder',
+      ]);
       if (order.exitCode == 0) {
         final name = parseServiceOrder(order.stdout.toString(), device);
         if (name != null) return name;
       }
 
-      final ports =
-          await Process.run('networksetup', ['-listallhardwareports']);
+      final ports = await Process.run('networksetup', [
+        '-listallhardwareports',
+      ]);
       if (ports.exitCode == 0) {
         final lines = ports.stdout.toString().split('\n');
         for (var i = 1; i < lines.length; i++) {
@@ -585,8 +625,9 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
     for (var i = 0; i < lines.length; i++) {
       if (!lines[i].contains('Device: $device)')) continue;
       for (var j = i - 1; j >= 0; j--) {
-        final match =
-            RegExp(r'^\((?:\*|\d+)\)\s+(.+)$').firstMatch(lines[j].trim());
+        final match = RegExp(
+          r'^\((?:\*|\d+)\)\s+(.+)$',
+        ).firstMatch(lines[j].trim());
         if (match != null) return match.group(1)!.trim();
       }
     }
@@ -608,7 +649,6 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
   Future<NetworkInterface?> _findLinuxInterface({
     Duration timeout = const Duration(seconds: 10),
   }) async {
-    // The cdc_ether driver binds asynchronously after USB enumeration , 
     // the interface can take up to ~1s to appear on slow hubs. Poll until
     // it's there or we hit the timeout.
     final deadline = DateTime.now().add(timeout);
@@ -724,37 +764,122 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
     return vendor == gadgetVendorId && product == gadgetProductId;
   }
 
+  @visibleForTesting
+  static const String elevationSentinel = '__librescoot_elevated__';
+
+  static bool _elevationDeclined = false;
+
+  static void allowElevationPromptAgain() => _elevationDeclined = false;
+
+  @visibleForTesting
+  static bool get elevationDeclined => _elevationDeclined;
+
+  static const String _declinedMessage =
+      'Setting up the USB network connection needs an administrator, and the '
+      'request was not authorised. Use the retry button and confirm the '
+      'prompt when it appears.';
+
+  static String _shellQuote(String s) => "'${s.replaceAll("'", "'\\''")}'";
+
+  @visibleForTesting
+  static bool isSafeInterfaceName(String name) =>
+      RegExp(r'^[A-Za-z0-9][A-Za-z0-9._@-]{0,14}$').hasMatch(name);
+
+  static const int _linkStepFailed = 11;
+  static const int _addressStepFailed = 12;
+
+  @visibleForTesting
+  static bool interfaceCarriesAddress(String ipOutput, String address) =>
+      ipOutput.contains('inet $address/24') &&
+      RegExp(r'[<,]UP[,>]').hasMatch(ipOutput);
+
+  Future<bool> _isLinuxInterfaceConfigured(String iface) async {
+    try {
+      final r = await Process.run('ip', ['-4', 'addr', 'show', 'dev', iface]);
+      if (r.exitCode != 0) return false;
+      return interfaceCarriesAddress(r.stdout.toString(), targetIp);
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<bool> _configureLinux(NetworkInterface iface) async {
-    if (!await _isLinuxRoot()) {
+    if (!isSafeInterfaceName(iface.name)) {
+      debugPrint('Network: refusing to configure "${iface.name}"');
+      return false;
+    }
+
+    if (await _isLinuxInterfaceConfigured(iface.name)) {
+      return await isMdbReachable();
+    }
+
+    if (_elevationDeclined) {
+      throw const NetworkPrivilegeException(_declinedMessage);
+    }
+
+    final root = await ElevationService.linuxRootPrefix();
+    if (root == null) {
       throw const NetworkPrivilegeException(
-        'Network configuration on Linux requires root. '
-        'Quit and relaunch the installer with: sudo <path-to-installer>',
+        'Configuring the USB network connection needs root, and this system '
+        'has neither pkexec nor an askpass helper for sudo. Quit and '
+        'relaunch the installer with: sudo <path-to-installer>',
       );
     }
 
     try {
-      // NetworkManager will clobber a static IP on its next dhcp-fails-fall-back
-      // cycle (you'd see APIPA 169.254.x.x reappear). Tell it to leave the iface
-      // alone before we touch it. No-op if NM isn't running.
+      const ran = elevationSentinel;
+      final steps = <String>['echo $ran'];
       if (await _isNetworkManagerActive()) {
-        await _setNetworkManagerUnmanaged(iface.name);
-        await Future.delayed(const Duration(milliseconds: 500));
+        steps.add('nmcli device set ${iface.name} managed no || true');
+        steps.add('sleep 0.5');
       }
-
-      var result = await Process.run('ip', ['link', 'set', iface.name, 'up']);
-      if (result.exitCode != 0) {
-        debugPrint('Network: ip link set up failed: ${result.stderr}');
-        return false;
-      }
-
-      result = await Process.run(
-        'ip',
-        ['addr', 'add', '$targetIp/24', 'dev', iface.name],
+      steps.add('ip link set ${iface.name} up || exit $_linkStepFailed');
+      steps.add(
+        'ip addr add $targetIp/24 dev ${iface.name} || exit $_addressStepFailed',
       );
-      if (result.exitCode != 0 &&
-          !addressAlreadyAssigned(result.stderr.toString())) {
-        debugPrint('Network: ip addr add failed: ${result.stderr}');
-        return false;
+
+      final argv = [...root.argv, 'sh', '-c', steps.join('\n')];
+      if (!root.isDirect) {
+        debugPrint('Network: elevating via ${root.argv.join(' ')}');
+      }
+      final result = await runBounded(
+        argv.first,
+        argv.sublist(1),
+        timeout: _privilegedCommandTimeout,
+        environment: {...Platform.environment, ...root.environment},
+      );
+      final stderr = result.stderr.toString();
+
+      if (!result.stdout.toString().contains(ran)) {
+        debugPrint(
+          'Network: elevation did not run (exit ${result.exitCode}): $stderr',
+        );
+        _elevationDeclined = true;
+        throw const NetworkPrivilegeException(
+          'Configuring the USB network connection needs root, and the '
+          'request was not authorised. Confirm the password dialog if one '
+          'appeared. If none did, this desktop session cannot ask for it: '
+          'quit and relaunch the installer with: sudo <path-to-installer>',
+        );
+      }
+
+      switch (result.exitCode) {
+        case 0:
+          break;
+        case _linkStepFailed:
+          debugPrint('Network: ip link set up failed: $stderr');
+          return false;
+        case _addressStepFailed:
+          if (!addressAlreadyAssigned(stderr)) {
+            debugPrint('Network: ip addr add failed: $stderr');
+            return false;
+          }
+        default:
+          debugPrint(
+            'Network: configuring ${iface.name} exited '
+            '${result.exitCode}: $stderr',
+          );
+          return false;
       }
 
       await Future.delayed(const Duration(seconds: 2));
@@ -767,45 +892,16 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
     }
   }
 
-  Future<bool> _isLinuxRoot() async {
-    try {
-      final result = await Process.run('id', ['-u']);
-      return result.stdout.toString().trim() == '0';
-    } catch (_) {
-      return false;
-    }
-  }
-
   Future<bool> _isNetworkManagerActive() async {
     try {
-      final hasNmcli = await Process.run('which', ['nmcli']);
-      if (hasNmcli.exitCode != 0) return false;
-      final active = await Process.run(
-        'systemctl',
-        ['is-active', 'NetworkManager'],
-      );
+      if (!await ElevationService.hasCommand('nmcli')) return false;
+      final active = await Process.run('systemctl', [
+        'is-active',
+        'NetworkManager',
+      ]);
       return active.stdout.toString().trim() == 'active';
     } catch (_) {
       return false;
-    }
-  }
-
-  Future<void> _setNetworkManagerUnmanaged(String iface) async {
-    try {
-      final result = await Process.run(
-        'nmcli',
-        ['device', 'set', iface, 'managed', 'no'],
-      );
-      if (result.exitCode == 0) {
-        debugPrint('Network: nmcli set $iface managed=no');
-      } else {
-        debugPrint(
-          'Network: nmcli managed=no exit=${result.exitCode} '
-          'stderr=${result.stderr}',
-        );
-      }
-    } catch (e) {
-      debugPrint('Network: nmcli call failed: $e');
     }
   }
 }

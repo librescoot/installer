@@ -350,6 +350,42 @@ abstract class AppLocalizations {
   /// **'Install Librescoot firmware on your scooter.'**
   String get welcomeSubheading;
 
+  /// No description provided for @updateAvailableTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Installer update available'**
+  String get updateAvailableTitle;
+
+  /// No description provided for @updateAvailableBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Librescoot Installer {latestVersion} is available. You are using {currentVersion}.'**
+  String updateAvailableBody(String latestVersion, String currentVersion);
+
+  /// No description provided for @updatePublishedDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Published {date}'**
+  String updatePublishedDate(String date);
+
+  /// No description provided for @updateReleaseNotesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'What’s new'**
+  String get updateReleaseNotesTitle;
+
+  /// No description provided for @updateNotNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Not now'**
+  String get updateNotNow;
+
+  /// No description provided for @updateOpenDownloads.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Downloads'**
+  String get updateOpenDownloads;
+
   /// No description provided for @whatYouNeed.
   ///
   /// In en, this message translates to:
@@ -949,6 +985,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Unlock your scooter'**
   String get awaitingUnlockHeading;
+
+  /// No description provided for @unlockWaitCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancelled. The installer needs the scooter parked before it can carry on. Unlock it with the keycard or the app, then try again.'**
+  String get unlockWaitCancelled;
+
+  /// No description provided for @parkWaitCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancelled. The installer needs the scooter parked before it can carry on. Park it, then try again.'**
+  String get parkWaitCancelled;
 
   /// No description provided for @awaitingUnlockDetail.
   ///
@@ -1597,6 +1645,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Waiting for the scooter to restart...'**
   String get waitingForMdbRestart;
+
+  /// No description provided for @mdbBootGaveUp.
+  ///
+  /// In en, this message translates to:
+  /// **'The scooter has not come back after {minutes} minutes. A board that did not take the image stays in mass-storage mode, which looks dead: no lights, no network. Unplug the USB cable, plug it back in, and try again.'**
+  String mdbBootGaveUp(int minutes);
 
   /// No description provided for @mdbDetectedNetwork.
   ///
