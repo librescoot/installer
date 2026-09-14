@@ -170,7 +170,12 @@ dbc_update_complete
     final result = run(
       '''
 dbc_update_start
-sleep 0.05
+waited=0
+while [ "\$(cat "\$VEHICLE_STATE")" != false ] && [ "\$waited" -lt 100 ]; do
+  sleep 0.01
+  waited=\$((waited + 1))
+done
+[ "\$(cat "\$VEHICLE_STATE")" = false ]
 if dbc_update_start; then exit 52; fi
 ''',
       extraEnvironment: {
