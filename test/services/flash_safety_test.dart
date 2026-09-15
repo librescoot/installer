@@ -16,13 +16,13 @@ void main() {
   // A device that should pass everywhere: correct gadget VID/PID, removable,
   // not a system disk, 8 GB, platform-appropriate path.
   SafetyCheck checkGood() => flash.validateDevice(
-        devicePath: _goodPath,
-        sizeBytes: FlashService.mdbEmmcBytes,
-        isRemovable: true,
-        isSystemDisk: false,
-        vendorId: 0x0525,
-        productId: 0xA4A5,
-      );
+    devicePath: _goodPath,
+    sizeBytes: FlashService.mdbEmmcBytes,
+    isRemovable: true,
+    isSystemDisk: false,
+    vendorId: 0x0525,
+    productId: 0xA4A5,
+  );
 
   test('a genuine mass-storage gadget passes', () {
     final result = checkGood();
@@ -69,18 +69,21 @@ void main() {
     expect(result.errors.join(' '), contains('vendor ID'));
   });
 
-  test('RNDIS mode (PID A4A2) is refused, only mass storage may be written', () {
-    final result = flash.validateDevice(
-      devicePath: _goodPath,
-      sizeBytes: FlashService.mdbEmmcBytes,
-      isRemovable: true,
-      isSystemDisk: false,
-      vendorId: 0x0525,
-      productId: 0xA4A2,
-    );
-    expect(result.passed, isFalse);
-    expect(result.errors.join(' '), contains('product ID'));
-  });
+  test(
+    'RNDIS mode (PID A4A2) is refused, only mass storage may be written',
+    () {
+      final result = flash.validateDevice(
+        devicePath: _goodPath,
+        sizeBytes: FlashService.mdbEmmcBytes,
+        isRemovable: true,
+        isSystemDisk: false,
+        vendorId: 0x0525,
+        productId: 0xA4A2,
+      );
+      expect(result.passed, isFalse);
+      expect(result.errors.join(' '), contains('product ID'));
+    },
+  );
 
   test('a disk that is not the MDB eMMC is refused, however plausible', () {
     // 2 TB is someone's laptop disk; 8 GB is an ordinary USB stick. Neither
@@ -116,15 +119,28 @@ void main() {
     expect(result.errors.join('; '), contains('has failed'));
   });
 
-  test('the eMMC size must match exactly', () {
-    // Win32_DiskDrive.Size reads up to one cylinder low (8225280 bytes at
-    // 255x63x512), which is why the Windows detector sources the size from
-    // Get-Disk instead. A truncated figure reaching here is a bug, not a
-    // tolerance case.
+  test('the known MDB eMMC capacity variant passes', () {
+    const observedMdbBytes = 7820083200;
+    expect(
+      observedMdbBytes - FlashService.mdbEmmcBytes,
+      1900544,
+      reason: 'Keep the documented 15273600-sector MDB variant explicit.',
+    );
+    final result = flash.validateDevice(
+      devicePath: _goodPath,
+      sizeBytes: observedMdbBytes,
+      isRemovable: true,
+      isSystemDisk: false,
+      vendorId: 0x0525,
+      productId: 0xA4A5,
+    );
+    expect(result.passed, isTrue, reason: result.errors.join('; '));
+  });
+
+  test('only a narrow eMMC capacity window passes', () {
     for (final size in [
-      FlashService.mdbEmmcBytes - 8225280,
-      FlashService.mdbEmmcBytes - 512,
-      FlashService.mdbEmmcBytes + 512,
+      FlashService.mdbEmmcBytes - FlashService.mdbEmmcToleranceBytes,
+      FlashService.mdbEmmcBytes + FlashService.mdbEmmcToleranceBytes,
     ]) {
       final result = flash.validateDevice(
         devicePath: _goodPath,
@@ -134,7 +150,25 @@ void main() {
         vendorId: 0x0525,
         productId: 0xA4A5,
       );
-      expect(result.passed, isFalse, reason: 'size \$size was accepted');
+      expect(result.passed, isTrue, reason: 'size $size was refused');
+    }
+
+    for (final size in [
+      FlashService.mdbEmmcBytes - FlashService.mdbEmmcToleranceBytes - 512,
+      FlashService.mdbEmmcBytes + FlashService.mdbEmmcToleranceBytes + 512,
+    ]) {
+      final result = flash.validateDevice(
+        devicePath: _goodPath,
+        sizeBytes: size,
+        isRemovable: true,
+        isSystemDisk: false,
+        vendorId: 0x0525,
+        productId: 0xA4A5,
+      );
+      expect(result.passed, isFalse, reason: 'size $size was accepted');
+      expect(result.errors.join('; '), contains('Unexpected device size'));
+      expect(result.errors.join('; '), contains('bytes'));
+      expect(result.errors.join('; '), contains('sectors'));
     }
   });
 
@@ -158,18 +192,22 @@ void main() {
     }
   });
 
-  test('the platform system-disk path is refused even with a valid identity', () {
-    final result = flash.validateDevice(
-      devicePath: _systemPath,
-      sizeBytes: FlashService.mdbEmmcBytes,
-      isRemovable: true,
-      isSystemDisk: false, // deliberately lying; the path check must still bite
-      vendorId: 0x0525,
-      productId: 0xA4A5,
-    );
-    expect(result.passed, isFalse);
-    expect(result.errors.join(' '), contains('DANGER'));
-  });
+  test(
+    'the platform system-disk path is refused even with a valid identity',
+    () {
+      final result = flash.validateDevice(
+        devicePath: _systemPath,
+        sizeBytes: FlashService.mdbEmmcBytes,
+        isRemovable: true,
+        isSystemDisk:
+            false, // deliberately lying; the path check must still bite
+        vendorId: 0x0525,
+        productId: 0xA4A5,
+      );
+      expect(result.passed, isFalse);
+      expect(result.errors.join(' '), contains('DANGER'));
+    },
+  );
 
   test('an empty device path is refused', () {
     final result = flash.validateDevice(
@@ -223,8 +261,7 @@ void main() {
       expect(result.passed, isTrue, reason: result.errors.join('; '));
     });
 
-    test('the size window cannot catch this, whatever the real disk holds',
-        () {
+    test('the size window cannot catch this, whatever the real disk holds', () {
       // sizeBytes describes the detected object, not the disk at devicePath,
       // so it matches the eMMC exactly however large that disk is. The real
       // disk's size never reaches this function; only the path check refuses.
@@ -239,7 +276,10 @@ void main() {
       );
       expect(result.passed, isFalse);
       expect(result.errors.join('; '), contains('does not match'));
-      expect(result.errors.join('; '), isNot(contains('Unexpected device size')));
+      expect(
+        result.errors.join('; '),
+        isNot(contains('Unexpected device size')),
+      );
     });
   });
 }

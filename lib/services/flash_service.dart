@@ -34,11 +34,13 @@ class FlashService {
 
   static const Duration _flashStallTimeout = Duration(minutes: 3);
 
-  /// User area of the eMMC every MDB carries: 15269888 sectors of 512 bytes.
-  /// Matched exactly. Every platform supplies the raw device size, and a host
-  /// that cannot reports none, which is handled separately rather than
-  /// compared as a wrong number.
+  /// Nominal MDB eMMC user area: 15269888 sectors of 512 bytes.
   static const int mdbEmmcBytes = 7818182656;
+
+  /// Valid MDBs have been observed with a user area 1.8125 MiB larger than
+  /// [mdbEmmcBytes]. Keep this narrow: VID/PID and path checks remain the
+  /// identity guard, and capacity only rules out clearly wrong storage.
+  static const int mdbEmmcToleranceBytes = 4 * 1024 * 1024;
 
   /// An eMMC that has lost its user area reports a few tens of MB.
   static const int failedEmmcCeilingBytes = 64 * 1024 * 1024;
@@ -47,6 +49,8 @@ class FlashService {
       (bytes / (1024 * 1024 * 1024)).toStringAsFixed(2);
 
   static String _mib(int bytes) => (bytes / (1024 * 1024)).toStringAsFixed(1);
+
+  static int _sectors(int bytes) => bytes ~/ 512;
 
   /// Validate that a device is safe to flash
   ///
@@ -99,18 +103,29 @@ class FlashService {
       );
     }
 
-    // One value, not a range: a range wide enough for "any small disk" also
-    // admits the SD cards and sticks the detector's match pattern can adopt.
     if (sizeBytes != null) {
+      final minSize = mdbEmmcBytes - mdbEmmcToleranceBytes;
+      final maxSize = mdbEmmcBytes + mdbEmmcToleranceBytes;
+      final difference = sizeBytes - mdbEmmcBytes;
+      debugPrint(
+        'Flash: MDB size check: actual=$sizeBytes bytes '
+        '(${_sectors(sizeBytes)} sectors), expected=$mdbEmmcBytes bytes '
+        '(${_sectors(mdbEmmcBytes)} sectors), difference=$difference bytes '
+        '(${_sectors(difference.abs())} sectors), accepted=$minSize..$maxSize '
+        'bytes (${_sectors(minSize)}..${_sectors(maxSize)} sectors)',
+      );
       if (sizeBytes <= failedEmmcCeilingBytes) {
         errors.add(
           'eMMC reports only ${_mib(sizeBytes)} MB. The eMMC on this board '
           'has failed; it cannot be flashed.',
         );
-      } else if (sizeBytes != mdbEmmcBytes) {
+      } else if (sizeBytes < minSize || sizeBytes > maxSize) {
         errors.add(
-          'Unexpected device size: ${_gib(sizeBytes)} GB, expected '
-          '${_gib(mdbEmmcBytes)} GB. This is not an MDB eMMC.',
+          'Unexpected device size: $sizeBytes bytes '
+          '(${_sectors(sizeBytes)} sectors, ${_gib(sizeBytes)} GiB); expected '
+          '$mdbEmmcBytes bytes (${_sectors(mdbEmmcBytes)} sectors, '
+          '${_gib(mdbEmmcBytes)} GiB), within $minSize..$maxSize bytes. '
+          'This is not an MDB eMMC.',
         );
       }
     } else if (Platform.isWindows) {
