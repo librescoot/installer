@@ -45,6 +45,7 @@ DBC_ART_AFTER=release-v1.4.0
 log() { :; }
 artifact_fail() { printf '%s\n' "\$1" > '${error.path}'; exit 70; }
 dbc_commit_verified() { return 0; }
+dbc_control_record() { return 0; }
 dbc_ssh_once_bounded() {
   case '$mode' in
     success) printf '__MENDER_REMOTE_RC=0\ncommitted\n'; return 0 ;;

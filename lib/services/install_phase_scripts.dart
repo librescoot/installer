@@ -50,7 +50,7 @@ class DeviceHelpers {
   static const String assetPath = 'assets/$fileName';
 
   static Future<String> load() async =>
-      normalizeShellScript(await rootBundle.loadString(assetPath));
+      normalizeShellScript(await rootBundle.loadString(assetPath, cache: false));
 }
 
 List<String> expectedInstallPhases({required bool expectDbcPhase}) => [

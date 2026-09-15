@@ -66,6 +66,29 @@ void main() {
       expect(out, contains(r'dbc_say "Firmware $DBC_VER running"'));
     });
 
+    test('direct power control is bootstrap-owned; upgrade cannot force it', () {
+      expect(
+        template,
+        contains(
+          'dbc_control_check || fail "Lost bootstrap control before post-flash power-off"',
+        ),
+      );
+      expect(template, isNot(contains('dbc_power_off_force')));
+      expect(
+        template,
+        contains('refusing power-off without verified bootstrap ownership'),
+      );
+    });
+
+    test('bounds DBC health retries by elapsed wall time', () {
+      expect(template, contains('HEALTH_DEADLINE=\$((HEALTH_STARTED + 300))'));
+      expect(template, contains(r'dbc_ssh_once_bounded "$timeout"'));
+      expect(template, contains(
+        r'HEALTH_WAITED=$(($(date +%s) - HEALTH_STARTED))',
+      ));
+      expect(template, isNot(contains('HEALTH_WAITED=\$((HEALTH_WAITED + 5))')));
+    });
+
     test('retires onboot.sh only after the work, not before it', () {
       // onboot.sh used to remove itself before doing anything, so a crash left
       // the vehicle with its services masked and nothing that would ever run

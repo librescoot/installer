@@ -108,6 +108,56 @@ void main() {
         'echo 90 >> ${root.path}/order\nrm -f "\$0"\n');
   }
 
+  test('bootstrap control crosses coordinator handoff during the MDB write', () async {
+    final artifact = File('${root.path}/a.mender')..writeAsStringSync('x');
+    await stub('mender-update', '''
+if [ "\$1" = show-artifact ]; then echo release-v1.3.0-minimal; exit 0; fi
+touch '${root.path}/mdb-started'
+while [ ! -e '${root.path}/release-mdb-write' ]; do sleep 1; done
+exit 0
+''');
+    await stub('systemctl', 'case "\$*" in *LoadState*) echo not-found ;; esac; exit 0');
+    await stub('systemd-run', 'exit 1');
+    await stub('redis-cli', 'exit 0');
+    await queueAll(artifactPath: artifact.path);
+    final outer = await Process.run('sh', ['-c', '''
+RUN_ID=run-test
+log() { :; }
+. '${scripts.path}/device.sh'
+dbc_control_acquire outer && dbc_control_record handoff
+'''], environment: {'PATH': '${bin.path}:${Platform.environment['PATH']}'});
+    expect(outer.exitCode, 0, reason: outer.stderr.toString());
+
+    final template = File('assets/trampoline.sh.template').readAsStringSync();
+    final start = template.indexOf('DBC_VEHICLE_UPDATE="\${DBC_VEHICLE_UPDATE:-none}"');
+    final end = template.indexOf('\n# The install is still running', start);
+    await writePhase('20-dbc.sh', '''
+set -e
+RUN_ID=run-test
+log() { :; }
+. '${scripts.path}/device.sh'
+${template.substring(start, end)}
+dbc_update_start
+[ "\$DBC_VEHICLE_UPDATE" = bootstrap ]
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  [ ! -e '${root.path}/mdb-started' ] || break
+  sleep 1
+done
+[ -e '${root.path}/mdb-started' ]
+echo 20 >> '${root.path}/order'
+touch '${root.path}/release-mdb-write'
+dbc_control_record complete
+dbc_update_complete
+rm -f "\$0"
+''');
+    final result = await boot();
+    expect(result.exitCode, 0, reason: result.stderr.toString());
+    final order = File('${root.path}/order').readAsLinesSync();
+    expect(order.first, '20');
+    expect(order.any((line) => line.startsWith('reboot')), isTrue);
+    expect(order, isNot(contains('90')));
+  });
+
   test('a systemd-run that refuses does not end the install', () async {
     // The CI runner has systemd-run on PATH and no privilege to use it. The
     // artifact phase used to record that as the install's failure; it falls

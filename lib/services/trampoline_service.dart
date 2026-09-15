@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as path;
@@ -19,6 +20,27 @@ typedef ToolUploader =
     Future<void> Function(Uint8List content, String remotePath);
 typedef RemoteCommandRunner = Future<String> Function(String command);
 typedef RemoteFileDownloader = Future<Uint8List?> Function(String remotePath);
+
+Future<void> verifyTrampolineScript(
+  Uint8List rendered,
+  RemoteFileDownloader download,
+) async {
+  final expected = sha256.convert(rendered).toString();
+  final remote = await download(
+    '${SshService.installerScriptsDir}/trampoline.sh',
+  );
+  final actual = remote == null ? 'missing' : sha256.convert(remote).toString();
+  debugPrint('Trampoline: rendered sha256=$expected device sha256=$actual');
+  if (actual != expected) {
+    throw StateError('Uploaded trampoline does not match rendered script');
+  }
+}
+
+const archiveTrampolineAttemptCommand =
+    'mkdir -p /data/installer/history; '
+    r'attempt=$(mktemp -d /data/installer/history/attempt-XXXXXX) || exit 1; '
+    'for f in trampoline.log trampoline-status run-state trampoline-stdout.log dbc-boot-env-before; do '
+    r'[ ! -f /data/installer/$f ] || cp /data/installer/$f "$attempt/$f" || exit 1; done';
 
 class TrampolineLaunchDiagnostics {
   const TrampolineLaunchDiagnostics({
@@ -90,6 +112,9 @@ Map<String, String> trampolineDiagnosticFiles(String runId) {
     'trampoline-phase': '${SshService.installerDir}/trampoline-phase',
     'run-id': '${SshService.installerDir}/run-id',
     'run-state': SshService.installerRunState,
+    'dbc-control-owner': '/data/librescoot-installer/dbc-control/owner',
+    'dbc-control-state': '/data/librescoot-installer/dbc-control/state',
+    'dbc-boot-env-before': '${SshService.installerDir}/dbc-boot-env-before',
     'last-install': SshService.installerLastInstall,
     'history-record': '${SshService.installerHistoryDir}/$runId/record',
     'mdb-artifact.log':
@@ -399,6 +424,10 @@ class TrampolineService {
   }) async {
     final template = await rootBundle.loadString(
       'assets/trampoline.sh.template',
+      cache: false,
+    );
+    debugPrint(
+      'Trampoline: template sha256=${sha256.convert(utf8.encode(template))}',
     );
     return renderTemplate(
       template,
@@ -745,6 +774,7 @@ http.server.HTTPServer(
     void Function(List<Substep> steps)? onSubsteps,
     SubstepLabels? labels,
   }) async {
+    await _ensureNoActiveDbcRun();
     // ums-service is enabled with Restart=always and takes the OTG UDC away
     // from g_ether whenever it switches to mass-storage mode. That tears down
     // usb0 and with it this SSH session, mid-upload, for a transfer measured
@@ -1048,7 +1078,10 @@ http.server.HTTPServer(
       Uint8List.fromList(utf8.encode(cleanScript)),
       '${SshService.installerScriptsDir}/trampoline.sh',
     );
-    debugPrint('Trampoline: script uploaded');
+    await verifyTrampolineScript(
+      Uint8List.fromList(utf8.encode(cleanScript)),
+      _ssh.downloadFile,
+    );
 
     // With the script that sources them, not left to the coordinator's own
     // staging: a plan with dashboard work reaches the trampoline first, and a
@@ -1125,13 +1158,7 @@ http.server.HTTPServer(
     debugPrint('Trampoline: uploadAll complete');
   }
 
-  /// Matches the running trampoline and nothing else.
-  ///
-  /// One definition because pkill and pgrep have to agree: they did not, and
-  /// the pgrep half could not match the path the script actually runs from,
-  /// so start() reported that the trampoline had not started on every run
-  /// that had in fact started one. The brackets keep the pattern from
-  /// matching its own command line.
+  /// Brackets prevent pgrep from matching its own command line.
   static const String _trampolinePattern = 'installer/scripts/[t]rampoline.sh';
 
   /// The region the completion record names. It answers which region the
@@ -1141,17 +1168,27 @@ http.server.HTTPServer(
   static String recordedRegion({required bool tilesStaged, Region? region}) =>
       tilesStaged ? region?.slug ?? '' : '';
 
+  Future<void> _ensureNoActiveDbcRun() async {
+    if (await isRunning()) {
+      throw StateError(
+        'An installer is already running; refusing to replace it',
+      );
+    }
+    final occupied = await _ssh.runCommand(
+      '[ -d /data/librescoot-installer/dbc-control ] && echo occupied || echo clear',
+    );
+    if (occupied.trim() != 'clear') {
+      throw StateError('DBC control/recovery record requires manual recovery');
+    }
+  }
+
   /// Start the trampoline script on MDB in background.
   Future<void> start({required String runId}) async {
     if (!RegExp(r'^[a-zA-Z0-9._-]+$').hasMatch(runId)) {
       throw ArgumentError.value(runId, 'runId', 'contains unsafe characters');
     }
-    // A leftover trampoline from an abandoned run would race this one over the
-    // USB role and the dashboard's power. The pattern is bracketed so pgrep and
-    // pkill cannot match their own command line, and the kill is its own
-    // command because a combined one would carry the pattern in the launcher's
-    // arguments and take the launcher with it.
-    await _ssh.runCommand("pkill -f '$_trampolinePattern' 2>/dev/null; true");
+    await _ensureNoActiveDbcRun();
+    await _ssh.runCommand(archiveTrampolineAttemptCommand);
     await _ssh.runCommand(
       'rm -f ${SshService.installerLastInstall}; '
       'mkdir -p /data/installer; '

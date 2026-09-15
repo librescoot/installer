@@ -76,9 +76,25 @@ echo release-v1.4.0
     expect(probe('precommit').exitCode, isNot(0));
   });
 
-  test('requires exact expected version and target root', () {
+  test('canonicalizes version case but still requires its exact value', () {
+    File('${root.path}/os-release').writeAsStringSync(
+      'VERSION_ID="nightly-20260913t064252"\n',
+    );
+    final result = Process.runSync('sh', [
+      'assets/dbc-health.sh',
+      'precommit',
+      'release-nightly-20260913T064252',
+      'nightly-20260913T064252',
+      'boot-old',
+      '179:2',
+      '179:3',
+    ], environment: environment);
+    expect(result.exitCode, 0, reason: result.stderr.toString());
+
     File('${root.path}/os-release').writeAsStringSync('VERSION_ID="1.4.0"\n');
-    expect(probe('precommit').exitCode, isNot(0));
+    final mismatch = probe('precommit');
+    expect(mismatch.exitCode, isNot(0));
+    expect(mismatch.stderr.toString(), contains('health-fail: version'));
 
     File('${root.path}/os-release').writeAsStringSync('VERSION_ID="v1.4.0"\n');
     File('${root.path}/mountinfo').writeAsStringSync(

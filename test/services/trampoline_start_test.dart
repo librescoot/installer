@@ -15,10 +15,10 @@ void main() {
         File('lib/services/trampoline_service.dart').readAsStringSync();
   });
 
-  test('launches through sh and uses one pattern for kill and check', () {
+  test('launches through sh and refuses an already running installer', () {
     expect(source, contains('nohup sh \${SshService.installerScriptsDir}/trampoline.sh'));
     expect(source, contains("_trampolinePattern = 'installer/scripts/[t]rampoline.sh'"));
-    expect(source, contains("pkill -f '\$_trampolinePattern'"));
+    expect(source, isNot(contains("pkill -f '\$_trampolinePattern'")));
     expect(source, contains("pgrep -f '\$_trampolinePattern'"));
     // No hand-written copy left to drift again.
     expect(RegExp(r"'installer/\[t\]rampoline\.sh'").hasMatch(source), isFalse,

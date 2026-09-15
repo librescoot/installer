@@ -1880,11 +1880,13 @@ fi
   /// as [installSignalHelpers], for the same reason.
   Future<void> installDeviceHelpers() async {
     await runCommand('mkdir -p $installerScriptsDir');
-    await uploadFile(
-      Uint8List.fromList(utf8.encode(await DeviceHelpers.load())),
-      DeviceHelpers.remotePath,
-    );
-    debugPrint('SSH: staged ${DeviceHelpers.fileName}');
+    final content = Uint8List.fromList(utf8.encode(await DeviceHelpers.load()));
+    await uploadFile(content, DeviceHelpers.remotePath);
+    final readback = await downloadFile(DeviceHelpers.remotePath);
+    if (!listEquals(content, readback)) {
+      throw StateError('Uploaded device helpers do not match bundled content');
+    }
+    debugPrint('SSH: verified ${DeviceHelpers.fileName}');
   }
 
   /// The bootstrap image ships no onboot-service, so nothing runs the

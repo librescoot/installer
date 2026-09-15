@@ -54,9 +54,8 @@ unset signal_cand
 # --- PWM LED channels ------------------------------------------------------
 # 0=headlight 1=front_ring 2=brake 3=FL 4=FR 5=plates 6=RL 7=RR
 FRONT_LED=1
-# Segment order: 1=FL, 2=RR, 3=FR, 4=RL. Unchanged from the bar this replaces,
-# so a vehicle mid-run reads the same as it always did.
-BLINKER_LEDS="3 7 4 6"
+# Segment order: 1=FL, 2=FR, 3=RR, 4=RL, clockwise around the scooter.
+BLINKER_LEDS="3 4 7 6"
 # Just under fade4's peak (156), so a breathing segment reads brighter at its
 # peak than the filled trail behind it.
 DIM_DUTY=150

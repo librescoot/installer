@@ -94,10 +94,10 @@ echo "systemd-run $unit$args" >> "$CALLS"''',
       // was not showing looks like a run that stalled.
       await run('progress_set 2 active\nprogress_set 3 active');
       expect(state(), '-**-');
-      // Segments 2 and 3 are channels 7 and 4, and both go to the same loop so
+      // Segments 2 and 3 are channels 4 and 7, and both go to the same loop so
       // they breathe in step.
       expect(callLines().last, 'systemd-run librescoot-progress-breathe'
-          ' ${bin.path}/ioctl 7 4');
+          ' ${bin.path}/ioctl 4 7');
     });
 
     test('a half that finishes first fills while the other keeps breathing',
@@ -108,11 +108,11 @@ echo "systemd-run $unit$args" >> "$CALLS"''',
       await run('progress_set 2 active\nprogress_set 3 active\n'
           'progress_set 2 done');
       expect(state(), '-#*-');
-      // Channel 7 filled at the static glow, channel 4 still the only one in
+      // Channel 4 filled at the static glow, channel 7 still the only one in
       // the breathing loop.
-      expect(calls(), contains('ioctl /dev/pwm_led7 0x0000754A -v 150'));
+      expect(calls(), contains('ioctl /dev/pwm_led4 0x0000754A -v 150'));
       expect(callLines().last,
-          'systemd-run librescoot-progress-breathe ${bin.path}/ioctl 4');
+          'systemd-run librescoot-progress-breathe ${bin.path}/ioctl 7');
     });
 
     test('stopping the ring pulse hands the channel back active', () async {
@@ -136,7 +136,7 @@ echo "systemd-run $unit$args" >> "$CALLS"''',
       final withFades = 'SIGNAL_FADES_DIR=${fades.path}\n';
       await run('${withFades}progress_set 3 active\nfront_pulse_start');
       expect(calls(), contains(
-          'systemd-run librescoot-progress-breathe ${bin.path}/ioctl 4 9 4'));
+          'systemd-run librescoot-progress-breathe ${bin.path}/ioctl 4 9 7'));
       expect(calls(), contains(
           'systemd-run librescoot-front-pulse ${bin.path}/ioctl 1 0 1'));
     });
@@ -148,14 +148,14 @@ echo "systemd-run $unit$args" >> "$CALLS"''',
       // before a breathing segment reads as a fault, not as a skipped stage.
       await run('progress_set 3 active');
       expect(state(), '--*-');
-      for (final ch in ['3', '7']) {
+      for (final ch in ['3', '4']) {
         expect(calls(), contains('ioctl /dev/pwm_led$ch 0x0000754A -v 150'),
             reason: 'channel $ch should be filled behind the active segment');
       }
       // Nothing after the furthest lit segment is touched.
       expect(calls(), isNot(contains('ioctl /dev/pwm_led6 0x0000754A -v 150')));
       expect(callLines().last,
-          'systemd-run librescoot-progress-breathe ${bin.path}/ioctl 4');
+          'systemd-run librescoot-progress-breathe ${bin.path}/ioctl 7');
     });
 
     test('the state survives a fresh source, which is the reboot', () async {
@@ -167,8 +167,8 @@ echo "systemd-run $unit$args" >> "$CALLS"''',
       final after = await run('progress_render');
       expect(after.exitCode, 0, reason: after.stderr.toString());
       expect(state(), '-##*');
-      expect(calls(), contains('ioctl /dev/pwm_led7 0x0000754A -v 150'));
       expect(calls(), contains('ioctl /dev/pwm_led4 0x0000754A -v 150'));
+      expect(calls(), contains('ioctl /dev/pwm_led7 0x0000754A -v 150'));
       expect(callLines().last,
           'systemd-run librescoot-progress-breathe ${bin.path}/ioctl 6');
     });
@@ -217,8 +217,8 @@ echo "systemd-run $unit$args" >> "$CALLS"''',
       // blinker the owner signals until vehicle-service re-inits.
       await run('progress_set 2 done\nprogress_off');
       expect(state(), '');
-      expect(calls(), contains('ioctl /dev/pwm_led7 0x0000754A -v 0'));
-      expect(calls(), isNot(contains('ioctl /dev/pwm_led7 0x00007549 -v 0')));
+      expect(calls(), contains('ioctl /dev/pwm_led4 0x0000754A -v 0'));
+      expect(calls(), isNot(contains('ioctl /dev/pwm_led4 0x00007549 -v 0')));
     });
   });
 

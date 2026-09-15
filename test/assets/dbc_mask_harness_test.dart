@@ -18,8 +18,8 @@ String _maskHelper(String source) {
         'MOUNTPOINT="\$TEST_ROOT/mount"',
       )
       .replaceAll(
-        'CONFIG=/etc/mender/mender.conf',
-        'CONFIG="\$TEST_ROOT/mender.conf"',
+        'CONFIGS="/var/lib/mender/mender.conf /etc/mender/mender.conf"',
+        'CONFIGS="\$TEST_ROOT/mender.conf \$TEST_ROOT/persistent-mender.conf"',
       )
       .replaceAll('/proc/self/mountinfo', '"\$TEST_ROOT/mountinfo"')
       .replaceAll('/sys/class/block/', '\$TEST_ROOT/sys/class/block/')
@@ -204,7 +204,7 @@ printf 'systemctl:%s\n' "$*" >> "$EVENTS"
     writeConfig(ambiguousA: true);
     var result = run('prepare');
     expect(result.exitCode, isNot(0));
-    expect(result.stderr, contains('RootfsPartA is missing or ambiguous'));
+    expect(result.stderr, contains('RootfsPartA is ambiguous'));
 
     writeConfig();
     mountinfo.writeAsStringSync('''36 25 179:2 / / rw - ext4 /dev/root rw
@@ -213,6 +213,44 @@ printf 'systemctl:%s\n' "$*" >> "$EVENTS"
     result = run('prepare');
     expect(result.exitCode, isNot(0));
     expect(result.stderr, contains('inactive target'));
+  });
+
+  for (final location in ['etc', 'persistent', 'matching', 'complementary']) {
+    test('reads real two-file configuration: $location', () {
+      final etc = File('${root.path}/mender.conf');
+      final persistent = File('${root.path}/persistent-mender.conf');
+      if (location == 'persistent') {
+        etc.renameSync(persistent.path);
+        etc.writeAsStringSync('{}');
+      } else if (location == 'matching') {
+        persistent.writeAsStringSync(etc.readAsStringSync());
+      } else if (location == 'complementary') {
+        etc.writeAsStringSync('"RootfsPartA": "/dev/root-a-alias"\n');
+        persistent.writeAsStringSync('"RootfsPartB": "/dev/root-b-alias"\n');
+      }
+      final result = run('prepare');
+      expect(result.exitCode, 0, reason: result.stderr.toString());
+    });
+  }
+
+  for (final content in [
+    '"RootfsPartA": "/dev/conflict"\n',
+    '{"RootfsPartA": "/dev/compact-conflict"}',
+    '"RootfsPartA": "/dev/root-a-alias"\n"RootfsPartA": "/dev/root-a-alias"\n',
+  ]) {
+    test(
+      'rejects conflicting, compact or duplicate second configuration $content',
+      () {
+        File('${root.path}/persistent-mender.conf').writeAsStringSync(content);
+        expect(run('prepare').exitCode, isNot(0));
+      },
+    );
+  }
+
+  test('rejects layout missing from both configurations', () {
+    File('${root.path}/mender.conf').writeAsStringSync('{}');
+    File('${root.path}/persistent-mender.conf').writeAsStringSync('{}');
+    expect(run('prepare').exitCode, isNot(0));
   });
 
   test('preserves a pre-existing mask and resumes an interrupted mask', () {

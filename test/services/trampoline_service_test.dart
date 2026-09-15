@@ -2,7 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:librescoot_installer/services/install_phase_scripts.dart';
+import 'package:librescoot_installer/services/ssh_service.dart';
 import 'package:librescoot_installer/models/install_plan.dart';
 import 'package:librescoot_installer/models/region.dart';
 import 'package:librescoot_installer/models/trampoline_status.dart';
@@ -10,6 +13,57 @@ import 'package:librescoot_installer/services/trampoline_service.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('same-process retry reloads the template and device helper assets', () async {
+    var content = 'first';
+    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMessageHandler('flutter/assets', (_) async {
+      return ByteData.sublistView(Uint8List.fromList(utf8.encode(content)));
+    });
+    addTearDown(() => messenger.setMockMessageHandler('flutter/assets', null));
+    final service = TrampolineService(SshService());
+    expect(await service.generateScript(upgradeMode: false, dbcImagePath: '/image'), 'first');
+    expect(await DeviceHelpers.load(), 'first');
+    content = 'second';
+    expect(await service.generateScript(upgradeMode: false, dbcImagePath: '/image'), 'second');
+    expect(await DeviceHelpers.load(), 'second');
+  });
+
+  test('rendered script readback must match exactly before launch', () async {
+    final bytes = Uint8List.fromList(utf8.encode('new script'));
+    await verifyTrampolineScript(bytes, (_) async => bytes);
+    await expectLater(
+      verifyTrampolineScript(bytes, (_) async => Uint8List.fromList([0])),
+      throwsStateError,
+    );
+    await expectLater(
+      verifyTrampolineScript(bytes, (_) async => null),
+      throwsStateError,
+    );
+  });
+
+  test('retry archives preserve each previous attempt independently', () async {
+    final root = Directory.systemTemp.createTempSync('trampoline-attempt-');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final log = File('${root.path}/trampoline.log');
+    final command = archiveTrampolineAttemptCommand.replaceAll(
+      '/data/installer',
+      root.path,
+    );
+    for (final attempt in ['first', 'second']) {
+      log.writeAsStringSync(attempt);
+      final result = await Process.run('sh', ['-c', command]);
+      expect(result.exitCode, 0, reason: result.stderr.toString());
+    }
+    final archived = Directory('${root.path}/history')
+        .listSync()
+        .cast<Directory>()
+        .map((dir) => File('${dir.path}/trampoline.log').readAsStringSync())
+        .toList();
+    expect(archived, unorderedEquals(['first', 'second']));
+  });
+
   test('fallback server rejects truncated request bodies', () async {
     final root = await Directory.systemTemp.createTemp('upload-server-');
     addTearDown(() => root.delete(recursive: true));

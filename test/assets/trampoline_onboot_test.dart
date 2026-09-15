@@ -293,7 +293,7 @@ void main() {
 
   test('the DBC lifecycle is acquired before the raw flash', () {
     final acquire = outer.indexOf(
-      'dbc_update_start || fail "Could not establish an exclusive',
+      'dbc_update_start || { echo "Unsupported or occupied',
     );
     final flash = outer.indexOf('step_begin "Step 7: flash DBC"');
     expect(acquire, greaterThan(-1));
@@ -307,12 +307,10 @@ void main() {
 
   test('the DBC artifact phase holds vehicle power until it finishes', () {
     expect(onboot, contains('dbc_update_start()'));
-    expect(onboot, contains('hget vehicle dbc-updating'));
-    expect(onboot, contains('lpush scooter:update start-dbc'));
-    expect(onboot, contains('vehicle-service acknowledged the installer'));
+    expect(onboot, contains('dbc_control_acquire handoff'));
+    expect(onboot, contains('dbc_control_check'));
     expect(onboot, contains('dbc_update_complete()'));
-    expect(onboot, contains('lpush scooter:update complete-dbc'));
-    expect(onboot, contains('acknowledged release of the installer'));
+    expect(onboot, contains('dbc_control_release'));
     expect(
       onboot,
       contains('if [ "\$MODE" = flash ] && ! dbc_update_start; then'),
@@ -328,10 +326,7 @@ void main() {
       onboot.indexOf('dbc_update_start'),
       lessThan(onboot.indexOf('mender-update install')),
     );
-    expect(
-      onboot.lastIndexOf('dbc_update_complete'),
-      lessThan(onboot.lastIndexOf('dbc_power_off || true')),
-    );
+    expect(onboot, contains('dbc_owned_power_off || { write_status'));
   });
 
   test('direct install masks the identified inactive Mender root', () {
@@ -350,7 +345,7 @@ void main() {
       expect(onboot, contains(required), reason: required);
     }
     final install = onboot.indexOf(
-      'dbc_ssh_bounded 900 "mender-update install \$DBC_ART_PATH"',
+      'dbc_ssh_once_bounded 900 "mender-update install \$DBC_ART_PATH"',
     );
     final mask = onboot.indexOf('if ! prepare_dbc_updater_mask;', install);
     expect(install, greaterThan(-1));

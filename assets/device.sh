@@ -17,6 +17,54 @@
 
 DBC_IP="192.168.7.2"
 
+# A rapid laptop-to-DBC cable swap can leave the UDC continuously
+# "configured": the DBC is another USB host and may enumerate the MDB before
+# the disconnect debounce samples the gap. Rebinding g_ether is safe while the
+# MDB remains a gadget and gives either host a clean enumeration. A responding
+# DBC identifies the new peer; otherwise only a sustained unconfigured state
+# completes the handoff.
+USB_HANDOFF_UDC_STATE="${USB_HANDOFF_UDC_STATE:-/sys/class/udc/ci_hdrc.0/state}"
+USB_HANDOFF_GONE_NEEDED="${USB_HANDOFF_GONE_NEEDED:-3}"
+USB_HANDOFF_REBIND_AFTER="${USB_HANDOFF_REBIND_AFTER:-10}"
+USB_HANDOFF_REBIND_RETRY="${USB_HANDOFF_REBIND_RETRY:-30}"
+USB_HANDOFF_REBIND_GRACE="${USB_HANDOFF_REBIND_GRACE:-10}"
+
+wait_for_laptop_disconnect() {
+  local gone=0 configured=0 rebind_after="$USB_HANDOFF_REBIND_AFTER" grace=0
+  while [ "$gone" -lt "$USB_HANDOFF_GONE_NEEDED" ]; do
+    if ping -c 1 -W 1 "$DBC_IP" >/dev/null 2>&1; then
+      log "DBC USB peer detected"
+      return 0
+    fi
+
+    if grep -q configured "$USB_HANDOFF_UDC_STATE" 2>/dev/null; then
+      gone=0
+      grace=0
+      configured=$((configured + 1))
+      if [ "$configured" -ge "$rebind_after" ]; then
+        log "  UDC stayed configured; rebinding the gadget to identify the peer"
+        rmmod g_ether 2>/dev/null || true
+        sleep 1
+        modprobe g_ether 2>/dev/null || true
+        sleep 2
+        usb0_up
+        configured=0
+        rebind_after="$USB_HANDOFF_REBIND_RETRY"
+        grace="$USB_HANDOFF_REBIND_GRACE"
+      fi
+    else
+      configured=0
+      if [ "$grace" -gt 0 ]; then
+        grace=$((grace - 1))
+      else
+        gone=$((gone + 1))
+      fi
+    fi
+    sleep 1
+  done
+  log "Laptop disconnected (debounced)"
+}
+
 # SSH/SCP to DBC with retries. -y -y makes dropbear skip host-key checking
 # entirely. A flash gives the DBC a brand-new host key; the MDB still has the
 # previous one in known_hosts, so a single -y (accept unknown, but ABORT on
@@ -75,13 +123,76 @@ wait_dbc_ssh() {
 # around it there would be both rude and broken.
 DBC_POWER_GPIO=50
 
+DBC_CONTROL_DIR=/data/librescoot-installer/dbc-control
+DBC_CONTROL_ACQUIRED=no
+
+dbc_bootstrap_capable() {
+  local artifact unit state
+  artifact=$(mender-update show-artifact 2>/dev/null) || return 1
+  [ "$artifact" = release-v1.3.0-minimal ] || return 1
+  ! command -v lsc >/dev/null 2>&1 || return 1
+  for unit in librescoot-vehicle.service vehicle-service.service; do
+    state=$(systemctl show -p LoadState --value "$unit" 2>/dev/null) || return 1
+    [ "$state" = not-found ] || return 1
+  done
+}
+
+dbc_control_check() {
+  local flag owner
+  dbc_bootstrap_capable || return 1
+  [ "$(cat "$DBC_CONTROL_DIR/owner" 2>/dev/null)" = "$RUN_ID" ] || return 1
+  flag=$(redis-cli -h localhost --raw hget vehicle dbc-updating 2>/dev/null) || return 1
+  case "$flag" in ''|false) ;; *) return 1 ;; esac
+  owner=$(redis-cli -h localhost --raw hget ota heartbeat-owner:dbc 2>/dev/null) || return 1
+  [ -z "$owner" ]
+}
+
+dbc_control_record() {
+  [ "$(cat "$DBC_CONTROL_DIR/owner" 2>/dev/null)" = "$RUN_ID" ] || return 1
+  printf '%s\n' "$1" > "$DBC_CONTROL_DIR/state.tmp" &&
+    mv "$DBC_CONTROL_DIR/state.tmp" "$DBC_CONTROL_DIR/state" && sync
+}
+
+dbc_control_acquire() {
+  dbc_bootstrap_capable || { log "ERROR: direct DBC install requires the supported bootstrap; owner-correlated full-image control is unavailable"; return 1; }
+  if [ "$1" = outer ]; then
+    mkdir -p "${DBC_CONTROL_DIR%/*}" || return 1
+    mkdir "$DBC_CONTROL_DIR" 2>/dev/null || { log "ERROR: DBC control/recovery record exists; manual recovery required"; return 1; }
+    printf '%s\n' "$RUN_ID" > "$DBC_CONTROL_DIR/owner" || return 1
+    dbc_control_record acquired || return 1
+  else
+    [ "$(cat "$DBC_CONTROL_DIR/owner" 2>/dev/null)" = "$RUN_ID" ] || return 1
+    [ "$(cat "$DBC_CONTROL_DIR/state" 2>/dev/null)" = handoff ] || return 1
+    mkdir "$DBC_CONTROL_DIR/phase" 2>/dev/null || return 1
+    dbc_control_record artifact-install || return 1
+  fi
+  dbc_control_check || return 1
+  DBC_CONTROL_ACQUIRED=yes
+  log "  Exclusive bootstrap DBC control verified"
+}
+
+dbc_control_release() {
+  [ "$DBC_CONTROL_ACQUIRED" = yes ] || return 1
+  [ "$(cat "$DBC_CONTROL_DIR/owner" 2>/dev/null)" = "$RUN_ID" ] || return 1
+  case "$(cat "$DBC_CONTROL_DIR/state" 2>/dev/null)" in
+    artifact-install-unknown|artifact-installed|mask-unknown|mask-prepared|activation-unknown|commit-unknown|ums-preparing) return 1 ;;
+    committed) return 0 ;;
+  esac
+  rm -f "$DBC_CONTROL_DIR/owner" "$DBC_CONTROL_DIR/state"
+  rmdir "$DBC_CONTROL_DIR/phase" 2>/dev/null || true
+  rmdir "$DBC_CONTROL_DIR"
+}
+
 dbc_gpio_ready() {
-  [ -d "/sys/class/gpio/gpio$DBC_POWER_GPIO" ] && return 0
-  echo "$DBC_POWER_GPIO" > /sys/class/gpio/export 2>/dev/null || true
+  if [ -d "/sys/class/gpio/gpio$DBC_POWER_GPIO" ]; then
+    [ "$(cat "/sys/class/gpio/gpio$DBC_POWER_GPIO/direction" 2>/dev/null)" = out ]
+    return $?
+  fi
+  echo "$DBC_POWER_GPIO" > /sys/class/gpio/export 2>/dev/null || return 1
   sleep 1
   [ -d "/sys/class/gpio/gpio$DBC_POWER_GPIO" ] || return 1
-  echo out > "/sys/class/gpio/gpio$DBC_POWER_GPIO/direction" 2>/dev/null || true
-  return 0
+  echo out > "/sys/class/gpio/gpio$DBC_POWER_GPIO/direction" 2>/dev/null || return 1
+  [ "$(cat "/sys/class/gpio/gpio$DBC_POWER_GPIO/direction" 2>/dev/null)" = out ]
 }
 
 # $1: 1 to power the dashboard, 0 to cut it.
@@ -93,10 +204,13 @@ dbc_power_set() {
     else
       out=$(lsc --redis-addr localhost:6379 dbc off 2>&1) && { log "$out"; return 0; }
     fi
-    log "  lsc dbc power failed, falling back to the GPIO"
+    log "  lsc dbc power failed; refusing GPIO fallback"
+    return 1
   fi
+  dbc_control_check || { log "  WARNING: refusing GPIO power control without bootstrap ownership"; return 1; }
   dbc_gpio_ready || { log "  WARNING: could not claim the dashboard power GPIO"; return 1; }
-  echo "$1" > "/sys/class/gpio/gpio$DBC_POWER_GPIO/value" 2>/dev/null
+  echo "$1" > "/sys/class/gpio/gpio$DBC_POWER_GPIO/value" 2>/dev/null || return 1
+  [ "$(cat "/sys/class/gpio/gpio$DBC_POWER_GPIO/value" 2>/dev/null)" = "$1" ]
 }
 
 # Power the dashboard on and hold until it answers SSH, or until the floor
@@ -137,6 +251,37 @@ dbc_power_off() {
   return "$rc"
 }
 
+# Cut power while an installer-owned DBC lifecycle is active. A normal off
+# request is deliberately rejected in that state, so queue the explicit force
+# command and verify that vehicle-service actually changed the power state.
+dbc_power_off_force() {
+  local out state elapsed=0
+  command -v redis-cli >/dev/null 2>&1 || {
+    log "  WARNING: redis-cli is unavailable for forced dashboard power-off"
+    return 1
+  }
+  out=$(redis-cli -h localhost --raw lpush scooter:hardware dashboard:off:force 2>&1) || {
+    log "  forced dashboard power-off request failed: $out"
+    return 1
+  }
+  case "$out" in *[!0-9]*|'')
+    log "  forced dashboard power-off was not queued: $out"
+    return 1
+  esac
+  while [ "$elapsed" -lt 15 ]; do
+    state=$(redis-cli -h localhost --raw hget vehicle dashboard:power 2>/dev/null)
+    if [ "$state" = off ]; then
+      log "  Dashboard power: off (forced and acknowledged)"
+      sleep "$DBC_POWER_OFF_SETTLE"
+      return 0
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+  log "  forced dashboard power-off was not acknowledged (state=${state:-missing})"
+  return 1
+}
+
 # Power the dashboard and wait for it to answer. Replaces lsc dbc on-wait,
 # which additionally waits on dashboard[ready] in redis; a ping is the part
 # that matters here and the part that works with no vehicle-service running.
@@ -158,7 +303,23 @@ dbc_power_off_wait() {
   local deadline="${1:-30}" elapsed=0
   # dbc_power_off already held the settle floor before this loop starts, so a
   # dashboard that stops answering immediately still had the rail down for it.
-  dbc_power_off
+  dbc_power_off || return 1
+  while [ "$elapsed" -lt "$deadline" ]; do
+    if [ -n "${DBC_DEV:-}" ] && [ -b "$DBC_DEV" ]; then
+      sleep 2
+      elapsed=$((elapsed + 2))
+      continue
+    fi
+    ping -c 1 -W 1 "$DBC_IP" >/dev/null 2>&1 || return 0
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+  return 1
+}
+
+dbc_power_off_wait_force() {
+  local deadline="${1:-30}" elapsed=0
+  dbc_power_off_force || return 1
   while [ "$elapsed" -lt "$deadline" ]; do
     ping -c 1 -W 1 "$DBC_IP" >/dev/null 2>&1 || return 0
     sleep 2

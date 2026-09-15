@@ -44,7 +44,9 @@ void main() {
     bin = Directory('${root.path}/bin');
     await bin.create(recursive: true);
     await Directory('${root.path}/installer/scripts').create(recursive: true);
-    await File('${root.path}/installer/scripts/device.sh').writeAsString(device);
+    await File(
+      '${root.path}/installer/scripts/device.sh',
+    ).writeAsString(device);
     await stub('sleep', 'exit 0');
   });
   tearDown(() => root.delete(recursive: true));
@@ -55,33 +57,49 @@ void main() {
   });
 
   group('one definition, everywhere', () {
-    test('nothing in the trampoline template redefines a helper this file owns',
-        () {
-      // These used to be defined twice: once here, once inside the heredoc
-      // that writes the dashboard phase. A second definition anywhere is that
-      // drift, and it also wins over the sourced one, so the copy that gets
-      // fixed is not the copy that runs.
-      final owned = RegExp(r'^([a-z_][a-z0-9_]*)\(\)', multiLine: true)
-          .allMatches(device)
-          .map((m) => m.group(1)!)
-          .toSet();
-      expect(owned, contains('dbc_ssh'));
-      expect(owned, contains('wait_dbc_ssh'));
-      expect(owned, contains('dbc_power_set'));
+    test(
+      'nothing in the trampoline template redefines a helper this file owns',
+      () {
+        // These used to be defined twice: once here, once inside the heredoc
+        // that writes the dashboard phase. A second definition anywhere is that
+        // drift, and it also wins over the sourced one, so the copy that gets
+        // fixed is not the copy that runs.
+        final owned = RegExp(
+          r'^([a-z_][a-z0-9_]*)\(\)',
+          multiLine: true,
+        ).allMatches(device).map((m) => m.group(1)!).toSet();
+        expect(owned, contains('dbc_ssh'));
+        expect(owned, contains('wait_dbc_ssh'));
+        expect(owned, contains('dbc_power_set'));
 
-      final body = File('assets/trampoline.sh.template').readAsStringSync();
-      for (final name in owned) {
-        expect(body, isNot(contains(RegExp('^ *$name\\(\\)', multiLine: true))),
-            reason: 'assets/trampoline.sh.template redefines $name');
-      }
-    });
+        final body = File('assets/trampoline.sh.template').readAsStringSync();
+        for (final name in owned) {
+          expect(
+            body,
+            isNot(contains(RegExp('^ *$name\\(\\)', multiLine: true))),
+            reason: 'assets/trampoline.sh.template redefines $name',
+          );
+        }
+      },
+    );
 
     test('the trampoline template sources this file', () {
-      expect(File('assets/trampoline.sh.template').readAsStringSync(),
-          contains('device.sh'),
-          reason: 'the trampoline talks to the DBC without sourcing device.sh');
+      expect(
+        File('assets/trampoline.sh.template').readAsStringSync(),
+        contains('device.sh'),
+        reason: 'the trampoline talks to the DBC without sourcing device.sh',
+      );
     });
   });
+
+  test(
+    'failed power control is not accepted because DBC is unpingable',
+    () async {
+      await stub('ping', 'exit 1');
+      final r = await run('dbc_power_off() { return 1; }; dbc_power_off_wait');
+      expect(r.exitCode, 1);
+    },
+  );
 
   group('dbc_ssh', () {
     test('succeeds on the first try', () async {
@@ -115,6 +133,134 @@ void main() {
     });
   });
 
+  group('USB host handoff', () {
+    test('recovers a rapid laptop-to-DBC swap with no UDC gap', () async {
+      final state = File('${root.path}/udc-state')
+        ..writeAsStringSync('configured\n');
+      final rebound = '${root.path}/rebound';
+      await stub('ping', '[ -e "$rebound" ]');
+      await stub('rmmod', 'echo "rmmod \$*" >> "\$CALLS"');
+      await stub('modprobe', '''
+echo "modprobe \$*" >> "\$CALLS"
+touch "$rebound"
+''');
+
+      final r = await run('''
+USB_HANDOFF_UDC_STATE="${state.path}"
+USB_HANDOFF_REBIND_AFTER=2
+USB_HANDOFF_REBIND_RETRY=5
+USB_HANDOFF_REBIND_GRACE=1
+usb0_up() { echo usb0_up >> "\$CALLS"; }
+wait_for_laptop_disconnect
+''');
+
+      expect(r.exitCode, 0, reason: r.stderr.toString());
+      expect(calls(), contains('UDC stayed configured'));
+      expect(calls(), contains('rmmod g_ether'));
+      expect(calls(), contains('modprobe g_ether'));
+      expect(calls(), contains('log: DBC USB peer detected'));
+    });
+
+    test('accepts a sustained unconfigured UDC without rebinding', () async {
+      final state = File('${root.path}/udc-state')
+        ..writeAsStringSync('not attached\n');
+      await stub('ping', 'exit 1');
+      await stub('rmmod', 'echo "rmmod \$*" >> "\$CALLS"');
+
+      final r = await run('''
+USB_HANDOFF_UDC_STATE="${state.path}"
+USB_HANDOFF_GONE_NEEDED=3
+wait_for_laptop_disconnect
+''');
+
+      expect(r.exitCode, 0, reason: r.stderr.toString());
+      expect(calls(), contains('Laptop disconnected (debounced)'));
+      expect(calls(), isNot(contains('rmmod g_ether')));
+    });
+  });
+
+  group('forced lifecycle power-off', () {
+    test('queues force and requires vehicle-service acknowledgement', () async {
+      await stub('redis-cli', '''
+echo "redis-cli \$*" >> "\$CALLS"
+case "\$*" in
+  *"lpush scooter:hardware dashboard:off:force"*) echo 1 ;;
+  *"hget vehicle dashboard:power"*) echo off ;;
+esac
+''');
+      await stub('ping', 'exit 1');
+
+      final r = await run('dbc_power_off_wait_force');
+
+      expect(r.exitCode, 0, reason: r.stderr.toString());
+      expect(calls(), contains('lpush scooter:hardware dashboard:off:force'));
+      expect(calls(), contains('hget vehicle dashboard:power'));
+      expect(
+        calls(),
+        contains('Dashboard power: off (forced and acknowledged)'),
+      );
+    });
+
+    test('fails when forced power-off is never acknowledged', () async {
+      await stub('redis-cli', '''
+case "\$*" in
+  *"lpush scooter:hardware dashboard:off:force"*) echo 1 ;;
+  *"hget vehicle dashboard:power"*) echo on ;;
+esac
+''');
+
+      final r = await run('dbc_power_off_force');
+
+      expect(r.exitCode, 1);
+      expect(
+        calls(),
+        contains('forced dashboard power-off was not acknowledged'),
+      );
+    });
+  });
+
+  for (final failedWrite in [false, true]) {
+    test(
+      'bootstrap GPIO write and readback: write failure=$failedWrite',
+      () async {
+        final gpio = Directory('${root.path}/gpio/gpio50')
+          ..createSync(recursive: true);
+        File('${gpio.path}/direction').writeAsStringSync('out\n');
+        if (failedWrite) {
+          Directory('${gpio.path}/value').createSync();
+        } else {
+          File('${gpio.path}/value').writeAsStringSync('1\n');
+        }
+        File('${root.path}/installer/scripts/device.sh').writeAsStringSync(
+          device.replaceAll('/sys/class/gpio', '${root.path}/gpio'),
+        );
+        await stub('ping', 'exit 1');
+        final result = await run(
+          'dbc_control_check() { return 0; }; dbc_power_off_wait',
+        );
+        expect(
+          result.exitCode,
+          failedWrite ? 1 : 0,
+          reason: result.stderr.toString(),
+        );
+        if (!failedWrite)
+          expect(File('${gpio.path}/value').readAsStringSync().trim(), '0');
+      },
+    );
+  }
+
+  test('UMS transport must disappear even after GPIO request is low', () async {
+    final transport = File('${root.path}/ums')..writeAsStringSync('present');
+    File('${root.path}/installer/scripts/device.sh').writeAsStringSync(
+      device.replaceAll('[ -b "\$DBC_DEV" ]', '[ -e "\$DBC_DEV" ]'),
+    );
+    await stub('ping', 'exit 1');
+    final result = await run(
+      'DBC_DEV="${transport.path}"; dbc_power_off() { return 0; }; dbc_power_off_wait 2',
+    );
+    expect(result.exitCode, 1);
+  });
+
   group('dbc_power_set', () {
     test('prefers lsc when it is on PATH', () async {
       await stub('lsc', 'echo "lsc \$*" >> "\$CALLS"; exit 0');
@@ -123,24 +269,29 @@ void main() {
       expect(calls(), contains('lsc --redis-addr localhost:6379 dbc on'));
     });
 
-    test('falls back to the GPIO when lsc fails, and reports it cannot claim it',
-        () async {
-      // No real /sys/class/gpio in a test sandbox, so the fallback itself
-      // cannot succeed here; what matters is that the code takes that path
-      // and says so, rather than silently doing nothing.
+    test('does not bypass service ownership when lsc fails', () async {
       await stub('lsc', 'exit 1');
       final r = await run('dbc_power_set 1');
       expect(r.exitCode, 1);
-      expect(calls(), contains('log:   lsc dbc power failed, falling back to the GPIO'));
-      expect(calls(),
-          contains('log:   WARNING: could not claim the dashboard power GPIO'));
+      expect(
+        calls(),
+        contains('log:   lsc dbc power failed; refusing GPIO fallback'),
+      );
+      expect(
+        calls(),
+        isNot(contains('could not claim the dashboard power GPIO')),
+      );
     });
 
-    test('falls back to the GPIO when lsc is absent entirely', () async {
+    test('absent lsc is not permission to control GPIO', () async {
       final r = await run('dbc_power_set 0');
       expect(r.exitCode, 1);
-      expect(calls(),
-          contains('log:   WARNING: could not claim the dashboard power GPIO'));
+      expect(
+        calls(),
+        contains(
+          'log:   WARNING: refusing GPIO power control without bootstrap ownership',
+        ),
+      );
     });
   });
 }
