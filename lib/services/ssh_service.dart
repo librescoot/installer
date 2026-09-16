@@ -162,6 +162,22 @@ fi
   /// running `<x>-service` binaries, so `keycard-service` matched nothing here
   /// and never could.
   @visibleForTesting
+  static const keycardPrestartCommand = r'''
+set -eu
+unit=librescoot-keycard
+load_state="$(systemctl show -p LoadState --value "$unit" 2>/dev/null || true)"
+case "$load_state" in
+  loaded|masked)
+    systemctl unmask "$unit" >/dev/null 2>&1 || true
+    # A service with no master enters teach-in as it starts. Put the stop on the
+    # queue first so prestarting cannot turn an incidental tap into a master.
+    redis-cli lpush scooter:keycard learn:master:stop >/dev/null
+    systemctl start "$unit"
+    ;;
+esac
+''';
+
+  @visibleForTesting
   static const interruptedInstallServiceRecoveryCommand = r'''
 set -eu
 units='librescoot-keycard librescoot-bluetooth librescoot-ums'
@@ -170,6 +186,7 @@ systemctl start librescoot-bluetooth
 systemctl start librescoot-ums
 
 if [ "$(systemctl show -p LoadState --value librescoot-keycard 2>/dev/null || true)" = loaded ]; then
+  redis-cli lpush scooter:keycard learn:master:stop >/dev/null
   systemctl start librescoot-keycard
 fi
 
@@ -2473,6 +2490,10 @@ echo timeout
   /// which makes the vehicle unable to read a keycard or answer Bluetooth.
   /// keycard is started too: by this point a master card exists, or the
   /// installer's own keycard phase will handle teaching one in.
+  Future<void> prestartKeycardService() async {
+    await runCommand(keycardPrestartCommand);
+  }
+
   Future<void> reviveInstallerServices() async {
     await runCommand(interruptedInstallServiceRecoveryCommand);
   }

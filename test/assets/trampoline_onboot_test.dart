@@ -632,7 +632,7 @@ void main() {
     final finalize = File('assets/finalize.sh.template').readAsStringSync();
     expect(
       finalize,
-      contains('upgrade|leave)'),
+      contains('upgrade:*|leave:*)'),
       reason:
           'leave keeps /data like upgrade and must restore, not wipe '
           'and not skip',

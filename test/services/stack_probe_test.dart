@@ -256,4 +256,69 @@ void main() {
       );
     });
   });
+
+  group('minimal MDB resume', () {
+    test('accepts the exact selected stage-zero image', () {
+      expect(
+        canResumeMinimalMdb(
+          artifactName: 'release-v1.3.0-minimal',
+          runningVersion: 'v1.3.0',
+          stageZeroFilename:
+              'librescoot-unu-mdb-minimal-v1.3.0.sdimg.gz',
+          hasMender: true,
+        ),
+        isTrue,
+      );
+      expect(
+        canResumeMinimalMdb(
+          artifactName: 'release-nightly-20260823T082958-minimal',
+          runningVersion: 'nightly-20260823t082958',
+          stageZeroFilename:
+              'librescoot-unu-mdb-minimal-nightly-20260823T082958.sdimg.gz',
+          hasMender: true,
+        ),
+        isTrue,
+      );
+    });
+
+    test('rejects a different or ambiguous bootstrap environment', () {
+      for (final input in [
+        (
+          artifact: 'release-v1.2.0-minimal',
+          version: 'v1.2.0',
+          image: 'librescoot-unu-mdb-minimal-v1.3.0.sdimg.gz',
+          mender: true,
+        ),
+        (
+          artifact: 'release-v1.3.0',
+          version: 'v1.3.0',
+          image: 'librescoot-unu-mdb-minimal-v1.3.0.sdimg.gz',
+          mender: true,
+        ),
+        (
+          artifact: 'release-v1.3.0-minimal',
+          version: 'v1.3.0',
+          image: 'librescoot-unu-mdb-minimal-v1.3.0.sdimg.gz',
+          mender: false,
+        ),
+        (
+          artifact: 'release-v1.3.0-minimal',
+          version: 'v1.3.0',
+          image: null,
+          mender: true,
+        ),
+      ]) {
+        expect(
+          canResumeMinimalMdb(
+            artifactName: input.artifact,
+            runningVersion: input.version,
+            stageZeroFilename: input.image,
+            hasMender: input.mender,
+          ),
+          isFalse,
+          reason: '$input',
+        );
+      }
+    });
+  });
 }

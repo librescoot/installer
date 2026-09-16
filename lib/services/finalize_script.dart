@@ -31,6 +31,7 @@ class FinalizeScript {
     String releaseTag = '',
     String region = '',
     String dashboardResult = 'not-requested',
+    bool preserveSettings = false,
   }) {
     final rendered = template
         .replaceAll('{{MDB_ACTION}}', mdbAction)
@@ -42,7 +43,8 @@ class FinalizeScript {
         .replaceAll('{{DBC_ACTION}}', dbcAction)
         .replaceAll('{{RELEASE_TAG}}', releaseTag)
         .replaceAll('{{TILES_REGION}}', region)
-        .replaceAll('{{DASHBOARD_RESULT}}', dashboardResult);
+        .replaceAll('{{DASHBOARD_RESULT}}', dashboardResult)
+        .replaceAll('{{PRESERVE_SETTINGS}}', preserveSettings ? 'yes' : 'no');
 
     // An unfilled placeholder is valid shell in most of the places one
     // appears, so the script runs and takes the wrong branch rather than
@@ -55,13 +57,9 @@ class FinalizeScript {
     return rendered.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
   }
 
-  static List<String> unresolvedPlaceholders(String script) =>
-      RegExp(r'\{\{[A-Z_]+\}\}')
-          .allMatches(script)
-          .map((m) => m.group(0)!)
-          .toSet()
-          .toList()
-        ..sort();
+  static List<String> unresolvedPlaceholders(String script) => RegExp(
+    r'\{\{[A-Z_]+\}\}',
+  ).allMatches(script).map((m) => m.group(0)!).toSet().toList()..sort();
 
   static Future<String> loadTemplate() =>
       rootBundle.loadString('assets/finalize.sh.template');

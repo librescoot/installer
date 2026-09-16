@@ -112,7 +112,7 @@ void main() {
       expect(plan.blocker, UpgradeBlocker.stateUnknown);
     });
 
-    test('a board left on a minimal image is clean installed, not upgraded', () {
+    test('an unverified minimal image is clean installed', () {
       const state = BoardState(
         board: Board.mdb,
         isLibrescoot: true,
@@ -124,6 +124,49 @@ void main() {
       final plan = InstallPlan.defaultPlanFor(state, 'v1.2.1');
       expect(plan.action, BoardAction.cleanInstall);
       expect(plan.blocker, UpgradeBlocker.minimalImage);
+    });
+
+    test('the exact live MDB stage zero resumes at the target artifact', () {
+      const state = BoardState(
+        board: Board.mdb,
+        isLibrescoot: true,
+        provenance: StateProvenance.live,
+        version: 'v1.3.0',
+        hasMender: true,
+        isMinimalImage: true,
+        isResumableMinimalImage: true,
+      );
+      final plan = InstallPlan.defaultPlanFor(state, 'v1.3.0');
+      expect(plan.action, BoardAction.upgrade,
+          reason: 'an equal version still lacks the full service stack');
+      expect(plan.blocker, isNull);
+    });
+
+    test('last-seen or non-MDB bootstrap state never resumes directly', () {
+      for (final state in [
+        const BoardState(
+          board: Board.mdb,
+          isLibrescoot: true,
+          provenance: StateProvenance.lastSeen,
+          version: 'v1.3.0',
+          hasMender: true,
+          isMinimalImage: true,
+          isResumableMinimalImage: true,
+        ),
+        const BoardState(
+          board: Board.dbc,
+          isLibrescoot: true,
+          provenance: StateProvenance.live,
+          version: 'v1.3.0',
+          hasMender: true,
+          isMinimalImage: true,
+          isResumableMinimalImage: true,
+        ),
+      ]) {
+        final plan = InstallPlan.defaultPlanFor(state, 'v1.3.0');
+        expect(plan.action, BoardAction.cleanInstall);
+        expect(plan.blocker, UpgradeBlocker.minimalImage);
+      }
     });
 
     test('no mender client blocks upgrade with its own reason', () {

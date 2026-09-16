@@ -19,21 +19,21 @@ extension MajorStepL10n on MajorStep {
     AppLocalizations l10n, {
     bool upgrade = false,
     bool mapsOnly = false,
-  }) =>
-      switch (this) {
-        MajorStep.prepare => l10n.majorStepPrepare,
-        MajorStep.connect => l10n.majorStepConnect,
-        MajorStep.mdbFlash => l10n.majorStepMdbFlash,
-        MajorStep.pairing => l10n.majorStepPairing,
-        MajorStep.mdbInstall =>
-          upgrade ? l10n.majorStepMdbUpgrade : l10n.majorStepMdbInstall,
-        MajorStep.dbcFlash => mapsOnly
-            ? l10n.majorStepDbcMaps
-            : upgrade
-                ? l10n.majorStepDbcUpgrade
-                : l10n.majorStepDbcFlash,
-        MajorStep.finish => l10n.majorStepFinish,
-      };
+  }) => switch (this) {
+    MajorStep.prepare => l10n.majorStepPrepare,
+    MajorStep.connect => l10n.majorStepConnect,
+    MajorStep.mdbFlash => l10n.majorStepMdbFlash,
+    MajorStep.pairing => l10n.majorStepPairing,
+    MajorStep.mdbInstall =>
+      upgrade ? l10n.majorStepMdbUpgrade : l10n.majorStepMdbInstall,
+    MajorStep.dbcFlash =>
+      mapsOnly
+          ? l10n.majorStepDbcMaps
+          : upgrade
+          ? l10n.majorStepDbcUpgrade
+          : l10n.majorStepDbcFlash,
+    MajorStep.finish => l10n.majorStepFinish,
+  };
 }
 
 extension InstallerPhaseL10n on InstallerPhase {
@@ -46,6 +46,8 @@ extension InstallerPhaseL10n on InstallerPhase {
         InstallerPhase.resumeDetected => l10n.phaseResumeDetectedTitle,
         InstallerPhase.healthCheck => l10n.phaseHealthCheckTitle,
         InstallerPhase.installPlan => l10n.phaseInstallPlanTitle,
+        InstallerPhase.configurationConfirmation =>
+          l10n.configurationRestoreHeading,
         InstallerPhase.mdbToUms => l10n.phaseMdbToUmsTitle,
         InstallerPhase.mdbFlash => l10n.phaseMdbFlashTitle,
         InstallerPhase.scooterPrep => l10n.phaseScooterPrepTitle,
@@ -62,31 +64,35 @@ extension InstallerPhaseL10n on InstallerPhase {
         InstallerPhase.finish => l10n.phaseFinishTitle,
       };
 
-  String localizedDescription(AppLocalizations l10n,
-          {bool mapsOnly = false}) =>
-      switch (this) {
-        InstallerPhase.welcome => l10n.phaseWelcomeDescription,
-        InstallerPhase.notices => l10n.phaseNoticesDescription,
-        InstallerPhase.physicalPrep => l10n.phasePhysicalPrepDescription,
-        InstallerPhase.mdbConnect => l10n.phaseMdbConnectDescription,
-        InstallerPhase.resumeDetected => l10n.phaseResumeDetectedDescription,
-        InstallerPhase.healthCheck => l10n.phaseHealthCheckDescription,
-        InstallerPhase.installPlan => l10n.phaseInstallPlanDescription,
-        InstallerPhase.mdbToUms => l10n.phaseMdbToUmsDescription,
-        InstallerPhase.mdbFlash => l10n.phaseMdbFlashDescription,
-        InstallerPhase.scooterPrep => l10n.phaseScooterPrepDescription,
-        InstallerPhase.mdbBoot => l10n.phaseMdbBootDescription,
-        InstallerPhase.mdbArtifact => l10n.phaseMdbArtifactDescription,
-        InstallerPhase.cbbReconnect => l10n.phaseCbbReconnectDescription,
-        InstallerPhase.dbcPrep => mapsOnly
-            ? l10n.phaseDbcPrepDescriptionMaps
-            : l10n.phaseDbcPrepDescription,
-        InstallerPhase.dbcFlash => mapsOnly
-            ? l10n.phaseDbcFlashDescriptionMaps
-            : l10n.phaseDbcFlashDescription,
-        InstallerPhase.reconnect => l10n.phaseReconnectDescription,
-        InstallerPhase.bluetoothPairing => l10n.phaseBluetoothPairingDescription,
-        InstallerPhase.keycardSetup => l10n.phaseKeycardSetupDescription,
-        InstallerPhase.finish => l10n.phaseFinishDescription,
-      };
+  String localizedDescription(
+    AppLocalizations l10n, {
+    bool mapsOnly = false,
+  }) => switch (this) {
+    InstallerPhase.welcome => l10n.phaseWelcomeDescription,
+    InstallerPhase.notices => l10n.phaseNoticesDescription,
+    InstallerPhase.physicalPrep => l10n.phasePhysicalPrepDescription,
+    InstallerPhase.mdbConnect => l10n.phaseMdbConnectDescription,
+    InstallerPhase.resumeDetected => l10n.phaseResumeDetectedDescription,
+    InstallerPhase.healthCheck => l10n.phaseHealthCheckDescription,
+    InstallerPhase.installPlan => l10n.phaseInstallPlanDescription,
+    InstallerPhase.configurationConfirmation => l10n.configurationRestoreDetail,
+    InstallerPhase.mdbToUms => l10n.phaseMdbToUmsDescription,
+    InstallerPhase.mdbFlash => l10n.phaseMdbFlashDescription,
+    InstallerPhase.scooterPrep => l10n.phaseScooterPrepDescription,
+    InstallerPhase.mdbBoot => l10n.phaseMdbBootDescription,
+    InstallerPhase.mdbArtifact => l10n.phaseMdbArtifactDescription,
+    InstallerPhase.cbbReconnect => l10n.phaseCbbReconnectDescription,
+    InstallerPhase.dbcPrep =>
+      mapsOnly
+          ? l10n.phaseDbcPrepDescriptionMaps
+          : l10n.phaseDbcPrepDescription,
+    InstallerPhase.dbcFlash =>
+      mapsOnly
+          ? l10n.phaseDbcFlashDescriptionMaps
+          : l10n.phaseDbcFlashDescription,
+    InstallerPhase.reconnect => l10n.phaseReconnectDescription,
+    InstallerPhase.bluetoothPairing => l10n.phaseBluetoothPairingDescription,
+    InstallerPhase.keycardSetup => l10n.phaseKeycardSetupDescription,
+    InstallerPhase.finish => l10n.phaseFinishDescription,
+  };
 }

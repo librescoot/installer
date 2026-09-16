@@ -2438,10 +2438,16 @@ abstract class AppLocalizations {
   /// **'Unknown'**
   String get unknown;
 
+  /// No description provided for @inspectingConfiguration.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking device configuration...'**
+  String get inspectingConfiguration;
+
   /// No description provided for @backingUpConfig.
   ///
   /// In en, this message translates to:
-  /// **'Backing up device configuration...'**
+  /// **'Backing up selected device configuration...'**
   String get backingUpConfig;
 
   /// No description provided for @configBackedUp.
@@ -2455,6 +2461,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Restoring device configuration...'**
   String get restoringConfig;
+
+  /// No description provided for @configurationDetected.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{1 configuration detected} other{{count} configurations detected}}'**
+  String configurationDetected(int count);
+
+  /// No description provided for @configurationRestoreHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Which device configurations should be restored?'**
+  String get configurationRestoreHeading;
+
+  /// No description provided for @configurationRestoreDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose which detected settings should be restored after the clean install. All are selected by default.'**
+  String get configurationRestoreDetail;
+
+  /// No description provided for @configurationIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'Device identity and VIN database'**
+  String get configurationIdentity;
+
+  /// No description provided for @configurationIdentityDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Keeps the scooter ID, VIN, and identity database.'**
+  String get configurationIdentityDescription;
+
+  /// No description provided for @configurationWireGuard.
+  ///
+  /// In en, this message translates to:
+  /// **'WireGuard connections'**
+  String get configurationWireGuard;
+
+  /// No description provided for @configurationWireGuardDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Keeps VPN connections, including private keys.'**
+  String get configurationWireGuardDescription;
+
+  /// No description provided for @configurationUplink.
+  ///
+  /// In en, this message translates to:
+  /// **'Uplink service'**
+  String get configurationUplink;
+
+  /// No description provided for @configurationUplinkDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Keeps the cellular and uplink service configuration.'**
+  String get configurationUplinkDescription;
+
+  /// No description provided for @configurationRadioGaga.
+  ///
+  /// In en, this message translates to:
+  /// **'Cloud connection (radio-gaga)'**
+  String get configurationRadioGaga;
+
+  /// No description provided for @configurationRadioGagaDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Keeps the cloud configuration and its CA certificate.'**
+  String get configurationRadioGagaDescription;
+
+  /// No description provided for @configurationSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Scooter settings'**
+  String get configurationSettings;
+
+  /// No description provided for @configurationSettingsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Keeps language, behavior, and other personal settings.'**
+  String get configurationSettingsDescription;
+
+  /// No description provided for @configurationKeycards.
+  ///
+  /// In en, this message translates to:
+  /// **'Keycards'**
+  String get configurationKeycards;
+
+  /// No description provided for @configurationKeycardsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Keeps the learning card and all authorized keycards.'**
+  String get configurationKeycardsDescription;
+
+  /// No description provided for @configurationInspectionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The existing configuration could not be checked. Retry the health check before a clean install.'**
+  String get configurationInspectionFailed;
 
   /// No description provided for @healthCheckFailed.
   ///
@@ -3023,7 +3125,7 @@ abstract class AppLocalizations {
   /// No description provided for @actionCleanInstallDetail.
   ///
   /// In en, this message translates to:
-  /// **'Erases settings. Keycards and maps are set up again later in this run'**
+  /// **'Erases main-board data. Detected device configurations can be selected in the next step'**
   String get actionCleanInstallDetail;
 
   /// No description provided for @actionUpgradeDetailDbc.
@@ -3287,13 +3389,13 @@ abstract class AppLocalizations {
   /// No description provided for @fallBackWipeBody.
   ///
   /// In en, this message translates to:
-  /// **'Writing the full image reformats the data partition. Settings, registered keycards and offline maps are lost.\n\nRetrying the firmware update uses the existing data rather than reformatting it. Write the full image only if the update continues to fail.'**
+  /// **'Writing the full image reformats the data partition. On the next screen you can choose which detected identity, connectivity, settings and keycard configuration to preserve through the laptop. Offline maps are still lost.\n\nRetrying the firmware update uses the existing data rather than reformatting it. Write the full image only if the update continues to fail.'**
   String get fallBackWipeBody;
 
   /// No description provided for @fallBackWipeConfirm.
   ///
   /// In en, this message translates to:
-  /// **'Erase and write the full image'**
+  /// **'Review and write full image'**
   String get fallBackWipeConfirm;
 
   /// No description provided for @dbcCleanInstallButton.

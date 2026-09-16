@@ -1381,13 +1381,82 @@ class AppLocalizationsDe extends AppLocalizations {
   String get unknown => 'Unbekannt';
 
   @override
-  String get backingUpConfig => 'Gerätekonfiguration wird gesichert…';
+  String get inspectingConfiguration => 'Gerätekonfiguration wird geprüft…';
+
+  @override
+  String get backingUpConfig =>
+      'Ausgewählte Gerätekonfiguration wird gesichert…';
 
   @override
   String get configBackedUp => 'Gerätekonfiguration gesichert';
 
   @override
   String get restoringConfig => 'Gerätekonfiguration wird wiederhergestellt…';
+
+  @override
+  String configurationDetected(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Konfigurationen erkannt',
+      one: '1 Konfiguration erkannt',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get configurationRestoreHeading =>
+      'Welche Gerätekonfigurationen wiederherstellen?';
+
+  @override
+  String get configurationRestoreDetail =>
+      'Wähle aus, welche gefundenen Einstellungen nach der Neuinstallation wiederhergestellt werden sollen. Alle sind vorausgewählt.';
+
+  @override
+  String get configurationIdentity => 'Geräteidentität und VIN-Datenbank';
+
+  @override
+  String get configurationIdentityDescription =>
+      'Erhält Roller-ID, VIN und die Identitätsdatenbank.';
+
+  @override
+  String get configurationWireGuard => 'WireGuard-Verbindungen';
+
+  @override
+  String get configurationWireGuardDescription =>
+      'Erhält VPN-Verbindungen einschließlich privater Schlüssel.';
+
+  @override
+  String get configurationUplink => 'Uplink-Dienst';
+
+  @override
+  String get configurationUplinkDescription =>
+      'Erhält die Konfiguration des Mobilfunk- und Uplink-Dienstes.';
+
+  @override
+  String get configurationRadioGaga => 'Cloud-Verbindung (radio-gaga)';
+
+  @override
+  String get configurationRadioGagaDescription =>
+      'Erhält die Cloud-Konfiguration und das zugehörige CA-Zertifikat.';
+
+  @override
+  String get configurationSettings => 'Rollereinstellungen';
+
+  @override
+  String get configurationSettingsDescription =>
+      'Erhält Sprache, Verhalten und weitere persönliche Einstellungen.';
+
+  @override
+  String get configurationKeycards => 'Schlüsselkarten';
+
+  @override
+  String get configurationKeycardsDescription =>
+      'Erhält die Anlernkarte und alle autorisierten Schlüsselkarten.';
+
+  @override
+  String get configurationInspectionFailed =>
+      'Die vorhandene Konfiguration konnte nicht geprüft werden. Wiederhole vor einer Neuinstallation die Statusprüfung.';
 
   @override
   String healthCheckFailed(String error) {
@@ -1758,7 +1827,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get actionCleanInstallDetail =>
-      'Löscht Einstellungen. Schlüsselkarten und Karten werden in diesem Vorgang neu eingerichtet';
+      'Löscht die Daten des Hauptboards. Erkannte Gerätekonfigurationen können im nächsten Schritt ausgewählt werden';
 
   @override
   String get actionUpgradeDetailDbc => 'Behält die Offline-Karten';
@@ -1925,10 +1994,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get fallBackWipeBody =>
-      'Beim Installieren des vollständigen Systemabbilds wird die Datenpartition neu formatiert. Einstellungen, angelernte Schlüsselkarten und Offline-Karten gehen verloren. Die begonnene Aktualisierung hätte diese Daten erhalten.\n\nEin erneuter Versuch mit der Firmware-Aktualisierung erhält die Daten. Installiere das vollständige Systemabbild nur, wenn das Paket weiterhin fehlschlägt.';
+      'Beim Installieren des vollständigen Systemabbilds wird die Datenpartition neu formatiert. Auf der nächsten Seite kannst du auswählen, welche erkannten Identitäts-, Verbindungs-, Einstellungs- und Schlüsselkarten-Daten über den Laptop erhalten bleiben. Offline-Karten gehen weiterhin verloren.\n\nEin erneuter Versuch mit der Firmware-Aktualisierung erhält die vorhandenen Daten. Installiere das vollständige Systemabbild nur, wenn das Paket weiterhin fehlschlägt.';
 
   @override
-  String get fallBackWipeConfirm => 'Löschen und Systemabbild installieren';
+  String get fallBackWipeConfirm => 'Prüfen und Systemabbild installieren';
 
   @override
   String get dbcCleanInstallButton => 'DBC löschen und neu installieren';

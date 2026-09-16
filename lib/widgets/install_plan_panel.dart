@@ -44,11 +44,23 @@ class InstallPlanPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _boardCard(context, l10n, l10n.boardMdb, mdbState, plan.mdb,
-            (p) => onChanged(plan.withMdb(p))),
+        _boardCard(
+          context,
+          l10n,
+          l10n.boardMdb,
+          mdbState,
+          plan.mdb,
+          (p) => onChanged(plan.withMdb(p)),
+        ),
         const SizedBox(height: 12),
-        _boardCard(context, l10n, l10n.boardDbc, dbcState, plan.dbc,
-            (p) => onChanged(plan.withDbc(p))),
+        _boardCard(
+          context,
+          l10n,
+          l10n.boardDbc,
+          dbcState,
+          plan.dbc,
+          (p) => onChanged(plan.withDbc(p)),
+        ),
         const SizedBox(height: 12),
         // The maps used to be decided on the welcome screen, where the control
         // reads as a download-size choice, and this screen only stated the
@@ -73,17 +85,20 @@ class InstallPlanPanel extends StatelessWidget {
         if (plan.dbcWorkStrandedOn(mdbState))
           Padding(
             padding: const EdgeInsets.only(top: 16),
-            child: Text(l10n.planDbcNeedsLibrescootMdb,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: Colors.orange.shade300)),
+            child: Text(
+              l10n.planDbcNeedsLibrescootMdb,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.orange.shade300),
+            ),
           ),
         if (plan.isNoOp)
           Padding(
             padding: const EdgeInsets.only(top: 16),
-            child: Text(l10n.planNothingToDo,
-                style: Theme.of(context).textTheme.bodySmall),
+            child: Text(
+              l10n.planNothingToDo,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           ),
       ],
     );
@@ -97,8 +112,10 @@ class InstallPlanPanel extends StatelessWidget {
     BoardPlan boardPlan,
     ValueChanged<BoardPlan> onBoardChanged,
   ) {
-    assert(state.board == boardPlan.board,
-        'state and boardPlan must describe the same board');
+    assert(
+      state.board == boardPlan.board,
+      'state and boardPlan must describe the same board',
+    );
     final locked = state.board == Board.mdb && mdbLockedNote != null;
     return Card(
       child: Padding(
@@ -108,12 +125,16 @@ class InstallPlanPanel extends StatelessWidget {
           children: [
             Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
-            Text(_versionLabel(l10n, state),
-                style: Theme.of(context).textTheme.bodySmall),
+            Text(
+              _versionLabel(l10n, state),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
             if (locked) ...[
               const SizedBox(height: 8),
-              Text(mdbLockedNote!,
-                  style: Theme.of(context).textTheme.bodySmall),
+              Text(
+                mdbLockedNote!,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
             ],
             const SizedBox(height: 12),
             // RadioListTile's own groupValue/onChanged were deprecated after
@@ -134,7 +155,8 @@ class InstallPlanPanel extends StatelessWidget {
                   ])
                     RadioListTile<BoardAction>(
                       value: action,
-                      enabled: !locked &&
+                      enabled:
+                          !locked &&
                           !(action == BoardAction.upgrade &&
                               !boardPlan.canUpgrade) &&
                           !_leavingStockMdbIsPointless(action, state),
@@ -147,9 +169,9 @@ class InstallPlanPanel extends StatelessWidget {
                         _leavingStockMdbIsPointless(action, state)
                             ? l10n.actionLeaveBlockedStockMdb
                             : action == BoardAction.upgrade &&
-                                    boardPlan.blocker != null
-                                ? _blockerLabel(l10n, boardPlan.blocker!)
-                                : _actionDetail(l10n, action, state.board),
+                                  boardPlan.blocker != null
+                            ? _blockerLabel(l10n, boardPlan.blocker!)
+                            : _actionDetail(l10n, action, state.board),
                       ),
                       contentPadding: EdgeInsets.zero,
                       dense: true,
@@ -166,13 +188,19 @@ class InstallPlanPanel extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.warning_amber_rounded,
-                        size: 16, color: Colors.orangeAccent),
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      size: 16,
+                      color: Colors.orangeAccent,
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         _keepDataWarning(l10n, state)!,
-                        style: const TextStyle(fontSize: 12, color: Colors.orangeAccent),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.orangeAccent,
+                        ),
                       ),
                     ),
                   ],
@@ -221,19 +249,21 @@ class InstallPlanPanel extends StatelessWidget {
   /// written back. Whether they are written back is this plan's own answer, so
   /// the wording follows it rather than naming a loss the same run undoes.
   String _actionDetail(
-          AppLocalizations l10n, BoardAction action, Board board) =>
-      switch ((action, board)) {
-        (BoardAction.upgrade, Board.dbc) => l10n.actionUpgradeDetailDbc,
-        (BoardAction.cleanInstall, Board.dbc) ||
-        (BoardAction.fullImage, Board.dbc) =>
-          plan.installTiles
-              ? l10n.actionCleanInstallDetailDbcTiles
-              : l10n.actionCleanInstallDetailDbc,
-        (BoardAction.upgrade, _) => l10n.actionUpgradeDetail,
-        (BoardAction.cleanInstall, _) || (BoardAction.fullImage, _) =>
-          l10n.actionCleanInstallDetail,
-        (BoardAction.leave, _) => l10n.actionLeaveDetail,
-      };
+    AppLocalizations l10n,
+    BoardAction action,
+    Board board,
+  ) => switch ((action, board)) {
+    (BoardAction.upgrade, Board.dbc) => l10n.actionUpgradeDetailDbc,
+    (BoardAction.cleanInstall, Board.dbc) ||
+    (BoardAction.fullImage, Board.dbc) =>
+      plan.installTiles
+          ? l10n.actionCleanInstallDetailDbcTiles
+          : l10n.actionCleanInstallDetailDbc,
+    (BoardAction.upgrade, _) => l10n.actionUpgradeDetail,
+    (BoardAction.cleanInstall, _) ||
+    (BoardAction.fullImage, _) => l10n.actionCleanInstallDetail,
+    (BoardAction.leave, _) => l10n.actionLeaveDetail,
+  };
 
   /// Leaving a stock main board alone leads nowhere. The dashboard is only
   /// reachable through it and the tools that do the reaching are Librescoot's,

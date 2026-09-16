@@ -1361,13 +1361,81 @@ class AppLocalizationsEn extends AppLocalizations {
   String get unknown => 'Unknown';
 
   @override
-  String get backingUpConfig => 'Backing up device configuration...';
+  String get inspectingConfiguration => 'Checking device configuration...';
+
+  @override
+  String get backingUpConfig => 'Backing up selected device configuration...';
 
   @override
   String get configBackedUp => 'Device configuration backed up';
 
   @override
   String get restoringConfig => 'Restoring device configuration...';
+
+  @override
+  String configurationDetected(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count configurations detected',
+      one: '1 configuration detected',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get configurationRestoreHeading =>
+      'Which device configurations should be restored?';
+
+  @override
+  String get configurationRestoreDetail =>
+      'Choose which detected settings should be restored after the clean install. All are selected by default.';
+
+  @override
+  String get configurationIdentity => 'Device identity and VIN database';
+
+  @override
+  String get configurationIdentityDescription =>
+      'Keeps the scooter ID, VIN, and identity database.';
+
+  @override
+  String get configurationWireGuard => 'WireGuard connections';
+
+  @override
+  String get configurationWireGuardDescription =>
+      'Keeps VPN connections, including private keys.';
+
+  @override
+  String get configurationUplink => 'Uplink service';
+
+  @override
+  String get configurationUplinkDescription =>
+      'Keeps the cellular and uplink service configuration.';
+
+  @override
+  String get configurationRadioGaga => 'Cloud connection (radio-gaga)';
+
+  @override
+  String get configurationRadioGagaDescription =>
+      'Keeps the cloud configuration and its CA certificate.';
+
+  @override
+  String get configurationSettings => 'Scooter settings';
+
+  @override
+  String get configurationSettingsDescription =>
+      'Keeps language, behavior, and other personal settings.';
+
+  @override
+  String get configurationKeycards => 'Keycards';
+
+  @override
+  String get configurationKeycardsDescription =>
+      'Keeps the learning card and all authorized keycards.';
+
+  @override
+  String get configurationInspectionFailed =>
+      'The existing configuration could not be checked. Retry the health check before a clean install.';
 
   @override
   String healthCheckFailed(String error) {
@@ -1730,7 +1798,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get actionCleanInstallDetail =>
-      'Erases settings. Keycards and maps are set up again later in this run';
+      'Erases main-board data. Detected device configurations can be selected in the next step';
 
   @override
   String get actionUpgradeDetailDbc => 'Keeps the offline maps';
@@ -1894,10 +1962,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get fallBackWipeBody =>
-      'Writing the full image reformats the data partition. Settings, registered keycards and offline maps are lost.\n\nRetrying the firmware update uses the existing data rather than reformatting it. Write the full image only if the update continues to fail.';
+      'Writing the full image reformats the data partition. On the next screen you can choose which detected identity, connectivity, settings and keycard configuration to preserve through the laptop. Offline maps are still lost.\n\nRetrying the firmware update uses the existing data rather than reformatting it. Write the full image only if the update continues to fail.';
 
   @override
-  String get fallBackWipeConfirm => 'Erase and write the full image';
+  String get fallBackWipeConfirm => 'Review and write full image';
 
   @override
   String get dbcCleanInstallButton => 'Erase and install DBC';

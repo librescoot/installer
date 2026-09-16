@@ -24,6 +24,7 @@ import '../l10n/app_localizations.dart';
 import '../l10n/connect_failure_l10n.dart';
 import '../models/board_state.dart';
 import '../models/connect_failure.dart';
+import '../models/configuration_preservation.dart';
 import '../models/download_state.dart';
 import '../models/dashboard_messages.dart';
 import '../models/install_plan.dart';
@@ -46,6 +47,7 @@ import '../models/substep.dart';
 import '../models/trampoline_status.dart';
 import '../services/artifact_service.dart';
 import '../services/connect_diagnosis.dart';
+import '../services/configuration_preservation_service.dart';
 import '../services/critical_operation_coordinator.dart';
 import '../services/data_partition_service.dart';
 import '../services/debug_shell.dart';
@@ -98,6 +100,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   late final DownloadService _downloadService;
   late final UpdateService _updateService;
   final SshService _sshService = SshService();
+  late final ConfigurationPreservationService _configurationService =
+      ConfigurationPreservationService(_sshService);
 
   // State
   final DownloadState _downloadState = DownloadState();
@@ -290,7 +294,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// well. Drives the retry / fall-back controls on the artifact screen.
   String? _artifactError;
   bool _artifactStarted = false;
-  String? _radioGagaBackupPath;
+  ConfigurationInventory _configurationInventory = const ConfigurationInventory(
+    [],
+  );
+  Set<ConfigurationCategory> _selectedConfiguration = {};
+  ConfigurationBackup? _configurationBackup;
+  String? _configurationBackupError;
+  bool _configurationInspectionFailed = false;
+  bool _configurationRestoreVerified = false;
+  bool _configurationPostFinalizeVerified = false;
+  bool _configurationPostFinalizeVerificationInFlight = false;
   bool _flashConfirmed = false;
   final Map<String, int> _retryCounts = {};
   bool _btPairingActive = false;
@@ -334,6 +347,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   // state machine so we can branch between the cards-only legacy flow and
   // the new master-teach-in flow without splitting it into separate phases.
   _KeycardStage _keycardStage = _KeycardStage.loading;
+  Future<void>? _keycardSetupPreparation;
   // null = capability still unknown, true = new keycard-service (supports
   // learn:master:start / reset / keycard:events), false = old service (only
   // the original learn:start/learn:stop/set-master commands).
@@ -756,6 +770,23 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       const Duration(seconds: 2),
       onTimeout: () {},
     );
+    if (_finishCompletionConfirmed &&
+        !_dbcOutcome.isIncomplete &&
+        _configurationRestoreVerified &&
+        _configurationPostFinalizeVerified) {
+      final backup = _configurationBackup;
+      if (backup != null) {
+        try {
+          await _configurationService.deleteBackup(backup);
+          _configurationBackup = null;
+        } catch (error) {
+          debugPrint(
+            'Config: could not delete completed backup ${backup.directoryPath}: '
+            '$error',
+          );
+        }
+      }
+    }
     _allowSleep();
   }
 
@@ -863,7 +894,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _noRouteRetryStart = null;
     }
     if (phase == InstallerPhase.keycardSetup && leaving != phase) {
-      _onEnterKeycardSetup();
+      _beginKeycardSetupPreparation();
     }
     if (phase == InstallerPhase.finish && leaving != phase) {
       unawaited(_startFinishEntry());
@@ -875,6 +906,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
     if (phase == InstallerPhase.bluetoothPairing) {
       _fetchBleMac();
+      _beginKeycardSetupPreparation();
     }
     if (phase == InstallerPhase.mdbToUms && leaving != phase) {
       Future.microtask(_startMdbToUms);
@@ -1184,6 +1216,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                   : ((_plan?.needsHandoff ?? false)
                         ? 'complete'
                         : 'not-requested'),
+              preserveSettings:
+                  _configurationBackup?.categories.contains(
+                    ConfigurationCategory.settings,
+                  ) ??
+                  false,
             ),
           ),
         ),
@@ -1325,6 +1362,32 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         _dbcFailureDetails = null;
       }
     });
+    if (outcome == InstallCompletionOutcome.complete) {
+      unawaited(_verifyConfigurationAfterFinalization());
+    }
+  }
+
+  Future<void> _verifyConfigurationAfterFinalization() async {
+    final backup = _configurationBackup;
+    if (backup == null ||
+        !_configurationRestoreVerified ||
+        _configurationPostFinalizeVerified ||
+        _configurationPostFinalizeVerificationInFlight) {
+      return;
+    }
+    _configurationPostFinalizeVerificationInFlight = true;
+    try {
+      await _configurationService.verify(backup, allowSettingsChanges: true);
+      if (!mounted) return;
+      setState(() => _configurationPostFinalizeVerified = true);
+      debugPrint('UI: restored configuration verified after finalization');
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _configurationBackupError = error.toString());
+      debugPrint('UI: post-finalization configuration verification failed');
+    } finally {
+      _configurationPostFinalizeVerificationInFlight = false;
+    }
   }
 
   /// Refresh the final-screen verdict after the laptop can reach the MDB
@@ -1768,6 +1831,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       InstallerPhase.resumeDetected => _buildResumeDetected(l10n),
       InstallerPhase.healthCheck => _buildHealthCheck(l10n),
       InstallerPhase.installPlan => _buildInstallPlan(l10n),
+      InstallerPhase.configurationConfirmation =>
+        _buildConfigurationConfirmation(l10n),
       InstallerPhase.mdbToUms => _buildMdbToUms(l10n),
       InstallerPhase.mdbFlash => _buildMdbFlash(l10n),
       InstallerPhase.scooterPrep => _buildScooterPrep(l10n),
@@ -3546,6 +3611,17 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         return;
       }
 
+      // Give the NFC reader its slow startup time while the user handles the
+      // unlock gate and health/plan screens. The command queues the master-mode
+      // guard before starting the service, so an incidental tap cannot become
+      // a master card during this head start.
+      try {
+        await _sshService.prestartKeycardService();
+        debugPrint('UI: prestarted librescoot-keycard before unlock gate');
+      } catch (e) {
+        debugPrint('UI: keycard prestart failed (will retry at setup): $e');
+      }
+
       // Wait for scooter to be in parked state (or user-overridden
       // ready-to-drive)
       // The status and the overlay come from the wait itself, once it has
@@ -4280,6 +4356,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       serviceStack: stack,
       runningVersion: version,
     );
+    final stageZeroFilename = _downloadState.imageFor(Board.mdb)?.filename;
+    final resumableMinimal =
+        minimal &&
+        canResumeMinimalMdb(
+          artifactName: artifact,
+          runningVersion: version,
+          stageZeroFilename: stageZeroFilename,
+          hasMender: hasMender,
+        );
     // The inputs to the verdict, in the log, next to the verdict. Without them
     // a false "still on the bootstrap image" is undiagnosable from a report.
     // Including which input was discarded: an artifact name in the log that
@@ -4288,7 +4373,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     debugPrint(
       'State: mdb artifact=${artifact ?? "none"}${stale ? " (stale)" : ""} '
       'stack=${stack?.name ?? "unanswered"} '
-      'version=${version ?? "unknown"} -> minimal=$minimal',
+      'version=${version ?? "unknown"} '
+      'stage0=${stageZeroFilename ?? "none"} '
+      '-> minimal=$minimal resumable=$resumableMinimal',
     );
 
     return BoardState(
@@ -4299,6 +4386,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       artifactName: artifact,
       hasMender: hasMender,
       isMinimalImage: minimal,
+      isResumableMinimalImage: resumableMinimal,
     );
   }
 
@@ -4570,29 +4658,26 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               ),
             ),
           ],
-          if (health != null) ...[
-            const SizedBox(height: 24),
-            HealthCheckPanel(health: health),
-          ],
-          if (health != null && _radioGagaBackupPath != null)
+          if (health != null && _configurationInventory.categories.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 12),
+              padding: const EdgeInsets.only(top: 16),
               child: Row(
                 children: [
-                  const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                  const Icon(Icons.check_circle, color: Colors.green, size: 18),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      l10n.configBackedUp,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey.shade400,
-                      ),
+                  Text(
+                    l10n.configurationDetected(
+                      _configurationInventory.categories.length,
                     ),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
             ),
+          if (health != null) ...[
+            const SizedBox(height: 16),
+            HealthCheckPanel(health: health),
+          ],
           if (actions.isNotEmpty) ...[
             const SizedBox(height: 18),
             Wrap(
@@ -4618,7 +4703,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         typical: const Duration(seconds: 90),
       ),
       WaitStep(
-        label: l10n.backingUpConfig,
+        label: l10n.inspectingConfiguration,
         typical: const Duration(seconds: 15),
       ),
     ]);
@@ -4656,6 +4741,20 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         if (!mounted) return;
         setState(() => _scooterHealth = ScooterHealth());
       }
+      try {
+        _setStatus(l10n.inspectingConfiguration);
+        final inventory = await _configurationService.inspect();
+        if (!mounted) return;
+        setState(() {
+          _configurationInventory = inventory;
+          _selectedConfiguration = inventory.categories;
+          _configurationInspectionFailed = false;
+        });
+      } catch (error) {
+        if (!mounted) return;
+        setState(() => _configurationInspectionFailed = true);
+        _setStatus(l10n.healthCheckFailed(error.toString()));
+      }
       if (mounted) setState(() => _isProcessing = false);
       return;
     }
@@ -4686,23 +4785,33 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       await _sshService.logScooterStats('health-check');
       if (!mounted) return;
 
-      // Back up radio-gaga config before we flash anything
-      _setStatus(l10n.backingUpConfig);
-      final cacheDir = await DownloadService.getCacheDir();
-      final backupPath = await _sshService.backupRadioGagaConfig(cacheDir.path);
-      if (backupPath != null && mounted) {
-        setState(() => _radioGagaBackupPath = backupPath);
-        debugPrint('UI: radio-gaga config backed up to $backupPath');
-      }
+      _setStatus(l10n.inspectingConfiguration);
+      final inventory = await _configurationService.inspect();
+      if (!mounted) return;
+      setState(() {
+        _configurationInventory = inventory;
+        _selectedConfiguration = inventory.categories;
+        _configurationInspectionFailed = false;
+      });
     } catch (e) {
-      if (mounted) _setStatus(l10n.healthCheckFailed(e.toString()));
+      if (mounted) {
+        setState(() => _configurationInspectionFailed = true);
+        _setStatus(l10n.healthCheckFailed(e.toString()));
+      }
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
   }
 
   Widget _buildInstallPlan(AppLocalizations l10n) {
-    final blocked = _plan!.isNoOp || _plan!.dbcWorkStrandedOn(_mdbState);
+    final cleanMdb =
+        _plan!.mdb.action == BoardAction.cleanInstall ||
+        _plan!.mdb.action == BoardAction.fullImage;
+    final blocked =
+        _isProcessing ||
+        _plan!.isNoOp ||
+        _plan!.dbcWorkStrandedOn(_mdbState) ||
+        (cleanMdb && _configurationInspectionFailed);
     return PhaseLayout(
       title: l10n.installPlanHeading,
       subtitle: l10n.installPlanIntro(_downloadState.releaseTag ?? ''),
@@ -4716,7 +4825,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         PhaseAction(
           label: l10n.continueButton,
           primary: true,
-          onPressed: blocked ? null : _startPlan,
+          onPressed: blocked ? null : _continueFromInstallPlan,
         ),
       ],
       child: InstallPlanPanel(
@@ -4728,10 +4837,117 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         mdbLockedNote: _directMassStorageRoute
             ? l10n.planMdbInMassStorage
             : null,
-        onChanged: (p) => setState(() => _plan = p),
+        onChanged: (p) => setState(() {
+          _plan = p;
+          _configurationBackupError = null;
+        }),
       ),
     );
   }
+
+  void _continueFromInstallPlan() {
+    final action = _plan!.mdb.action;
+    final destructive =
+        action == BoardAction.cleanInstall || action == BoardAction.fullImage;
+    if (destructive && _configurationInventory.categories.isNotEmpty) {
+      _setPhase(InstallerPhase.configurationConfirmation);
+      return;
+    }
+    unawaited(_startPlan());
+  }
+
+  Widget _buildConfigurationConfirmation(AppLocalizations l10n) {
+    return PhaseLayout(
+      title: l10n.configurationRestoreHeading,
+      subtitle: l10n.configurationRestoreDetail,
+      onBack: _isProcessing
+          ? null
+          : () => _setPhase(InstallerPhase.installPlan),
+      backLabel: l10n.backButton,
+      actions: [
+        PhaseAction(
+          label: l10n.continueButton,
+          icon: Icons.arrow_forward,
+          primary: true,
+          onPressed: _isProcessing ? null : _startPlan,
+        ),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final category in _configurationDisplayOrder)
+            if (_configurationInventory.categories.contains(category))
+              CheckboxListTile(
+                value: _selectedConfiguration.contains(category),
+                onChanged: _isProcessing
+                    ? null
+                    : (selected) => setState(() {
+                        if (selected ?? false) {
+                          _selectedConfiguration = {
+                            ..._selectedConfiguration,
+                            category,
+                          };
+                        } else {
+                          _selectedConfiguration = {..._selectedConfiguration}
+                            ..remove(category);
+                        }
+                        _configurationBackupError = null;
+                      }),
+                title: Text(_configurationCategoryLabel(l10n, category)),
+                subtitle: Text(
+                  _configurationCategoryDescription(l10n, category),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 4,
+                  vertical: 4,
+                ),
+                controlAffinity: ListTileControlAffinity.leading,
+              ),
+          if (_configurationBackupError != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Text(
+                _configurationBackupError!,
+                style: const TextStyle(color: Colors.redAccent),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static const _configurationDisplayOrder = [
+    ConfigurationCategory.settings,
+    ConfigurationCategory.keycards,
+    ConfigurationCategory.identity,
+    ConfigurationCategory.wireGuard,
+    ConfigurationCategory.uplink,
+    ConfigurationCategory.radioGaga,
+  ];
+
+  String _configurationCategoryLabel(
+    AppLocalizations l10n,
+    ConfigurationCategory category,
+  ) => switch (category) {
+    ConfigurationCategory.identity => l10n.configurationIdentity,
+    ConfigurationCategory.wireGuard => l10n.configurationWireGuard,
+    ConfigurationCategory.uplink => l10n.configurationUplink,
+    ConfigurationCategory.radioGaga => l10n.configurationRadioGaga,
+    ConfigurationCategory.settings => l10n.configurationSettings,
+    ConfigurationCategory.keycards => l10n.configurationKeycards,
+  };
+
+  String _configurationCategoryDescription(
+    AppLocalizations l10n,
+    ConfigurationCategory category,
+  ) => switch (category) {
+    ConfigurationCategory.identity => l10n.configurationIdentityDescription,
+    ConfigurationCategory.wireGuard => l10n.configurationWireGuardDescription,
+    ConfigurationCategory.uplink => l10n.configurationUplinkDescription,
+    ConfigurationCategory.radioGaga => l10n.configurationRadioGagaDescription,
+    ConfigurationCategory.settings => l10n.configurationSettingsDescription,
+    ConfigurationCategory.keycards => l10n.configurationKeycardsDescription,
+  };
 
   /// Installs the coordinator and declares the phases it must observe.
   /// Only the trampoline can create 20-dbc.sh.
@@ -4785,10 +5001,50 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       );
     }
     final plan = _plan!;
+    final preserveConfiguration =
+        (plan.mdb.action == BoardAction.cleanInstall ||
+            plan.mdb.action == BoardAction.fullImage) &&
+        _selectedConfiguration.isNotEmpty;
+    if (preserveConfiguration && !_isDryRun && _configurationBackup == null) {
+      if (_configurationInspectionFailed) return;
+      setState(() {
+        _isProcessing = true;
+        _configurationBackupError = null;
+      });
+      _setStatus(AppLocalizations.of(context)!.backingUpConfig);
+      try {
+        final logPath = LogService.filePath;
+        final baseDirectory = logPath == null
+            ? (await DownloadService.getCacheDir()).path
+            : path.dirname(logPath);
+        final backup = await _configurationService.backup(
+          inventory: _configurationInventory,
+          selected: _selectedConfiguration,
+          baseDirectory: baseDirectory,
+          runId: _installRunId,
+        );
+        if (!mounted) return;
+        setState(() {
+          _configurationBackup = backup;
+          _isProcessing = false;
+        });
+        debugPrint('UI: selected device configuration backed up');
+      } catch (error) {
+        if (!mounted) return;
+        setState(() {
+          _configurationBackupError = error.toString();
+          _isProcessing = false;
+        });
+        return;
+      }
+    }
     logJourneyEvent('plan_confirmed', {
       'mdb': plan.mdb.action.name,
       'dbc': plan.dbc.action.name,
       'offline_maps': plan.installTiles,
+      'preserve_configuration': _selectedConfiguration
+          .map((category) => category.name)
+          .toList(),
       'direct_mass_storage': _directMassStorageRoute,
     });
     _skippedPhases.clear();
@@ -5432,6 +5688,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       } finally {
         criticalOperation.release();
       }
+    }
+
+    // Every full-image write reformats /data. A fallback after an artifact
+    // failure may therefore erase configuration that was already restored
+    // after the stage-0 write; make the next boot verify and restore it again.
+    if (_configurationBackup != null) {
+      _configurationRestoreVerified = false;
+      _configurationPostFinalizeVerified = false;
     }
 
     await DriverService.suppressAutoPlay();
@@ -6155,19 +6419,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       await _sshService.connectToMdb();
       if (!_ownsMdbBootAttempt(generation)) return;
 
-      // Disable keycard-service for the rest of the install. A freshly flashed
-      // MDB boots into auto-master-learn mode; any tap before the explicit
-      // keycard-setup phase would silently teach in a master card. We re-start
-      // the service on entry to that phase, after disengaging master mode.
-      try {
-        await _sshService.runCommand(
-          'systemctl stop librescoot-keycard 2>/dev/null; true',
-        );
-        debugPrint(
-          'SSH: stopped librescoot-keycard to prevent accidental master teach-in',
-        );
-      } catch (_) {}
-
       // Reapply the install-time scooter config on the freshly-flashed image:
       // usb0 must stay up while the scooter is locked (so we keep RNDIS for
       // the rest of the install), auto-standby and the alarm must be off so
@@ -6194,21 +6445,30 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         await _disableInstallerHazards(label: 'mdb-boot');
       }
 
-      // Restore radio-gaga config if we backed it up. It lands in /data, and
-      // a board that just took a stage-0 image is still resizing and mounting
-      // that: restoreRadioGagaConfig would mkdir -p and upload into the
-      // rootfs directory the real partition is about to shadow, then report
-      // success. Wait for the mount first.
-      if (_radioGagaBackupPath != null) {
+      // A freshly written stage-0 image is still mounting and resizing /data.
+      // Restoring before that mount would write into the root filesystem and
+      // then report success for files the real data partition will hide.
+      final configurationBackup = _configurationBackup;
+      if (configurationBackup != null && !_configurationRestoreVerified) {
         _setStatus(l10n.restoringConfig);
         if (!await _waitForDataPartition()) return;
         if (!_ownsMdbBootAttempt(generation)) return;
-        final restored = await _sshService.restoreRadioGagaConfig(
-          _radioGagaBackupPath!,
+        await _configurationService.restore(configurationBackup);
+        if (!_ownsMdbBootAttempt(generation)) return;
+        setState(() => _configurationRestoreVerified = true);
+      }
+
+      // Start the reader only after selected keycard files have been restored,
+      // so it sees the real master list. Do this before background artifact
+      // uploads begin; they share the SSH transport and used to turn reader
+      // startup into a long wait on the keycard screen.
+      try {
+        await _sshService.prestartKeycardService();
+        debugPrint('SSH: prestarted librescoot-keycard after MDB restore');
+      } catch (e) {
+        debugPrint(
+          'SSH: keycard prestart after MDB restore failed (will retry): $e',
         );
-        if (restored) {
-          debugPrint('UI: radio-gaga config restored to /data/radio-gaga/');
-        }
       }
 
       if (!_ownsMdbBootAttempt(generation)) return;
@@ -7081,7 +7341,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
     if (!mounted) return;
     setState(() => _isProcessing = false);
-    _setPhase(InstallerPhase.mdbToUms);
+    // A fallback changes an upgrade into a destructive plan. Return through
+    // the plan screen so the detected, preselected configuration categories
+    // can be reviewed and the normal host-backup gate runs before UMS.
+    _setPhase(InstallerPhase.installPlan);
   }
 
   Widget _buildCbbReconnect(AppLocalizations l10n) {
@@ -9250,6 +9513,23 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (advance) _setPhase(InstallerPhase.keycardSetup);
   }
 
+  void _beginKeycardSetupPreparation() {
+    _keycardSetupPreparation ??= _prepareKeycardSetup();
+  }
+
+  Future<void> _prepareKeycardSetup() async {
+    try {
+      await _onEnterKeycardSetup();
+    } catch (error, stack) {
+      debugPrint('UI: keycard preparation failed: $error\n$stack');
+      if (!mounted) return;
+      setState(() {
+        _keycardCapability = KeycardCapability.unreachable;
+        _keycardStage = _KeycardStage.cards;
+      });
+    }
+  }
+
   Future<void> _onEnterKeycardSetup() async {
     ++_keycardLearningGeneration;
     _keycardLearningStarting = false;
@@ -9322,32 +9602,42 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       }
     }
 
+    // Keep the startup count from the instance prestarted before the unlock
+    // gate. Deleting it and then `systemctl start`-ing an already-active unit
+    // loses the only readiness response: start is a no-op, so the count is not
+    // republished. An inactive unit is different; clear any stale response so
+    // the count below can only come from the instance started here.
+    String activeState = 'unknown';
     try {
-      // The count read below is meant to answer about the instance started
-      // here, and an earlier instance leaves its answer behind: on an image
-      // where the service ran at boot, the one stopped at mdb-boot published
-      // long before this start. Deleted first, so a value means this
-      // instance is up and consuming.
-      await _sshService.runCommand(
-        'redis-cli hdel system keycard-master-count >/dev/null 2>&1; true',
-      );
-      // Queued before the start, every time, so it is waiting when the
-      // command watcher comes up. A board with no master enters master
-      // learning mode on each service start, and the earlier guard push is
-      // consumed by the first instance: a restart here (the retry path
-      // included) would otherwise leave a live reader where the next tap
-      // becomes the master.
+      activeState = (await _sshService.runCommand(
+        'systemctl is-active librescoot-keycard 2>&1 || true',
+      )).trim();
+    } catch (_) {}
+    final alreadyActive = activeState == 'active';
+
+    try {
+      if (!alreadyActive) {
+        await _sshService.runCommand(
+          'redis-cli hdel system keycard-master-count >/dev/null 2>&1; true',
+        );
+      }
+      // Queue this even for the prestarted instance. A board with no master
+      // enters master learning mode on service start, and every start/retry
+      // must have a stop waiting before a card can be tapped.
       await _sshService.redisLpush('scooter:keycard', 'learn:master:stop');
-      await _sshService.runCommand(
-        'systemctl start librescoot-keycard 2>/dev/null; true',
-      );
-      debugPrint('UI: started librescoot-keycard for keycard setup phase');
+      if (!alreadyActive) {
+        await _sshService.runCommand(
+          'systemctl start librescoot-keycard 2>/dev/null; true',
+        );
+        debugPrint('UI: started librescoot-keycard for keycard setup phase');
+      } else {
+        debugPrint('UI: librescoot-keycard was ready from prestart');
+      }
     } catch (e) {
       debugPrint('UI: failed to start librescoot-keycard: $e');
     }
 
     // Poll briefly so an inactive service is logged before capability probing.
-    String activeState = 'unknown';
     for (var i = 0; i < 10; i++) {
       await Future.delayed(const Duration(milliseconds: 300));
       try {

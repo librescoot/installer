@@ -36,6 +36,12 @@ enum InstallerPhase {
     isManual: true,
     hiddenUnlessActive: true,
   ),
+  configurationConfirmation(
+    title: 'Device configurations found',
+    description: 'Choose what to preserve',
+    isManual: true,
+    hiddenUnlessActive: true,
+  ),
   mdbToUms(
     title: 'MDB → UMS',
     description: 'Configure bootloader for flashing',
@@ -116,12 +122,37 @@ enum InstallerPhase {
 
 /// Major step grouping for sidebar display
 enum MajorStep {
-  prepare('Prepare', [InstallerPhase.welcome, InstallerPhase.notices, InstallerPhase.physicalPrep]),
-  connect('Connect', [InstallerPhase.mdbConnect, InstallerPhase.resumeDetected, InstallerPhase.healthCheck, InstallerPhase.installPlan]),
-  mdbFlash('Flash MDB', [InstallerPhase.mdbToUms, InstallerPhase.mdbFlash, InstallerPhase.scooterPrep, InstallerPhase.mdbBoot]),
-  pairing('Pairing & Cards', [InstallerPhase.bluetoothPairing, InstallerPhase.keycardSetup]),
-  mdbInstall('Install MDB', [InstallerPhase.mdbArtifact, InstallerPhase.cbbReconnect]),
-  dbcFlash('Flash DBC', [InstallerPhase.dbcPrep, InstallerPhase.dbcFlash, InstallerPhase.reconnect]),
+  prepare('Prepare', [
+    InstallerPhase.welcome,
+    InstallerPhase.notices,
+    InstallerPhase.physicalPrep,
+  ]),
+  connect('Connect', [
+    InstallerPhase.mdbConnect,
+    InstallerPhase.resumeDetected,
+    InstallerPhase.healthCheck,
+    InstallerPhase.installPlan,
+    InstallerPhase.configurationConfirmation,
+  ]),
+  mdbFlash('Flash MDB', [
+    InstallerPhase.mdbToUms,
+    InstallerPhase.mdbFlash,
+    InstallerPhase.scooterPrep,
+    InstallerPhase.mdbBoot,
+  ]),
+  pairing('Pairing & Cards', [
+    InstallerPhase.bluetoothPairing,
+    InstallerPhase.keycardSetup,
+  ]),
+  mdbInstall('Install MDB', [
+    InstallerPhase.mdbArtifact,
+    InstallerPhase.cbbReconnect,
+  ]),
+  dbcFlash('Flash DBC', [
+    InstallerPhase.dbcPrep,
+    InstallerPhase.dbcFlash,
+    InstallerPhase.reconnect,
+  ]),
   finish('Finish', [InstallerPhase.finish]);
 
   const MajorStep(this.title, this.phases);

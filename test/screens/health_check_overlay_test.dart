@@ -28,6 +28,6 @@ void main() {
     final run = source.substring(start, end);
     expect(run, contains('_beginWait(['));
     expect(run, contains('l10n.waitingForBatteryData'));
-    expect(run, contains('l10n.backingUpConfig'));
+    expect(run, contains('l10n.inspectingConfiguration'));
   });
 }

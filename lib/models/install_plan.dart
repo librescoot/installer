@@ -91,6 +91,19 @@ class InstallPlan {
   /// install for anything we cannot upgrade. Any target version is allowed,
   /// including an older one: mender writes the inactive slot either way.
   static BoardPlan defaultPlanFor(BoardState state, String? targetVersion) {
+    // Stage 0 is deliberately incomplete, so even an equal target version
+    // still needs its artifact. When the live MDB exactly matches the stage-0
+    // selected for this run, resume at that artifact instead of erasing and
+    // rewriting the same image through U-Boot UMS.
+    if (state.board == Board.mdb &&
+        state.provenance == StateProvenance.live &&
+        state.isLibrescoot &&
+        state.hasMender &&
+        state.isMinimalImage &&
+        state.isResumableMinimalImage) {
+      return const BoardPlan(board: Board.mdb, action: BoardAction.upgrade);
+    }
+
     final blocker = _blockerFor(state);
     if (blocker != null) {
       return BoardPlan(

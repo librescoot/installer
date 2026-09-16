@@ -16,6 +16,7 @@ class BoardState {
     this.artifactName,
     this.hasMender = false,
     this.isMinimalImage = false,
+    this.isResumableMinimalImage = false,
   });
 
   final Board board;
@@ -36,6 +37,11 @@ class BoardState {
   /// os-release ID, but no service stack. Expected between a stage-0 write
   /// and the artifact's reboot, and a recoverable leftover otherwise.
   final bool isMinimalImage;
+
+  /// The live MDB is the exact stage-0 image selected for this run and has a
+  /// working Mender client, so applying the target artifact can resume without
+  /// erasing and rewriting stage 0 through U-Boot UMS.
+  final bool isResumableMinimalImage;
 
   static const unknown = BoardState(
     board: Board.dbc,
@@ -110,4 +116,33 @@ bool artifactNameIsStale(String artifactName, String? runningVersion) {
   final version = (runningVersion ?? '').trim().toLowerCase();
   if (version.isEmpty) return false;
   return !artifactName.toLowerCase().contains(version);
+}
+
+/// Whether a reachable MDB can continue from stage 0 directly to its target
+/// artifact after the desktop installer was restarted.
+///
+/// A missing stack alone is not enough: it can also describe a damaged full
+/// image. Require the running artifact to identify itself as minimal, require
+/// its version to agree with os-release, and require that version to match the
+/// stage-0 image selected from this run's release manifest. [hasMender] is a
+/// separate requirement because this route has no UMS fallback once selected.
+bool canResumeMinimalMdb({
+  required String? artifactName,
+  required String? runningVersion,
+  required String? stageZeroFilename,
+  required bool hasMender,
+}) {
+  if (!hasMender) return false;
+  final artifact = (artifactName ?? '').trim().toLowerCase();
+  final version = (runningVersion ?? '').trim().toLowerCase();
+  final image = (stageZeroFilename ?? '').trim().toLowerCase();
+  if (artifact.isEmpty || version.isEmpty || image.isEmpty) return false;
+  if (!artifact.contains('minimal') || artifactNameIsStale(artifact, version)) {
+    return false;
+  }
+  if (!image.contains('unu-mdb-minimal-') ||
+      !image.endsWith('.sdimg.gz')) {
+    return false;
+  }
+  return image.endsWith('-$version.sdimg.gz');
 }

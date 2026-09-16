@@ -9,11 +9,11 @@ import 'package:librescoot_installer/widgets/install_plan_panel.dart';
 // one here too. Hosting a bare Column in a fixed-size window overflows on the
 // taller plans and reports a layout error rather than the assertion under test.
 Widget _host(Widget child) => MaterialApp(
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      locale: const Locale('en'),
-      home: Scaffold(body: SingleChildScrollView(child: child)),
-    );
+  localizationsDelegates: AppLocalizations.localizationsDelegates,
+  supportedLocales: AppLocalizations.supportedLocales,
+  locale: const Locale('en'),
+  home: Scaffold(body: SingleChildScrollView(child: child)),
+);
 
 const _mdbState = BoardState(
   board: Board.mdb,
@@ -31,14 +31,21 @@ const _stockDbc = BoardState(
 void main() {
   testWidgets('shows both boards with their current versions', (tester) async {
     final plan = InstallPlan.defaults(
-        mdb: _mdbState, dbc: _stockDbc, targetVersion: 'v1.2.1');
-    await tester.pumpWidget(_host(InstallPlanPanel(
-      plan: plan,
-      mdbState: _mdbState,
-      dbcState: _stockDbc,
+      mdb: _mdbState,
+      dbc: _stockDbc,
       targetVersion: 'v1.2.1',
-      onChanged: (_) {},
-    )));
+    );
+    await tester.pumpWidget(
+      _host(
+        InstallPlanPanel(
+          plan: plan,
+          mdbState: _mdbState,
+          dbcState: _stockDbc,
+          targetVersion: 'v1.2.1',
+          onChanged: (_) {},
+        ),
+      ),
+    );
 
     expect(find.text('MDB (main board)'), findsOneWidget);
     expect(find.text('DBC (dashboard)'), findsOneWidget);
@@ -49,21 +56,31 @@ void main() {
     expect(find.text('Version unknown'), findsOneWidget);
   });
 
-  testWidgets('disables Upgrade for a board that cannot take one',
-      (tester) async {
+  testWidgets('disables Upgrade for a board that cannot take one', (
+    tester,
+  ) async {
     InstallPlan? seen;
     final plan = InstallPlan.defaults(
-        mdb: _mdbState, dbc: _stockDbc, targetVersion: 'v1.2.1');
-    await tester.pumpWidget(_host(InstallPlanPanel(
-      plan: plan,
-      mdbState: _mdbState,
-      dbcState: _stockDbc,
+      mdb: _mdbState,
+      dbc: _stockDbc,
       targetVersion: 'v1.2.1',
-      onChanged: (p) => seen = p,
-    )));
+    );
+    await tester.pumpWidget(
+      _host(
+        InstallPlanPanel(
+          plan: plan,
+          mdbState: _mdbState,
+          dbcState: _stockDbc,
+          targetVersion: 'v1.2.1',
+          onChanged: (p) => seen = p,
+        ),
+      ),
+    );
 
-    expect(find.text('Upgrade needs a known version on this board'),
-        findsOneWidget);
+    expect(
+      find.text('Upgrade needs a known version on this board'),
+      findsOneWidget,
+    );
 
     // The DBC's Upgrade tile is the disabled one: tapping it must not be
     // able to select it. This is the property that actually protects the
@@ -84,19 +101,27 @@ void main() {
     expect(seen!.mdb.action, BoardAction.leave);
   });
 
-  testWidgets('the reason a board cannot upgrade sits on the disabled option',
-      (tester) async {
+  testWidgets('the reason a board cannot upgrade sits on the disabled option', (
+    tester,
+  ) async {
     final plan = InstallPlan.defaults(
-        mdb: _mdbState, dbc: _stockDbc, targetVersion: 'v1.2.1');
+      mdb: _mdbState,
+      dbc: _stockDbc,
+      targetVersion: 'v1.2.1',
+    );
     await tester.binding.setSurfaceSize(const Size(800, 600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(_host(InstallPlanPanel(
-      plan: plan,
-      mdbState: _mdbState,
-      dbcState: _stockDbc,
-      targetVersion: 'v1.2.1',
-      onChanged: (_) {},
-    )));
+    await tester.pumpWidget(
+      _host(
+        InstallPlanPanel(
+          plan: plan,
+          mdbState: _mdbState,
+          dbcState: _stockDbc,
+          targetVersion: 'v1.2.1',
+          onChanged: (_) {},
+        ),
+      ),
+    );
 
     // The reason used to be the last line of the card, which a short window
     // pushed below the fold: the user met a greyed out choice with nothing
@@ -114,23 +139,38 @@ void main() {
 
   testWidgets('a stock main board cannot be left alone', (tester) async {
     const stockMdb = BoardState(
-        board: Board.mdb, isLibrescoot: false, provenance: StateProvenance.live);
+      board: Board.mdb,
+      isLibrescoot: false,
+      provenance: StateProvenance.live,
+    );
     InstallPlan? seen;
     final plan = InstallPlan.defaults(
-        mdb: stockMdb, dbc: _stockDbc, targetVersion: 'v1.2.1');
-    await tester.pumpWidget(_host(InstallPlanPanel(
-      plan: plan,
-      mdbState: stockMdb,
-      dbcState: _stockDbc,
+      mdb: stockMdb,
+      dbc: _stockDbc,
       targetVersion: 'v1.2.1',
-      onChanged: (p) => seen = p,
-    )));
+    );
+    await tester.pumpWidget(
+      _host(
+        InstallPlanPanel(
+          plan: plan,
+          mdbState: stockMdb,
+          dbcState: _stockDbc,
+          targetVersion: 'v1.2.1',
+          onChanged: (p) => seen = p,
+        ),
+      ),
+    );
 
     // It leads nowhere: the dashboard is only reachable through the MDB and
     // the tools that reach it are Librescoot's, so leaving it stock means
     // there is no plan left to make.
-    expect(find.text('A stock main board has to be installed before anything '
-        'else can be done'), findsOneWidget);
+    expect(
+      find.text(
+        'A stock main board has to be installed before anything '
+        'else can be done',
+      ),
+      findsOneWidget,
+    );
     await tester.tap(find.text('Leave alone').first);
     await tester.pump();
     expect(seen, isNull);
@@ -139,14 +179,21 @@ void main() {
   testWidgets('choosing an action reports a new plan', (tester) async {
     InstallPlan? seen;
     final plan = InstallPlan.defaults(
-        mdb: _mdbState, dbc: _stockDbc, targetVersion: 'v1.2.1');
-    await tester.pumpWidget(_host(InstallPlanPanel(
-      plan: plan,
-      mdbState: _mdbState,
-      dbcState: _stockDbc,
+      mdb: _mdbState,
+      dbc: _stockDbc,
       targetVersion: 'v1.2.1',
-      onChanged: (p) => seen = p,
-    )));
+    );
+    await tester.pumpWidget(
+      _host(
+        InstallPlanPanel(
+          plan: plan,
+          mdbState: _mdbState,
+          dbcState: _stockDbc,
+          targetVersion: 'v1.2.1',
+          onChanged: (p) => seen = p,
+        ),
+      ),
+    );
 
     await tester.tap(find.text('Leave alone').first);
     await tester.pump();
@@ -155,8 +202,9 @@ void main() {
     expect(seen!.mdb.action, BoardAction.leave);
   });
 
-  testWidgets('the maps are a choice here and say what they cost',
-      (tester) async {
+  testWidgets('the maps are a choice here and say what they cost', (
+    tester,
+  ) async {
     // The welcome screen decides whether to DOWNLOAD them, which reads as a
     // size choice. Whether to install them belongs with the rest of what this
     // run will do, and the cost is a dashboard step the user did not ask for.
@@ -166,13 +214,17 @@ void main() {
       dbc: const BoardPlan(board: Board.dbc, action: BoardAction.leave),
       installTiles: true,
     );
-    await tester.pumpWidget(_host(InstallPlanPanel(
-      plan: plan,
-      mdbState: _mdbState,
-      dbcState: _stockDbc,
-      targetVersion: 'v1.2.1',
-      onChanged: (p) => seen = p,
-    )));
+    await tester.pumpWidget(
+      _host(
+        InstallPlanPanel(
+          plan: plan,
+          mdbState: _mdbState,
+          dbcState: _stockDbc,
+          targetVersion: 'v1.2.1',
+          onChanged: (p) => seen = p,
+        ),
+      ),
+    );
 
     expect(find.text('Update the offline maps'), findsOneWidget);
     expect(find.textContaining('Adds a dashboard step'), findsOneWidget);
@@ -185,21 +237,26 @@ void main() {
     expect(seen!.installTiles, isFalse);
   });
 
-  testWidgets('maps that were never downloaded cannot be chosen here',
-      (tester) async {
+  testWidgets('maps that were never downloaded cannot be chosen here', (
+    tester,
+  ) async {
     InstallPlan? seen;
-    await tester.pumpWidget(_host(InstallPlanPanel(
-      plan: InstallPlan(
-        mdb: const BoardPlan(board: Board.mdb, action: BoardAction.upgrade),
-        dbc: const BoardPlan(board: Board.dbc, action: BoardAction.leave),
-        installTiles: false,
+    await tester.pumpWidget(
+      _host(
+        InstallPlanPanel(
+          plan: InstallPlan(
+            mdb: const BoardPlan(board: Board.mdb, action: BoardAction.upgrade),
+            dbc: const BoardPlan(board: Board.dbc, action: BoardAction.leave),
+            installTiles: false,
+          ),
+          mdbState: _mdbState,
+          dbcState: _stockDbc,
+          targetVersion: 'v1.2.1',
+          tilesAvailable: false,
+          onChanged: (p) => seen = p,
+        ),
       ),
-      mdbState: _mdbState,
-      dbcState: _stockDbc,
-      targetVersion: 'v1.2.1',
-      tilesAvailable: false,
-      onChanged: (p) => seen = p,
-    )));
+    );
 
     expect(find.textContaining('Not downloaded'), findsOneWidget);
     await tester.ensureVisible(find.byType(CheckboxListTile));
@@ -216,45 +273,61 @@ void main() {
       mdb: BoardPlan(board: Board.mdb, action: BoardAction.leave),
       dbc: BoardPlan(board: Board.dbc, action: BoardAction.leave),
     );
-    await tester.pumpWidget(_host(InstallPlanPanel(
-      plan: plan,
-      mdbState: _mdbState,
-      dbcState: _stockDbc,
-      targetVersion: 'v1.2.1',
-      onChanged: (_) {},
-    )));
+    await tester.pumpWidget(
+      _host(
+        InstallPlanPanel(
+          plan: plan,
+          mdbState: _mdbState,
+          dbcState: _stockDbc,
+          targetVersion: 'v1.2.1',
+          onChanged: (_) {},
+        ),
+      ),
+    );
 
     expect(plan.isNoOp, isTrue);
-    expect(find.text('Nothing selected. Pick at least one action to continue.'),
-        findsOneWidget);
+    expect(
+      find.text('Nothing selected. Pick at least one action to continue.'),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('a dashboard wipe does not claim to erase settings or keycards',
-      (tester) async {
+  testWidgets('a dashboard wipe does not claim to erase settings or keycards', (
+    tester,
+  ) async {
     // Settings and keycards are main-board state. The dashboard's
     // own storage holds the offline maps, so promising more than that talks
     // people out of a clean install for a cost it does not have.
-    await tester.pumpWidget(_host(InstallPlanPanel(
-      mdbState: _mdbState,
-      dbcState: _stockDbc,
-      plan: const InstallPlan(
-        mdb: BoardPlan(board: Board.mdb, action: BoardAction.cleanInstall),
-        dbc: BoardPlan(board: Board.dbc, action: BoardAction.cleanInstall),
+    await tester.pumpWidget(
+      _host(
+        InstallPlanPanel(
+          mdbState: _mdbState,
+          dbcState: _stockDbc,
+          plan: const InstallPlan(
+            mdb: BoardPlan(board: Board.mdb, action: BoardAction.cleanInstall),
+            dbc: BoardPlan(board: Board.dbc, action: BoardAction.cleanInstall),
+          ),
+          targetVersion: 'v1.2.1',
+          onChanged: (_) {},
+        ),
       ),
-      targetVersion: 'v1.2.1',
-      onChanged: (_) {},
-    )));
+    );
 
     expect(find.text('Erases the offline maps only'), findsOneWidget);
-    // The main board keeps the wording that is true for it: settings are lost,
-    // while keycards and maps are set up again later in the same run.
+    // Main-board data is erased, while detected preservable configuration is
+    // offered as a separate choice rather than silently discarded.
     expect(
-        find.text('Erases settings. Keycards and maps are set up again later '
-            'in this run'),
-        findsOneWidget);
+      find.text(
+        'Erases main-board data. Detected device configurations can be '
+        'selected in the next step',
+      ),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('a locked MDB shows its note and offers no choice', (tester) async {
+  testWidgets('a locked MDB shows its note and offers no choice', (
+    tester,
+  ) async {
     // The direct mass-storage route: the MDB cannot be read and can only be
     // clean-installed, so its radios show what will happen rather than ask.
     // The dashboard card stays a choice.
@@ -264,27 +337,33 @@ void main() {
       provenance: StateProvenance.unknown,
     );
     final plan = InstallPlan.directMassStorage();
-    await tester.pumpWidget(_host(InstallPlanPanel(
-      plan: plan,
-      mdbState: unknownMdb,
-      dbcState: _stockDbc,
-      targetVersion: 'v1.3.0',
-      mdbLockedNote: 'locked note',
-      onChanged: (_) {},
-    )));
+    await tester.pumpWidget(
+      _host(
+        InstallPlanPanel(
+          plan: plan,
+          mdbState: unknownMdb,
+          dbcState: _stockDbc,
+          targetVersion: 'v1.3.0',
+          mdbLockedNote: 'locked note',
+          onChanged: (_) {},
+        ),
+      ),
+    );
 
     expect(find.text('locked note'), findsOneWidget);
     final tiles = tester
         .widgetList<RadioListTile<BoardAction>>(
-            find.byType(RadioListTile<BoardAction>))
+          find.byType(RadioListTile<BoardAction>),
+        )
         .toList();
     // Three per board, MDB first.
     expect(tiles.length, 6);
     for (final tile in tiles.take(3)) {
       expect(tile.enabled, isFalse, reason: 'MDB ${tile.value} must be locked');
     }
-    final dbcClean = tiles.skip(3).firstWhere(
-        (t) => t.value == BoardAction.cleanInstall);
+    final dbcClean = tiles
+        .skip(3)
+        .firstWhere((t) => t.value == BoardAction.cleanInstall);
     expect(dbcClean.enabled, isTrue);
   });
 }

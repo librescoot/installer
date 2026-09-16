@@ -33,6 +33,7 @@ DBC_ACTION="{{DBC_ACTION}}"
 RELEASE_TAG="{{RELEASE_TAG}}"
 TILES_REGION="{{TILES_REGION}}"
 DASHBOARD_RESULT="{{DASHBOARD_RESULT}}"
+PRESERVE_SETTINGS="{{PRESERVE_SETTINGS}}"
 
 log() {
   mkdir -p "$(dirname "$LOG")" 2>/dev/null
@@ -110,12 +111,11 @@ progress_set "$SEGMENT_HANDOVER" active
 
 # ---- settings -------------------------------------------------------------
 # An upgrade promised to keep the user's settings, so the pre-install copy goes
-# back. A clean install or a full image erased /data by design, so there is
-# nothing to keep and the file must go rather than carry stale values into a
-# fresh system. Leave keeps /data exactly as upgrade does, and both had their
-# settings parked at connect, so both take the same arm.
-case "$MDB_ACTION" in
-  upgrade|leave)
+# back. A clean/full-image installation keeps a host-restored settings file only
+# when the user selected that category. Leave keeps /data exactly as upgrade
+# does, and both had their settings parked at connect, so both take the same arm.
+case "$MDB_ACTION:$PRESERVE_SETTINGS" in
+  upgrade:*|leave:*)
     if [ -f /data/settings.toml.preinstall ]; then
       mv -f /data/settings.toml.preinstall /data/settings.toml
       log "  restored the pre-install settings"
@@ -134,6 +134,10 @@ case "$MDB_ACTION" in
       lsc set alarm.enabled true >/dev/null 2>&1 || true
       log "  no backup found, reset the two parked keys to defaults"
     fi
+    ;;
+  cleanInstall:yes|fullImage:yes)
+    rm -f /data/settings.toml.preinstall
+    log "  kept host-restored settings"
     ;;
   *)
     rm -f /data/settings.toml /data/settings.toml.preinstall

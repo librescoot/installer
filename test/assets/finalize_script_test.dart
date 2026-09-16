@@ -20,6 +20,7 @@ void main() {
     String channel = 'stable',
     String region = '',
     String dashboardResult = 'not-requested',
+    bool preserveSettings = false,
   }) => FinalizeScript.render(
     template: template,
     mdbAction: mdbAction,
@@ -30,6 +31,7 @@ void main() {
     dbcVersion: 'v1.2.1',
     region: region,
     dashboardResult: dashboardResult,
+    preserveSettings: preserveSettings,
   );
 
   group('rendering', () {
@@ -133,6 +135,7 @@ case "\$1" in is-active) echo active ;; esac
       String bootedRoot = '/dev/mmcblk1p3',
       String? previousRoot,
       String dashboardResult = 'not-requested',
+      bool preserveSettings = false,
     }) async {
       await stubs(serviceModeActive: serviceModeActive, nrfStatus: nrfStatus);
       await Directory('${root.path}/installer').create(recursive: true);
@@ -152,10 +155,12 @@ case "\$1" in is-active) echo active ;; esac
       );
       await script.writeAsString(
         render(
-          mdbAction: mdbAction,
-          runId: runId,
-          dashboardResult: dashboardResult,
-        ).replaceFirst('NRF_STATUS_CAP=600', 'NRF_STATUS_CAP=$nrfStatusCap')
+              mdbAction: mdbAction,
+              runId: runId,
+              dashboardResult: dashboardResult,
+              preserveSettings: preserveSettings,
+            )
+            .replaceFirst('NRF_STATUS_CAP=600', 'NRF_STATUS_CAP=$nrfStatusCap')
             .replaceAll('/data/', '${root.path}/'),
       );
       if (previousRoot != null) {
@@ -227,12 +232,28 @@ write_status "error: DBC verification failed"
       );
     });
 
-    test('a clean install wipes them instead', () async {
+    test('a clean install wipes settings when none were selected', () async {
       await Directory('${root.path}/installer').create(recursive: true);
       await File('${root.path}/settings.toml').writeAsString('# ours\n');
       final result = await run(mdbAction: 'cleanInstall');
       expect(result.exitCode, 0, reason: result.stderr.toString());
       expect(File('${root.path}/settings.toml').existsSync(), isFalse);
+    });
+
+    test('a clean install keeps host-restored selected settings', () async {
+      await Directory('${root.path}/installer').create(recursive: true);
+      await File(
+        '${root.path}/settings.toml',
+      ).writeAsString('# host restored\n');
+      final result = await run(
+        mdbAction: 'cleanInstall',
+        preserveSettings: true,
+      );
+      expect(result.exitCode, 0, reason: result.stderr.toString());
+      expect(
+        await File('${root.path}/settings.toml').readAsString(),
+        contains('host restored'),
+      );
     });
 
     test('with no backup and a live overlay it writes no defaults', () async {
