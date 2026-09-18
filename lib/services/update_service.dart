@@ -20,7 +20,9 @@ class InstallerUpdate {
 class UpdateService {
   UpdateService({
     http.Client? client,
-    this.requestTimeout = const Duration(seconds: 8),
+    // 20 s: a field machine hit the old 8 s ceiling on the installer update
+    // check, which is a cosmetic check but reported as a failure each run.
+    this.requestTimeout = const Duration(seconds: 20),
   }) : _client = client ?? http.Client();
 
   static final Uri downloadsUri = Uri.parse('https://downloads.librescoot.org');

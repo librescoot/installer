@@ -125,7 +125,7 @@ class Region {
       final response = await c
           .get(Uri.parse(
               'http://ip-api.com/json/?fields=status,countryCode,region'))
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(seconds: 12));
       if (client == null) c.close();
       if (response.statusCode != 200) return null;
       final data = jsonDecode(response.body) as Map<String, dynamic>;

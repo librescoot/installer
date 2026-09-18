@@ -86,6 +86,17 @@ class InstallerScreen extends StatefulWidget {
   State<InstallerScreen> createState() => _InstallerScreenState();
 }
 
+/// How long the keycard screen gives the service to answer a command, and how
+/// long it waits to hear that the reader is missing.
+///
+/// Three seconds was the budget for both, and both run against a
+/// keycard-service that was just started: on a clean install it is coming up,
+/// its reader is initialising, and the board may be busy. An answer returns the
+/// moment it arrives, so this only costs patience on a service that says
+/// nothing at all.
+const keycardAnswerBudget = Duration(seconds: 15);
+const keycardReaderBudget = Duration(seconds: 10);
+
 /// How long the board gets to come back as a USB mass-storage device.
 ///
 /// Three minutes: finding it on Windows takes several ~12 s PowerShell round
@@ -958,7 +969,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     try {
       final out = (await _sshService.runCommand(
         'redis-cli hget ble mac-address',
-        timeout: const Duration(seconds: 5),
+        timeout: const Duration(seconds: 15),
       )).trim();
       if (mounted && out.isNotEmpty) {
         setState(() => _bleMac = out.toUpperCase());
@@ -1060,7 +1071,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     try {
       final out = await _sshService.runCommand(
         'cat /data/keycard/authorized_uids.txt 2>/dev/null; true',
-        timeout: const Duration(seconds: 10),
+        timeout: const Duration(seconds: 20),
       );
       _keycardCapturedUids = parseKeycardUidFile(out);
       debugPrint(
@@ -1340,7 +1351,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       final out = await _sshService.runCommand(
         'cat ${SshService.installerLastInstall} 2>/dev/null || '
         'cat ${SshService.legacyLastInstall} 2>/dev/null; true',
-        timeout: const Duration(seconds: 10),
+        timeout: const Duration(seconds: 20),
       );
       return TrampolineStatus.parseCompletionRecord(
         out,
@@ -4282,7 +4293,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         for (final dataType in const ['SPUSBHostDataType', 'SPUSBDataType']) {
           final r = await Process.run('/usr/sbin/system_profiler', [
             dataType,
-          ]).timeout(const Duration(seconds: 8));
+          ]).timeout(const Duration(seconds: 30));
           if (r.exitCode == 0 && r.stdout.toString().trim().isNotEmpty) {
             snapshot = r.stdout.toString();
             break;
@@ -4299,7 +4310,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             '-l',
             '-w',
             '0',
-          ]).timeout(const Duration(seconds: 8));
+          ]).timeout(const Duration(seconds: 30));
           if (io.exitCode == 0) {
             final bsd = RegExp(
               r'"BSD Name"\s*=\s*"(disk\d+)"',
@@ -4314,14 +4325,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         final r = await Process.run(
           'lsusb',
           [],
-        ).timeout(const Duration(seconds: 5));
+        ).timeout(const Duration(seconds: 30));
         snapshot = r.stdout.toString();
       } else if (Platform.isWindows) {
         final r = await Process.run('powershell', [
           '-NoProfile',
           '-Command',
           "Get-PnpDevice -PresentOnly | Where-Object { \$_.InstanceId -like '*VID_0525*' -or \$_.InstanceId -like '*VID_15A2*' } | Format-List Name,Status,Class,InstanceId",
-        ]).timeout(const Duration(seconds: 8));
+        ]).timeout(const Duration(seconds: 30));
         snapshot = r.stdout.toString();
       } else {
         snapshot = l10n.usbInfoUnsupportedPlatform;
@@ -9812,7 +9823,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         'redis-cli hdel keycard command-result >/dev/null; true',
       );
       await _sshService.redisLpush('scooter:keycard', command);
-      for (var i = 0; i < 20; i++) {
+      final deadline = DateTime.now().add(keycardAnswerBudget);
+      while (DateTime.now().isBefore(deadline)) {
         await Future.delayed(const Duration(milliseconds: 150));
         final result = await _sshService.redisHget('keycard', 'command-result');
         if (result != null) return result.trim();
@@ -9847,7 +9859,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       return capability;
     }
     try {
-      for (var i = 0; i < 12; i++) {
+      final deadline = DateTime.now().add(keycardReaderBudget);
+      while (DateTime.now().isBefore(deadline)) {
         final faults = await _sshService.runCommand(
           'redis-cli SMEMBERS keycard:fault 2>/dev/null; true',
         );
@@ -9888,9 +9901,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         'redis-cli HDEL keycard command-result >/dev/null 2>&1; true',
       );
       await _sshService.redisLpush('scooter:keycard', 'learn:master:stop');
-      // ~3 s budget at 150 ms intervals. The keycard-service typically writes
-      // command-result well under 500 ms on the local USB-network link.
-      for (var i = 0; i < 20; i++) {
+      // An answer lands well under 500 ms on the local USB-network link when
+      // the service is ready, but on a clean install it may still be starting.
+      final deadline = DateTime.now().add(keycardAnswerBudget);
+      while (DateTime.now().isBefore(deadline)) {
         await Future.delayed(const Duration(milliseconds: 150));
         final result = await _sshService.redisHget('keycard', 'command-result');
         if (result == null) continue;
@@ -9914,7 +9928,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// races its startup answers about the read rather than about the board.
   Future<int?> _keycardReadMasterCount() async {
     if (_isDryRun) return null;
-    for (var attempt = 1; attempt <= 3; attempt++) {
+    for (var attempt = 1; attempt <= 5; attempt++) {
       try {
         final raw = await _sshService.redisHget(
           'system',
@@ -9925,7 +9939,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       } catch (e) {
         debugPrint('UI: master-count read failed (attempt $attempt): $e');
       }
-      if (attempt < 3) await Future.delayed(const Duration(seconds: 1));
+      if (attempt < 5) await Future.delayed(const Duration(milliseconds: 1500));
     }
     debugPrint('UI: master count never answered');
     return null;
