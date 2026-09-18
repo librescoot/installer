@@ -3752,6 +3752,12 @@ abstract class AppLocalizations {
   /// **'No device path found. Check USB connection and retry.'**
   String get noDevicePathFound;
 
+  /// No description provided for @massStorageWithoutDisk.
+  ///
+  /// In en, this message translates to:
+  /// **'The scooter reports as a USB device but provides no disk. The installer cannot flash in this state. Please report this in the Librescoot chat.'**
+  String get massStorageWithoutDisk;
+
   /// No description provided for @mdbDisconnectedFlashingDbc.
   ///
   /// In en, this message translates to:

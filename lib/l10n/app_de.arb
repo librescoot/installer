@@ -820,6 +820,7 @@
   "umsNotDetectedTimeout": "UMS-Gerät nicht innerhalb von 3 Minuten erkannt. MDB ist möglicherweise wieder in Linux gebootet.",
   "waitingForDevicePath": "Warte auf Gerätepfad…",
   "noDevicePathFound": "Kein Gerätepfad gefunden. Prüfe die USB-Verbindung und versuche es erneut.",
+  "massStorageWithoutDisk": "Der Roller meldet sich als USB-Gerät, liefert aber kein Laufwerk. Der Installer kann in diesem Zustand nicht flashen. Melde dich damit im Librescoot-Chat.",
   "mdbDisconnectedFlashingDbc": "MDB getrennt. DBC wird automatisch geflasht…",
   "mdbReconnectedVerifying": "MDB wieder verbunden. Überprüfung läuft…",
   "logDebugShell": "Protokoll und Debug-Shell",

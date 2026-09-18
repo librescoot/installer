@@ -193,6 +193,24 @@ class UsbDetector {
   int _macDiskProbeAttempts = 0;
   static const int _maxMacDiskProbeAttempts = 12;
 
+  /// Cadence once the fast attempts are spent.
+  static const Duration _macDiskProbeSlowInterval = Duration(seconds: 15);
+
+  DateTime? _macDiskProbeLastAt;
+
+  /// Whether the background disk probe should run again.
+  ///
+  /// Poll speed while the board is arriving, then a slower cadence rather than
+  /// stopping: media that appears late is still media, and giving up outright
+  /// left a board sitting there with nothing asking about it.
+  @visibleForTesting
+  static bool macDiskProbeDue({
+    required int attempts,
+    required Duration sinceLastProbe,
+  }) =>
+      attempts < _maxMacDiskProbeAttempts ||
+      sinceLastProbe >= _macDiskProbeSlowInterval;
+
   /// Whether the macOS disk probe result is currently cached.
   ///
   /// The cache outliving the device it describes is what hands the flasher a
@@ -1088,7 +1106,15 @@ Get-CimInstance Win32_DiskDrive | ForEach-Object {
       _macDiskInfoCacheIdentity = null;
       _macDiskProbeAttempts = 0;
     }
-    if (_macDiskProbeAttempts >= _maxMacDiskProbeAttempts) return;
+    if (!macDiskProbeDue(
+      attempts: _macDiskProbeAttempts,
+      sinceLastProbe: _macDiskProbeLastAt == null
+          ? _macDiskProbeSlowInterval
+          : DateTime.now().difference(_macDiskProbeLastAt!),
+    )) {
+      return;
+    }
+    _macDiskProbeLastAt = DateTime.now();
     _macDiskProbeInFlight = true;
     _macDiskProbeAttempts++;
     final pollingGeneration = _pollGeneration;

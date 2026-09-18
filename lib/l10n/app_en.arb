@@ -965,6 +965,7 @@
   "umsNotDetectedTimeout": "UMS device not detected within 3 minutes. MDB may have booted back into Linux.",
   "waitingForDevicePath": "Waiting for device path...",
   "noDevicePathFound": "No device path found. Check USB connection and retry.",
+  "massStorageWithoutDisk": "The scooter reports as a USB device but provides no disk. The installer cannot flash in this state. Please report this in the Librescoot chat.",
   "mdbDisconnectedFlashingDbc": "MDB disconnected. The scooter is installing the DBC...",
   "mdbReconnectedVerifying": "MDB reconnected. Verifying...",
   "logDebugShell": "Log and debug shell",

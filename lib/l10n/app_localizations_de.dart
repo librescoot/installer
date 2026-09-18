@@ -2212,6 +2212,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Kein Gerätepfad gefunden. Prüfe die USB-Verbindung und versuche es erneut.';
 
   @override
+  String get massStorageWithoutDisk =>
+      'Der Roller meldet sich als USB-Gerät, liefert aber kein Laufwerk. Der Installer kann in diesem Zustand nicht flashen. Melde dich damit im Librescoot-Chat.';
+
+  @override
   String get mdbDisconnectedFlashingDbc =>
       'MDB getrennt. DBC wird automatisch geflasht…';
 

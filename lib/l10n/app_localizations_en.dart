@@ -2173,6 +2173,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'No device path found. Check USB connection and retry.';
 
   @override
+  String get massStorageWithoutDisk =>
+      'The scooter reports as a USB device but provides no disk. The installer cannot flash in this state. Please report this in the Librescoot chat.';
+
+  @override
   String get mdbDisconnectedFlashingDbc =>
       'MDB disconnected. The scooter is installing the DBC...';
 

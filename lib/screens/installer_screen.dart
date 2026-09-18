@@ -5752,7 +5752,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // Resolve the block device path (macOS needs diskutil lookup)
       _setStatus(l10n.waitingForDevicePath);
       String? devicePath;
-      for (var i = 0; i < 15; i++) {
+      for (var i = 0; i < 45; i++) {
         devicePath = _device?.path;
         if (devicePath != null && devicePath.isNotEmpty) break;
         devicePath = await _usbDetector.resolveDevicePath();
@@ -5762,7 +5762,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       }
       if (devicePath == null || devicePath.isEmpty) {
         criticalOperation.release();
-        _setStatus(l10n.noDevicePathFound);
+        await _logMassStorageDiagnostics();
+        // The board answered as U-Boot's download gadget: that is a USB
+        // device with no disk behind it, and it is not the cable.
+        _setStatus(
+          (_device ?? _usbDetector.currentDevice)?.mode ==
+                  DeviceMode.massStorage
+              ? l10n.massStorageWithoutDisk
+              : l10n.noDevicePathFound,
+        );
         _blockMdbFlash();
         return;
       }
@@ -11418,6 +11426,82 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         ],
       ),
     );
+  }
+
+  /// Record what the host sees of its own disks when a mass-storage board
+  /// never resolves to a device path.
+  ///
+  /// A macOS report showed the gadget enumerated with no disk behind it, and
+  /// nothing in the log said whether macOS had attached one at all, or what
+  /// its driver made of the device. Ask the machines that can answer, at the
+  /// moment it matters.
+  Future<void> _logMassStorageDiagnostics() async {
+    debugPrint('Diag: mode=${_device?.mode.name} path=${_device?.path}');
+    if (Platform.isMacOS) {
+      await _logCommandOutput(['/usr/sbin/diskutil', 'list']);
+      await _logCommandOutput(
+        ['/usr/sbin/ioreg', '-p', 'IOUSB', '-l', '-w', '0'],
+        keeping: const [
+          'idVendor',
+          'idProduct',
+          'USB Product Name',
+          'BSD Name',
+          'IOMedia',
+          'IOUSBMassStorage',
+        ],
+      );
+      // Enumeration is the control path; the disk needs bulk transfers. The
+      // driver's own complaints are the only place the difference shows.
+      await _logCommandOutput(
+        [
+          '/usr/bin/log',
+          'show',
+          '--last',
+          '3m',
+          '--style',
+          'compact',
+          '--predicate',
+          'eventMessage CONTAINS[c] "IOUSBMassStorage"',
+        ],
+        maxLines: 40,
+      );
+      return;
+    }
+    if (Platform.isLinux) {
+      await _logCommandOutput(['lsusb', '-d', '0525:']);
+      await _logCommandOutput(['dmesg'], maxLines: 60);
+    }
+  }
+
+  Future<void> _logCommandOutput(
+    List<String> command, {
+    List<String>? keeping,
+    int maxLines = 200,
+  }) async {
+    try {
+      final result = await Process.run(
+        command.first,
+        command.sublist(1),
+      ).timeout(const Duration(seconds: 20));
+      debugPrint('Diag: ${command.join(' ')}');
+      final selected = result.stdout
+          .toString()
+          .split('\n')
+          .where((line) {
+            final trimmed = line.trimRight();
+            if (trimmed.trim().isEmpty) return false;
+            return keeping == null ||
+                keeping.any((token) => trimmed.contains(token));
+          })
+          .toList();
+      for (final line in selected.length > maxLines
+          ? selected.sublist(selected.length - maxLines)
+          : selected) {
+        debugPrint('Diag:   $line');
+      }
+    } catch (e) {
+      debugPrint('Diag: ${command.first} failed: $e');
+    }
   }
 
   /// Only show the physical actions the current cable topology still needs.
