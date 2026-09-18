@@ -74,6 +74,62 @@ void main() {
     });
   });
 
+  group('a slow machine is not a missing device', () {
+    test('a probe that takes 11 s is answered, not killed', () async {
+      // The field measurement this pins: a Windows 11 machine answered a
+      // `Get-PnpDevice`/`Get-PnpDeviceProperty` probe in about 12 s. The old
+      // 10 s default killed it, and a killed probe reads as an absent device,
+      // so the installer reported the board disconnected while it was sitting
+      // in U-Boot mass-storage mode waiting to be flashed.
+      final started = DateTime.now();
+      final r = await runBounded('sh', ['-c', 'sleep 11; echo slow-but-alive']);
+      expect(r.exitCode, 0, reason: r.stderr.toString());
+      expect(r.stdout.toString().trim(), 'slow-but-alive');
+      expect(DateTime.now().difference(started), greaterThan(const Duration(seconds: 10)));
+    }, timeout: const Timeout(Duration(seconds: 60)));
+  });
+
+  group('detection waits on rounds, not on every probe in turn', () {
+    final source = File('lib/services/usb_detector.dart').readAsStringSync();
+
+    String detect() => source.substring(
+      source.indexOf('Future<UsbDevice?> _detectWindows() async {'),
+      source.indexOf('Future<UsbDevice?> _detectWindowsEthernet()'),
+    );
+
+    test('each round is in flight together', () {
+      final body = detect();
+      expect(RegExp(r'await Future\.wait\(\[').allMatches(body).length, 2);
+      expect(
+        body,
+        isNot(contains('await _detectWindowsEthernet();')),
+        reason: 'sequentially awaited probes are round trips added together',
+      );
+    });
+
+    test('precedence is the order of the checks, not who answers first', () {
+      final body = detect();
+      final order = [
+        '_detectWindowsEthernet()',
+        '_detectWindowsStorage()',
+        '_detectWindowsPnpEthernet()',
+        '_detectWindowsRecovery()',
+      ].map(body.indexOf).toList();
+      expect(order, orderedEquals([...order]..sort()));
+      expect(order.every((i) => i >= 0), isTrue);
+    });
+
+    test('the storage probe starts both of its queries together', () {
+      final body = source.substring(
+        source.indexOf('if (pnpId.isNotEmpty) {'),
+        source.indexOf('sizeBytes: sizeBytes,'),
+      );
+      final firstAwait = body.indexOf('await ');
+      expect(body.indexOf('_windowsDiskSize('), lessThan(firstAwait));
+      expect(body.indexOf('_windowsSystemDiskVerdict('), lessThan(firstAwait));
+    });
+  });
+
   group('AutoPlay suppression waits like the best-effort thing it is', () {
     final source = File('lib/services/driver_service.dart').readAsStringSync();
 

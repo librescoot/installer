@@ -86,6 +86,12 @@ class InstallerScreen extends StatefulWidget {
   State<InstallerScreen> createState() => _InstallerScreenState();
 }
 
+/// How long the board gets to come back as a USB mass-storage device.
+///
+/// Three minutes: finding it on Windows takes several ~12 s PowerShell round
+/// trips, so one minute fit roughly one attempt on a slow machine.
+const mdbUmsWait = Duration(minutes: 3);
+
 class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   InstallerPhase _currentPhase = InstallerPhase.welcome;
   final Set<InstallerPhase> _completedPhases = {};
@@ -94,6 +100,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   bool _isProcessing = false;
   double _progress = 0.0;
   bool _isElevated = false;
+
+  /// Set only to warn about x64-on-ARM64 emulation, where the bundled RNDIS
+  /// package has no section to bind with.
+  HostArchVerdict _hostArch = HostArchVerdict.unknown;
 
   // Services
   late final UsbDetector _usbDetector;
@@ -581,6 +591,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Future<void> _checkElevation() async {
+    _hostArch = detectHostArchitecture();
     final elevated = await ElevationService.isElevated();
     if (mounted) setState(() => _isElevated = elevated);
   }
@@ -2094,6 +2105,32 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                   child: Text(
                     l10n.elevationNoticeWelcome,
                     style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          // x64 build under ARM64 emulation: works, but slow and with no
+          // ARM64 RNDIS driver. Worth saying before the first USB wait.
+          if (_hostArch == HostArchVerdict.x64OnArm64) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.memory_outlined,
+                  size: 18,
+                  color: Colors.orange.shade300,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    l10n.arm64EmulationNoticeWelcome,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.orange.shade300,
+                    ),
                   ),
                 ),
               ],
@@ -5245,7 +5282,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         if (!await _waitForAnyDevice(const [
           DeviceMode.ethernet,
           DeviceMode.massStorage,
-        ], timeout: const Duration(seconds: 90))) {
+        ], timeout: mdbUmsWait)) {
           throw _LocalizedInstallException(l10n.umsNotDetectedTimeout);
         }
         if (!_ownsMdbToUmsAttempt(generation)) return;
@@ -5300,7 +5337,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         _setStatus(l10n.waitingForUmsDevice);
         final found = await _waitForDevice(
           DeviceMode.massStorage,
-          timeout: const Duration(seconds: 60),
+          timeout: mdbUmsWait,
         );
         if (found) {
           if (!_ownsMdbToUmsAttempt(generation)) return;
@@ -11138,6 +11175,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         state == FinalScreenState.completed ||
         state == FinalScreenState.completedReconnectDbc;
     final confirmed = deviceConfirmed && !_dbcOutcome.isIncomplete;
+
+    // Nothing is confirmed yet, so this is a full screen of its own rather
+    // than a notice above a screen that already says "done". The seatbox and
+    // the first ride belong to the confirmed screen and nowhere else, or the
+    // owner reads them as permission to start before the unlock has landed.
+    if (!confirmed) {
+      return _buildFinishPending(l10n, state);
+    }
     return PhaseLayout(
       title: confirmed ? l10n.welcomeToLibrescoot : l10n.finishStatusTitle,
       actions: [
@@ -11186,6 +11231,98 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           ..._finalSteps(l10n, state),
           const SizedBox(height: 16),
           _buildGettingStarted(l10n),
+        ],
+      ),
+    );
+  }
+
+  /// The wait before the scooter has confirmed anything, given the whole
+  /// screen.
+  ///
+  /// It exists to kill one misreading: the display and the lights come on
+  /// minutes before the install is over, and an owner who takes that for the
+  /// finish starts reassembling and trying to unlock a scooter that is still
+  /// working.
+  Widget _buildFinishPending(AppLocalizations l10n, FinalScreenState state) {
+    final instruction = _dashboardTransferSkipped
+        ? l10n.finishTransferSkippedPending
+        : switch (state) {
+            FinalScreenState.reconnectDbc => (_plan?.needsHandoff ?? true)
+                ? l10n.finishReconnectDbc
+                : l10n.finishReconnectDbcNoDashboardWork,
+            _ => l10n.finishOnDevice,
+          };
+    return PhaseLayout(
+      title: l10n.finishPendingHeading,
+      actions: [
+        // Deliberately not the emphasised action: there is nothing to
+        // acknowledge yet, and a filled button here is the "done" the owner
+        // is looking for.
+        PhaseAction(
+          label: l10n.closeInstaller,
+          icon: Icons.close,
+          side: ActionSide.back,
+          onPressed: () =>
+              _finishAndExit(confirmed: false, keepDownloads: false),
+        ),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.autorenew, size: 32, color: Colors.amber),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  l10n.finishPendingNowTitle,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          NoticeCard(
+            severity: NoticeSeverity.info,
+            title: l10n.finishPendingDoNowTitle,
+            body: instruction,
+          ),
+          const SizedBox(height: 12),
+          NoticeCard(
+            severity: NoticeSeverity.info,
+            title: l10n.finishPendingStepsTitle,
+            bullets: [
+              l10n.finishPendingStep1,
+              l10n.finishPendingStep2,
+              l10n.finishPendingStep3,
+              l10n.finishPendingStep4,
+            ],
+          ),
+          const SizedBox(height: 12),
+          NoticeCard(
+            severity: NoticeSeverity.warning,
+            title: l10n.finishPendingDoneTitle,
+            body: l10n.finishPendingDoneBody,
+            trail: l10n.finishPendingDoneTrail,
+          ),
+          const SizedBox(height: 12),
+          NoticeCard(
+            severity: NoticeSeverity.danger,
+            title: l10n.finishPendingNotDoneTitle,
+            body: l10n.finishPendingNotDoneBody,
+          ),
+          const SizedBox(height: 12),
+          NoticeCard(
+            severity: NoticeSeverity.warning,
+            title: l10n.finishPendingDontTitle,
+            bullets: [
+              l10n.finishPendingDont1,
+              l10n.finishPendingDont2,
+            ],
+          ),
         ],
       ),
     );

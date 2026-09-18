@@ -238,6 +238,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Wenn du auf Installation starten klickst, fragt dein System nach Administratorrechten. Der Installer benötigt sie, um auf den Speicher des Rollers zu schreiben und das Netzwerk zu konfigurieren.';
 
   @override
+  String get arm64EmulationNoticeWelcome =>
+      'Dieser Rechner hat einen ARM64-Prozessor, der Installer läuft dort in der x64-Emulation. Das kann die USB-Erkennung verlangsamen, und der mitgelieferte USB-Treiber ist nur für x86/x64 gebaut. Am zuverlässigsten ist ein x64-Rechner.';
+
+  @override
   String get requestingAdminPrivileges =>
       'Administratorrechte werden angefragt…';
 
@@ -1260,6 +1264,61 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Installation ist abgeschlossen. Der Roller ist entsperrt und fahrbereit.';
 
   @override
+  String get finishPendingNowTitle => 'Der Roller arbeitet jetzt allein weiter';
+
+  @override
+  String get finishPendingStepsTitle => 'Was jetzt passiert';
+
+  @override
+  String get finishPendingStep1 =>
+      'Die neue Firmware ist geschrieben und startet beim nächsten Hochfahren.';
+
+  @override
+  String get finishPendingStep2 =>
+      'Der Roller startet neu und stellt seine Dienste wieder her.';
+
+  @override
+  String get finishPendingStep3 =>
+      'Schlüsselkarten, Bluetooth und deine Einstellungen werden wieder aktiv.';
+
+  @override
+  String get finishPendingStep4 =>
+      'Zum Schluss entsperrt sich der Roller selbst.';
+
+  @override
+  String get finishPendingDoNowTitle => 'Was du jetzt tun musst';
+
+  @override
+  String get finishPendingDoneTitle =>
+      'So erkennst du, dass die Installation fertig ist';
+
+  @override
+  String get finishPendingDoneBody =>
+      'Das Lenkerschloss öffnet sich und der Roller lässt sich einschalten und fahren. Die Fortschrittsanzeige an den Blinkern erlischt.';
+
+  @override
+  String get finishPendingDoneTrail =>
+      'Der Installer bestätigt dir den Abschluss hier, sobald er den Roller wieder erreicht.';
+
+  @override
+  String get finishPendingNotDoneTitle =>
+      'Das ist noch nicht das Fertig-Zeichen';
+
+  @override
+  String get finishPendingNotDoneBody =>
+      'Während der Installation gehen Display und Beleuchtung des Rollers an, und die Blinker zeigen kurz einen Fortschritt. Das gehört zur Installation und heißt nicht, dass sie beendet ist.';
+
+  @override
+  String get finishPendingDontTitle => 'Solange bitte nicht';
+
+  @override
+  String get finishPendingDont1 =>
+      'Den Roller ausschalten oder vom Akku trennen';
+
+  @override
+  String get finishPendingDont2 => 'Ihn schon entsperren oder losfahren wollen';
+
+  @override
   String get closeInstaller => 'Installer schließen';
 
   @override
@@ -2143,7 +2202,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get umsNotDetectedTimeout =>
-      'UMS-Gerät nicht innerhalb von 60 s erkannt. MDB ist möglicherweise wieder in Linux gebootet.';
+      'UMS-Gerät nicht innerhalb von 3 Minuten erkannt. MDB ist möglicherweise wieder in Linux gebootet.';
 
   @override
   String get waitingForDevicePath => 'Warte auf Gerätepfad…';

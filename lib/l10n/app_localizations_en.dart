@@ -233,6 +233,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'When you click Start Installation, your system will ask you to allow administrator access. The installer needs it to write to the scooter\'s storage and configure networking.';
 
   @override
+  String get arm64EmulationNoticeWelcome =>
+      'This machine has an ARM64 processor, so the installer runs under x64 emulation. That can slow USB detection down, and the bundled USB driver is built for x86/x64 only. An x64 machine is the most reliable choice.';
+
+  @override
   String get requestingAdminPrivileges =>
       'Requesting administrator privileges...';
 
@@ -1242,6 +1246,58 @@ class AppLocalizationsEn extends AppLocalizations {
       'Requested work complete. Reassemble the scooter and verify that it unlocks before riding.';
 
   @override
+  String get finishPendingNowTitle => 'The scooter is finishing on its own now';
+
+  @override
+  String get finishPendingStepsTitle => 'What happens next';
+
+  @override
+  String get finishPendingStep1 =>
+      'The new firmware is written and starts on the next boot.';
+
+  @override
+  String get finishPendingStep2 =>
+      'The scooter reboots and brings its services back up.';
+
+  @override
+  String get finishPendingStep3 =>
+      'Keycards, Bluetooth and your settings become active again.';
+
+  @override
+  String get finishPendingStep4 => 'At the end the scooter unlocks itself.';
+
+  @override
+  String get finishPendingDoNowTitle => 'What to do now';
+
+  @override
+  String get finishPendingDoneTitle => 'How you know the install is done';
+
+  @override
+  String get finishPendingDoneBody =>
+      'The handlebar lock opens and the scooter can be switched on and ridden. The progress bar on the indicators goes dark.';
+
+  @override
+  String get finishPendingDoneTrail =>
+      'The installer confirms completion here as soon as it reaches the scooter again.';
+
+  @override
+  String get finishPendingNotDoneTitle => 'This is not the finish yet';
+
+  @override
+  String get finishPendingNotDoneBody =>
+      'The display and the lights come on during the install, and the indicators briefly show progress. That is part of the install, not the end of it.';
+
+  @override
+  String get finishPendingDontTitle => 'While it finishes, please do not';
+
+  @override
+  String get finishPendingDont1 =>
+      'Switch the scooter off or disconnect the battery';
+
+  @override
+  String get finishPendingDont2 => 'Try to unlock it or ride it yet';
+
+  @override
   String get closeInstaller => 'Close installer';
 
   @override
@@ -2107,7 +2163,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get umsNotDetectedTimeout =>
-      'UMS device not detected within 60s. MDB may have booted back into Linux.';
+      'UMS device not detected within 3 minutes. MDB may have booted back into Linux.';
 
   @override
   String get waitingForDevicePath => 'Waiting for device path...';

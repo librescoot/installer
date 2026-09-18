@@ -3115,6 +3115,48 @@ echo timeout
     }
   }
 
+  /// The connection the /data answer belongs to, and what it answered. Keyed
+  /// on the connection generation so a session that replaced it re-asks.
+  int _installStateStorageGeneration = -1;
+  bool _installStateStorageAvailable = false;
+
+  /// Whether this board can hold installer run state at all.
+  ///
+  /// A stock scooterOS board has no /data and cannot grow one, so every
+  /// `mkdir -p /data/...` fails with EPERM. Recording that per phase reads as
+  /// a fault. Asked once per connection.
+  Future<bool> canStoreInstallState() async {
+    final generation = _connectionGeneration;
+    if (generation == _installStateStorageGeneration) {
+      return _installStateStorageAvailable;
+    }
+    final bool available;
+    try {
+      available = parseInstallStateStorageProbe(
+        await runCommand(
+          'test -d /data && test -w /data && echo yes || echo no',
+        ),
+      );
+    } catch (e) {
+      // A probe that could not answer is not a "no". Let the write go ahead
+      // and fail through its own path, which says what actually went wrong.
+      debugPrint('SSH: could not probe /data for installer state: $e');
+      return true;
+    }
+    if (!available) {
+      debugPrint(
+        'SSH: /data is missing or read-only, not recording installer state',
+      );
+    }
+    _installStateStorageGeneration = generation;
+    _installStateStorageAvailable = available;
+    return available;
+  }
+
+  @visibleForTesting
+  static bool parseInstallStateStorageProbe(String output) =>
+      output.trim() == 'yes';
+
   Future<void> writeInstallRunState({
     required String runId,
     required String content,
@@ -3122,6 +3164,7 @@ echo timeout
     if (!RegExp(r'^[a-zA-Z0-9._-]+$').hasMatch(runId)) {
       throw ArgumentError.value(runId, 'runId', 'contains unsafe characters');
     }
+    if (!await canStoreInstallState()) return;
     final runDir = '$installerHistoryDir/$runId';
     final historyPath = '$runDir/record';
     final historyTemp = '$runDir/.record.tmp';

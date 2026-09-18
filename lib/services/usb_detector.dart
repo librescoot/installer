@@ -7,7 +7,9 @@ import 'network_service.dart';
 Future<ProcessResult> runBounded(
   String executable,
   List<String> arguments, {
-  Duration timeout = const Duration(seconds: 10),
+  // 30 s, not 10: a slow machine takes ~12 s for one PnP query, and a probe
+  // killed by a tight ceiling reads the same as an absent device.
+  Duration timeout = const Duration(seconds: 30),
   Map<String, String>? environment,
 }) async {
   Process? proc;
@@ -343,23 +345,23 @@ class UsbDetector {
   }
 
   Future<UsbDevice?> _detectWindows() async {
-    // Check for ethernet mode device (network adapter)
-    final ethernetDevice = await _detectWindowsEthernet();
-    if (ethernetDevice != null) return ethernetDevice;
+    // Two rounds, run in parallel: detection has to fit inside the window the
+    // caller is waiting in, and one PowerShell round trip can take ~12 s.
+    // Round two runs only when round one found nothing, so an idle poll costs
+    // two processes. Precedence is the order of the checks, not who finishes.
+    final first = await Future.wait([
+      _detectWindowsEthernet(),
+      _detectWindowsStorage(),
+    ]);
+    if (first[0] != null) return first[0];
+    if (first[1] != null) return first[1];
 
-    // Fallback: detect generic PnP USB/COM device for A4A2 when the RNDIS
-    // driver is missing or not bound yet.
-    final pnpEthernetDevice = await _detectWindowsPnpEthernet();
-    if (pnpEthernetDevice != null) return pnpEthernetDevice;
-
-    // Check for mass storage device
-    final storageDevice = await _detectWindowsStorage();
-    if (storageDevice != null) return storageDevice;
-
-    // Check for SDP / serial-download recovery (no driver available, but
-    // we can still see the PnP enumeration).
-    final recoveryDevice = await _detectWindowsRecovery();
-    if (recoveryDevice != null) return recoveryDevice;
+    final second = await Future.wait([
+      _detectWindowsPnpEthernet(),
+      _detectWindowsRecovery(),
+    ]);
+    if (second[0] != null) return second[0];
+    if (second[1] != null) return second[1];
 
     return null;
   }
@@ -489,13 +491,15 @@ if ($dev) {
       final mediaType = parts.length > 4 ? parts[4].trim() : '';
 
       if (pnpId.isNotEmpty) {
-        final sizeBytes = await _windowsDiskSize(int.tryParse(indexStr));
-
-        final isRemovable = mediaType.toLowerCase().contains('removable');
-
-        final probe = await _windowsSystemDiskVerdict(deviceId);
+        // In flight together: two round trips instead of two waits.
+        final sizeFuture = _windowsDiskSize(int.tryParse(indexStr));
+        final verdictFuture = _windowsSystemDiskVerdict(deviceId);
+        final sizeBytes = await sizeFuture;
+        final probe = await verdictFuture;
 
         if (!probe.present) return null;
+
+        final isRemovable = mediaType.toLowerCase().contains('removable');
 
         return UsbDevice(
           id: pnpId,

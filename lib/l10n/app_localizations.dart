@@ -512,6 +512,12 @@ abstract class AppLocalizations {
   /// **'When you click Start Installation, your system will ask you to allow administrator access. The installer needs it to write to the scooter\'s storage and configure networking.'**
   String get elevationNoticeWelcome;
 
+  /// No description provided for @arm64EmulationNoticeWelcome.
+  ///
+  /// In en, this message translates to:
+  /// **'This machine has an ARM64 processor, so the installer runs under x64 emulation. That can slow USB detection down, and the bundled USB driver is built for x86/x64 only. An x64 machine is the most reliable choice.'**
+  String get arm64EmulationNoticeWelcome;
+
   /// No description provided for @requestingAdminPrivileges.
   ///
   /// In en, this message translates to:
@@ -2222,6 +2228,96 @@ abstract class AppLocalizations {
   /// **'Requested work complete. Reassemble the scooter and verify that it unlocks before riding.'**
   String get finishConfirmed;
 
+  /// No description provided for @finishPendingNowTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'The scooter is finishing on its own now'**
+  String get finishPendingNowTitle;
+
+  /// No description provided for @finishPendingStepsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'What happens next'**
+  String get finishPendingStepsTitle;
+
+  /// No description provided for @finishPendingStep1.
+  ///
+  /// In en, this message translates to:
+  /// **'The new firmware is written and starts on the next boot.'**
+  String get finishPendingStep1;
+
+  /// No description provided for @finishPendingStep2.
+  ///
+  /// In en, this message translates to:
+  /// **'The scooter reboots and brings its services back up.'**
+  String get finishPendingStep2;
+
+  /// No description provided for @finishPendingStep3.
+  ///
+  /// In en, this message translates to:
+  /// **'Keycards, Bluetooth and your settings become active again.'**
+  String get finishPendingStep3;
+
+  /// No description provided for @finishPendingStep4.
+  ///
+  /// In en, this message translates to:
+  /// **'At the end the scooter unlocks itself.'**
+  String get finishPendingStep4;
+
+  /// No description provided for @finishPendingDoNowTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'What to do now'**
+  String get finishPendingDoNowTitle;
+
+  /// No description provided for @finishPendingDoneTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'How you know the install is done'**
+  String get finishPendingDoneTitle;
+
+  /// No description provided for @finishPendingDoneBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The handlebar lock opens and the scooter can be switched on and ridden. The progress bar on the indicators goes dark.'**
+  String get finishPendingDoneBody;
+
+  /// No description provided for @finishPendingDoneTrail.
+  ///
+  /// In en, this message translates to:
+  /// **'The installer confirms completion here as soon as it reaches the scooter again.'**
+  String get finishPendingDoneTrail;
+
+  /// No description provided for @finishPendingNotDoneTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'This is not the finish yet'**
+  String get finishPendingNotDoneTitle;
+
+  /// No description provided for @finishPendingNotDoneBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The display and the lights come on during the install, and the indicators briefly show progress. That is part of the install, not the end of it.'**
+  String get finishPendingNotDoneBody;
+
+  /// No description provided for @finishPendingDontTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'While it finishes, please do not'**
+  String get finishPendingDontTitle;
+
+  /// No description provided for @finishPendingDont1.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch the scooter off or disconnect the battery'**
+  String get finishPendingDont1;
+
+  /// No description provided for @finishPendingDont2.
+  ///
+  /// In en, this message translates to:
+  /// **'Try to unlock it or ride it yet'**
+  String get finishPendingDont2;
+
   /// No description provided for @closeInstaller.
   ///
   /// In en, this message translates to:
@@ -3641,7 +3737,7 @@ abstract class AppLocalizations {
   /// No description provided for @umsNotDetectedTimeout.
   ///
   /// In en, this message translates to:
-  /// **'UMS device not detected within 60s. MDB may have booted back into Linux.'**
+  /// **'UMS device not detected within 3 minutes. MDB may have booted back into Linux.'**
   String get umsNotDetectedTimeout;
 
   /// No description provided for @waitingForDevicePath.

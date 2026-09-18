@@ -45,4 +45,19 @@ void main() {
     );
     expect(block, contains('failureStatus = l10n.umsNotDetectedTimeout;'));
   });
+
+  test('the UMS wait is sized for slow USB probing', () {
+    final start = source.indexOf('Future<void> _configureMdbUms(');
+    final end = source.indexOf('Widget _buildMdbFlash', start);
+    final block = source.substring(start, end);
+
+    expect(source, contains('const mdbUmsWait = Duration(minutes: 3);'));
+    expect(
+      RegExp(r'timeout: mdbUmsWait').allMatches(block).length,
+      2,
+      reason: 'both the fresh reboot into UMS and a resumed wait use it',
+    );
+    expect(block, isNot(contains('timeout: const Duration(seconds: 60)')));
+    expect(block, isNot(contains('timeout: const Duration(seconds: 90)')));
+  });
 }
