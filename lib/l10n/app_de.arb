@@ -490,6 +490,13 @@
   "backingUpConfig": "Ausgewählte Gerätekonfiguration wird gesichert…",
   "configBackedUp": "Gerätekonfiguration gesichert",
   "restoringConfig": "Gerätekonfiguration wird wiederhergestellt…",
+  "configurationVerifyingHeading": "Wiederhergestellte Konfiguration wird geprüft",
+  "configurationVerifyingBody": "Der Roller hat den Abschluss der Installation gemeldet. Der Installer prüft die wiederhergestellte Konfiguration, bevor er den Erfolg bestätigt.",
+  "configurationVerificationFailedHeading": "Wiederhergestellte Konfiguration konnte nicht geprüft werden",
+  "configurationVerificationFailedBody": "Verlasse dich noch nicht auf die wiederhergestellte Konfiguration. Wiederhole die Prüfung, solange der Roller verbunden ist. Die Sicherung auf diesem Computer bleibt hier erhalten:\n{backupPath}",
+  "@configurationVerificationFailedBody": {
+    "placeholders": {"backupPath": {"type": "String"}}
+  },
   "configurationDetected": "{count, plural, one{1 Konfiguration erkannt} other{{count} Konfigurationen erkannt}}",
   "@configurationDetected": {
     "placeholders": {"count": {"type": "int"}}
@@ -601,6 +608,7 @@
   "keycardMasterStageStartFailed": "Die Einrichtung der Anlernkarte konnte nicht gestartet werden",
   "keycardMasterStageRetryButton": "Erneut versuchen",
   "keycardMasterStageSkipButton": "Überspringen",
+  "keycardMasterStartPendingClose": "Warte, bis der Kartenleser den Anlernkartenmodus vollständig gestartet hat, bevor du den Installer schließt.",
   "keycardSimulateTapButton": "[DRY RUN] Kartenkontakt simulieren",
   "keycardSimulateMasterTapButton": "[DRY RUN] Anlernkarte simulieren",
   "keycardSimulateRejectedTapButton": "[DRY RUN] Ablehnung einer angelernten Karte simulieren",

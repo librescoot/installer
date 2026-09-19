@@ -103,6 +103,21 @@ const keycardReaderBudget = Duration(seconds: 10);
 /// trips, so one minute fit roughly one attempt on a slow machine.
 const mdbUmsWait = Duration(minutes: 3);
 
+Future<void> stopKeycardMasterAfterPendingStart({
+  required Future<void>? pendingStart,
+  required Future<void> Function() sendStop,
+  void Function(Object error)? onStartError,
+}) async {
+  if (pendingStart != null) {
+    try {
+      await pendingStart;
+    } catch (error) {
+      onStartError?.call(error);
+    }
+  }
+  await sendStop();
+}
+
 class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   InstallerPhase _currentPhase = InstallerPhase.welcome;
   final Set<InstallerPhase> _completedPhases = {};
@@ -358,6 +373,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   bool _keycardMasterLearning = false;
   int? _keycardMasterOwnerGeneration;
   Future<void>? _keycardMasterStartPending;
+  bool _keycardMasterStopInProgress = false;
   String? _keycardMasterStartError;
   int _keycardAuthorizedCountBefore = 0; // captured at Start, compared at Done
   // The cards the board had when the laptop connected. Re-added at the
@@ -436,11 +452,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     _updateService = UpdateService();
     _deviceSub = _usbDetector.deviceStream.listen((device) {
       if (!mounted || _windowClosing) return;
-      setState(() => _device = device);
-      // A laptop reconnect after the handover is our one chance to replace an
-      // assumed device-side finish with the completion record's verdict.
       final shouldRefreshFinish =
           device != null && _currentPhase == InstallerPhase.finish;
+      setState(() {
+        _device = device;
+        if (shouldRefreshFinish) _finishCompletionExhausted = false;
+      });
+      // A laptop reconnect after the handover is our one chance to replace an
+      // assumed device-side finish with the completion record's verdict.
       if (!_windowClosing && shouldRefreshFinish) {
         unawaited(_refreshFinishCompletion());
       }
@@ -734,6 +753,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Future<void> _handleWindowClose() async {
+    if (_keycardMasterStartPending != null) {
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.keycardMasterStartPendingClose),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     if (!_isDryRun &&
         (_trampolineStartFailed ||
             (_dashboardTransferSkipped && !_deviceFinishArmed))) {
@@ -1385,11 +1414,22 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       }
     });
     if (outcome == InstallCompletionOutcome.complete) {
-      unawaited(_verifyConfigurationAfterFinalization());
+      if (_configurationBackup != null && !_configurationRestoreVerified) {
+        setState(() {
+          _configurationBackupError = ConfigurationRestoreException(
+            _configurationBackup!.directoryPath,
+            'Configuration restoration was not verified.',
+          ).toString();
+        });
+      } else {
+        unawaited(_verifyConfigurationAfterFinalization());
+      }
     }
   }
 
-  Future<void> _verifyConfigurationAfterFinalization() async {
+  Future<void> _verifyConfigurationAfterFinalization({
+    bool reconnect = false,
+  }) async {
     final backup = _configurationBackup;
     if (backup == null ||
         !_configurationRestoreVerified ||
@@ -1397,18 +1437,27 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         _configurationPostFinalizeVerificationInFlight) {
       return;
     }
-    _configurationPostFinalizeVerificationInFlight = true;
+    setState(() {
+      _configurationPostFinalizeVerificationInFlight = true;
+      _configurationBackupError = null;
+    });
     try {
-      await _configurationService.verify(backup, allowSettingsChanges: true);
+      await _prepareMdbStatusConnection(forceReconnect: reconnect);
+      await _configurationService.verify(backup, afterFinalization: true);
       if (!mounted) return;
-      setState(() => _configurationPostFinalizeVerified = true);
+      setState(() {
+        _configurationPostFinalizeVerified = true;
+        _configurationBackupError = null;
+      });
       debugPrint('UI: restored configuration verified after finalization');
     } catch (error) {
       if (!mounted) return;
       setState(() => _configurationBackupError = error.toString());
       debugPrint('UI: post-finalization configuration verification failed');
     } finally {
-      _configurationPostFinalizeVerificationInFlight = false;
+      if (mounted) {
+        setState(() => _configurationPostFinalizeVerificationInFlight = false);
+      }
     }
   }
 
@@ -1423,20 +1472,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         _finishCompletionExhausted) {
       return;
     }
-    _finishCompletionChecking = true;
+    setState(() => _finishCompletionChecking = true);
     try {
       const attempts = 80;
       for (var attempt = 1; attempt <= attempts; attempt++) {
         if (!mounted || _finishCompletionConfirmed) return;
         try {
-          if (!_sshService.isConnected) {
-            await _ensureDriverBinding();
-            final iface = await NetworkService().findLibrescootInterface();
-            if (iface != null) {
-              await NetworkService().configureInterface(iface);
-            }
-            await _sshService.connectToMdbForStatus();
-          }
+          await _prepareMdbStatusConnection();
           final completed = await _deviceReportedFinished();
           if (completed != null &&
               completed != InstallCompletionOutcome.notComplete) {
@@ -1454,10 +1496,28 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         }
       }
       debugPrint('UI: autonomous finish was not confirmed before timeout');
-      _finishCompletionExhausted = true;
+      if (mounted) setState(() => _finishCompletionExhausted = true);
     } finally {
-      _finishCompletionChecking = false;
+      if (mounted) setState(() => _finishCompletionChecking = false);
     }
+  }
+
+  Future<void> _prepareMdbStatusConnection({
+    bool forceReconnect = false,
+  }) async {
+    if (forceReconnect) _sshService.disconnect();
+    if (_sshService.isConnected) return;
+    await _ensureDriverBinding();
+    final iface = await NetworkService().findLibrescootInterface();
+    if (iface != null) await NetworkService().configureInterface(iface);
+    await _sshService.connectToMdbForStatus();
+  }
+
+  Future<void> _retryFinishCompletion() async {
+    if (_finishCompletionChecking) return;
+    setState(() => _finishCompletionExhausted = false);
+    _sshService.disconnect();
+    await _refreshFinishCompletion();
   }
 
   /// Progress for the transfer running beside the current phase. It gets the
@@ -6586,6 +6646,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // it cannot honour, so leave it unset and let the default stand.
       language: (lang == 'en' || lang == 'de') ? lang : '',
       otaChannel: _downloadState.channel.name,
+      preserveSettings:
+          _configurationBackup?.categories.contains(
+            ConfigurationCategory.settings,
+          ) ??
+          false,
     );
   }
 
@@ -10008,12 +10073,20 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       debugPrint('UI: stopped keycard learning during cleanup');
     }
 
+    final pendingMasterStart = _keycardMasterStartPending;
     await runBoundedCleanupActions([
       if (_keycardLearning) stopLearning,
       if (_keycardLearningStarting) stopLearning,
       if (_keycardMasterLearning)
         () async {
-          await _sshService.redisLpush('scooter:keycard', 'learn:master:stop');
+          await stopKeycardMasterAfterPendingStart(
+            pendingStart: pendingMasterStart,
+            sendStop: () =>
+                _sshService.redisLpush('scooter:keycard', 'learn:master:stop'),
+            onStartError: (error) => debugPrint(
+              'UI: master teach-in start settled with an error: $error',
+            ),
+          );
           if (_keycardMasterOwnerGeneration == masterOwner) {
             _keycardMasterLearning = false;
             _keycardMasterOwnerGeneration = null;
@@ -10371,33 +10444,51 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Future<void> _keycardStopMasterStage({required bool advance}) async {
-    _keycardLearningGeneration++;
+    if (_keycardMasterStopInProgress) return;
+    final pendingStart = _keycardMasterStartPending;
     final owner = _keycardMasterOwnerGeneration;
+    ++_keycardLearningGeneration;
+    setState(() => _keycardMasterStopInProgress = true);
     var stopped = _isDryRun;
-    if (!_isDryRun) {
-      try {
-        await _sshService.redisLpush('scooter:keycard', 'learn:master:stop');
-        stopped = true;
-      } catch (e) {
-        debugPrint('UI: failed to stop master teach-in: $e');
+    try {
+      if (!_isDryRun) {
+        try {
+          await stopKeycardMasterAfterPendingStart(
+            pendingStart: pendingStart,
+            sendStop: () =>
+                _sshService.redisLpush('scooter:keycard', 'learn:master:stop'),
+            onStartError: (error) => debugPrint(
+              'UI: master teach-in start settled with an error: $error',
+            ),
+          );
+          stopped = true;
+        } catch (error) {
+          debugPrint('UI: failed to stop master teach-in: $error');
+        }
       }
-    }
-    if (stopped && _keycardMasterOwnerGeneration == owner) {
-      _keycardMasterLearning = false;
-      _keycardMasterOwnerGeneration = null;
-    }
-    await _keycardTearDown();
-    if (!mounted) return;
-    if (advance) {
-      _setPhase(_phaseAfterKeycardSetup);
-    } else {
-      setState(() {
-        _keycardStage = _KeycardStage.cardsReview;
-      });
+      if (!stopped) return;
+      if (_keycardMasterOwnerGeneration == owner) {
+        _keycardMasterLearning = false;
+        _keycardMasterOwnerGeneration = null;
+      }
+      await _keycardTearDown();
+      if (!mounted) return;
+      if (advance) {
+        _setPhase(_phaseAfterKeycardSetup);
+      } else {
+        setState(() {
+          _keycardStage = _KeycardStage.cardsReview;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _keycardMasterStopInProgress = false);
+      }
     }
   }
 
   Future<void> _keycardStartOver() async {
+    if (_keycardMasterStopInProgress) return;
     final l10n = AppLocalizations.of(context)!;
     final confirm = await showDialog<bool>(
       context: context,
@@ -10417,49 +10508,56 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         ],
       ),
     );
-    if (confirm != true || !mounted) return;
+    if (confirm != true || !mounted || _keycardMasterStopInProgress) return;
+    setState(() => _keycardMasterStopInProgress = true);
     final pendingStart = _keycardMasterStartPending;
-    ++_keycardLearningGeneration;
-    _keycardLearningStarting = false;
-    _keycardMasterLearning = false;
-    _keycardMasterOwnerGeneration = null;
-    _keycardAdvanceTimer?.cancel();
-    _keycardAdvanceTimer = null;
-    if (_keycardLearning) {
-      // Don't bother advancing, we're going to wipe anyway.
-      _keycardLearning = false;
-    }
-    if (!_isDryRun) {
-      if (pendingStart != null) {
+    try {
+      ++_keycardLearningGeneration;
+      _keycardLearningStarting = false;
+      _keycardMasterLearning = false;
+      _keycardMasterOwnerGeneration = null;
+      _keycardAdvanceTimer?.cancel();
+      _keycardAdvanceTimer = null;
+      if (_keycardLearning) {
+        // Don't bother advancing, we're going to wipe anyway.
+        _keycardLearning = false;
+      }
+      if (!_isDryRun) {
         try {
-          await pendingStart;
-        } catch (e) {
-          debugPrint('UI: master teach-in start settled with an error: $e');
+          await stopKeycardMasterAfterPendingStart(
+            pendingStart: pendingStart,
+            sendStop: () =>
+                _sshService.redisLpush('scooter:keycard', 'learn:master:stop'),
+            onStartError: (error) => debugPrint(
+              'UI: master teach-in start settled with an error: $error',
+            ),
+          );
+        } catch (error) {
+          debugPrint('UI: failed to stop master teach-in: $error');
         }
+        try {
+          await _sshService.redisLpush('scooter:keycard', 'reset');
+        } catch (error) {
+          debugPrint('UI: failed to send reset: $error');
+        }
+        // Brief wait for keycard-service to flush counts.
+        await Future.delayed(const Duration(milliseconds: 300));
+        await _keycardRefreshCounts();
       }
-      try {
-        await _sshService.redisLpush('scooter:keycard', 'learn:master:stop');
-      } catch (e) {
-        debugPrint('UI: failed to stop master teach-in: $e');
+      if (!mounted) return;
+      setState(() {
+        _keycardSessionTapCount = 0;
+        if (_isDryRun) {
+          _keycardMasterCount = null;
+          _keycardAuthorizedCount = null;
+        }
+        _keycardStage = _KeycardStage.cards;
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _keycardMasterStopInProgress = false);
       }
-      try {
-        await _sshService.redisLpush('scooter:keycard', 'reset');
-      } catch (e) {
-        debugPrint('UI: failed to send reset: $e');
-      }
-      // Brief wait for keycard-service to flush counts.
-      await Future.delayed(const Duration(milliseconds: 300));
-      await _keycardRefreshCounts();
     }
-    if (!mounted) return;
-    setState(() {
-      _keycardSessionTapCount = 0;
-      if (_isDryRun) {
-        _keycardMasterCount = null;
-        _keycardAuthorizedCount = null;
-      }
-      _keycardStage = _KeycardStage.cards;
-    });
   }
 
   Future<void> _skipKeycardSetupEntirely() async {
@@ -10565,7 +10663,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     PhaseAction(
       label: l10n.keycardStartOverButton,
       icon: Icons.refresh,
-      onPressed: _keycardStartOver,
+      onPressed: _keycardMasterStopInProgress ? null : _keycardStartOver,
     ),
     if ((_keycardServiceCanMaster ?? false) &&
         (_keycardMasterCount ?? 0) == 0 &&
@@ -10780,7 +10878,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           label: l10n.keycardStartOverButton,
           icon: Icons.refresh,
           side: ActionSide.back,
-          onPressed: _keycardStartOver,
+          onPressed: _keycardMasterStopInProgress ? null : _keycardStartOver,
         ),
       // Nobody answered the probe, so Start is dead. The only ways out used
       // to be skipping the step or restarting the installer; this runs the
@@ -10901,7 +10999,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           label: l10n.keycardStartOverButton,
           icon: Icons.refresh,
           side: ActionSide.back,
-          onPressed: _keycardStartOver,
+          onPressed: _keycardMasterStopInProgress ? null : _keycardStartOver,
         ),
       if (canMaster && (_keycardAuthorizedCount ?? 0) > 0)
         PhaseAction(
@@ -11072,20 +11170,24 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         const SizedBox(height: 16),
         if (_keycardMasterStartError != null) ...[
           FilledButton.icon(
-            onPressed: () => _keycardStartMasterStage(retry: true),
+            onPressed: _keycardMasterStopInProgress
+                ? null
+                : () => _keycardStartMasterStage(retry: true),
             icon: const Icon(Icons.refresh),
             label: Text(l10n.keycardMasterStageRetryButton),
           ),
           const SizedBox(height: 8),
         ],
         FilledButton.icon(
-          onPressed: () => _keycardStopMasterStage(advance: true),
+          onPressed: _keycardMasterStopInProgress
+              ? null
+              : () => _keycardStopMasterStage(advance: true),
           icon: const Icon(Icons.skip_next),
           label: Text(l10n.keycardMasterStageSkipButton),
         ),
         const SizedBox(height: 8),
         OutlinedButton.icon(
-          onPressed: _keycardStartOver,
+          onPressed: _keycardMasterStopInProgress ? null : _keycardStartOver,
           icon: const Icon(Icons.refresh, size: 18),
           label: Text(l10n.keycardStartOverButton),
         ),
@@ -11196,7 +11298,18 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final deviceConfirmed =
         state == FinalScreenState.completed ||
         state == FinalScreenState.completedReconnectDbc;
-    final confirmed = deviceConfirmed && !_dbcOutcome.isIncomplete;
+    final configurationConfirmed =
+        _configurationBackup == null ||
+        (_configurationRestoreVerified && _configurationPostFinalizeVerified);
+    if (deviceConfirmed && !configurationConfirmed) {
+      if (_configurationBackupError != null &&
+          !_configurationPostFinalizeVerificationInFlight) {
+        return _buildConfigurationVerificationFailure(l10n);
+      }
+      return _buildConfigurationVerificationPending(l10n);
+    }
+    final confirmed =
+        deviceConfirmed && !_dbcOutcome.isIncomplete && configurationConfirmed;
 
     // Nothing is confirmed yet, so this is a full screen of its own rather
     // than a notice above a screen that already says "done". The seatbox and
@@ -11258,6 +11371,64 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     );
   }
 
+  Widget _buildConfigurationVerificationPending(AppLocalizations l10n) {
+    return PhaseLayout(
+      title: l10n.configurationVerifyingHeading,
+      actions: [
+        PhaseAction(
+          label: l10n.closeInstaller,
+          icon: Icons.close,
+          side: ActionSide.back,
+          onPressed: () =>
+              _finishAndExit(confirmed: false, keepDownloads: false),
+        ),
+      ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 16),
+          NoticeCard(
+            severity: NoticeSeverity.info,
+            title: l10n.configurationVerifyingHeading,
+            body: l10n.configurationVerifyingBody,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConfigurationVerificationFailure(AppLocalizations l10n) {
+    final backupPath = _configurationBackup?.directoryPath ?? '';
+    return PhaseLayout(
+      title: l10n.configurationVerificationFailedHeading,
+      actions: [
+        PhaseAction(
+          label: l10n.closeInstaller,
+          icon: Icons.close,
+          side: ActionSide.back,
+          onPressed: () =>
+              _finishAndExit(confirmed: false, keepDownloads: false),
+        ),
+        PhaseAction(
+          label: l10n.retryVerification,
+          icon: Icons.refresh,
+          primary: true,
+          onPressed: _configurationPostFinalizeVerificationInFlight
+              ? null
+              : () => unawaited(
+                  _verifyConfigurationAfterFinalization(reconnect: true),
+                ),
+        ),
+      ],
+      child: NoticeCard(
+        severity: NoticeSeverity.danger,
+        title: l10n.configurationVerificationFailedHeading,
+        body: l10n.configurationVerificationFailedBody(backupPath),
+      ),
+    );
+  }
+
   /// The wait before the scooter has confirmed anything, given the whole
   /// screen.
   ///
@@ -11269,9 +11440,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final instruction = _dashboardTransferSkipped
         ? l10n.finishTransferSkippedPending
         : switch (state) {
-            FinalScreenState.reconnectDbc => (_plan?.needsHandoff ?? true)
-                ? l10n.finishReconnectDbc
-                : l10n.finishReconnectDbcNoDashboardWork,
+            FinalScreenState.reconnectDbc =>
+              (_plan?.needsHandoff ?? true)
+                  ? l10n.finishReconnectDbc
+                  : l10n.finishReconnectDbcNoDashboardWork,
             _ => l10n.finishOnDevice,
           };
     return PhaseLayout(
@@ -11287,6 +11459,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           onPressed: () =>
               _finishAndExit(confirmed: false, keepDownloads: false),
         ),
+        if (_finishCompletionExhausted)
+          PhaseAction(
+            label: l10n.retryVerification,
+            icon: Icons.refresh,
+            onPressed: _finishCompletionChecking
+                ? null
+                : () => unawaited(_retryFinishCompletion()),
+          ),
       ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -11340,10 +11520,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           NoticeCard(
             severity: NoticeSeverity.warning,
             title: l10n.finishPendingDontTitle,
-            bullets: [
-              l10n.finishPendingDont1,
-              l10n.finishPendingDont2,
-            ],
+            bullets: [l10n.finishPendingDont1, l10n.finishPendingDont2],
           ),
         ],
       ),
@@ -11466,19 +11643,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       );
       // Enumeration is the control path; the disk needs bulk transfers. The
       // driver's own complaints are the only place the difference shows.
-      await _logCommandOutput(
-        [
-          '/usr/bin/log',
-          'show',
-          '--last',
-          '3m',
-          '--style',
-          'compact',
-          '--predicate',
-          'eventMessage CONTAINS[c] "IOUSBMassStorage"',
-        ],
-        maxLines: 40,
-      );
+      await _logCommandOutput([
+        '/usr/bin/log',
+        'show',
+        '--last',
+        '3m',
+        '--style',
+        'compact',
+        '--predicate',
+        'eventMessage CONTAINS[c] "IOUSBMassStorage"',
+      ], maxLines: 40);
       return;
     }
     if (Platform.isLinux) {
@@ -11498,19 +11672,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         command.sublist(1),
       ).timeout(const Duration(seconds: 20));
       debugPrint('Diag: ${command.join(' ')}');
-      final selected = result.stdout
-          .toString()
-          .split('\n')
-          .where((line) {
-            final trimmed = line.trimRight();
-            if (trimmed.trim().isEmpty) return false;
-            return keeping == null ||
-                keeping.any((token) => trimmed.contains(token));
-          })
-          .toList();
-      for (final line in selected.length > maxLines
-          ? selected.sublist(selected.length - maxLines)
-          : selected) {
+      final selected = result.stdout.toString().split('\n').where((line) {
+        final trimmed = line.trimRight();
+        if (trimmed.trim().isEmpty) return false;
+        return keeping == null ||
+            keeping.any((token) => trimmed.contains(token));
+      }).toList();
+      for (final line
+          in selected.length > maxLines
+              ? selected.sublist(selected.length - maxLines)
+              : selected) {
         debugPrint('Diag:   $line');
       }
     } catch (e) {

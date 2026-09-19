@@ -15,20 +15,38 @@ import 'package:path/path.dart' as p;
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('same-process retry reloads the template and device helper assets', () async {
-    var content = 'first';
-    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMessageHandler('flutter/assets', (_) async {
-      return ByteData.sublistView(Uint8List.fromList(utf8.encode(content)));
-    });
-    addTearDown(() => messenger.setMockMessageHandler('flutter/assets', null));
-    final service = TrampolineService(SshService());
-    expect(await service.generateScript(upgradeMode: false, dbcImagePath: '/image'), 'first');
-    expect(await DeviceHelpers.load(), 'first');
-    content = 'second';
-    expect(await service.generateScript(upgradeMode: false, dbcImagePath: '/image'), 'second');
-    expect(await DeviceHelpers.load(), 'second');
-  });
+  test(
+    'same-process retry reloads the template and device helper assets',
+    () async {
+      var content = 'first';
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMessageHandler('flutter/assets', (_) async {
+        return ByteData.sublistView(Uint8List.fromList(utf8.encode(content)));
+      });
+      addTearDown(
+        () => messenger.setMockMessageHandler('flutter/assets', null),
+      );
+      final service = TrampolineService(SshService());
+      expect(
+        await service.generateScript(
+          upgradeMode: false,
+          dbcImagePath: '/image',
+        ),
+        'first',
+      );
+      expect(await DeviceHelpers.load(), 'first');
+      content = 'second';
+      expect(
+        await service.generateScript(
+          upgradeMode: false,
+          dbcImagePath: '/image',
+        ),
+        'second',
+      );
+      expect(await DeviceHelpers.load(), 'second');
+    },
+  );
 
   test('rendered script readback must match exactly before launch', () async {
     final bytes = Uint8List.fromList(utf8.encode('new script'));
@@ -584,6 +602,34 @@ VALHALLA="{{VALHALLA_TILES_FILE}}"
       expect(out, contains('L=de'));
       expect(out, contains('C=stable'));
     });
+
+    test(
+      'autonomous clean installs carry settings preservation to finalize',
+      () {
+        for (final action in [
+          BoardAction.cleanInstall,
+          BoardAction.fullImage,
+        ]) {
+          final out = TrampolineService.renderFinalizeScript(
+            template: File('assets/finalize.sh.template').readAsStringSync(),
+            finish: DeviceFinish(
+              onDevice: true,
+              mdbAction: action,
+              preserveSettings: true,
+            ),
+            runId: 'run-1',
+            mode: 'flash',
+            dbcVersion: 'v1.2.1',
+            dbcAction: 'cleanInstall',
+            releaseTag: 'v1.4.0-beta.5',
+            region: '',
+          );
+
+          expect(out, contains('MDB_ACTION="${action.name}"'));
+          expect(out, contains('PRESERVE_SETTINGS="yes"'));
+        }
+      },
+    );
 
     test('the default is the old behaviour: hand back to the laptop', () {
       final out = TrampolineService.renderTemplate(

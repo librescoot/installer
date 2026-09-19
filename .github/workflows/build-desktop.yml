@@ -76,7 +76,14 @@ jobs:
       - name: Get version
         id: version
         shell: bash
-        run: echo "describe=$(git describe --tags --always --dirty 2>/dev/null || echo dev)" >> "$GITHUB_OUTPUT"
+        run: |
+          describe=$(git describe --tags --always --dirty 2>/dev/null || echo dev)
+          version_source=$describe
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            version_source=$GITHUB_REF_NAME
+          fi
+          echo "describe=$describe" >> "$GITHUB_OUTPUT"
+          tool/native_version.sh "$version_source" "$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -144,10 +151,19 @@ jobs:
           # network is offline / TLS-flaky on first run. Falls back to
           # whatever is already committed if downloads.librescoot.org is
           # unreachable from CI.
-          curl -fsSL --retry 3 --retry-delay 2 \
-            -o assets/latest.json.fallback \
-            https://downloads.librescoot.org/releases/latest.json \
-            || echo "warning: latest.json fetch failed, keeping committed snapshot"
+          tmp=$(mktemp assets/latest.json.fallback.XXXXXX)
+          trap 'rm -f "$tmp"' EXIT
+          if curl -fsSL --retry 3 --retry-delay 2 \
+            -o "$tmp" \
+            https://downloads.librescoot.org/releases/latest.json; then
+            if python tool/validate_release_manifest.py "$tmp"; then
+              mv -f "$tmp" assets/latest.json.fallback
+            else
+              echo "warning: latest.json was incomplete, keeping committed snapshot"
+            fi
+          else
+            echo "warning: latest.json fetch failed, keeping committed snapshot"
+          fi
           ls -l assets/latest.json.fallback
 
       # Signing, notarization and stapling are skipped when their secrets are
@@ -174,15 +190,33 @@ jobs:
 
       - name: Build macOS
         if: matrix.target == 'macos'
-        run: flutter build macos --release --dart-define=AUTH_KEY=${{ secrets.AUTH_KEY }} --dart-define=APP_VERSION=${{ steps.version.outputs.describe }}
+        run: flutter build macos --release --build-name=${{ steps.version.outputs.name }} --build-number=${{ steps.version.outputs.build }} --dart-define=AUTH_KEY=${{ secrets.AUTH_KEY }} --dart-define=APP_VERSION=${{ steps.version.outputs.describe }}
 
       - name: Build Linux
         if: runner.os == 'Linux'
-        run: flutter build linux --release --dart-define=AUTH_KEY=${{ secrets.AUTH_KEY }} --dart-define=APP_VERSION=${{ steps.version.outputs.describe }}
+        run: flutter build linux --release --build-name=${{ steps.version.outputs.name }} --build-number=${{ steps.version.outputs.build }} --dart-define=AUTH_KEY=${{ secrets.AUTH_KEY }} --dart-define=APP_VERSION=${{ steps.version.outputs.describe }}
 
       - name: Build Windows
         if: matrix.target == 'windows'
-        run: flutter build windows --release --dart-define=AUTH_KEY=${{ secrets.AUTH_KEY }} --dart-define=APP_VERSION=${{ steps.version.outputs.describe }}
+        run: flutter build windows --release --build-name=${{ steps.version.outputs.name }} --build-number=${{ steps.version.outputs.build }} --dart-define=AUTH_KEY=${{ secrets.AUTH_KEY }} --dart-define=APP_VERSION=${{ steps.version.outputs.describe }}
+
+      - name: Verify macOS version metadata
+        if: matrix.target == 'macos'
+        shell: bash
+        run: |
+          plist="build/macos/Build/Products/Release/Librescoot Installer.app/Contents/Info.plist"
+          test "$(plutil -extract CFBundleShortVersionString raw "$plist")" = "${{ steps.version.outputs.name }}"
+          test "$(plutil -extract CFBundleVersion raw "$plist")" = "${{ steps.version.outputs.build }}"
+
+      - name: Verify Windows version metadata
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: |
+          $info = (Get-Item 'build/windows/x64/runner/Release/librescoot_installer.exe').VersionInfo
+          $expected = '${{ steps.version.outputs.name }}+${{ steps.version.outputs.build }}'
+          if ($info.ProductVersion -ne $expected -or $info.FileVersion -ne $expected) {
+            throw "Unexpected Windows version: product=$($info.ProductVersion) file=$($info.FileVersion)"
+          }
 
       - name: Sign macOS app
         if: matrix.target == 'macos' && env.HAS_SIGNING == 'true'
@@ -282,14 +316,7 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ steps.version.outputs.describe }}"
-          # Derive a clean X.Y.Z.0 for VIProductVersion. Strips a leading 'v'
-          # and any -N-gSHA / -dirty suffix from `git describe`. Falls back to
-          # 0.0.0.0 for branch builds where the version isn't a clean tag.
-          if ($version -match '^v?(\d+)\.(\d+)\.(\d+)') {
-            $numeric = "$($Matches[1]).$($Matches[2]).$($Matches[3]).0"
-          } else {
-            $numeric = "0.0.0.0"
-          }
+          $numeric = "${{ steps.version.outputs.name }}.${{ steps.version.outputs.build }}"
           $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
           if (-not (Test-Path $makensis)) {
             choco install nsis -y --no-progress
@@ -303,6 +330,12 @@ jobs:
             "/DOUT_FILE=$outFile" `
             windows\installer.nsi
           if ($LASTEXITCODE -ne 0) { throw "makensis failed (exit $LASTEXITCODE)" }
+          $wrapper = (Get-Item $outFile).VersionInfo
+          if ($wrapper.ProductVersion -ne $version -or
+              $wrapper.FileVersion -ne $version -or
+              $wrapper.FileVersionRaw.ToString() -ne $numeric) {
+            throw "Unexpected wrapper version: product=$($wrapper.ProductVersion) file=$($wrapper.FileVersion) numeric=$($wrapper.FileVersionRaw)"
+          }
           Get-Item $outFile | Format-List Name, Length
 
       - name: Upload artifact

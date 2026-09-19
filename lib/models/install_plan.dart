@@ -56,9 +56,11 @@ class InstallPlan {
 
   /// Stage 0 writes an sdimg through the u-boot UMS path. An upgrade skips it.
   bool get needsMdbStage0 =>
-      mdb.action == BoardAction.cleanInstall || mdb.action == BoardAction.fullImage;
+      mdb.action == BoardAction.cleanInstall ||
+      mdb.action == BoardAction.fullImage;
   bool get needsDbcStage0 =>
-      dbc.action == BoardAction.cleanInstall || dbc.action == BoardAction.fullImage;
+      dbc.action == BoardAction.cleanInstall ||
+      dbc.action == BoardAction.fullImage;
 
   /// Only the MDB can reach the DBC, so any DBC work means the user has to
   /// swap the cable back. Map tiles live on the DBC, so they count too.
@@ -107,7 +109,10 @@ class InstallPlan {
     final blocker = _blockerFor(state);
     if (blocker != null) {
       return BoardPlan(
-          board: state.board, action: BoardAction.cleanInstall, blocker: blocker);
+        board: state.board,
+        action: BoardAction.cleanInstall,
+        blocker: blocker,
+      );
     }
     final same = versionsMatch(state.version, targetVersion);
     return BoardPlan(
@@ -121,12 +126,11 @@ class InstallPlan {
     required BoardState dbc,
     required String? targetVersion,
     bool installTiles = false,
-  }) =>
-      InstallPlan(
-        mdb: defaultPlanFor(mdb, targetVersion),
-        dbc: defaultPlanFor(dbc, targetVersion),
-        installTiles: installTiles,
-      );
+  }) => InstallPlan(
+    mdb: defaultPlanFor(mdb, targetVersion),
+    dbc: defaultPlanFor(dbc, targetVersion),
+    installTiles: installTiles,
+  );
 
   /// Conservative plan when the MDB is already in U-Boot mass storage.
   ///
@@ -265,14 +269,14 @@ class DeviceFinish {
     this.mdbTargetVersion = '',
     this.language = '',
     this.otaChannel = '',
+    this.preserveSettings = false,
   });
 
   /// Off means the old behaviour: the trampoline stops at the green LED and
   /// the installer's finish phase does the rest over the laptop link.
   final bool onDevice;
 
-  /// Decides whether the pre-install settings are restored or deliberately
-  /// discarded. Only [BoardAction.upgrade] promised to keep them.
+  /// Describes whether the image erased the settings before restoration.
   final BoardAction mdbAction;
 
   /// Recorded in the completion record so a later connect can say what the
@@ -281,18 +285,23 @@ class DeviceFinish {
 
   final String language;
   final String otaChannel;
+  final bool preserveSettings;
 
   /// The old behaviour, for callers that still hand back to the laptop.
-  static const laptop =
-      DeviceFinish(onDevice: false, mdbAction: BoardAction.leave);
+  static const laptop = DeviceFinish(
+    onDevice: false,
+    mdbAction: BoardAction.leave,
+  );
 }
 
 /// How a target version relates to what a board is already running.
 enum VersionDirection {
   newer,
   same,
+
   /// The target is behind what the board runs, within the same channel.
   older,
+
   /// A different release channel, so neither is straightforwardly ahead.
   otherChannel,
   unknown,

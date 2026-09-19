@@ -608,6 +608,13 @@
   "backingUpConfig": "Backing up selected device configuration...",
   "configBackedUp": "Device configuration backed up",
   "restoringConfig": "Restoring device configuration...",
+  "configurationVerifyingHeading": "Verifying restored configuration",
+  "configurationVerifyingBody": "The scooter reported that installation finished. The installer is checking the restored configuration before confirming success.",
+  "configurationVerificationFailedHeading": "Restored configuration could not be verified",
+  "configurationVerificationFailedBody": "Do not rely on the restored configuration yet. Retry while the scooter is connected. The host backup has been retained at:\n{backupPath}",
+  "@configurationVerificationFailedBody": {
+    "placeholders": {"backupPath": {"type": "String"}}
+  },
   "configurationDetected": "{count, plural, one{1 configuration detected} other{{count} configurations detected}}",
   "@configurationDetected": {
     "placeholders": {"count": {"type": "int"}}
@@ -739,6 +746,7 @@
   "keycardMasterStageStartFailed": "Master card setup could not be started",
   "keycardMasterStageRetryButton": "Try again",
   "keycardMasterStageSkipButton": "Skip",
+  "keycardMasterStartPendingClose": "Wait for the keycard reader to finish entering master-card mode before closing the installer.",
   "keycardSimulateTapButton": "[DRY RUN] Simulate tap",
   "keycardSimulateMasterTapButton": "[DRY RUN] Simulate master tap",
   "keycardSimulateRejectedTapButton": "[DRY RUN] Simulate already-authorized rejection",

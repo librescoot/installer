@@ -243,8 +243,9 @@ esac
           failedWrite ? 1 : 0,
           reason: result.stderr.toString(),
         );
-        if (!failedWrite)
+        if (!failedWrite) {
           expect(File('${gpio.path}/value').readAsStringSync().trim(), '0');
+        }
       },
     );
   }

@@ -1429,6 +1429,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get restoringConfig => 'Restoring device configuration...';
 
   @override
+  String get configurationVerifyingHeading =>
+      'Verifying restored configuration';
+
+  @override
+  String get configurationVerifyingBody =>
+      'The scooter reported that installation finished. The installer is checking the restored configuration before confirming success.';
+
+  @override
+  String get configurationVerificationFailedHeading =>
+      'Restored configuration could not be verified';
+
+  @override
+  String configurationVerificationFailedBody(String backupPath) {
+    return 'Do not rely on the restored configuration yet. Retry while the scooter is connected. The host backup has been retained at:\n$backupPath';
+  }
+
+  @override
   String configurationDetected(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -1726,6 +1743,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get keycardMasterStageSkipButton => 'Skip';
+
+  @override
+  String get keycardMasterStartPendingClose =>
+      'Wait for the keycard reader to finish entering master-card mode before closing the installer.';
 
   @override
   String get keycardSimulateTapButton => '[DRY RUN] Simulate tap';

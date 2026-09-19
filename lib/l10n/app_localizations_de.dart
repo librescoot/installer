@@ -1453,6 +1453,23 @@ class AppLocalizationsDe extends AppLocalizations {
   String get restoringConfig => 'Gerätekonfiguration wird wiederhergestellt…';
 
   @override
+  String get configurationVerifyingHeading =>
+      'Wiederhergestellte Konfiguration wird geprüft';
+
+  @override
+  String get configurationVerifyingBody =>
+      'Der Roller hat den Abschluss der Installation gemeldet. Der Installer prüft die wiederhergestellte Konfiguration, bevor er den Erfolg bestätigt.';
+
+  @override
+  String get configurationVerificationFailedHeading =>
+      'Wiederhergestellte Konfiguration konnte nicht geprüft werden';
+
+  @override
+  String configurationVerificationFailedBody(String backupPath) {
+    return 'Verlasse dich noch nicht auf die wiederhergestellte Konfiguration. Wiederhole die Prüfung, solange der Roller verbunden ist. Die Sicherung auf diesem Computer bleibt hier erhalten:\n$backupPath';
+  }
+
+  @override
   String configurationDetected(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -1755,6 +1772,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get keycardMasterStageSkipButton => 'Überspringen';
+
+  @override
+  String get keycardMasterStartPendingClose =>
+      'Warte, bis der Kartenleser den Anlernkartenmodus vollständig gestartet hat, bevor du den Installer schließt.';
 
   @override
   String get keycardSimulateTapButton => '[DRY RUN] Kartenkontakt simulieren';

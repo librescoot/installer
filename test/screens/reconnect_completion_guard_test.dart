@@ -89,9 +89,15 @@ void main() {
     final end = source.indexOf('\n  /// Progress for the transfer', start);
     final refresh = source.substring(start, end);
     expect(refresh, contains('for (var attempt = 1; attempt <= attempts;'));
-    expect(refresh, contains('connectToMdbForStatus()'));
+    expect(refresh, contains('_prepareMdbStatusConnection()'));
     expect(refresh, contains('_deviceReportedFinished()'));
     expect(refresh, contains('Duration(seconds: 3)'));
+    expect(source, contains('_finishCompletionExhausted = false'));
+    expect(source, contains('_retryFinishCompletion()'));
+    expect(
+      source,
+      contains('_verifyConfigurationAfterFinalization(reconnect: true)'),
+    );
   });
 
   test('status reconnect cannot stop the restored power manager', () {

@@ -1127,13 +1127,11 @@ http.server.HTTPServer(
     // an attended run would otherwise have handed the vehicle back in the
     // middle of the install, at the MDB reboot that no longer exists.
     {
-      final finalize = FinalizeScript.render(
+      final finalize = renderFinalizeScript(
         template: await FinalizeScript.loadTemplate(),
-        mdbAction: finish.mdbAction.name,
+        finish: finish,
         runId: runId,
         mode: upgradeMode ? 'upgrade' : 'flash',
-        language: finish.language,
-        channel: finish.otaChannel,
         dbcVersion: dbcTargetVersion ?? '',
         dbcAction: dbcArtifactLocalPath != null || dbcImageLocalPath != null
             ? (upgradeMode ? 'upgrade' : 'cleanInstall')
@@ -1144,7 +1142,6 @@ http.server.HTTPServer(
               osmTilesLocalPath != null || valhallaTilesLocalPath != null,
           region: region,
         ),
-        dashboardResult: 'complete',
       );
       await _ssh.uploadFile(
         Uint8List.fromList(utf8.encode(finalize)),
@@ -1157,6 +1154,31 @@ http.server.HTTPServer(
     onProgress?.call(l.complete, 1.0);
     debugPrint('Trampoline: uploadAll complete');
   }
+
+  @visibleForTesting
+  static String renderFinalizeScript({
+    required String template,
+    required DeviceFinish finish,
+    required String runId,
+    required String mode,
+    required String dbcVersion,
+    required String dbcAction,
+    required String releaseTag,
+    required String region,
+  }) => FinalizeScript.render(
+    template: template,
+    mdbAction: finish.mdbAction.name,
+    runId: runId,
+    mode: mode,
+    language: finish.language,
+    channel: finish.otaChannel,
+    dbcVersion: dbcVersion,
+    dbcAction: dbcAction,
+    releaseTag: releaseTag,
+    region: region,
+    dashboardResult: 'complete',
+    preserveSettings: finish.preserveSettings,
+  );
 
   /// Brackets prevent pgrep from matching its own command line.
   static const String _trampolinePattern = 'installer/scripts/[t]rampoline.sh';

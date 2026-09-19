@@ -121,6 +121,34 @@ void main() {
     },
   );
 
+  test('finish success waits for post-finalization configuration checks', () {
+    final start = source.indexOf('Widget _buildFinish(');
+    final end = source.indexOf(
+      'Widget _buildConfigurationVerificationPending',
+      start,
+    );
+    final method = source.substring(start, end);
+
+    expect(method, contains('_configurationPostFinalizeVerified'));
+    expect(method, contains('_buildConfigurationVerificationPending(l10n)'));
+    expect(method, contains('_buildConfigurationVerificationFailure(l10n)'));
+  });
+
+  test('verification failure exposes retained backup and retry', () {
+    final start = source.indexOf(
+      'Widget _buildConfigurationVerificationFailure',
+    );
+    final end = source.indexOf('Widget _buildFinishPending', start);
+    final method = source.substring(start, end);
+
+    expect(method, contains('_configurationBackup?.directoryPath'));
+    expect(method, contains('configurationVerificationFailedBody(backupPath)'));
+    expect(
+      method,
+      contains('_verifyConfigurationAfterFinalization(reconnect: true)'),
+    );
+  });
+
   test(
     'backup deletion requires confirmed completion and verified restore',
     () {

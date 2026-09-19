@@ -2558,6 +2558,30 @@ abstract class AppLocalizations {
   /// **'Restoring device configuration...'**
   String get restoringConfig;
 
+  /// No description provided for @configurationVerifyingHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Verifying restored configuration'**
+  String get configurationVerifyingHeading;
+
+  /// No description provided for @configurationVerifyingBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The scooter reported that installation finished. The installer is checking the restored configuration before confirming success.'**
+  String get configurationVerifyingBody;
+
+  /// No description provided for @configurationVerificationFailedHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Restored configuration could not be verified'**
+  String get configurationVerificationFailedHeading;
+
+  /// No description provided for @configurationVerificationFailedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Do not rely on the restored configuration yet. Retry while the scooter is connected. The host backup has been retained at:\n{backupPath}'**
+  String configurationVerificationFailedBody(String backupPath);
+
   /// No description provided for @configurationDetected.
   ///
   /// In en, this message translates to:
@@ -2989,6 +3013,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Skip'**
   String get keycardMasterStageSkipButton;
+
+  /// No description provided for @keycardMasterStartPendingClose.
+  ///
+  /// In en, this message translates to:
+  /// **'Wait for the keycard reader to finish entering master-card mode before closing the installer.'**
+  String get keycardMasterStartPendingClose;
 
   /// No description provided for @keycardSimulateTapButton.
   ///

@@ -1,172 +1,341 @@
 {
   "stable": {
-    "tag_name": "v1.0.1",
-    "published_at": "2026-05-01T22:21:58Z",
+    "tag_name": "v1.3.1",
+    "published_at": "2026-09-07T22:12:50Z",
     "prerelease": false,
     "assets": [
       {
-        "name": "librescoot-unu-dbc-boot-v1.0.1.tar.gz",
-        "size": 9538362,
-        "url": "https://github.com/librescoot/librescoot/releases/download/v1.0.1/librescoot-unu-dbc-boot-v1.0.1.tar.gz"
+        "name": "librescoot-unu-dbc-boot-v1.3.1.tar.gz",
+        "size": 10067454,
+        "sha256": "738c0376d8dd9e1a2d05b615a8b6f5296da415163d8bed63ddee05b906254703",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.1/librescoot-unu-dbc-boot-v1.3.1.tar.gz"
       },
       {
-        "name": "librescoot-unu-dbc-v1.0.1.delta",
-        "size": 990792,
-        "url": "https://github.com/librescoot/librescoot/releases/download/v1.0.1/librescoot-unu-dbc-v1.0.1.delta"
+        "name": "librescoot-unu-dbc-minimal-v1.3.1.sdimg.bmap",
+        "size": 6166,
+        "sha256": "128e771a0f47ee82f37fc96ef6252113f42b393f82f0dab424cf1af40bea0ad6",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.1/librescoot-unu-dbc-minimal-v1.3.1.sdimg.bmap"
       },
       {
-        "name": "librescoot-unu-dbc-v1.0.1.mender",
-        "size": 190499328,
-        "url": "https://github.com/librescoot/librescoot/releases/download/v1.0.1/librescoot-unu-dbc-v1.0.1.mender"
+        "name": "librescoot-unu-dbc-minimal-v1.3.1.sdimg.gz",
+        "size": 57362105,
+        "sha256": "59fc7b37bc995716e5eafea2aba4fe36c8dd60fedf67f8940ea9f9efa902211f",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.1/librescoot-unu-dbc-minimal-v1.3.1.sdimg.gz"
       },
       {
-        "name": "librescoot-unu-dbc-v1.0.1.sdimg.bmap",
-        "size": 6149,
-        "url": "https://github.com/librescoot/librescoot/releases/download/v1.0.1/librescoot-unu-dbc-v1.0.1.sdimg.bmap"
+        "name": "librescoot-unu-dbc-v1.3.1.delta",
+        "size": 21782261,
+        "sha256": "a0f5671998730c5290dbfe0ed2be152744e7115c0aaaa76c7b59c20b4f701874",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.1/librescoot-unu-dbc-v1.3.1.delta"
       },
       {
-        "name": "librescoot-unu-dbc-v1.0.1.sdimg.gz",
-        "size": 196750655,
-        "url": "https://github.com/librescoot/librescoot/releases/download/v1.0.1/librescoot-unu-dbc-v1.0.1.sdimg.gz"
+        "name": "librescoot-unu-dbc-v1.3.1.mender",
+        "size": 222925312,
+        "sha256": "a52b6afe2d533d59090aed99d506c88bb7f131f30d892e51fe9b55dad96dfbff",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.1/librescoot-unu-dbc-v1.3.1.mender"
       },
       {
-        "name": "librescoot-unu-mdb-boot-v1.0.1.tar.gz",
-        "size": 6299620,
-        "url": "https://github.com/librescoot/librescoot/releases/download/v1.0.1/librescoot-unu-mdb-boot-v1.0.1.tar.gz"
+        "name": "librescoot-unu-dbc-v1.3.1.sdimg.bmap",
+        "size": 5766,
+        "sha256": "7fbcaca578cb18d75c44c3aeba7db6d7004a790bb474b9d8d8429699cf3afe94",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.1/librescoot-unu-dbc-v1.3.1.sdimg.bmap"
       },
       {
-        "name": "librescoot-unu-mdb-v1.0.1.delta",
-        "size": 1824758,
-        "url": "https://github.com/librescoot/librescoot/releases/download/v1.0.1/librescoot-unu-mdb-v1.0.1.delta"
+        "name": "librescoot-unu-dbc-v1.3.1.sdimg.gz",
+        "size": 449408592,
+        "sha256": "b402a3f1d048aeb36ce48c9134d0eb08abe5a07da132705678e3c99a64baaf1d",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.1/librescoot-unu-dbc-v1.3.1.sdimg.gz"
       },
       {
-        "name": "librescoot-unu-mdb-v1.0.1.mender",
-        "size": 140509184,
-        "url": "https://github.com/librescoot/librescoot/releases/download/v1.0.1/librescoot-unu-mdb-v1.0.1.mender"
+        "name": "librescoot-unu-mdb-boot-v1.3.1.tar.gz",
+        "size": 8585027,
+        "sha256": "fd71f7c68b030dedbebe317a4867a7e322f9613d6b7e22f44e4d7f99c0e1b301",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.1/librescoot-unu-mdb-boot-v1.3.1.tar.gz"
       },
       {
-        "name": "librescoot-unu-mdb-v1.0.1.sdimg.bmap",
-        "size": 5367,
-        "url": "https://github.com/librescoot/librescoot/releases/download/v1.0.1/librescoot-unu-mdb-v1.0.1.sdimg.bmap"
+        "name": "librescoot-unu-mdb-minimal-v1.3.1.sdimg.bmap",
+        "size": 5264,
+        "sha256": "1aa3b92bea942dc37c648baa4540ef6aa4b07bd0fa2113093edc08065f06fdbb",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.1/librescoot-unu-mdb-minimal-v1.3.1.sdimg.bmap"
       },
       {
-        "name": "librescoot-unu-mdb-v1.0.1.sdimg.gz",
-        "size": 144514069,
-        "url": "https://github.com/librescoot/librescoot/releases/download/v1.0.1/librescoot-unu-mdb-v1.0.1.sdimg.gz"
+        "name": "librescoot-unu-mdb-minimal-v1.3.1.sdimg.gz",
+        "size": 62940226,
+        "sha256": "7db80a151148b949b970bb0b58bac41fd4eb28fb2bcc9ab98a5590a370aed54b",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.1/librescoot-unu-mdb-minimal-v1.3.1.sdimg.gz"
+      },
+      {
+        "name": "librescoot-unu-mdb-v1.3.1.delta",
+        "size": 5644109,
+        "sha256": "26c0845f8ae870397f2d98d21617f1e2832366e3e0f82c8718fce4d97a73669c",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.1/librescoot-unu-mdb-v1.3.1.delta"
+      },
+      {
+        "name": "librescoot-unu-mdb-v1.3.1.mender",
+        "size": 162131968,
+        "sha256": "b9d7e19693dc4973cee155a7849ccc16b38956283bc4c1677872f2ec8e88f68c",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.1/librescoot-unu-mdb-v1.3.1.mender"
+      },
+      {
+        "name": "librescoot-unu-mdb-v1.3.1.sdimg.bmap",
+        "size": 4963,
+        "sha256": "7d027a892ce0dcbbb56d8bc5240000c05158f308b560014d47a3d24698fa7fe5",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.1/librescoot-unu-mdb-v1.3.1.sdimg.bmap"
+      },
+      {
+        "name": "librescoot-unu-mdb-v1.3.1.sdimg.gz",
+        "size": 329038539,
+        "sha256": "45501573fedfd392e0fe596348e86d55899cc9aad0d2e28ced97956ae0c005d0",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.1/librescoot-unu-mdb-v1.3.1.sdimg.gz"
+      },
+      {
+        "name": "SHA256SUMS",
+        "size": 1450,
+        "sha256": "870ce64532f0806d949b7292d06da552acfe787fb7efd077ca5147a2a822f23b",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.1/SHA256SUMS"
       }
     ]
   },
   "testing": {
-    "tag_name": "testing-20260501T214910",
-    "published_at": "2026-05-01T22:02:47Z",
+    "tag_name": "testing-20260913T074459",
+    "published_at": "2026-09-13T07:55:10Z",
     "prerelease": true,
     "assets": [
       {
-        "name": "librescoot-unu-dbc-boot-testing-20260501T214910.tar.gz",
-        "size": 9538362,
-        "url": "https://github.com/librescoot/librescoot/releases/download/testing-20260501T214910/librescoot-unu-dbc-boot-testing-20260501T214910.tar.gz"
+        "name": "librescoot-unu-dbc-boot-testing-20260913T074459.tar.gz",
+        "size": 10067457,
+        "sha256": "b2c844b16bedae7ea128a0fe85bb9f02db3d0a256abfeeb7696569e2e276fd2f",
+        "url": "https://github.com/librescoot/librescoot/releases/download/testing-20260913T074459/librescoot-unu-dbc-boot-testing-20260913T074459.tar.gz"
       },
       {
-        "name": "librescoot-unu-dbc-testing-20260501T214910.delta",
-        "size": 205741,
-        "url": "https://github.com/librescoot/librescoot/releases/download/testing-20260501T214910/librescoot-unu-dbc-testing-20260501T214910.delta"
+        "name": "librescoot-unu-dbc-testing-20260913T074459.delta",
+        "size": 2179301,
+        "sha256": "663745faaf9ab9a4abe2e7695543ae0b96baeec48f236baad8088fdd43ca4bf4",
+        "url": "https://github.com/librescoot/librescoot/releases/download/testing-20260913T074459/librescoot-unu-dbc-testing-20260913T074459.delta"
       },
       {
-        "name": "librescoot-unu-dbc-testing-20260501T214910.mender",
-        "size": 190499328,
-        "url": "https://github.com/librescoot/librescoot/releases/download/testing-20260501T214910/librescoot-unu-dbc-testing-20260501T214910.mender"
+        "name": "librescoot-unu-dbc-testing-20260913T074459.mender",
+        "size": 225568768,
+        "sha256": "7d190262df3238f2987d0828663970365e90fb332b4e89c8682b5b4a6af1ef7e",
+        "url": "https://github.com/librescoot/librescoot/releases/download/testing-20260913T074459/librescoot-unu-dbc-testing-20260913T074459.mender"
       },
       {
-        "name": "librescoot-unu-dbc-testing-20260501T214910.sdimg.bmap",
-        "size": 6149,
-        "url": "https://github.com/librescoot/librescoot/releases/download/testing-20260501T214910/librescoot-unu-dbc-testing-20260501T214910.sdimg.bmap"
+        "name": "librescoot-unu-dbc-testing-20260913T074459.sdimg.bmap",
+        "size": 5766,
+        "sha256": "2074c6dedcad2dc82a947016a4dd8dfda6c3e6f6581285e9d12e825f52b39412",
+        "url": "https://github.com/librescoot/librescoot/releases/download/testing-20260913T074459/librescoot-unu-dbc-testing-20260913T074459.sdimg.bmap"
       },
       {
-        "name": "librescoot-unu-dbc-testing-20260501T214910.sdimg.gz",
-        "size": 196750995,
-        "url": "https://github.com/librescoot/librescoot/releases/download/testing-20260501T214910/librescoot-unu-dbc-testing-20260501T214910.sdimg.gz"
+        "name": "librescoot-unu-dbc-testing-20260913T074459.sdimg.gz",
+        "size": 454343595,
+        "sha256": "7512c0952fc623630965d261b87c797610e6d4495b574d8b044cfef65dd9b02d",
+        "url": "https://github.com/librescoot/librescoot/releases/download/testing-20260913T074459/librescoot-unu-dbc-testing-20260913T074459.sdimg.gz"
       },
       {
-        "name": "librescoot-unu-mdb-boot-testing-20260501T214910.tar.gz",
-        "size": 6299620,
-        "url": "https://github.com/librescoot/librescoot/releases/download/testing-20260501T214910/librescoot-unu-mdb-boot-testing-20260501T214910.tar.gz"
+        "name": "librescoot-unu-mdb-boot-testing-20260913T074459.tar.gz",
+        "size": 8585034,
+        "sha256": "5c896745cf26f8eb0ac317df98a9deeab7d06a13a529ac2f880c8f57f4b9ed7b",
+        "url": "https://github.com/librescoot/librescoot/releases/download/testing-20260913T074459/librescoot-unu-mdb-boot-testing-20260913T074459.tar.gz"
       },
       {
-        "name": "librescoot-unu-mdb-testing-20260501T214910.delta",
-        "size": 395503,
-        "url": "https://github.com/librescoot/librescoot/releases/download/testing-20260501T214910/librescoot-unu-mdb-testing-20260501T214910.delta"
+        "name": "librescoot-unu-mdb-testing-20260913T074459.delta",
+        "size": 4104346,
+        "sha256": "bf2efd8c85b6d1364e949a6c6d7234d017f705f94363901945ad9b66e9dc0355",
+        "url": "https://github.com/librescoot/librescoot/releases/download/testing-20260913T074459/librescoot-unu-mdb-testing-20260913T074459.delta"
       },
       {
-        "name": "librescoot-unu-mdb-testing-20260501T214910.mender",
-        "size": 140509184,
-        "url": "https://github.com/librescoot/librescoot/releases/download/testing-20260501T214910/librescoot-unu-mdb-testing-20260501T214910.mender"
+        "name": "librescoot-unu-mdb-testing-20260913T074459.mender",
+        "size": 161932288,
+        "sha256": "d91df00055a13856ed056ca5b69e79b0f198a86e144591edce341f70183dfb6d",
+        "url": "https://github.com/librescoot/librescoot/releases/download/testing-20260913T074459/librescoot-unu-mdb-testing-20260913T074459.mender"
       },
       {
-        "name": "librescoot-unu-mdb-testing-20260501T214910.sdimg.bmap",
-        "size": 5367,
-        "url": "https://github.com/librescoot/librescoot/releases/download/testing-20260501T214910/librescoot-unu-mdb-testing-20260501T214910.sdimg.bmap"
+        "name": "librescoot-unu-mdb-testing-20260913T074459.sdimg.bmap",
+        "size": 4963,
+        "sha256": "0a61fda1750a35dd0f8969fe774d6339762b5ff64896a1390e740f6c59a0cab8",
+        "url": "https://github.com/librescoot/librescoot/releases/download/testing-20260913T074459/librescoot-unu-mdb-testing-20260913T074459.sdimg.bmap"
       },
       {
-        "name": "librescoot-unu-mdb-testing-20260501T214910.sdimg.gz",
-        "size": 144515811,
-        "url": "https://github.com/librescoot/librescoot/releases/download/testing-20260501T214910/librescoot-unu-mdb-testing-20260501T214910.sdimg.gz"
+        "name": "librescoot-unu-mdb-testing-20260913T074459.sdimg.gz",
+        "size": 328286824,
+        "sha256": "9b2cdb79c5919a5357eb6f07bda8f79db2dccc1d2de321053472b540b2cd742d",
+        "url": "https://github.com/librescoot/librescoot/releases/download/testing-20260913T074459/librescoot-unu-mdb-testing-20260913T074459.sdimg.gz"
+      },
+      {
+        "name": "SHA256SUMS",
+        "size": 1180,
+        "sha256": "757149f8b801902a08e9911d23ecdc06f57fbefa5de207e8f42f687145b252a3",
+        "url": "https://github.com/librescoot/librescoot/releases/download/testing-20260913T074459/SHA256SUMS"
       }
     ]
   },
   "nightly": {
-    "tag_name": "nightly-20260502T013156",
-    "published_at": "2026-05-02T01:40:41Z",
+    "tag_name": "nightly-20260919T090223",
+    "published_at": "2026-09-19T09:11:35Z",
     "prerelease": true,
     "assets": [
       {
-        "name": "librescoot-unu-dbc-boot-nightly-20260502T013156.tar.gz",
-        "size": 9538362,
-        "url": "https://github.com/librescoot/librescoot/releases/download/nightly-20260502T013156/librescoot-unu-dbc-boot-nightly-20260502T013156.tar.gz"
+        "name": "librescoot-unu-dbc-boot-nightly-20260919T090223.tar.gz",
+        "size": 10067457,
+        "sha256": "b2c844b16bedae7ea128a0fe85bb9f02db3d0a256abfeeb7696569e2e276fd2f",
+        "url": "https://github.com/librescoot/librescoot/releases/download/nightly-20260919T090223/librescoot-unu-dbc-boot-nightly-20260919T090223.tar.gz"
       },
       {
-        "name": "librescoot-unu-dbc-nightly-20260502T013156.delta",
-        "size": 535211,
-        "url": "https://github.com/librescoot/librescoot/releases/download/nightly-20260502T013156/librescoot-unu-dbc-nightly-20260502T013156.delta"
+        "name": "librescoot-unu-dbc-nightly-20260919T090223.delta",
+        "size": 654935,
+        "sha256": "1a6943d9e317e8ac4ff76e888926af9d379457c61752c7df5d20d872ac2940a2",
+        "url": "https://github.com/librescoot/librescoot/releases/download/nightly-20260919T090223/librescoot-unu-dbc-nightly-20260919T090223.delta"
       },
       {
-        "name": "librescoot-unu-dbc-nightly-20260502T013156.mender",
-        "size": 190499328,
-        "url": "https://github.com/librescoot/librescoot/releases/download/nightly-20260502T013156/librescoot-unu-dbc-nightly-20260502T013156.mender"
+        "name": "librescoot-unu-dbc-nightly-20260919T090223.mender",
+        "size": 226682368,
+        "sha256": "fb5adcb406e5ed6e7464259cedb1326923aeb693cf939f103836a15c2e339b28",
+        "url": "https://github.com/librescoot/librescoot/releases/download/nightly-20260919T090223/librescoot-unu-dbc-nightly-20260919T090223.mender"
       },
       {
-        "name": "librescoot-unu-dbc-nightly-20260502T013156.sdimg.bmap",
-        "size": 6149,
-        "url": "https://github.com/librescoot/librescoot/releases/download/nightly-20260502T013156/librescoot-unu-dbc-nightly-20260502T013156.sdimg.bmap"
+        "name": "librescoot-unu-dbc-nightly-20260919T090223.sdimg.bmap",
+        "size": 5766,
+        "sha256": "b202f4762f4fe25a499e1c5f65854591706c0fa19febc58a187bd07442274dae",
+        "url": "https://github.com/librescoot/librescoot/releases/download/nightly-20260919T090223/librescoot-unu-dbc-nightly-20260919T090223.sdimg.bmap"
       },
       {
-        "name": "librescoot-unu-dbc-nightly-20260502T013156.sdimg.gz",
-        "size": 196749760,
-        "url": "https://github.com/librescoot/librescoot/releases/download/nightly-20260502T013156/librescoot-unu-dbc-nightly-20260502T013156.sdimg.gz"
+        "name": "librescoot-unu-dbc-nightly-20260919T090223.sdimg.gz",
+        "size": 456443541,
+        "sha256": "93bf4bde1e31c4950080b502c8e16cbb726a753068631ad5d72774c5ffedd5d1",
+        "url": "https://github.com/librescoot/librescoot/releases/download/nightly-20260919T090223/librescoot-unu-dbc-nightly-20260919T090223.sdimg.gz"
       },
       {
-        "name": "librescoot-unu-mdb-boot-nightly-20260502T013156.tar.gz",
-        "size": 6299620,
-        "url": "https://github.com/librescoot/librescoot/releases/download/nightly-20260502T013156/librescoot-unu-mdb-boot-nightly-20260502T013156.tar.gz"
+        "name": "librescoot-unu-mdb-boot-nightly-20260919T090223.tar.gz",
+        "size": 8585034,
+        "sha256": "5c896745cf26f8eb0ac317df98a9deeab7d06a13a529ac2f880c8f57f4b9ed7b",
+        "url": "https://github.com/librescoot/librescoot/releases/download/nightly-20260919T090223/librescoot-unu-mdb-boot-nightly-20260919T090223.tar.gz"
       },
       {
-        "name": "librescoot-unu-mdb-nightly-20260502T013156.delta",
-        "size": 549190,
-        "url": "https://github.com/librescoot/librescoot/releases/download/nightly-20260502T013156/librescoot-unu-mdb-nightly-20260502T013156.delta"
+        "name": "librescoot-unu-mdb-nightly-20260919T090223.delta",
+        "size": 1211056,
+        "sha256": "27c66ba50629b9765b4ae5201632b3653cf90eaadbdce8c001d8569a1449f730",
+        "url": "https://github.com/librescoot/librescoot/releases/download/nightly-20260919T090223/librescoot-unu-mdb-nightly-20260919T090223.delta"
       },
       {
-        "name": "librescoot-unu-mdb-nightly-20260502T013156.mender",
-        "size": 140509696,
-        "url": "https://github.com/librescoot/librescoot/releases/download/nightly-20260502T013156/librescoot-unu-mdb-nightly-20260502T013156.mender"
+        "name": "librescoot-unu-mdb-nightly-20260919T090223.mender",
+        "size": 166043136,
+        "sha256": "82f442e74b197152a82c6d776544def66088a0534c9239067f21e6c048e837bc",
+        "url": "https://github.com/librescoot/librescoot/releases/download/nightly-20260919T090223/librescoot-unu-mdb-nightly-20260919T090223.mender"
       },
       {
-        "name": "librescoot-unu-mdb-nightly-20260502T013156.sdimg.bmap",
-        "size": 5367,
-        "url": "https://github.com/librescoot/librescoot/releases/download/nightly-20260502T013156/librescoot-unu-mdb-nightly-20260502T013156.sdimg.bmap"
+        "name": "librescoot-unu-mdb-nightly-20260919T090223.sdimg.bmap",
+        "size": 4963,
+        "sha256": "958bf5ecb02494aa1907fea6d7a9be9d0eb17a1a71a96b85acc0e0b85cb82d55",
+        "url": "https://github.com/librescoot/librescoot/releases/download/nightly-20260919T090223/librescoot-unu-mdb-nightly-20260919T090223.sdimg.bmap"
       },
       {
-        "name": "librescoot-unu-mdb-nightly-20260502T013156.sdimg.gz",
-        "size": 144512698,
-        "url": "https://github.com/librescoot/librescoot/releases/download/nightly-20260502T013156/librescoot-unu-mdb-nightly-20260502T013156.sdimg.gz"
+        "name": "librescoot-unu-mdb-nightly-20260919T090223.sdimg.gz",
+        "size": 336427039,
+        "sha256": "93be0c692865ec571f97c4f625a614f03c1a6984bcb4916f1f461cbe324dec24",
+        "url": "https://github.com/librescoot/librescoot/releases/download/nightly-20260919T090223/librescoot-unu-mdb-nightly-20260919T090223.sdimg.gz"
+      },
+      {
+        "name": "SHA256SUMS",
+        "size": 1180,
+        "sha256": "6f3433a098c1e5330702243fb7a8d1ea8fd2e47d3527b38b3d4e9009ac47f668",
+        "url": "https://github.com/librescoot/librescoot/releases/download/nightly-20260919T090223/SHA256SUMS"
+      }
+    ]
+  },
+  "bootstrap": {
+    "tag_name": "v1.3.0",
+    "published_at": "2026-09-01T15:38:41Z",
+    "prerelease": false,
+    "assets": [
+      {
+        "name": "librescoot-unu-dbc-boot-v1.3.0.tar.gz",
+        "size": 10065760,
+        "sha256": "3e6d10b3cbb10839428893f6905d4bfc2bf0604ea1bd5c68fde0543cd89fd0ca",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.0/librescoot-unu-dbc-boot-v1.3.0.tar.gz"
+      },
+      {
+        "name": "librescoot-unu-dbc-minimal-v1.3.0.sdimg.bmap",
+        "size": 6166,
+        "sha256": "02bf4166a2159cf09183752c548e0610a8bb22fc28d178306a77370ce9e5930c",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.0/librescoot-unu-dbc-minimal-v1.3.0.sdimg.bmap"
+      },
+      {
+        "name": "librescoot-unu-dbc-minimal-v1.3.0.sdimg.gz",
+        "size": 57360999,
+        "sha256": "cf7cb6d318c23f24fc280acfc53421afe14b6a3cfca12806ade823e8400c684f",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.0/librescoot-unu-dbc-minimal-v1.3.0.sdimg.gz"
+      },
+      {
+        "name": "librescoot-unu-dbc-v1.3.0.delta",
+        "size": 8299063,
+        "sha256": "2c47549586e26037531755ff0ae6851c723c821cb0d2f5c48d72401cdecdad08",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.0/librescoot-unu-dbc-v1.3.0.delta"
+      },
+      {
+        "name": "librescoot-unu-dbc-v1.3.0.mender",
+        "size": 222861312,
+        "sha256": "3f520be23fe71330b21107f883000e8c0dd33af4d53341554d177eee761621e8",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.0/librescoot-unu-dbc-v1.3.0.mender"
+      },
+      {
+        "name": "librescoot-unu-dbc-v1.3.0.sdimg.bmap",
+        "size": 5766,
+        "sha256": "48f0f206951408e1d6c8b0ca62e250c3f47cb41a0a2f8a0d29fb49b6115544df",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.0/librescoot-unu-dbc-v1.3.0.sdimg.bmap"
+      },
+      {
+        "name": "librescoot-unu-dbc-v1.3.0.sdimg.gz",
+        "size": 449272320,
+        "sha256": "9d8b48921492f6e842a62230de8fd3264364db8e17808c0d3634ca864b8f1d19",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.0/librescoot-unu-dbc-v1.3.0.sdimg.gz"
+      },
+      {
+        "name": "librescoot-unu-mdb-boot-v1.3.0.tar.gz",
+        "size": 8585024,
+        "sha256": "34c18eec1e2cd1a8fea000dbd5837e9c175612a7cd9cbf0b2821666276a2ddb9",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.0/librescoot-unu-mdb-boot-v1.3.0.tar.gz"
+      },
+      {
+        "name": "librescoot-unu-mdb-minimal-v1.3.0.sdimg.bmap",
+        "size": 5264,
+        "sha256": "492e7e6df747c6c20d2fd7ee9f4304f7504f6f6803c575f261690b81a16a64c9",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.0/librescoot-unu-mdb-minimal-v1.3.0.sdimg.bmap"
+      },
+      {
+        "name": "librescoot-unu-mdb-minimal-v1.3.0.sdimg.gz",
+        "size": 62937053,
+        "sha256": "0066a5fd38b9bcd7bbc9496212a0c5ca8f136c02481c859c6767642ac52718f2",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.0/librescoot-unu-mdb-minimal-v1.3.0.sdimg.gz"
+      },
+      {
+        "name": "librescoot-unu-mdb-v1.3.0.delta",
+        "size": 12409467,
+        "sha256": "970d0d3c013d99575683c85c5a183e840f0177be827cfcc0dc7dd786e6fac2ff",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.0/librescoot-unu-mdb-v1.3.0.delta"
+      },
+      {
+        "name": "librescoot-unu-mdb-v1.3.0.mender",
+        "size": 162105856,
+        "sha256": "58ffd1ce168dc4fe3fadbec2416fb43e90e08ad42ed374496a48ca18099a7f27",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.0/librescoot-unu-mdb-v1.3.0.mender"
+      },
+      {
+        "name": "librescoot-unu-mdb-v1.3.0.sdimg.bmap",
+        "size": 4963,
+        "sha256": "d5fd592c7d15ecce2245bc0cd3cb5165eeab18234e28b61d8f421dc938d6795a",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.0/librescoot-unu-mdb-v1.3.0.sdimg.bmap"
+      },
+      {
+        "name": "librescoot-unu-mdb-v1.3.0.sdimg.gz",
+        "size": 329003310,
+        "sha256": "c78eb392666ff972d3cac16d93761c67fde6528ce0b5e3fe35c7eb1a23293632",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.0/librescoot-unu-mdb-v1.3.0.sdimg.gz"
+      },
+      {
+        "name": "SHA256SUMS",
+        "size": 1450,
+        "sha256": "dfecbb68f590c0078876f6cd05694a31fd047b5ff9c32e0118e5ad82d01aff13",
+        "url": "https://github.com/librescoot/librescoot/releases/download/v1.3.0/SHA256SUMS"
       }
     ]
   }

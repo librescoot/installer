@@ -11,10 +11,7 @@ void main() {
     );
     final poll = source.substring(
       start,
-      source.indexOf(
-        '\n  }',
-        source.indexOf('_finishCompletionChecking = false;', start),
-      ),
+      source.indexOf('Future<void> _prepareMdbStatusConnection', start),
     );
 
     test('a spent run is remembered', () {
@@ -34,7 +31,7 @@ void main() {
       final tail = poll.substring(
         poll.indexOf('was not confirmed before timeout'),
       );
-      expect(tail, contains('_finishCompletionExhausted = true;'));
+      expect(tail, contains('_finishCompletionExhausted = true'));
     });
 
     test('asking by hand asks again', () {
@@ -126,13 +123,16 @@ void main() {
         ),
       );
       final invalidate = startOver.indexOf('++_keycardLearningGeneration;');
-      final wait = startOver.indexOf('await pendingStart;');
+      final wait = startOver.indexOf(
+        'await stopKeycardMasterAfterPendingStart(',
+      );
       final stop = startOver.indexOf("'learn:master:stop'");
       final reset = startOver.indexOf("'reset'");
       expect(
         startOver,
         contains('final pendingStart = _keycardMasterStartPending;'),
       );
+      expect(startOver, contains('pendingStart: pendingStart'));
       expect(wait, greaterThan(invalidate));
       expect(stop, greaterThan(wait));
       expect(reset, greaterThan(stop));
