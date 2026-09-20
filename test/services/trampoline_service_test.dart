@@ -377,11 +377,16 @@ void main() {
       expect(status.message, 'All done in 5m');
     });
 
-    test('parses error', () {
+    test('parses error without changing its diagnostic text', () {
       final status = TrampolineStatus.parse(
-        'error: DBC UMS device not found\nlog line 1\nlog line 2',
+        'error: DBC update-service failed: install-failed: Mender Exit 42\n'
+        'log line 1\nlog line 2',
       );
       expect(status.result, TrampolineResult.error);
+      expect(
+        status.message,
+        'error: DBC update-service failed: install-failed: Mender Exit 42',
+      );
       expect(status.errorLog, contains('log line'));
     });
 

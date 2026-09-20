@@ -197,6 +197,7 @@ void main() {
       expect(template,
           contains(r'artifact_fail "error: DBC update-service refused the artifact'),
           reason: 'an explicit service refusal must stop the upgrade');
+      expect(template, contains(r'dbc_update_service_fail "$ST"'));
       expect(
           template,
           contains(
@@ -204,6 +205,16 @@ void main() {
       expect(template,
           contains('Never fall back to a second direct Mender writer.'));
       expect(template, isNot(contains(r'DBC_OTA_VERDICT="absent"')));
+    });
+
+    test('reports update-service error details before failing the artifact', () {
+      expect(
+          template,
+          contains(r'"$INSTALLER_DIR/ota-error-details.sh" dbc'));
+      expect(template, contains('DBC update-service error history'));
+      expect(
+          template,
+          contains(r'artifact_fail "error: DBC update-service failed: $latest"'));
     });
 
     test('stages the artifact to the OTA seed path on the DBC', () {

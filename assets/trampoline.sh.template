@@ -2431,6 +2431,21 @@ artifact_fail() {
   exit 1
 }
 
+dbc_update_service_fail() {
+  local reported_status="$1"
+  local details latest
+  details=$("$INSTALLER_DIR/ota-error-details.sh" dbc 2>/dev/null || true)
+  if [ -n "$details" ]; then
+    log "  DBC update-service error history (oldest first):"
+    printf '%s\n' "$details" | while IFS= read -r detail; do
+      [ -n "$detail" ] && log "    $detail"
+    done
+    latest=$(printf '%s\n' "$details" | tail -n 1)
+    artifact_fail "error: DBC update-service failed: $latest"
+  fi
+  artifact_fail "error: DBC update-service refused the artifact: ${reported_status:-unknown error}"
+}
+
 # Install the DBC artifact, if one was staged. This runs in both modes: a
 # clean install has just written the stage-0 image and the DBC is booted into
 # it, and an upgrade skipped straight here. /data survives a mender install,
@@ -2543,7 +2558,7 @@ if [ -n "$DBC_MENDER" ]; then
     while [ $WAITED -lt 900 ]; do
       ST=$(redis-cli -h localhost hget ota status:dbc 2>/dev/null)
       case "$ST" in
-        error*|failed*) artifact_fail "error: DBC update-service refused the artifact: $ST" ;;
+        error*|failed*) dbc_update_service_fail "$ST" ;;
         idle|success)
           REPORTED_ARTIFACT=$(ssh -y -y root@$DBC_IP 'mender-update show-artifact' 2>/dev/null | head -n 1 | tr -d '\r')
           if [ "$REPORTED_ARTIFACT" = "$DBC_EXPECTED_ARTIFACT" ]; then

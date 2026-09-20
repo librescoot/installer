@@ -960,7 +960,17 @@ http.server.HTTPServer(
         healthProbe.buffer.asUint8List(),
         '/data/installer/dbc-health.sh',
       );
-      await _ssh.runCommand('chmod 755 /data/installer/dbc-health.sh');
+      final otaErrorDetails = await rootBundle.load(
+        'assets/ota-error-details.sh',
+      );
+      await _ssh.uploadFile(
+        otaErrorDetails.buffer.asUint8List(),
+        '/data/installer/ota-error-details.sh',
+      );
+      await _ssh.runCommand(
+        'chmod 755 /data/installer/dbc-health.sh '
+        '/data/installer/ota-error-details.sh',
+      );
     }
 
     // Routing tiles ship as .tar.zst and are unpacked on the dashboard, which

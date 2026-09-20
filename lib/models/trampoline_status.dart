@@ -124,8 +124,9 @@ class TrampolineStatus {
       _ => DashboardResult.unknown,
     };
 
-    final resultLine = lines.first.trim().toLowerCase();
-    if (resultLine == 'success') {
+    final resultLine = lines.first.trim();
+    final normalizedResult = resultLine.toLowerCase();
+    if (normalizedResult == 'success') {
       return TrampolineStatus(
         result: TrampolineResult.success,
         message: lines.length > 1 ? lines.sublist(1).join('\n') : null,
@@ -137,7 +138,8 @@ class TrampolineStatus {
         stage: field('stage'),
         dashboardResult: dashboardResult,
       );
-    } else if (resultLine == 'running' || resultLine == 'rebooting') {
+    } else if (normalizedResult == 'running' ||
+        normalizedResult == 'rebooting') {
       // `rebooting` is what older trampolines wrote at the same point.
       return TrampolineStatus(
         result: TrampolineResult.running,
@@ -150,7 +152,7 @@ class TrampolineStatus {
         stage: field('stage'),
         dashboardResult: dashboardResult,
       );
-    } else if (resultLine.startsWith('error')) {
+    } else if (normalizedResult.startsWith('error')) {
       return TrampolineStatus(
         result: TrampolineResult.error,
         message: resultLine,
