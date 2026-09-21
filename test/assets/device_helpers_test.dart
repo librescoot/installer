@@ -262,6 +262,27 @@ esac
     expect(result.exitCode, 1);
   });
 
+  test('DBC power-on wait counts ping time against its deadline', () async {
+    final clock = File('${root.path}/clock')..writeAsStringSync('0\n');
+    await stub('date', 'cat "${clock.path}"');
+    await stub('ping', '''
+n=\$(cat "${clock.path}")
+echo \$((n + 3)) > "${clock.path}"
+echo ping >> "\$CALLS"
+exit 1
+''');
+    await stub('sleep', '''
+n=\$(cat "${clock.path}")
+echo \$((n + \$1)) > "${clock.path}"
+''');
+
+    final r = await run('dbc_power_on() { return 1; }; dbc_power_on_wait 5');
+
+    expect(r.exitCode, 1);
+    expect(calls().split('\n').where((line) => line == 'ping').length, 1);
+    expect(clock.readAsStringSync().trim(), '5');
+  });
+
   group('dbc_power_set', () {
     test('prefers lsc when it is on PATH', () async {
       await stub('lsc', 'echo "lsc \$*" >> "\$CALLS"; exit 0');

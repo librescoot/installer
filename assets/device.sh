@@ -285,14 +285,15 @@ dbc_power_off_force() {
 # Power the dashboard and wait for it to answer. Replaces lsc dbc on-wait,
 # which additionally waits on dashboard[ready] in redis; a ping is the part
 # that matters here and the part that works with no vehicle-service running.
+# The deadline includes the power request and every ping timeout.
 # $1: seconds to wait, default 90.
 dbc_power_on_wait() {
-  local deadline="${1:-90}" elapsed=0
+  local timeout="${1:-90}" deadline
+  deadline=$(($(date +%s) + timeout))
   dbc_power_on
-  while [ "$elapsed" -lt "$deadline" ]; do
+  while [ "$(date +%s)" -lt "$deadline" ]; do
     ping -c 1 -W 2 "$DBC_IP" >/dev/null 2>&1 && return 0
     sleep 2
-    elapsed=$((elapsed + 2))
   done
   return 1
 }
