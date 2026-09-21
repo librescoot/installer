@@ -191,17 +191,51 @@ void main() {
     });
   });
 
+  group('tile eligibility', () {
+    const unknownDbc = BoardState(
+      board: Board.dbc,
+      isLibrescoot: false,
+      provenance: StateProvenance.unknown,
+    );
+    const minimalDbc = BoardState(
+      board: Board.dbc,
+      isLibrescoot: true,
+      provenance: StateProvenance.lastSeen,
+      version: 'v1.3.0',
+      isMinimalImage: true,
+    );
+    final knownDbc = _librescoot(Board.dbc, 'v1.3.0',
+        provenance: StateProvenance.lastSeen);
+    InstallPlan plan(BoardAction action) => InstallPlan(
+          mdb: const BoardPlan(
+              board: Board.mdb, action: BoardAction.upgrade),
+          dbc: BoardPlan(board: Board.dbc, action: action),
+          installTiles: true,
+        );
+
+    test('an unchanged DBC needs a known complete Librescoot version', () {
+      expect(plan(BoardAction.leave).tilesAllowedFor(knownDbc), isTrue);
+      expect(plan(BoardAction.leave).tilesAllowedFor(unknownDbc), isFalse);
+      expect(plan(BoardAction.leave).tilesAllowedFor(minimalDbc), isFalse);
+    });
+
+    test('reinstalling establishes a compatible maps target', () {
+      expect(plan(BoardAction.cleanInstall).tilesAllowedFor(unknownDbc), isTrue);
+      expect(plan(BoardAction.upgrade).tilesAllowedFor(unknownDbc), isTrue);
+    });
+  });
+
   group('directMassStorage', () {
     test('the MDB is a clean install, the dashboard is left for the user', () {
       // The board in mass storage says nothing about the dashboard, and a
       // clean install there formats a data partition nobody has looked at.
-      final plan = InstallPlan.directMassStorage(installTiles: true);
+      final plan = InstallPlan.directMassStorage();
 
       expect(plan.mdb.action, BoardAction.cleanInstall);
       expect(plan.dbc.action, BoardAction.leave);
       expect(plan.mdb.blocker, UpgradeBlocker.stateUnknown);
       expect(plan.dbc.blocker, UpgradeBlocker.stateUnknown);
-      expect(plan.installTiles, isTrue);
+      expect(plan.installTiles, isFalse);
     });
 
     test('requires the MDB artifact and reboot path', () {

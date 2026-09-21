@@ -69,11 +69,12 @@ enum ServiceStack {
 
 /// Whether a board should be treated as still running a bootstrap image.
 ///
-/// A fresh artifact name is the authority in both directions. mender names the
-/// image that is running: a name carrying "minimal" is a stage-0 board, and a
-/// name that does not is a board that took the artifact. The stack probe is
-/// weaker evidence than that, since a stack can be absent for reasons other
-/// than the image, so it only decides the case when mender said nothing.
+/// `IMAGE_ID` is authoritative when present because it comes from the running
+/// rootfs and only bootstrap images set it. On older images without that field,
+/// a fresh Mender artifact name is the authority in both directions: a name
+/// carrying "minimal" is a stage-0 board, and any other name is a full image.
+/// The stack probe is weaker evidence and only decides when neither image
+/// marker is available.
 ///
 /// That asymmetry is the point. A board can boot its new rootfs and still be
 /// bringing systemd up, so the probe finds no vehicle unit on an image that
@@ -88,13 +89,21 @@ bool looksLikeBootstrapImage({
   required String? artifactName,
   required ServiceStack? serviceStack,
   String? runningVersion,
+  String? imageId,
 }) {
+  final image = (imageId ?? '').trim();
+  if (image.isNotEmpty) return imageIdIsBootstrap(image);
+
   final name = artifactName ?? '';
   if (name.isNotEmpty && !artifactNameIsStale(name, runningVersion)) {
     return name.contains('minimal');
   }
   return serviceStack == ServiceStack.none;
 }
+
+/// The minimal images identify themselves through os-release's `IMAGE_ID`.
+bool imageIdIsBootstrap(String? imageId) =>
+    (imageId ?? '').trim().toLowerCase().contains('bootstrap');
 
 /// Whether mender's artifact name describes an image other than the running
 /// one, which makes it useless as evidence about what is running.

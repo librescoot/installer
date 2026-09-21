@@ -39,6 +39,25 @@ void main() {
   });
 
   group('bootstrap verdict', () {
+    test('the running image marker is authoritative', () {
+      expect(
+        looksLikeBootstrapImage(
+          imageId: 'librescoot-mdb-bootstrap',
+          artifactName: 'release-v1.3.0',
+          serviceStack: ServiceStack.librescoot,
+        ),
+        isTrue,
+      );
+      expect(
+        looksLikeBootstrapImage(
+          imageId: 'librescoot-mdb',
+          artifactName: 'release-v1.3.0-minimal',
+          serviceStack: ServiceStack.none,
+        ),
+        isFalse,
+      );
+    });
+
     test('a stage-0 artifact name is enough on its own', () {
       expect(
         looksLikeBootstrapImage(

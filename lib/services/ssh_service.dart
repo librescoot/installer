@@ -35,11 +35,15 @@ class DeviceInfo {
   /// Used to distinguish Librescoot from stock when version numbers collide.
   final String? osId;
 
+  /// Value of IMAGE_ID= in /etc/os-release. Bootstrap images set this marker.
+  final String? imageId;
+
   DeviceInfo({
     required this.host,
     required this.firmwareVersion,
     this.serialNumber,
     this.osId,
+    this.imageId,
   });
 }
 
@@ -747,17 +751,22 @@ done
       firmwareVersion: detected.version ?? 'Unknown',
       serialNumber: serial,
       osId: detected.osId,
+      imageId: detected.imageId,
     );
   }
 
-  Future<({String? version, String? osId})> _detectFirmwareVersion() async {
-    if (_client == null) return (version: null, osId: null);
+  Future<({String? version, String? osId, String? imageId})>
+  _detectFirmwareVersion() async {
+    if (_client == null) {
+      return (version: null, osId: null, imageId: null);
+    }
 
     final versionIdRegex = RegExp(
       r'^VERSION_ID="?([^"\n]+)"?$',
       multiLine: true,
     );
     final idRegex = RegExp(r'^ID="?([^"\n]+)"?$', multiLine: true);
+    final imageIdRegex = RegExp(r'^IMAGE_ID="?([^"\n]+)"?$', multiLine: true);
     final semverRegex = RegExp(r'\bv?(\d+\.\d+(?:\.\d+)?)\b');
 
     final commands = <String>[
@@ -773,19 +782,20 @@ done
 
         final idMatch = idRegex.firstMatch(output);
         final osId = idMatch?.group(1)?.trim();
+        final imageId = imageIdRegex.firstMatch(output)?.group(1)?.trim();
 
         final versionIdMatch = versionIdRegex.firstMatch(output);
         if (versionIdMatch != null) {
           final version = _normalizeVersion(versionIdMatch.group(1)!);
           debugPrint('SSH: parsed VERSION_ID -> $version');
-          return (version: version, osId: osId);
+          return (version: version, osId: osId, imageId: imageId);
         }
 
         final semverMatch = semverRegex.firstMatch(output);
         if (semverMatch != null) {
           final version = _normalizeVersion(semverMatch.group(1)!);
           debugPrint('SSH: parsed semver -> $version');
-          return (version: version, osId: osId);
+          return (version: version, osId: osId, imageId: imageId);
         }
 
         debugPrint('SSH: no version match from command output');
@@ -795,7 +805,7 @@ done
       }
     }
 
-    return (version: null, osId: null);
+    return (version: null, osId: null, imageId: null);
   }
 
   String _normalizeVersion(String raw) {

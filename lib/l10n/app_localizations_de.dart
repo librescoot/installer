@@ -1878,6 +1878,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get boardDbc => 'DBC (Display)';
 
   @override
+  String bootstrapImageLabel(String board) {
+    return 'Librescoot-Bootstrap-Image ($board)';
+  }
+
+  @override
   String boardVersionCurrent(String version) {
     return 'Aktuell $version';
   }
@@ -1951,6 +1956,10 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get planInstallTilesDetail =>
       'Fügt einen DBC-Schritt hinzu: Die Karten werden auf das MDB übertragen. Danach wird das Kabel zurückgesteckt und die Karten werden automatisch installiert.';
+
+  @override
+  String get planTilesNeedKnownDbc =>
+      'Das Display wurde nicht als vollständige Librescoot-Installation erkannt. Installiere das Display neu, um Offline-Karten hinzuzufügen.';
 
   @override
   String get planTilesNotDownloaded =>

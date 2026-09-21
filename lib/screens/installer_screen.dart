@@ -3471,9 +3471,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // self-contained full images and keep their legacy null plan semantics.
       if (_plan == null && !launchArgs.hasLocalImages) {
         setState(() {
-          _plan = InstallPlan.directMassStorage(
-            installTiles: _downloadState.wantsOfflineMaps,
-          );
+          _plan = InstallPlan.directMassStorage();
           _expectMinimalMdb = true;
           _directMassStorageRoute = true;
         });
@@ -4408,7 +4406,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// distribution it belongs to, and the two use overlapping numbering.
   String _installedVersionLabel(AppLocalizations l10n) {
     final version = _mdbInfo?.firmwareVersion ?? '';
-    final distro = _isLibrescootFirmware
+    final bootstrap =
+        imageIdIsBootstrap(_mdbInfo?.imageId) ||
+        (_isLibrescootFirmware && _mdbStackMissing);
+    final distro = bootstrap
+        ? l10n.bootstrapImageLabel('MDB')
+        : _isLibrescootFirmware
         ? l10n.distroLibrescoot
         : l10n.distroStock;
     return version.isEmpty ? distro : '$distro $version';
@@ -4463,6 +4466,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       artifactName: artifact,
       serviceStack: stack,
       runningVersion: version,
+      imageId: osRelease['IMAGE_ID'],
     );
     final stageZeroFilename = _downloadState.imageFor(Board.mdb)?.filename;
     final resumableMinimal =
@@ -4519,6 +4523,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           provenance: StateProvenance.lastSeen,
           version: version,
           hasMender: true,
+          isMinimalImage: imageIdIsBootstrap(hash['image_id']),
         );
       }
     } catch (e) {
@@ -4919,6 +4924,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         _isProcessing ||
         _plan!.isNoOp ||
         _plan!.dbcWorkStrandedOn(_mdbState) ||
+        (_plan!.installTiles && !_plan!.tilesAllowedFor(_dbcState)) ||
         (cleanMdb && _configurationInspectionFailed);
     return PhaseLayout(
       title: l10n.installPlanHeading,
@@ -7887,8 +7893,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       final valhallaItem = _downloadState.itemOfType(
         DownloadItemType.valhallaTiles,
       );
-      final installTiles =
+      final tilesRequested =
           _plan?.installTiles ?? _downloadState.wantsOfflineMaps;
+      final installTiles =
+          tilesRequested && (_plan?.tilesAllowedFor(_dbcState) ?? true);
 
       final dbcBmapItem = _downloadState.itemOfType(DownloadItemType.dbcBmap);
 

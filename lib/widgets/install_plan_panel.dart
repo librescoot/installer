@@ -37,6 +37,8 @@ class InstallPlanPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final tilesAllowed = plan.tilesAllowedFor(dbcState);
+    final tilesSelectable = tilesAvailable && tilesAllowed;
     // Only the board cards and warnings live here now. The heading and the
     // Continue button are the enclosing PhaseLayout's job, which is where
     // every other phase keeps them too; this panel used to pin them itself
@@ -53,14 +55,13 @@ class InstallPlanPanel extends StatelessWidget {
           (p) => onChanged(plan.withMdb(p)),
         ),
         const SizedBox(height: 12),
-        _boardCard(
-          context,
-          l10n,
-          l10n.boardDbc,
-          dbcState,
-          plan.dbc,
-          (p) => onChanged(plan.withDbc(p)),
-        ),
+        _boardCard(context, l10n, l10n.boardDbc, dbcState, plan.dbc, (p) {
+          var next = plan.withDbc(p);
+          if (!next.tilesAllowedFor(dbcState)) {
+            next = next.withTiles(false);
+          }
+          onChanged(next);
+        }),
         const SizedBox(height: 12),
         // The maps used to be decided on the welcome screen, where the control
         // reads as a download-size choice, and this screen only stated the
@@ -68,15 +69,17 @@ class InstallPlanPanel extends StatelessWidget {
         // what this run will do is chosen here, so the maps are too.
         Card(
           child: CheckboxListTile(
-            value: tilesAvailable && plan.installTiles,
-            onChanged: tilesAvailable
+            value: tilesSelectable && plan.installTiles,
+            onChanged: tilesSelectable
                 ? (v) => onChanged(plan.withTiles(v ?? false))
                 : null,
             title: Text(l10n.planInstallTiles),
             subtitle: Text(
-              tilesAvailable
-                  ? l10n.planInstallTilesDetail
-                  : l10n.planTilesNotDownloaded,
+              !tilesAvailable
+                  ? l10n.planTilesNotDownloaded
+                  : !tilesAllowed
+                  ? l10n.planTilesNeedKnownDbc
+                  : l10n.planInstallTilesDetail,
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16),
             controlAffinity: ListTileControlAffinity.leading,
@@ -226,10 +229,17 @@ class InstallPlanPanel extends StatelessWidget {
   /// use overlapping numbering and a bare number says nothing about which.
   String _versionLabel(AppLocalizations l10n, BoardState state) {
     final version = state.version;
-    if (version == null || version.isEmpty) return l10n.boardVersionUnknown;
-    final named =
-        '${state.isLibrescoot ? l10n.distroLibrescoot : l10n.distroStock} '
-        '$version';
+    final String named;
+    if (state.isMinimalImage) {
+      final board = state.board == Board.mdb ? 'MDB' : 'DBC';
+      final image = l10n.bootstrapImageLabel(board);
+      named = version == null || version.isEmpty ? image : '$image $version';
+    } else {
+      if (version == null || version.isEmpty) return l10n.boardVersionUnknown;
+      named =
+          '${state.isLibrescoot ? l10n.distroLibrescoot : l10n.distroStock} '
+          '$version';
+    }
     return state.provenance == StateProvenance.lastSeen
         ? l10n.boardVersionLastSeen(named)
         : l10n.boardVersionCurrent(named);

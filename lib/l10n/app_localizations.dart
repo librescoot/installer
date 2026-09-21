@@ -3206,6 +3206,12 @@ abstract class AppLocalizations {
   /// **'DBC (dashboard)'**
   String get boardDbc;
 
+  /// No description provided for @bootstrapImageLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Librescoot Bootstrap Image ({board})'**
+  String bootstrapImageLabel(String board);
+
   /// No description provided for @boardVersionCurrent.
   ///
   /// In en, this message translates to:
@@ -3325,6 +3331,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Adds a dashboard step: the maps go to the main board, then the cable swaps back and the scooter copies them over.'**
   String get planInstallTilesDetail;
+
+  /// No description provided for @planTilesNeedKnownDbc.
+  ///
+  /// In en, this message translates to:
+  /// **'The dashboard was not identified as a complete Librescoot installation. Reinstall the dashboard to add offline maps.'**
+  String get planTilesNeedKnownDbc;
 
   /// No description provided for @planTilesNotDownloaded.
   ///

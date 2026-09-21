@@ -109,7 +109,7 @@ void main() {
 
     final connectStart = source.indexOf('Future<DeviceInfo> _connect(');
     final connectEnd = source.indexOf(
-      '\n  Future<({String? version, String? osId})>',
+      '\n  Future<({String? version, String? osId, String? imageId})>',
       connectStart,
     );
     final connect = source.substring(connectStart, connectEnd);

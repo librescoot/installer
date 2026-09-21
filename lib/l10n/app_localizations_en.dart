@@ -1847,6 +1847,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get boardDbc => 'DBC (dashboard)';
 
   @override
+  String bootstrapImageLabel(String board) {
+    return 'Librescoot Bootstrap Image ($board)';
+  }
+
+  @override
   String boardVersionCurrent(String version) {
     return 'Currently $version';
   }
@@ -1919,6 +1924,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get planInstallTilesDetail =>
       'Adds a dashboard step: the maps go to the main board, then the cable swaps back and the scooter copies them over.';
+
+  @override
+  String get planTilesNeedKnownDbc =>
+      'The dashboard was not identified as a complete Librescoot installation. Reinstall the dashboard to add offline maps.';
 
   @override
   String get planTilesNotDownloaded =>

@@ -88,6 +88,17 @@ class InstallPlan {
   InstallPlan withTiles(bool v) =>
       InstallPlan(mdb: mdb, dbc: dbc, installTiles: v);
 
+  /// Maps may be copied to an unchanged dashboard only when it is a known,
+  /// complete Librescoot installation. Reinstalling the DBC establishes that
+  /// compatible target even when its current state could not be identified.
+  bool tilesAllowedFor(BoardState dbcState) {
+    assert(dbcState.board == Board.dbc);
+    if (dbc.action != BoardAction.leave) return true;
+    return dbcState.isLibrescoot &&
+        !dbcState.isMinimalImage &&
+        (dbcState.version?.trim().isNotEmpty ?? false);
+  }
+
   /// Default action for one board. Upgrade when the board runs Librescoot and
   /// the target differs, Leave alone when it already runs the target, Clean
   /// install for anything we cannot upgrade. Any target version is allowed,
@@ -126,11 +137,14 @@ class InstallPlan {
     required BoardState dbc,
     required String? targetVersion,
     bool installTiles = false,
-  }) => InstallPlan(
-    mdb: defaultPlanFor(mdb, targetVersion),
-    dbc: defaultPlanFor(dbc, targetVersion),
-    installTiles: installTiles,
-  );
+  }) {
+    final plan = InstallPlan(
+      mdb: defaultPlanFor(mdb, targetVersion),
+      dbc: defaultPlanFor(dbc, targetVersion),
+      installTiles: installTiles,
+    );
+    return plan.tilesAllowedFor(dbc) ? plan : plan.withTiles(false);
+  }
 
   /// Conservative plan when the MDB is already in U-Boot mass storage.
   ///
@@ -141,20 +155,19 @@ class InstallPlan {
   /// the other end of the same USB port and cannot be asked either: it is
   /// left alone until the plan screen hears otherwise, since a clean install
   /// there formats a data partition nobody has looked at.
-  static InstallPlan directMassStorage({bool installTiles = false}) =>
-      InstallPlan(
-        mdb: const BoardPlan(
-          board: Board.mdb,
-          action: BoardAction.cleanInstall,
-          blocker: UpgradeBlocker.stateUnknown,
-        ),
-        dbc: const BoardPlan(
-          board: Board.dbc,
-          action: BoardAction.leave,
-          blocker: UpgradeBlocker.stateUnknown,
-        ),
-        installTiles: installTiles,
-      );
+  static InstallPlan directMassStorage() => const InstallPlan(
+    mdb: BoardPlan(
+      board: Board.mdb,
+      action: BoardAction.cleanInstall,
+      blocker: UpgradeBlocker.stateUnknown,
+    ),
+    dbc: BoardPlan(
+      board: Board.dbc,
+      action: BoardAction.leave,
+      blocker: UpgradeBlocker.stateUnknown,
+    ),
+    installTiles: false,
+  );
 
   static UpgradeBlocker? _blockerFor(BoardState state) {
     if (state.isMinimalImage) return UpgradeBlocker.minimalImage;

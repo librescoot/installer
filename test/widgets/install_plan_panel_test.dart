@@ -27,6 +27,13 @@ const _stockDbc = BoardState(
   isLibrescoot: false,
   provenance: StateProvenance.unknown,
 );
+const _librescootDbc = BoardState(
+  board: Board.dbc,
+  isLibrescoot: true,
+  provenance: StateProvenance.lastSeen,
+  version: 'v1.2.0',
+  hasMender: true,
+);
 
 void main() {
   testWidgets('shows both boards with their current versions', (tester) async {
@@ -54,6 +61,52 @@ void main() {
     // belongs to.
     expect(find.text('Currently Librescoot v1.2.0'), findsOneWidget);
     expect(find.text('Version unknown'), findsOneWidget);
+  });
+
+  testWidgets('names bootstrap images instead of installed Librescoot', (
+    tester,
+  ) async {
+    const minimalMdb = BoardState(
+      board: Board.mdb,
+      isLibrescoot: true,
+      provenance: StateProvenance.live,
+      version: 'v1.3.0',
+      hasMender: true,
+      isMinimalImage: true,
+    );
+    const minimalDbc = BoardState(
+      board: Board.dbc,
+      isLibrescoot: true,
+      provenance: StateProvenance.lastSeen,
+      version: 'v1.3.1',
+      hasMender: true,
+      isMinimalImage: true,
+    );
+    await tester.pumpWidget(
+      _host(
+        InstallPlanPanel(
+          plan: InstallPlan.defaults(
+            mdb: minimalMdb,
+            dbc: minimalDbc,
+            targetVersion: 'v1.3.1',
+          ),
+          mdbState: minimalMdb,
+          dbcState: minimalDbc,
+          targetVersion: 'v1.3.1',
+          onChanged: (_) {},
+        ),
+      ),
+    );
+
+    expect(
+      find.text('Currently Librescoot Bootstrap Image (MDB) v1.3.0'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Last seen running Librescoot Bootstrap Image (DBC) v1.3.1'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Currently Librescoot v1.3.0'), findsNothing);
   });
 
   testWidgets('disables Upgrade for a board that cannot take one', (
@@ -219,7 +272,7 @@ void main() {
         InstallPlanPanel(
           plan: plan,
           mdbState: _mdbState,
-          dbcState: _stockDbc,
+          dbcState: _librescootDbc,
           targetVersion: 'v1.2.1',
           onChanged: (p) => seen = p,
         ),
@@ -234,6 +287,63 @@ void main() {
     await tester.tap(find.byType(CheckboxListTile));
     await tester.pump();
     expect(seen, isNotNull);
+    expect(seen!.installTiles, isFalse);
+  });
+
+  testWidgets('unknown unchanged DBC cannot receive offline maps', (
+    tester,
+  ) async {
+    InstallPlan? seen;
+    await tester.pumpWidget(
+      _host(
+        InstallPlanPanel(
+          plan: const InstallPlan(
+            mdb: BoardPlan(board: Board.mdb, action: BoardAction.upgrade),
+            dbc: BoardPlan(board: Board.dbc, action: BoardAction.leave),
+            installTiles: true,
+          ),
+          mdbState: _mdbState,
+          dbcState: _stockDbc,
+          targetVersion: 'v1.2.1',
+          onChanged: (p) => seen = p,
+        ),
+      ),
+    );
+
+    expect(find.textContaining('not identified'), findsOneWidget);
+    final checkbox = tester.widget<CheckboxListTile>(
+      find.byType(CheckboxListTile),
+    );
+    expect(checkbox.value, isFalse);
+    expect(checkbox.onChanged, isNull);
+    expect(seen, isNull);
+  });
+
+  testWidgets('leaving an unknown DBC clears selected maps', (tester) async {
+    InstallPlan? seen;
+    await tester.pumpWidget(
+      _host(
+        InstallPlanPanel(
+          plan: const InstallPlan(
+            mdb: BoardPlan(board: Board.mdb, action: BoardAction.upgrade),
+            dbc: BoardPlan(
+              board: Board.dbc,
+              action: BoardAction.cleanInstall,
+            ),
+            installTiles: true,
+          ),
+          mdbState: _mdbState,
+          dbcState: _stockDbc,
+          targetVersion: 'v1.2.1',
+          onChanged: (p) => seen = p,
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Leave alone').last);
+    await tester.pump();
+    expect(seen, isNotNull);
+    expect(seen!.dbc.action, BoardAction.leave);
     expect(seen!.installTiles, isFalse);
   });
 

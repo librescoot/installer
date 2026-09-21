@@ -647,6 +647,14 @@
   },
   "boardMdb": "MDB (Hauptboard)",
   "boardDbc": "DBC (Display)",
+  "bootstrapImageLabel": "Librescoot-Bootstrap-Image ({board})",
+  "@bootstrapImageLabel": {
+    "placeholders": {
+      "board": {
+        "type": "String"
+      }
+    }
+  },
   "boardVersionCurrent": "Aktuell {version}",
   "@boardVersionCurrent": {
     "placeholders": {
@@ -691,6 +699,7 @@
   "planTilesNeedDbcHandoff": "Für neue Kartendaten muss das DBC-Kabel umgesteckt werden, auch wenn das DBC unverändert bleibt",
   "planInstallTiles": "Offline-Karten aktualisieren",
   "planInstallTilesDetail": "Fügt einen DBC-Schritt hinzu: Die Karten werden auf das MDB übertragen. Danach wird das Kabel zurückgesteckt und die Karten werden automatisch installiert.",
+  "planTilesNeedKnownDbc": "Das Display wurde nicht als vollständige Librescoot-Installation erkannt. Installiere das Display neu, um Offline-Karten hinzuzufügen.",
   "planTilesNotDownloaded": "Nicht heruntergeladen. Offline-Karten wurden im ersten Schritt übersprungen.",
   "actionLeaveBlockedStockMdb": "Das Serien-Hauptboard muss installiert werden, bevor weitere Aktionen möglich sind",
   "planDbcNeedsLibrescootMdb": "Das DBC ist nur über das MDB erreichbar und die benötigten Werkzeuge gehören zu Librescoot. Installiere in diesem Vorgang das MDB mit oder lasse das DBC unverändert.",
