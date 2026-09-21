@@ -1958,6 +1958,14 @@ class AppLocalizationsDe extends AppLocalizations {
       'Fügt einen DBC-Schritt hinzu: Die Karten werden auf das MDB übertragen. Danach wird das Kabel zurückgesteckt und die Karten werden automatisch installiert.';
 
   @override
+  String get planTilesUnknownDbc =>
+      'Die DBC-Software konnte nicht erkannt werden. Offline-Karten können nur auf einer bekannten, vollständigen Librescoot-Installation installiert werden. Wähle für das DBC „Neu installieren“ oder fahre ohne Karten fort und starte den Installer erneut, nachdem das DBC verbunden ist und läuft.';
+
+  @override
+  String get planTilesBootstrapDbc =>
+      'Das DBC läuft mit einem Bootstrap-Image. Dieses kann keine Offline-Karten verwenden. Wähle für das DBC „Neu installieren“ oder fahre ohne Karten fort und starte den Installer später erneut.';
+
+  @override
   String get planTilesNeedKnownDbc =>
       'Das Display wurde nicht als vollständige Librescoot-Installation erkannt. Installiere das Display neu, um Offline-Karten hinzuzufügen.';
 

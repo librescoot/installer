@@ -3332,6 +3332,18 @@ abstract class AppLocalizations {
   /// **'Adds a dashboard step: the maps go to the main board, then the cable swaps back and the scooter copies them over.'**
   String get planInstallTilesDetail;
 
+  /// No description provided for @planTilesUnknownDbc.
+  ///
+  /// In en, this message translates to:
+  /// **'The DBC software could not be identified. Offline maps can only be installed on a known, complete Librescoot system. Choose Clean install for the DBC, or continue without maps and run the installer again after the DBC is connected and running.'**
+  String get planTilesUnknownDbc;
+
+  /// No description provided for @planTilesBootstrapDbc.
+  ///
+  /// In en, this message translates to:
+  /// **'The DBC is running a bootstrap image. The bootstrap image cannot use offline maps. Choose Clean install for the DBC, or continue without maps and run the installer again later.'**
+  String get planTilesBootstrapDbc;
+
   /// No description provided for @planTilesNeedKnownDbc.
   ///
   /// In en, this message translates to:

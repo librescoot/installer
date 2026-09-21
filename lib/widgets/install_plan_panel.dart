@@ -78,7 +78,7 @@ class InstallPlanPanel extends StatelessWidget {
               !tilesAvailable
                   ? l10n.planTilesNotDownloaded
                   : !tilesAllowed
-                  ? l10n.planTilesNeedKnownDbc
+                  ? _tilesUnavailableDetail(l10n, dbcState)
                   : l10n.planInstallTilesDetail,
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16),
@@ -284,6 +284,15 @@ class InstallPlanPanel extends StatelessWidget {
       action == BoardAction.leave &&
       state.board == Board.mdb &&
       !state.isLibrescoot;
+
+  String _tilesUnavailableDetail(AppLocalizations l10n, BoardState dbcState) {
+    if (dbcState.isMinimalImage) return l10n.planTilesBootstrapDbc;
+    if (dbcState.provenance == StateProvenance.unknown ||
+        !(dbcState.version?.trim().isNotEmpty ?? false)) {
+      return l10n.planTilesUnknownDbc;
+    }
+    return l10n.planTilesNeedKnownDbc;
+  }
 
   String _blockerLabel(AppLocalizations l10n, UpgradeBlocker blocker) =>
       switch (blocker) {

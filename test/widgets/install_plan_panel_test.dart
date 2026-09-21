@@ -310,13 +310,65 @@ void main() {
       ),
     );
 
-    expect(find.textContaining('not identified'), findsOneWidget);
+    expect(
+      find.textContaining('The DBC software could not be identified'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'Choose Clean install for the DBC, or continue without maps',
+      ),
+      findsOneWidget,
+    );
     final checkbox = tester.widget<CheckboxListTile>(
       find.byType(CheckboxListTile),
     );
     expect(checkbox.value, isFalse);
     expect(checkbox.onChanged, isNull);
     expect(seen, isNull);
+  });
+
+  testWidgets('bootstrap DBC explains why maps are unavailable', (
+    tester,
+  ) async {
+    const bootstrapDbc = BoardState(
+      board: Board.dbc,
+      isLibrescoot: true,
+      provenance: StateProvenance.lastSeen,
+      version: 'v1.3.1',
+      hasMender: true,
+      isMinimalImage: true,
+    );
+    await tester.pumpWidget(
+      _host(
+        InstallPlanPanel(
+          plan: const InstallPlan(
+            mdb: BoardPlan(board: Board.mdb, action: BoardAction.upgrade),
+            dbc: BoardPlan(board: Board.dbc, action: BoardAction.leave),
+          ),
+          mdbState: _mdbState,
+          dbcState: bootstrapDbc,
+          targetVersion: 'v1.3.1',
+          onChanged: (_) {},
+        ),
+      ),
+    );
+
+    expect(
+      find.textContaining('The DBC is running a bootstrap image'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'Choose Clean install for the DBC, or continue without maps',
+      ),
+      findsOneWidget,
+    );
+    final checkbox = tester.widget<CheckboxListTile>(
+      find.byType(CheckboxListTile),
+    );
+    expect(checkbox.value, isFalse);
+    expect(checkbox.onChanged, isNull);
   });
 
   testWidgets('leaving an unknown DBC clears selected maps', (tester) async {
@@ -326,10 +378,7 @@ void main() {
         InstallPlanPanel(
           plan: const InstallPlan(
             mdb: BoardPlan(board: Board.mdb, action: BoardAction.upgrade),
-            dbc: BoardPlan(
-              board: Board.dbc,
-              action: BoardAction.cleanInstall,
-            ),
+            dbc: BoardPlan(board: Board.dbc, action: BoardAction.cleanInstall),
             installTiles: true,
           ),
           mdbState: _mdbState,

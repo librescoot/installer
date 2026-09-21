@@ -837,6 +837,8 @@
   "planTilesNeedDbcHandoff": "Refreshing map tiles needs the DBC cable swap, even with the DBC left alone",
   "planInstallTiles": "Update the offline maps",
   "planInstallTilesDetail": "Adds a dashboard step: the maps go to the main board, then the cable swaps back and the scooter copies them over.",
+  "planTilesUnknownDbc": "The DBC software could not be identified. Offline maps can only be installed on a known, complete Librescoot system. Choose Clean install for the DBC, or continue without maps and run the installer again after the DBC is connected and running.",
+  "planTilesBootstrapDbc": "The DBC is running a bootstrap image. The bootstrap image cannot use offline maps. Choose Clean install for the DBC, or continue without maps and run the installer again later.",
   "planTilesNeedKnownDbc": "The dashboard was not identified as a complete Librescoot installation. Reinstall the dashboard to add offline maps.",
   "planTilesNotDownloaded": "Not downloaded. Offline maps were skipped on the first screen.",
   "actionLeaveBlockedStockMdb": "A stock main board has to be installed before anything else can be done",

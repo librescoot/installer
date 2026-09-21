@@ -1926,6 +1926,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Adds a dashboard step: the maps go to the main board, then the cable swaps back and the scooter copies them over.';
 
   @override
+  String get planTilesUnknownDbc =>
+      'The DBC software could not be identified. Offline maps can only be installed on a known, complete Librescoot system. Choose Clean install for the DBC, or continue without maps and run the installer again after the DBC is connected and running.';
+
+  @override
+  String get planTilesBootstrapDbc =>
+      'The DBC is running a bootstrap image. The bootstrap image cannot use offline maps. Choose Clean install for the DBC, or continue without maps and run the installer again later.';
+
+  @override
   String get planTilesNeedKnownDbc =>
       'The dashboard was not identified as a complete Librescoot installation. Reinstall the dashboard to add offline maps.';
 
