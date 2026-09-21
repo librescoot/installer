@@ -66,11 +66,11 @@ void main() {
       expect(out, contains(r'dbc_say "Firmware $DBC_VER running"'));
     });
 
-    test('direct power control is bootstrap-owned; upgrade cannot force it', () {
+    test('direct power control requires verified bootstrap ownership', () {
       expect(
         template,
         contains(
-          'dbc_control_check || fail "Lost bootstrap control before post-flash power-off"',
+          'dbc_control_check || fail "Lost bootstrap control before DBC handoff power-off"',
         ),
       );
       expect(template, isNot(contains('dbc_power_off_force')));
@@ -183,13 +183,14 @@ void main() {
           reason: 'the combined test made a missing artifact look like no artifact');
     });
 
-    test('only flash mode skips the update-service handshake, and the queue is drained',
+    test('bootstrap control skips the update-service handshake, and the queue is drained',
         () {
       final push = template.indexOf(r'lpush scooter:update:dbc "$DBC_UPDATE_CMD"');
-      final modeGate = template.indexOf(r'if [ "$MODE" = "upgrade" ]; then');
-      expect(modeGate, greaterThan(0));
-      expect(modeGate, lessThan(push),
-          reason: 'a stage-0 board has no update-service, so nothing may be queued for it');
+      final lifecycleGate = template.indexOf(
+          r'if [ "$DBC_VEHICLE_UPDATE" != bootstrap ]; then');
+      expect(lifecycleGate, greaterThan(0));
+      expect(lifecycleGate, lessThan(push),
+          reason: 'a bootstrap MDB has no update-service, so nothing may be queued for it');
       expect(template, contains(r'lrem scooter:update:dbc 0 "$DBC_UPDATE_CMD"'));
     });
 

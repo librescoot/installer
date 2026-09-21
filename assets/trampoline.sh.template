@@ -797,8 +797,11 @@ reboot -f
 WATCHDOG_RECOVER
 chmod +x "$INSTALLER_DIR/watchdog-recover.sh"
 
-if [ "$MODE" = flash ]; then
-  dbc_update_start || { echo "Unsupported or occupied direct DBC control; no DBC mutation performed" >&2; exit 1; }
+# A full image has lsc and leaves DBC power policy with vehicle-service. The
+# minimal MDB has no service stack, so any DBC handoff needs the same guarded
+# GPIO lifecycle as a direct dashboard flash.
+if [ "$MODE" = flash ] || ! command -v lsc >/dev/null 2>&1; then
+  dbc_update_start || { echo "Unsupported or occupied bootstrap DBC control; no DBC work performed" >&2; exit 1; }
 fi
 echo "" > "$LOG_FILE"
 
@@ -1270,9 +1273,9 @@ step_begin "Step 8: post-flash cleanup"
 log "  syncing..."
 sync
 log "  turning off DBC..."
-if [ "$MODE" = flash ]; then
-  dbc_control_check || fail "Lost bootstrap control before post-flash power-off"
-  dbc_power_off_wait || fail "Could not verify the bootstrap-controlled post-flash DBC power-off"
+if [ "$DBC_VEHICLE_UPDATE" = bootstrap ]; then
+  dbc_control_check || fail "Lost bootstrap control before DBC handoff power-off"
+  dbc_power_off_wait || fail "Could not verify the bootstrap-controlled DBC handoff power-off"
 fi
 
 # Write the post-reboot phase on MDB - /data/onboot.sh runs it on the next
@@ -1916,7 +1919,7 @@ else
 fi
 
 # Revalidate bootstrap capabilities and consume the one-use handoff before DBC work.
-if [ "$MODE" = flash ] && ! dbc_update_start; then
+if [ "$DBC_VEHICLE_UPDATE" = bootstrap ] && ! dbc_update_start; then
   write_status "error: exclusive bootstrap DBC control could not be resumed"
   dbc_update_complete || log "WARNING: installer DBC lifecycle release is unverified"
   signal_error
@@ -2423,7 +2426,7 @@ artifact_fail() {
   write_status "$1"
   if [ "${DBC_ACTIVATION_DISPATCHED:-no}" = yes ] || [ "${DBC_ARTIFACT_DISPATCHED:-no}" = yes ]; then
     log "  Remote write/activation/commit outcome requires manual recovery; power request and updater masks retained"
-  elif [ "$MODE" = flash ]; then
+  elif [ "$DBC_VEHICLE_UPDATE" = bootstrap ]; then
     dbc_owned_power_off || log "WARNING: bootstrap power-off refused"
     dbc_update_complete || log "WARNING: bootstrap control release is unverified"
   fi
@@ -2451,10 +2454,10 @@ dbc_update_service_fail() {
 # it, and an upgrade skipped straight here. /data survives a mender install,
 # so tiles copied afterwards are unaffected by the reboot below.
 if [ -n "$DBC_MENDER" ]; then
-  # Upgrade mode is update-service-managed. A direct install arrives with the
-  # lifecycle hold acknowledged before its stage-0 image was written.
-  if [ "$MODE" = flash ] && ! dbc_update_start; then
-    artifact_fail "error: the pre-flash installer-owned DBC lifecycle was not preserved"
+  # A bootstrap-controlled install arrives with its lifecycle hold acknowledged
+  # before the handoff. A full MDB delegates an upgrade to update-service.
+  if [ "$DBC_VEHICLE_UPDATE" = bootstrap ] && ! dbc_update_start; then
+    artifact_fail "error: the installer-owned DBC lifecycle was not preserved"
   fi
   # The trampoline body checked this before it rebooted the MDB, but the
   # reboot sits between the two. An artifact that was asked for and is not
@@ -2491,7 +2494,7 @@ if [ -n "$DBC_MENDER" ]; then
   DBC_ROOT_BEFORE=$(ssh -y -y root@$DBC_IP "awk '\$5 == \"/\" { print \$3 }' /proc/self/mountinfo" 2>/dev/null | tr -d '\r')
   [ -n "$DBC_BOOT_BEFORE" ] || artifact_fail "error: could not read the DBC boot identity before installation"
   [ -n "$DBC_ROOT_BEFORE" ] || artifact_fail "error: could not read the DBC mounted-root identity before installation"
-  if [ "$MODE" = flash ]; then
+  if [ "$DBC_VEHICLE_UPDATE" = bootstrap ]; then
     [ -n "$DBC_ART_BEFORE" ] || artifact_fail "error: could not capture the bootstrap's committed DBC artifact identity"
     [ "$DBC_ART_BEFORE" != "$DBC_EXPECTED_ARTIFACT" ] ||
       artifact_fail "error: target artifact $DBC_EXPECTED_ARTIFACT matches the bootstrap's committed artifact, so post-commit success would be indistinguishable"
@@ -2534,7 +2537,7 @@ if [ -n "$DBC_MENDER" ]; then
   TILES_JOB=$!
 
   DBC_SERVICE_MANAGED="no"
-  if [ "$MODE" = "upgrade" ]; then
+  if [ "$DBC_VEHICLE_UPDATE" != bootstrap ]; then
     # update-service may reboot as soon as its install is staged, so finish the
     # independent tile transfer before handing it control of the DBC.
     if [ -n "${TILES_JOB:-}" ]; then
@@ -2778,7 +2781,7 @@ ONBOOT
 
 cat >> "$SCRIPTS_DIR/20-dbc.sh" << 'ONBOOT_END'
 # Service-managed upgrades retain their own power policy.
-if [ "$MODE" = flash ]; then
+if [ "$DBC_VEHICLE_UPDATE" = bootstrap ]; then
   dbc_owned_power_off || { write_status "error: final bootstrap power-off failed"; signal_error; exit 1; }
   dbc_update_complete || { write_status "error: bootstrap control record remains"; signal_error; exit 1; }
 fi
@@ -2837,7 +2840,7 @@ log "Total trampoline wall-clock: $(($(date +%s) - SCRIPT_T0))s"
 #
 # It goes into its own unit rather than inheriting this scope: this script
 # is about to exit, and onboot.sh outlives it by many minutes.
-if [ "$MODE" = flash ]; then
+if [ "$DBC_VEHICLE_UPDATE" = bootstrap ]; then
   dbc_control_record handoff || fail "Could not record bootstrap handoff"
 fi
 if restore_gadget; then

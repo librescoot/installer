@@ -291,7 +291,7 @@ void main() {
     );
   });
 
-  test('the DBC lifecycle is acquired before the raw flash', () {
+  test('bootstrap DBC control is acquired before the raw flash', () {
     final acquire = outer.indexOf(
       'dbc_update_start || { echo "Unsupported or occupied',
     );
@@ -299,13 +299,20 @@ void main() {
     expect(acquire, greaterThan(-1));
     expect(flash, greaterThan(acquire));
     expect(
+      outer,
+      contains(
+        'if [ "\$MODE" = flash ] || ! command -v lsc >/dev/null 2>&1; then',
+      ),
+      reason: 'a minimal MDB needs guarded GPIO control for any DBC handoff',
+    );
+    expect(
       onboot,
       contains('DBC_VEHICLE_UPDATE="\$DBC_VEHICLE_UPDATE"'),
       reason: 'the acknowledged hold must cross into the generated phase',
     );
   });
 
-  test('the DBC artifact phase holds vehicle power until it finishes', () {
+  test('bootstrap-controlled DBC work holds power until it finishes', () {
     expect(onboot, contains('dbc_update_start()'));
     expect(onboot, contains('dbc_control_acquire handoff'));
     expect(onboot, contains('dbc_control_check'));
@@ -313,14 +320,16 @@ void main() {
     expect(onboot, contains('dbc_control_release'));
     expect(
       onboot,
-      contains('if [ "\$MODE" = flash ] && ! dbc_update_start; then'),
+      contains(
+        'if [ "\$DBC_VEHICLE_UPDATE" = bootstrap ] && ! dbc_update_start; then',
+      ),
       reason:
-          'a direct install must stop when its lifecycle is not acknowledged',
+          'bootstrap-controlled work must stop when its lifecycle is not acknowledged',
     );
     expect(
       onboot,
-      isNot(contains('[ "\$MODE" = upgrade ] && dbc_update_start')),
-      reason: 'upgrade-service owns the upgrade lifecycle',
+      contains('if [ "\$DBC_VEHICLE_UPDATE" != bootstrap ]; then'),
+      reason: 'only a full MDB may delegate the DBC upgrade lifecycle',
     );
     expect(
       onboot.indexOf('dbc_update_start'),
