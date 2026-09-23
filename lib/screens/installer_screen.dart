@@ -46,6 +46,7 @@ import '../models/region.dart';
 import '../models/scooter_health.dart';
 import '../models/substep.dart';
 import '../models/trampoline_status.dart';
+import '../models/version_label.dart' as versions;
 import '../services/artifact_service.dart';
 import '../services/connect_diagnosis.dart';
 import '../services/configuration_preservation_service.dart';
@@ -4497,7 +4498,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         : _isLibrescootFirmware
         ? l10n.distroLibrescoot
         : l10n.distroStock;
-    return version.isEmpty ? distro : '$distro $version';
+    return versions.installedVersionLabel(distro, version);
   }
 
   /// What the run intends to put there, with the channel it came from, since
@@ -4505,10 +4506,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   String? _targetVersionLabel(AppLocalizations l10n) {
     final tag = _downloadState.releaseTag;
     if (tag == null || tag.isEmpty) return null;
-    // The channel is part of what identifies the artifact, so it stays as it
-    // is written everywhere else: stable, testing, nightly. The localised
-    // labels belong on the cards where the user is choosing between them.
-    return '${l10n.distroLibrescoot} ${_downloadState.channel.name} $tag';
+    return versions.targetVersionLabel(
+      l10n.distroLibrescoot,
+      _downloadState.channel.name,
+      tag,
+    );
   }
 
   bool get _isLibrescootFirmware {
