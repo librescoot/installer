@@ -3380,6 +3380,18 @@ abstract class AppLocalizations {
   /// **'Not downloaded. Offline maps were skipped on the first screen.'**
   String get planTilesNotDownloaded;
 
+  /// No description provided for @planChangeOfflineMaps.
+  ///
+  /// In en, this message translates to:
+  /// **'Change offline maps'**
+  String get planChangeOfflineMaps;
+
+  /// No description provided for @planMapDownloadsPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline maps are downloading. Wait before continuing with their installation.'**
+  String get planMapDownloadsPending;
+
   /// No description provided for @actionLeaveBlockedStockMdb.
   ///
   /// In en, this message translates to:

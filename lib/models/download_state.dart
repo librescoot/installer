@@ -32,6 +32,7 @@ class DownloadItem {
   final String url;
   final String filename;
   final int expectedSize;
+
   /// Lower-case hex sha256 from the release's SHA256SUMS, when published.
   /// Null on legacy releases (pre-SHA256SUMS) or for assets the manifest
   /// doesn't list, verification is skipped in those cases.
@@ -78,6 +79,15 @@ class DownloadState {
 
   bool get allReady => items.every((i) => i.isComplete);
 
+  bool get offlineMapsReady {
+    final maps = items.where(
+      (item) =>
+          item.type == DownloadItemType.osmTiles ||
+          item.type == DownloadItemType.valhallaTiles,
+    );
+    return maps.isNotEmpty && maps.every((item) => item.isComplete);
+  }
+
   DownloadItem? itemOfType(DownloadItemType type) =>
       items.where((i) => i.type == type).firstOrNull;
 
@@ -90,10 +100,16 @@ class DownloadState {
   }
 
   DownloadItem? artifactFor(Board board) => itemOfType(
-      board == Board.mdb ? DownloadItemType.mdbArtifact : DownloadItemType.dbcArtifact);
+    board == Board.mdb
+        ? DownloadItemType.mdbArtifact
+        : DownloadItemType.dbcArtifact,
+  );
 
   DownloadItem? imageFor(Board board) => itemOfType(
-      board == Board.mdb ? DownloadItemType.mdbFirmware : DownloadItemType.dbcFirmware);
+    board == Board.mdb
+        ? DownloadItemType.mdbFirmware
+        : DownloadItemType.dbcFirmware,
+  );
 }
 
 class DownloadWaitFailure implements Exception {

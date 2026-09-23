@@ -1983,6 +1983,13 @@ class AppLocalizationsDe extends AppLocalizations {
       'Nicht heruntergeladen. Offline-Karten wurden im ersten Schritt übersprungen.';
 
   @override
+  String get planChangeOfflineMaps => 'Offline-Karten ändern';
+
+  @override
+  String get planMapDownloadsPending =>
+      'Offline-Karten werden heruntergeladen. Warte, bevor du mit ihrer Installation fortfährst.';
+
+  @override
   String get actionLeaveBlockedStockMdb =>
       'Das Serien-Hauptboard muss installiert werden, bevor weitere Aktionen möglich sind';
 

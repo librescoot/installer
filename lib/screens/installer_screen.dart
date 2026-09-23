@@ -2672,6 +2672,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   bool _downloadsKicked = false;
+  bool _mapSelectionChangedAtPlan = false;
   int _downloadGeneration = 0;
   DownloadCancellationToken? _downloadCancellationToken;
 
@@ -5007,6 +5008,77 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
   }
 
+  Future<void> _changePlanOfflineMaps(AppLocalizations l10n) async {
+    var wantsMaps = _downloadState.wantsOfflineMaps;
+    var region = _downloadState.selectedRegion;
+    final choice = await showDialog<({bool wantsMaps, Region? region})>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, refresh) => AlertDialog(
+          title: Text(l10n.planChangeOfflineMaps),
+          content: SizedBox(
+            width: 460,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CheckboxListTile(
+                  value: !wantsMaps,
+                  title: Text(l10n.skipOfflineMaps),
+                  onChanged: (skip) =>
+                      refresh(() => wantsMaps = !(skip ?? false)),
+                ),
+                if (wantsMaps)
+                  DropdownButtonFormField<Region>(
+                    initialValue: region,
+                    isExpanded: true,
+                    hint: Text(l10n.selectRegion),
+                    items: [
+                      for (final option in _availableRegions)
+                        DropdownMenuItem(
+                          value: option,
+                          child: Text(option.name),
+                        ),
+                    ],
+                    onChanged: (value) => refresh(() => region = value),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(l10n.cancelButton),
+            ),
+            FilledButton(
+              onPressed: !wantsMaps || region != null
+                  ? () => Navigator.pop(dialogContext, (
+                      wantsMaps: wantsMaps,
+                      region: region,
+                    ))
+                  : null,
+              child: Text(l10n.continueButton),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted ||
+        choice == null ||
+        (choice.wantsMaps == _downloadState.wantsOfflineMaps &&
+            choice.region == _downloadState.selectedRegion)) {
+      return;
+    }
+    _updateDownloadSelection(() {
+      _downloadState.wantsOfflineMaps = choice.wantsMaps;
+      _downloadState.selectedRegion = choice.region;
+    });
+    setState(() {
+      _mapSelectionChangedAtPlan = true;
+      _plan = _plan!.withTiles(choice.wantsMaps && _plan!.installTiles);
+    });
+    unawaited(_kickoffDownloads());
+  }
+
   Widget _buildInstallPlan(AppLocalizations l10n) {
     final cleanMdb =
         _plan!.mdb.action == BoardAction.cleanInstall ||
@@ -5016,7 +5088,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         _plan!.isNoOp ||
         _plan!.dbcWorkStrandedOn(_mdbState) ||
         (_plan!.installTiles && !_plan!.tilesAllowedFor(_dbcState)) ||
-        (cleanMdb && _configurationInspectionFailed);
+        (cleanMdb && _configurationInspectionFailed) ||
+        (_mapSelectionChangedAtPlan &&
+            (_downloadState.releaseTag == null ||
+                _downloadsFailed != null ||
+                _downloadState.missingRequiredTypes.isNotEmpty ||
+                (_plan!.installTiles && !_downloadState.offlineMapsReady)));
     return PhaseLayout(
       title: l10n.installPlanHeading,
       subtitle: l10n.installPlanIntro(_downloadState.releaseTag ?? ''),
@@ -5027,25 +5104,55 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           : () => _setPhase(InstallerPhase.healthCheck),
       backLabel: l10n.backButton,
       actions: [
+        if (!launchArgs.hasLocalImagesOnly)
+          PhaseAction(
+            label: l10n.planChangeOfflineMaps,
+            icon: Icons.map_outlined,
+            side: ActionSide.back,
+            onPressed: _isProcessing
+                ? null
+                : () => _changePlanOfflineMaps(l10n),
+          ),
         PhaseAction(
           label: l10n.continueButton,
           primary: true,
           onPressed: blocked ? null : _continueFromInstallPlan,
         ),
       ],
-      child: InstallPlanPanel(
-        plan: _plan!,
-        mdbState: _mdbState,
-        dbcState: _dbcState,
-        targetVersion: _downloadState.releaseTag ?? '',
-        tilesAvailable: _downloadState.wantsOfflineMaps,
-        mdbLockedNote: _directMassStorageRoute
-            ? l10n.planMdbInMassStorage
-            : null,
-        onChanged: (p) => setState(() {
-          _plan = p;
-          _configurationBackupError = null;
-        }),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InstallPlanPanel(
+            plan: _plan!,
+            mdbState: _mdbState,
+            dbcState: _dbcState,
+            targetVersion: _downloadState.releaseTag ?? '',
+            tilesAvailable: _downloadState.wantsOfflineMaps,
+            mdbLockedNote: _directMassStorageRoute
+                ? l10n.planMdbInMassStorage
+                : null,
+            onChanged: (p) => setState(() {
+              _plan = p;
+              _configurationBackupError = null;
+            }),
+          ),
+          if (_mapSelectionChangedAtPlan && _downloadsFailed != null) ...[
+            Text(
+              _downloadsFailed!,
+              style: const TextStyle(color: Colors.redAccent),
+            ),
+            TextButton(
+              onPressed: () {
+                _updateDownloadSelection(() {});
+                unawaited(_kickoffDownloads());
+              },
+              child: Text(l10n.retryButton),
+            ),
+          ] else if (_mapSelectionChangedAtPlan &&
+              _plan!.installTiles &&
+              !_downloadState.offlineMapsReady)
+            Text(l10n.planMapDownloadsPending),
+        ],
       ),
     );
   }

@@ -1950,6 +1950,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Not downloaded. Offline maps were skipped on the first screen.';
 
   @override
+  String get planChangeOfflineMaps => 'Change offline maps';
+
+  @override
+  String get planMapDownloadsPending =>
+      'Offline maps are downloading. Wait before continuing with their installation.';
+
+  @override
   String get actionLeaveBlockedStockMdb =>
       'A stock main board has to be installed before anything else can be done';
 

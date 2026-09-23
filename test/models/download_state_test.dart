@@ -20,8 +20,10 @@ void main() {
     test('an empty queue is missing everything the run needs', () {
       final state = DownloadState()
         ..requiredTypes = DownloadState.defaultRequiredTypes;
-      expect(state.missingRequiredTypes.length,
-          DownloadState.defaultRequiredTypes.length);
+      expect(
+        state.missingRequiredTypes.length,
+        DownloadState.defaultRequiredTypes.length,
+      );
       // The old allFirmwareReady said yes here, because `every` on an empty
       // iterable is true.
       expect(state.allReady, isTrue);
@@ -34,8 +36,13 @@ void main() {
           _item(DownloadItemType.mdbFirmware),
           _item(DownloadItemType.dbcFirmware),
         ];
-      expect(state.missingRequiredTypes,
-          containsAll([DownloadItemType.mdbArtifact, DownloadItemType.dbcArtifact]));
+      expect(
+        state.missingRequiredTypes,
+        containsAll([
+          DownloadItemType.mdbArtifact,
+          DownloadItemType.dbcArtifact,
+        ]),
+      );
     });
 
     test('a complete release is missing nothing', () {
@@ -62,39 +69,62 @@ void main() {
       expect(state.missingRequiredTypes, isEmpty);
     });
 
-    test('bmaps are not blocking: a missing one costs speed, not correctness',
-        () {
-      expect(DownloadState.defaultRequiredTypes,
-          isNot(contains(DownloadItemType.mdbBmap)));
-      expect(DownloadState.defaultRequiredTypes,
-          isNot(contains(DownloadItemType.dbcBmap)));
-    });
+    test(
+      'bmaps are not blocking: a missing one costs speed, not correctness',
+      () {
+        expect(
+          DownloadState.defaultRequiredTypes,
+          isNot(contains(DownloadItemType.mdbBmap)),
+        );
+        expect(
+          DownloadState.defaultRequiredTypes,
+          isNot(contains(DownloadItemType.dbcBmap)),
+        );
+      },
+    );
+  });
+
+  test('offline maps are ready only after a map item has completed', () {
+    final state = DownloadState();
+    expect(state.offlineMapsReady, isFalse);
+    state.items = [_item(DownloadItemType.mdbFirmware)];
+    expect(state.offlineMapsReady, isFalse);
+    state.items = [_item(DownloadItemType.osmTiles, complete: false)];
+    expect(state.offlineMapsReady, isFalse);
+    state.items = [_item(DownloadItemType.osmTiles)];
+    expect(state.offlineMapsReady, isTrue);
+    state.items.add(_item(DownloadItemType.valhallaTiles, complete: false));
+    expect(state.offlineMapsReady, isFalse);
   });
 
   group('waitForDownloads', () {
-    test('failure after continuing offline terminates the later wait',
-        () async {
-      final state = DownloadState()
-        ..items = [_item(DownloadItemType.mdbFirmware, complete: false)];
+    test(
+      'failure after continuing offline terminates the later wait',
+      () async {
+        final state = DownloadState()
+          ..items = [_item(DownloadItemType.mdbFirmware, complete: false)];
 
-      Future<void>.delayed(const Duration(milliseconds: 5), () {
-        state.error = 'connection reset';
-      });
+        Future<void>.delayed(const Duration(milliseconds: 5), () {
+          state.error = 'connection reset';
+        });
 
-      await expectLater(
-        waitForDownloads(
-          isReady: () => state.allReady,
-          currentError: () => state.error,
-          isCancelled: () => false,
-          pollInterval: const Duration(milliseconds: 1),
-        ),
-        throwsA(isA<DownloadWaitFailure>().having(
-          (error) => error.message,
-          'message',
-          'connection reset',
-        )),
-      );
-    });
+        await expectLater(
+          waitForDownloads(
+            isReady: () => state.allReady,
+            currentError: () => state.error,
+            isCancelled: () => false,
+            pollInterval: const Duration(milliseconds: 1),
+          ),
+          throwsA(
+            isA<DownloadWaitFailure>().having(
+              (error) => error.message,
+              'message',
+              'connection reset',
+            ),
+          ),
+        );
+      },
+    );
 
     test('cancellation terminates an incomplete wait', () async {
       await expectLater(
@@ -117,11 +147,13 @@ void main() {
           pollInterval: const Duration(milliseconds: 1),
           timeout: const Duration(milliseconds: 5),
         ),
-        throwsA(isA<DownloadWaitFailure>().having(
-          (error) => error.message,
-          'message',
-          contains('did not finish'),
-        )),
+        throwsA(
+          isA<DownloadWaitFailure>().having(
+            (error) => error.message,
+            'message',
+            contains('did not finish'),
+          ),
+        ),
       );
     });
   });

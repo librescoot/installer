@@ -845,6 +845,8 @@
   "planTilesBootstrapDbc": "The DBC is running a bootstrap image. The bootstrap image cannot use offline maps. Choose Clean install for the DBC, or continue without maps and run the installer again later.",
   "planTilesNeedKnownDbc": "The dashboard was not identified as a complete Librescoot installation. Reinstall the dashboard to add offline maps.",
   "planTilesNotDownloaded": "Not downloaded. Offline maps were skipped on the first screen.",
+  "planChangeOfflineMaps": "Change offline maps",
+  "planMapDownloadsPending": "Offline maps are downloading. Wait before continuing with their installation.",
   "actionLeaveBlockedStockMdb": "A stock main board has to be installed before anything else can be done",
   "planDbcNeedsLibrescootMdb": "The dashboard can only be reached through the MDB, and the tools that reach it are part of Librescoot. Install the MDB in this run, or leave the dashboard alone.",
   "planNothingToDo": "Nothing selected. Pick at least one action to continue.",

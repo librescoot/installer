@@ -707,6 +707,8 @@
   "planTilesBootstrapDbc": "Das DBC läuft mit einem Bootstrap-Image. Dieses kann keine Offline-Karten verwenden. Wähle für das DBC „Neu installieren“ oder fahre ohne Karten fort und starte den Installer später erneut.",
   "planTilesNeedKnownDbc": "Das Display wurde nicht als vollständige Librescoot-Installation erkannt. Installiere das Display neu, um Offline-Karten hinzuzufügen.",
   "planTilesNotDownloaded": "Nicht heruntergeladen. Offline-Karten wurden im ersten Schritt übersprungen.",
+  "planChangeOfflineMaps": "Offline-Karten ändern",
+  "planMapDownloadsPending": "Offline-Karten werden heruntergeladen. Warte, bevor du mit ihrer Installation fortfährst.",
   "actionLeaveBlockedStockMdb": "Das Serien-Hauptboard muss installiert werden, bevor weitere Aktionen möglich sind",
   "planDbcNeedsLibrescootMdb": "Das DBC ist nur über das MDB erreichbar und die benötigten Werkzeuge gehören zu Librescoot. Installiere in diesem Vorgang das MDB mit oder lasse das DBC unverändert.",
   "planNothingToDo": "Keine Aktion ausgewählt. Wähle mindestens eine Aktion, um fortzufahren.",
