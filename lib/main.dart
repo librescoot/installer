@@ -203,6 +203,7 @@ final ValueNotifier<Locale> appLocale = ValueNotifier(const Locale('de'));
 /// Installer version. Injected by CI via `--dart-define=APP_VERSION=<git describe>`;
 /// falls back to 'dev' for local unflagged builds.
 const String appVersion = String.fromEnvironment('APP_VERSION', defaultValue: 'dev');
+const String appTitle = 'Librescoot Installer $appVersion';
 
 void main(List<String> args) async {
   runZonedGuarded(() async {
@@ -210,6 +211,7 @@ void main(List<String> args) async {
     if (Platform.isLinux || Platform.isMacOS || Platform.isWindows) {
       await windowManager.ensureInitialized();
       await windowManager.setPreventClose(true);
+      await windowManager.setTitle(appTitle);
     }
 
     // Flutter framework errors (build/layout/paint exceptions). Without this,
@@ -296,7 +298,7 @@ class LibrescootInstaller extends StatelessWidget {
     return ValueListenableBuilder<Locale>(
       valueListenable: appLocale,
       builder: (context, locale, _) => MaterialApp(
-        title: 'Librescoot Installer',
+        title: appTitle,
         debugShowCheckedModeBanner: false,
         scaffoldMessengerKey: rootScaffoldMessengerKey,
         locale: locale,
