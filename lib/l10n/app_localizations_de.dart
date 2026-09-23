@@ -2226,7 +2226,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Solange weder die LED am Tacho rot blinkt (Fehler) noch der Roller vollständig zurück ist – entsperrt, Licht an und Dashboard an (Erfolg) –, ist das Warten normal. Bis dahin keine Kabel oder Batterien trennen und nichts am Roller betätigen.';
 
   @override
-  String get dbcFlashObservedSuccess => 'Ich sehe das Abschlusszeichen';
+  String get dbcFlashObservedSuccess => 'Der Roller hat sich entsperrt';
 
   @override
   String get dbcFlashDoNotDisconnect =>
@@ -2234,7 +2234,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcFlashDoneSignal =>
-      'Fertig: Der Roller wird automatisch entsperrt, die Beleuchtung und das Dashboard sind an. Das ist das Abschlusszeichen; du musst nicht weiter warten.';
+      'Fertig: Der Roller hat sich automatisch entsperrt, Beleuchtung und Dashboard sind an. Du musst nicht weiter warten.';
 
   @override
   String get dbcFlashFailSignal =>
