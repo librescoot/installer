@@ -46,8 +46,10 @@ Future<PreviousInstallFailure?> probePreviousInstallFailure(
         ? status!.message
         : state?.stage ?? 'error';
   } else if (status?.result == TrampolineResult.error &&
-      (state?.result != TrampolineResult.success ||
-          state?.runId != status?.runId)) {
+      (state?.runId == null ||
+          status?.runId == null ||
+          state?.runId == status?.runId) &&
+      state?.result != TrampolineResult.success) {
     runId = status?.runId;
     reason = status?.message;
   }

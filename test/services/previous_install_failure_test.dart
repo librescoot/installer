@@ -59,6 +59,19 @@ void main() {
     );
   });
 
+  test(
+    'a newer running attempt does not report an older failed status',
+    () async {
+      expect(
+        await probe(
+          status: 'error: old failure\nrun-id: older\n',
+          state: 'run-id: current\nresult: running\nstage: dbcFlash\n',
+        ),
+        isNull,
+      );
+    },
+  );
+
   test('completed same run suppresses a stale failure status', () async {
     expect(
       await probe(
