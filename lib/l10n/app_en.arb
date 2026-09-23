@@ -615,10 +615,11 @@
   "@configurationVerificationFailedBody": {
     "placeholders": {"backupPath": {"type": "String"}}
   },
-  "configurationDetected": "{count, plural, one{1 configuration detected} other{{count} configurations detected}}",
-  "@configurationDetected": {
-    "placeholders": {"count": {"type": "int"}}
+  "configurationTransferable": "The following data can be transferred: {categories}.",
+  "@configurationTransferable": {
+    "placeholders": {"categories": {"type": "String"}}
   },
+  "configurationListAnd": " and ",
   "configurationRestoreHeading": "Which device configurations should be restored?",
   "configurationRestoreDetail": "Choose which detected settings should be restored after the clean install. All are selected by default.",
   "configurationIdentity": "Device identity and VIN database",
@@ -627,7 +628,7 @@
   "configurationWireGuardDescription": "Keeps VPN connections, including private keys.",
   "configurationUplink": "Uplink service",
   "configurationUplinkDescription": "Keeps the cellular and uplink service configuration.",
-  "configurationRadioGaga": "Cloud connection (radio-gaga)",
+  "configurationRadioGaga": "Cloud configuration",
   "configurationRadioGagaDescription": "Keeps the cloud configuration and its CA certificate.",
   "configurationSettings": "Scooter settings",
   "configurationSettingsDescription": "Keeps language, behavior, and other personal settings.",

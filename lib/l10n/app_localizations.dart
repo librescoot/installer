@@ -2582,11 +2582,17 @@ abstract class AppLocalizations {
   /// **'Do not rely on the restored configuration yet. Retry while the scooter is connected. The host backup has been retained at:\n{backupPath}'**
   String configurationVerificationFailedBody(String backupPath);
 
-  /// No description provided for @configurationDetected.
+  /// No description provided for @configurationTransferable.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, one{1 configuration detected} other{{count} configurations detected}}'**
-  String configurationDetected(int count);
+  /// **'The following data can be transferred: {categories}.'**
+  String configurationTransferable(String categories);
+
+  /// No description provided for @configurationListAnd.
+  ///
+  /// In en, this message translates to:
+  /// **' and '**
+  String get configurationListAnd;
 
   /// No description provided for @configurationRestoreHeading.
   ///
@@ -2639,7 +2645,7 @@ abstract class AppLocalizations {
   /// No description provided for @configurationRadioGaga.
   ///
   /// In en, this message translates to:
-  /// **'Cloud connection (radio-gaga)'**
+  /// **'Cloud configuration'**
   String get configurationRadioGaga;
 
   /// No description provided for @configurationRadioGagaDescription.

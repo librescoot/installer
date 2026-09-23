@@ -62,13 +62,13 @@ void main() {
     );
   });
 
-  test('health check shows the detected configuration count', () {
+  test('health check names transferable configuration categories', () {
     final start = source.indexOf('Widget _buildHealthCheck(');
     final end = source.indexOf('Future<void> _runHealthCheck()', start);
     final method = source.substring(start, end);
 
-    expect(method, contains('l10n.configurationDetected('));
-    expect(method, contains('_configurationInventory.categories.length'));
+    expect(method, contains('configurationDetectedSummary(l10n, ['));
+    expect(method, contains('_configurationInventory.categories.contains('));
   });
 
   test('install plan no longer embeds configuration checkboxes', () {

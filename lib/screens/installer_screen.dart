@@ -22,6 +22,7 @@ import '../main.dart'
         showElevationRequiredDialog;
 import '../l10n/app_localizations.dart';
 import '../l10n/connect_failure_l10n.dart';
+import '../l10n/configuration_summary.dart';
 import '../models/board_state.dart';
 import '../models/connect_failure.dart';
 import '../models/configuration_preservation.dart';
@@ -476,6 +477,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     _loadAvailableRegions();
     _detectRegionFromIp();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (!launchArgs.autoStart) _sounds.play(InstallerCue.boot);
       unawaited(_checkForInstallerUpdate());
     });
   }
@@ -924,20 +927,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _isProcessing = false;
     });
     _queueInstallPhaseRecord(phase);
-    if (phase != leaving &&
-        const {
-          InstallerPhase.physicalPrep,
-          InstallerPhase.installPlan,
-          InstallerPhase.configurationConfirmation,
-          InstallerPhase.scooterPrep,
-          InstallerPhase.mdbBoot,
-          InstallerPhase.bluetoothPairing,
-          InstallerPhase.keycardSetup,
-          InstallerPhase.cbbReconnect,
-          InstallerPhase.reconnect,
-          InstallerPhase.finish,
-        }.contains(phase)) {
-      _sounds.play(InstallerCue.attention);
+    if (phase != leaving) {
+      final cue = cueForPhase(phase);
+      if (cue != null) _sounds.play(cue);
     }
     if (leaving == InstallerPhase.keycardSetup &&
         phase != InstallerPhase.keycardSetup) {
@@ -4797,11 +4789,17 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 children: [
                   const Icon(Icons.check_circle, color: Colors.green, size: 18),
                   const SizedBox(width: 8),
-                  Text(
-                    l10n.configurationDetected(
-                      _configurationInventory.categories.length,
+                  Expanded(
+                    child: Text(
+                      configurationDetectedSummary(l10n, [
+                        for (final category in _configurationDisplayOrder)
+                          if (_configurationInventory.categories.contains(
+                            category,
+                          ))
+                            _configurationCategoryLabel(l10n, category),
+                      ]),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ],
               ),

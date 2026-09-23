@@ -3,7 +3,23 @@ import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 
-enum InstallerCue { beat, release, pull, confirmed, attention, boot }
+import '../models/installer_phase.dart';
+
+enum InstallerCue { beat, release, pull, confirmed, attention, critical, boot }
+
+InstallerCue? cueForPhase(InstallerPhase phase) => switch (phase) {
+  InstallerPhase.scooterPrep ||
+  InstallerPhase.mdbBoot ||
+  InstallerPhase.cbbReconnect => InstallerCue.critical,
+  InstallerPhase.physicalPrep ||
+  InstallerPhase.installPlan ||
+  InstallerPhase.configurationConfirmation ||
+  InstallerPhase.bluetoothPairing ||
+  InstallerPhase.keycardSetup ||
+  InstallerPhase.reconnect ||
+  InstallerPhase.finish => InstallerCue.attention,
+  _ => null,
+};
 
 /// Best-effort local playback: audio must never interrupt an installation.
 class InstallerSounds {

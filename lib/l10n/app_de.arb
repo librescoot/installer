@@ -497,10 +497,11 @@
   "@configurationVerificationFailedBody": {
     "placeholders": {"backupPath": {"type": "String"}}
   },
-  "configurationDetected": "{count, plural, one{1 Konfiguration erkannt} other{{count} Konfigurationen erkannt}}",
-  "@configurationDetected": {
-    "placeholders": {"count": {"type": "int"}}
+  "configurationTransferable": "Folgende Daten können übertragen werden: {categories}.",
+  "@configurationTransferable": {
+    "placeholders": {"categories": {"type": "String"}}
   },
+  "configurationListAnd": " und ",
   "configurationRestoreHeading": "Welche Gerätekonfigurationen wiederherstellen?",
   "configurationRestoreDetail": "Wähle aus, welche gefundenen Einstellungen nach der Neuinstallation wiederhergestellt werden sollen. Alle sind vorausgewählt.",
   "configurationIdentity": "Geräteidentität und VIN-Datenbank",
@@ -509,7 +510,7 @@
   "configurationWireGuardDescription": "Erhält VPN-Verbindungen einschließlich privater Schlüssel.",
   "configurationUplink": "Uplink-Dienst",
   "configurationUplinkDescription": "Erhält die Konfiguration des Mobilfunk- und Uplink-Dienstes.",
-  "configurationRadioGaga": "Cloud-Verbindung (radio-gaga)",
+  "configurationRadioGaga": "Cloud-Konfiguration",
   "configurationRadioGagaDescription": "Erhält die Cloud-Konfiguration und das zugehörige CA-Zertifikat.",
   "configurationSettings": "Rollereinstellungen",
   "configurationSettingsDescription": "Erhält Sprache, Verhalten und weitere persönliche Einstellungen.",

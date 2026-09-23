@@ -1446,15 +1446,12 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String configurationDetected(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count configurations detected',
-      one: '1 configuration detected',
-    );
-    return '$_temp0';
+  String configurationTransferable(String categories) {
+    return 'The following data can be transferred: $categories.';
   }
+
+  @override
+  String get configurationListAnd => ' and ';
 
   @override
   String get configurationRestoreHeading =>
@@ -1486,7 +1483,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Keeps the cellular and uplink service configuration.';
 
   @override
-  String get configurationRadioGaga => 'Cloud connection (radio-gaga)';
+  String get configurationRadioGaga => 'Cloud configuration';
 
   @override
   String get configurationRadioGagaDescription =>
