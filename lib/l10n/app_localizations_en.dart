@@ -2173,12 +2173,23 @@ class AppLocalizationsEn extends AppLocalizations {
       'The scooter now completes the requested dashboard work. Progress appears on the dashboard. Stay with the scooter until it completes or reports an error.';
 
   @override
+  String get dbcFlashHandsOffHeading =>
+      'HANDS OFF – THE SCOOTER IS WORKING ON ITS OWN';
+
+  @override
+  String get dbcFlashHandsOffBody =>
+      'Until either the dashboard LED blinks red (error) or the scooter fully returns – unlocked, lights and dashboard on (success) – waiting is normal. Do not disconnect cables or batteries or operate the scooter in the meantime.';
+
+  @override
+  String get dbcFlashObservedSuccess => 'I see the completion signal';
+
+  @override
   String get dbcFlashDoNotDisconnect =>
       'Do not disconnect USB or power while this runs.';
 
   @override
   String get dbcFlashDoneSignal =>
-      'Complete: the scooter returns to its normal state. Verify that it unlocks before riding.';
+      'Complete: the scooter unlocks automatically, with its lights and dashboard on. You do not need to keep waiting.';
 
   @override
   String get dbcFlashFailSignal =>

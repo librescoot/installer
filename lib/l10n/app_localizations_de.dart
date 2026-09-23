@@ -2211,12 +2211,23 @@ class AppLocalizationsDe extends AppLocalizations {
       'Der Roller führt jetzt die ausgewählten Display-Arbeiten aus. Den tatsächlichen Zustand zeigen das Display und die Blinker. Warte, bis der Vorgang abgeschlossen ist oder ein Fehler angezeigt wird.';
 
   @override
+  String get dbcFlashHandsOffHeading =>
+      'FINGER WEG – DER ROLLER ARBEITET SELBSTSTÄNDIG';
+
+  @override
+  String get dbcFlashHandsOffBody =>
+      'Solange weder die LED am Tacho rot blinkt (Fehler) noch der Roller vollständig zurück ist – entsperrt, Licht an und Dashboard an (Erfolg) –, ist das Warten normal. Bis dahin keine Kabel oder Batterien trennen und nichts am Roller betätigen.';
+
+  @override
+  String get dbcFlashObservedSuccess => 'Ich sehe das Abschlusszeichen';
+
+  @override
   String get dbcFlashDoNotDisconnect =>
       'USB und Strom nicht trennen, solange das läuft.';
 
   @override
   String get dbcFlashDoneSignal =>
-      'Fertig: Der Roller wird automatisch entsperrt. Das ist das Abschlusszeichen; du musst nicht weiter warten.';
+      'Fertig: Der Roller wird automatisch entsperrt, die Beleuchtung und das Dashboard sind an. Das ist das Abschlusszeichen; du musst nicht weiter warten.';
 
   @override
   String get dbcFlashFailSignal =>

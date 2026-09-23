@@ -67,14 +67,14 @@ void main() {
     );
   });
 
-  test('autonomous handoff keeps error and skip actions', () {
+  test('autonomous handoff keeps error and observed-success actions', () {
     final start = source.indexOf('Widget _buildDbcFlash(');
     final end = source.indexOf('\n  Future<void> _watchDbcFlash()', start);
     final autonomous = source.substring(start, end);
     expect(autonomous, contains('EstimatedHandoffProgress('));
     expect(autonomous, contains('_autonomousHandoffStartedAt'));
     expect(autonomous, contains('l10n.dbcFlashSomethingWrong'));
-    expect(autonomous, contains('l10n.skipToFinish'));
+    expect(autonomous, contains('l10n.dbcFlashObservedSuccess'));
     expect(autonomous, isNot(contains('l10n.dbcFlashAllDone')));
   });
 

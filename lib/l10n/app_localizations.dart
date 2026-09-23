@@ -3752,6 +3752,24 @@ abstract class AppLocalizations {
   /// **'The scooter now completes the requested dashboard work. Progress appears on the dashboard. Stay with the scooter until it completes or reports an error.'**
   String get dbcFlashSequence;
 
+  /// No description provided for @dbcFlashHandsOffHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'HANDS OFF – THE SCOOTER IS WORKING ON ITS OWN'**
+  String get dbcFlashHandsOffHeading;
+
+  /// No description provided for @dbcFlashHandsOffBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Until either the dashboard LED blinks red (error) or the scooter fully returns – unlocked, lights and dashboard on (success) – waiting is normal. Do not disconnect cables or batteries or operate the scooter in the meantime.'**
+  String get dbcFlashHandsOffBody;
+
+  /// No description provided for @dbcFlashObservedSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'I see the completion signal'**
+  String get dbcFlashObservedSuccess;
+
   /// No description provided for @dbcFlashDoNotDisconnect.
   ///
   /// In en, this message translates to:
@@ -3761,7 +3779,7 @@ abstract class AppLocalizations {
   /// No description provided for @dbcFlashDoneSignal.
   ///
   /// In en, this message translates to:
-  /// **'Complete: the scooter returns to its normal state. Verify that it unlocks before riding.'**
+  /// **'Complete: the scooter unlocks automatically, with its lights and dashboard on. You do not need to keep waiting.'**
   String get dbcFlashDoneSignal;
 
   /// No description provided for @dbcFlashFailSignal.

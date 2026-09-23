@@ -8378,7 +8378,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           },
         ),
         PhaseAction(
-          label: l10n.skipToFinish,
+          label: l10n.dbcFlashObservedSuccess,
           icon: Icons.arrow_forward,
           onPressed: _isProcessing ? null : _finishAfterDbcSuccess,
         ),
@@ -8393,6 +8393,50 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               fontSize: 14,
               color: Colors.grey.shade300,
               height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.amber.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.amber, width: 2),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.pan_tool_alt,
+                      size: 28,
+                      color: Colors.amber,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        l10n.dbcFlashHandsOffHeading,
+                        style: const TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.amber,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  l10n.dbcFlashHandsOffBody,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    height: 1.45,
+                    color: Colors.grey.shade100,
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 18),
@@ -8446,19 +8490,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             icon: Icons.warning_amber_rounded,
             colour: Colors.redAccent,
             text: l10n.dbcFlashFailSignal,
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Icon(Icons.power_off, size: 18, color: Colors.orange.shade300),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  l10n.dbcFlashDoNotDisconnect,
-                  style: TextStyle(fontSize: 13, color: Colors.orange.shade200),
-                ),
-              ),
-            ],
           ),
         ],
       ),
