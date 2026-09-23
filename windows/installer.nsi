@@ -26,7 +26,7 @@
 
 Name "${PRODUCT_NAME} ${PRODUCT_VERSION}"
 OutFile "${OUT_FILE}"
-Icon "windows\runner\resources\app_icon.ico"
+Icon "${__FILEDIR__}/runner/resources/app_icon.ico"
 
 ; The inner app needs admin (pnputil, network config, ShellHWDetection).
 ; UAC prompt fires once; the inner exe inherits the elevated token.
