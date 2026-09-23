@@ -8549,7 +8549,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 Row(
                   children: [
                     const Icon(
-                      Icons.pan_tool_alt,
+                      Icons.warning_amber_rounded,
                       size: 28,
                       color: Colors.amber,
                     ),
