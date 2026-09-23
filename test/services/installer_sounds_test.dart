@@ -5,6 +5,7 @@ import 'package:librescoot_installer/services/installer_sounds.dart';
 
 void main() {
   test('manual power and restart steps use the stronger cue', () {
+    expect(cueForPhase(InstallerPhase.notices), InstallerCue.critical);
     expect(cueForPhase(InstallerPhase.scooterPrep), InstallerCue.critical);
     expect(cueForPhase(InstallerPhase.mdbBoot), InstallerCue.critical);
     expect(cueForPhase(InstallerPhase.cbbReconnect), InstallerCue.critical);
@@ -21,6 +22,7 @@ void main() {
 
   test('installer cues use the selected dashboard assets', () {
     expect(InstallerCue.critical.assetName, 'toast-warning.wav');
+    expect(InstallerCue.error.assetName, 'toast-error.wav');
     expect(InstallerCue.attention.assetName, 'toast-info.wav');
     expect(InstallerCue.confirmed.assetName, 'nav-start.wav');
     expect(InstallerCue.release.assetName, 'blinker-pulse.wav');

@@ -1544,7 +1544,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     });
   }
 
-  void _setStatus(String message, {double? progress}) {
+  void _setStatus(String message, {double? progress, InstallerCue? cue}) {
+    if (cue != null && message != _statusMessage) _sounds.play(cue);
     if (message.isNotEmpty) appendLog(message);
     // A wait's steps are its status messages, so a phase advances itself just
     // by saying what it is doing. No second set of call sites to keep in step
@@ -2623,7 +2624,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (_downloadState.wantsOfflineMaps &&
         _downloadState.selectedRegion == null &&
         !launchArgs.hasLocalImagesOnly) {
-      _setStatus(l10n.selectRegionError);
+      _setStatus(l10n.selectRegionError, cue: InstallerCue.critical);
       return;
     }
 
@@ -2706,6 +2707,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// as fast as the failing request resolved. A field log caught it at ~23
   /// requests a second for 156s, which was most of the log.
   String? _downloadsFailed;
+
+  void _recordDownloadFailure(String message) {
+    if (_downloadsFailed != message) _sounds.play(InstallerCue.error);
+    _downloadsFailed = message;
+  }
 
   /// A queue entry backed by a file already on disk rather than a download.
   Future<DownloadItem> _localImageItem(
@@ -2842,6 +2848,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             'Downloads: release ${release.tag} is missing '
             '${_downloadState.missingRequiredTypes}',
           );
+          _sounds.play(InstallerCue.error);
           return;
         }
         // Check the disk before starting rather than filling it and failing
@@ -2858,7 +2865,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           debugPrint('Downloads: $mb MB short on ${cacheDir.path}');
           if (mounted) {
             setState(
-              () => _downloadsFailed = l10n.notEnoughDiskSpace('$mb MB'),
+              () => _recordDownloadFailure(l10n.notEnoughDiskSpace('$mb MB')),
             );
           }
           return;
@@ -2871,7 +2878,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // Deliberately NOT re-arming _downloadsKicked: the retry is the user's
       // to ask for, via the button this failure puts on screen.
       if (_ownsDownloadGeneration(generation, cancellationToken)) {
-        setState(() => _downloadsFailed = e.toString());
+        setState(() => _recordDownloadFailure(e.toString()));
       }
     } finally {
       if (_ownsDownloadGeneration(generation, cancellationToken)) {
@@ -2933,7 +2940,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         final message = e.toString();
         setState(() {
           _downloadState.error = message;
-          _downloadsFailed = message;
+          _recordDownloadFailure(message);
         });
       }
     }
@@ -3545,7 +3552,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           _setStatus(l10n.waitingForMdb);
         }
       } on NetworkPrivilegeException catch (e) {
-        _setStatus(l10n.errorPrefix(e.toString()));
+        _setStatus(l10n.errorPrefix(e.toString()), cue: InstallerCue.error);
         setState(() => _isProcessing = false);
         return;
       }
@@ -3787,7 +3794,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       }
       // The log line keeps the exception on one line. The screen below turns
       // the same exception into a heading and a checklist.
-      _setStatus(l10n.sshConnectionFailed(e.toString()));
+      _setStatus(
+        l10n.sshConnectionFailed(e.toString()),
+        cue: InstallerCue.error,
+      );
       // No auto-retry here: SSH failure means the previous network config
       // didn't actually deliver a reachable MDB. Repeating the same dance
       // every second flickers the UI. The retry button below explicitly
@@ -3961,7 +3971,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     try {
       await _completeConnectionSetup(l10n, servicesRecovered: true);
     } catch (e) {
-      _setStatus(l10n.sshConnectionFailed(e.toString()));
+      _setStatus(
+        l10n.sshConnectionFailed(e.toString()),
+        cue: InstallerCue.error,
+      );
       if (mounted) setState(() => _isProcessing = false);
     }
   }
@@ -4688,7 +4701,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         dbc = await _detectDbcState();
       } catch (e) {
         if (!mounted) return;
-        _setStatus(l10n.errorPrefix(e.toString()));
+        _setStatus(l10n.errorPrefix(e.toString()), cue: InstallerCue.error);
         setState(() => _isProcessing = false);
         return;
       }
@@ -4941,10 +4954,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         final health = await _sshService.queryHealth();
         if (!mounted) return;
         setState(() => _scooterHealth = health);
+        if (!health.allOk) _sounds.play(InstallerCue.critical);
       } catch (e) {
         debugPrint('Health: bootstrap image answered nothing: $e');
         if (!mounted) return;
         setState(() => _scooterHealth = ScooterHealth());
+        _sounds.play(InstallerCue.critical);
       }
       try {
         _setStatus(l10n.inspectingConfiguration);
@@ -4958,7 +4973,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       } catch (error) {
         if (!mounted) return;
         setState(() => _configurationInspectionFailed = true);
-        _setStatus(l10n.healthCheckFailed(error.toString()));
+        _setStatus(
+          l10n.healthCheckFailed(error.toString()),
+          cue: InstallerCue.error,
+        );
       }
       if (mounted) setState(() => _isProcessing = false);
       return;
@@ -4987,6 +5005,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       }
       if (!mounted) return;
       setState(() => _scooterHealth = health);
+      if (!health.allOk) _sounds.play(InstallerCue.critical);
       await _sshService.logScooterStats('health-check');
       if (!mounted) return;
 
@@ -5001,7 +5020,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     } catch (e) {
       if (mounted) {
         setState(() => _configurationInspectionFailed = true);
-        _setStatus(l10n.healthCheckFailed(e.toString()));
+        _setStatus(
+          l10n.healthCheckFailed(e.toString()),
+          cue: InstallerCue.error,
+        );
       }
     } finally {
       if (mounted) setState(() => _isProcessing = false);
@@ -5633,7 +5655,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       }
     }
     if (!_ownsMdbToUmsAttempt(generation)) return;
-    _setStatus(failureStatus);
+    _setStatus(failureStatus, cue: InstallerCue.error);
     setState(() {
       _isProcessing = false;
       _mdbToUmsAttempt.fail(generation, failureStatus);
@@ -6074,7 +6096,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         if (!confirmed) {
           debugPrint('Flash: user did not confirm $devicePath as the target');
           criticalOperation.release();
-          _setStatus(l10n.flashTargetNotConfirmed);
+          _setStatus(l10n.flashTargetNotConfirmed, cue: InstallerCue.critical);
           _blockMdbFlash();
           return;
         }
@@ -6099,7 +6121,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           'new=$freshTarget/$freshPath)',
         );
         criticalOperation.release();
-        _setStatus(l10n.noDevicePathFound);
+        _setStatus(l10n.noDevicePathFound, cue: InstallerCue.error);
         _blockMdbFlash(ownershipUncertain: true);
         return;
       }
@@ -6168,7 +6190,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       final errText = e.toString();
       final failureDeviceGeneration = _usbDetector.deviceEventGeneration;
       if (e is FlashStalledException) {
-        _setStatus(errText);
+        _setStatus(errText, cue: InstallerCue.error);
         _blockMdbFlash(ownershipUncertain: true);
         return;
       }
@@ -6204,7 +6226,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       } else {
         diagnosis += '\n\nDevice is still visible: you can retry.';
       }
-      _setStatus(diagnosis);
+      _setStatus(diagnosis, cue: InstallerCue.error);
       setState(() => _isProcessing = false);
 
       if (!await _shouldRetry('mdbFlash')) {
@@ -6623,7 +6645,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         MdbBootAction.reflash) {
       if (!_ownsMdbBootAttempt(generation)) return;
       _mdbBootAttempt.complete(generation);
-      _setStatus(l10n.mdbStillUms);
+      _setStatus(l10n.mdbStillUms, cue: InstallerCue.critical);
       setState(() {
         _isProcessing = false;
         _mdbFlashStarted = false;
@@ -7320,7 +7342,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
     final item = _downloadState.artifactFor(Board.mdb);
     if (item == null) {
-      if (mounted) setState(() => _mdbStageError = l10n.artifactNoneDownloaded);
+      if (mounted) {
+        _sounds.play(InstallerCue.error);
+        setState(() => _mdbStageError = l10n.artifactNoneDownloaded);
+      }
       return;
     }
 
@@ -7372,7 +7397,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _mdbStageError = e.toString());
+      if (mounted) {
+        _sounds.play(InstallerCue.error);
+        setState(() => _mdbStageError = e.toString());
+      }
     } finally {
       _setBackgroundStatus(null);
     }
@@ -7421,6 +7449,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
     final item = _downloadState.artifactFor(Board.mdb);
     if (item == null) {
+      _sounds.play(InstallerCue.error);
       setState(() {
         _artifactError = l10n.artifactNoneDownloaded;
         _isProcessing = false;
@@ -7543,6 +7572,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     } catch (e) {
       if (!mounted) return;
       debugPrint('UI: MDB artifact install failed: $e');
+      _sounds.play(InstallerCue.error);
       setState(() {
         _artifactError = e.toString();
         _isProcessing = false;
@@ -7662,6 +7692,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       );
     } catch (e) {
       if (!mounted) return;
+      _sounds.play(InstallerCue.error);
       setState(() {
         _artifactError = e.toString();
         _isProcessing = false;
@@ -7751,7 +7782,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           });
           _setStatus('');
         } else {
-          _setStatus(l10n.cbbNotDetected);
+          _setStatus(l10n.cbbNotDetected, cue: InstallerCue.critical);
           setState(() {
             _isProcessing = false;
             _cbbDetected = false;
@@ -7777,7 +7808,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           await Future.delayed(const Duration(seconds: 1));
           if (mounted) _setPhase(_phaseAfterCbbReconnect);
         } else {
-          _setStatus(l10n.mainBatteryNotDetected);
+          _setStatus(l10n.mainBatteryNotDetected, cue: InstallerCue.critical);
           setState(() => _isProcessing = false);
         }
       },
@@ -8208,7 +8239,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       return;
     } catch (e) {
       if (!_ownsDbcUpload(uploadGeneration)) return;
-      _setStatus(l10n.uploadError(e.toString()));
+      _setStatus(l10n.uploadError(e.toString()), cue: InstallerCue.error);
       debugPrint('DBC prep error: $e');
       setState(() {
         _isProcessing = false;
@@ -10583,6 +10614,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       debugPrint('UI: master teach-in did not start: $e');
       await stopStaleStart();
       if (!mounted || generation != _keycardLearningGeneration) return;
+      _sounds.play(InstallerCue.error);
       setState(() => _keycardMasterStartError = e.toString());
     }
   }

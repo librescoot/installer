@@ -9,6 +9,7 @@ import 'models/keycard_preset.dart';
 import 'screens/installer_screen.dart';
 import 'services/ssh_service.dart';
 import 'services/log_service.dart';
+import 'services/installer_sounds.dart';
 import 'theme.dart';
 
 /// Global log buffer accessible from anywhere.
@@ -32,6 +33,7 @@ void appendLogRaw(String line) {
 /// Used by the global error handlers to surface a SnackBar from anywhere.
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
+final InstallerSounds _unhandledErrorSounds = InstallerSounds();
 
 /// Append an unhandled error to the installer log and show a non-blocking
 /// SnackBar so the user knows something went wrong but the app keeps running.
@@ -51,6 +53,7 @@ void reportUnhandledError(Object error, StackTrace? stack, {String? from}) {
 
   final messenger = rootScaffoldMessengerKey.currentState;
   if (messenger == null) return;
+  _unhandledErrorSounds.play(InstallerCue.error);
 
   // The MaterialApp isn't necessarily built yet when this fires (e.g. an
   // error during startup, before runApp's first frame), so the messenger's
@@ -142,7 +145,9 @@ class LaunchArgs {
       if (arg.startsWith('--dbc-image=')) dbcImage = arg.split('=')[1];
       // Paths may legitimately contain '=', so take everything after the
       // first one rather than splitting.
-      if (arg.startsWith('--log-file=')) logFile = arg.substring('--log-file='.length);
+      if (arg.startsWith('--log-file=')) {
+        logFile = arg.substring('--log-file='.length);
+      }
       if (arg == '--auto-start') autoStart = true;
       if (arg == '--no-offline-maps') noOfflineMaps = true;
       if (arg == '--dry-run') dryRun = true;

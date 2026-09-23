@@ -5,7 +5,16 @@ import 'package:flutter/foundation.dart';
 
 import '../models/installer_phase.dart';
 
-enum InstallerCue { beat, release, pull, confirmed, attention, critical, boot }
+enum InstallerCue {
+  beat,
+  release,
+  pull,
+  confirmed,
+  attention,
+  critical,
+  error,
+  boot,
+}
 
 extension InstallerCueAsset on InstallerCue {
   String get assetName => switch (this) {
@@ -15,11 +24,13 @@ extension InstallerCueAsset on InstallerCue {
     InstallerCue.confirmed => 'nav-start.wav',
     InstallerCue.attention => 'toast-info.wav',
     InstallerCue.critical => 'toast-warning.wav',
+    InstallerCue.error => 'toast-error.wav',
     InstallerCue.boot => 'boot.wav',
   };
 }
 
 InstallerCue? cueForPhase(InstallerPhase phase) => switch (phase) {
+  InstallerPhase.notices ||
   InstallerPhase.scooterPrep ||
   InstallerPhase.mdbBoot ||
   InstallerPhase.cbbReconnect => InstallerCue.critical,
