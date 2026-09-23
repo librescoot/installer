@@ -55,6 +55,7 @@ import '../services/debug_shell.dart';
 import '../services/dry_run_operation.dart';
 import '../services/finalize_script.dart';
 import '../services/install_phase_scripts.dart';
+import '../services/previous_install_failure.dart';
 import '../services/installer_sounds.dart';
 import '../services/journey_log.dart';
 import '../services/serial_polling_loop.dart';
@@ -416,6 +417,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   String? _resumeStage; // stage the previous run reached, from the run state
   String? _resumeActor; // who wrote that state last: installer or trampoline
   String _resumeLogTail = ''; // last lines of the previous run's own log
+  String? _reportedPreviousFailureKey;
   bool _resumeStillRunning = false; // the board is mid-run, leave it alone
   // MDB answered SSH but has no Librescoot stack -> recover by re-flashing.
   // Stock boards also lack it and are healthy, so the routing reads
@@ -3728,6 +3730,23 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         return;
       }
 
+      try {
+        final failure = await probePreviousInstallFailure(
+          (command) => _sshService.runCommand(
+            command,
+            timeout: const Duration(seconds: 10),
+          ),
+        );
+        final key = failure?.runId ?? failure?.reason;
+        if (mounted && failure != null && key != _reportedPreviousFailureKey) {
+          _reportedPreviousFailureKey = key;
+          await _showPreviousInstallFailure(l10n, failure);
+          if (!mounted || _currentPhase != InstallerPhase.mdbConnect) return;
+        }
+      } catch (e) {
+        debugPrint('SSH: could not check retained install errors: $e');
+      }
+
       // Give the NFC reader its slow startup time while the user handles the
       // unlock gate and health/plan screens. The command queues the master-mode
       // guard before starting the service, so an incidental tap cannot become
@@ -3855,6 +3874,59 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     _setStatus(l10n.connected);
     setState(() => _isProcessing = false);
     _setPhase(InstallerPhase.healthCheck);
+  }
+
+  Future<void> _showPreviousInstallFailure(
+    AppLocalizations l10n,
+    PreviousInstallFailure failure,
+  ) async {
+    final report = '${failure.reason}\n\n${failure.logTail}';
+    appendLogRaw('--- retained MDB installation failure ---');
+    appendLogRaw(report.trimRight());
+    appendLogRaw('--- end retained MDB installation failure ---');
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.previousInstallErrorHeading),
+        content: SizedBox(
+          width: 620,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l10n.previousInstallErrorBody),
+              const SizedBox(height: 16),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 340),
+                child: SingleChildScrollView(
+                  child: SelectableText(
+                    failure.logTail.isEmpty
+                        ? '${failure.reason}\n${l10n.previousInstallErrorNoLog}'
+                        : report,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: () => _copyToClipboard(report),
+            icon: const Icon(Icons.copy),
+            label: Text(l10n.copyErrorAndLog),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(l10n.continueButton),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Continue button on the resume screen.

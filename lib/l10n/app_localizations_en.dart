@@ -452,6 +452,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'An interrupted installation was detected. The installer will clean up the previous attempt before starting again.';
 
   @override
+  String get previousInstallErrorHeading => 'Previous installation failed';
+
+  @override
+  String get previousInstallErrorBody =>
+      'The MDB retained a failure from an earlier installation. Read its log before continuing; the scooter may need attention.';
+
+  @override
+  String get previousInstallErrorNoLog =>
+      'No log text was retained on the MDB.';
+
+  @override
   String get resumeWhatHappensHeading => 'What happens when you continue';
 
   @override

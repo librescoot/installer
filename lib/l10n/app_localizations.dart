@@ -896,6 +896,24 @@ abstract class AppLocalizations {
   /// **'An interrupted installation was detected. The installer will clean up the previous attempt before starting again.'**
   String get resumeFoundBody;
 
+  /// No description provided for @previousInstallErrorHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous installation failed'**
+  String get previousInstallErrorHeading;
+
+  /// No description provided for @previousInstallErrorBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The MDB retained a failure from an earlier installation. Read its log before continuing; the scooter may need attention.'**
+  String get previousInstallErrorBody;
+
+  /// No description provided for @previousInstallErrorNoLog.
+  ///
+  /// In en, this message translates to:
+  /// **'No log text was retained on the MDB.'**
+  String get previousInstallErrorNoLog;
+
   /// No description provided for @resumeWhatHappensHeading.
   ///
   /// In en, this message translates to:

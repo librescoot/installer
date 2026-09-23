@@ -459,6 +459,18 @@ class AppLocalizationsDe extends AppLocalizations {
       'Eine unterbrochene Installation wurde erkannt. Der Installer bereinigt den vorherigen Versuch, bevor er neu beginnt.';
 
   @override
+  String get previousInstallErrorHeading =>
+      'Vorherige Installation fehlgeschlagen';
+
+  @override
+  String get previousInstallErrorBody =>
+      'Auf dem MDB liegt ein Fehler einer früheren Installation. Lies das Protokoll, bevor du fortfährst; der Roller benötigt möglicherweise Aufmerksamkeit.';
+
+  @override
+  String get previousInstallErrorNoLog =>
+      'Auf dem MDB ist kein Protokolltext erhalten geblieben.';
+
+  @override
   String get resumeWhatHappensHeading => 'Was beim Weitermachen passiert';
 
   @override
