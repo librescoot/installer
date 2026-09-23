@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
+import '../services/installer_sounds.dart';
 
 /// The brake-lever restart gesture: hold both levers for forty seconds, let
 /// go of the right one for about a second at each ten second mark, and release
@@ -72,27 +73,31 @@ class BrakeGestureDiagram extends StatelessWidget {
     final row = <Widget>[];
     for (var segment = 1; segment <= brakeSegments; segment++) {
       final isHold = activeSegment == segment && !blipping;
-      row.add(Expanded(
-        flex: brakeHoldSecondsFor(segment),
-        child: _Block(
-          label: '${segment * brakeMarkSeconds}s',
-          color: isHold ? Colors.cyanAccent : Colors.cyan.shade900,
-          textColor: isHold ? Colors.black : Colors.cyan.shade100,
-          emphasised: isHold,
+      row.add(
+        Expanded(
+          flex: brakeHoldSecondsFor(segment),
+          child: _Block(
+            label: '${segment * brakeMarkSeconds}s',
+            color: isHold ? Colors.cyanAccent : Colors.cyan.shade900,
+            textColor: isHold ? Colors.black : Colors.cyan.shade100,
+            emphasised: isHold,
+          ),
         ),
-      ));
+      );
       // No blip after the last segment: that one ends by letting go of both.
       if (segment < brakeSegments) {
         final isBlip = activeSegment == segment && blipping;
-        row.add(Expanded(
-          flex: brakeBlipSeconds,
-          child: _Block(
-            label: '',
-            color: isBlip ? Colors.orangeAccent : Colors.orange.shade900,
-            textColor: Colors.transparent,
-            emphasised: isBlip,
+        row.add(
+          Expanded(
+            flex: brakeBlipSeconds,
+            child: _Block(
+              label: '',
+              color: isBlip ? Colors.orangeAccent : Colors.orange.shade900,
+              textColor: Colors.transparent,
+              emphasised: isBlip,
+            ),
           ),
-        ));
+        );
       }
     }
 
@@ -108,11 +113,14 @@ class BrakeGestureDiagram extends StatelessWidget {
             borderRadius: BorderRadius.circular(4),
           ),
           alignment: Alignment.center,
-          child: Text(l10n.brakeBandBothHeld,
-              style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.cyan.shade100)),
+          child: Text(
+            l10n.brakeBandBothHeld,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.cyan.shade100,
+            ),
+          ),
         ),
         const SizedBox(height: 3),
         SizedBox(height: 40, child: Row(children: row)),
@@ -123,30 +131,36 @@ class BrakeGestureDiagram extends StatelessWidget {
               width: 10,
               height: 10,
               decoration: BoxDecoration(
-                  color: Colors.orange.shade900,
-                  borderRadius: BorderRadius.circular(2)),
+                color: Colors.orange.shade900,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
             const SizedBox(width: 6),
             Expanded(
-              child: Text(l10n.brakeDiagramBlipLegend,
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+              child: Text(
+                l10n.brakeDiagramBlipLegend,
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+              ),
             ),
           ],
         ),
         const SizedBox(height: 2),
         Row(
           children: [
-            Icon(Icons.flag_outlined,
-                size: 12,
-                color: finished ? Colors.greenAccent : Colors.grey.shade500),
+            Icon(
+              Icons.flag_outlined,
+              size: 12,
+              color: finished ? Colors.greenAccent : Colors.grey.shade500,
+            ),
             const SizedBox(width: 4),
             Expanded(
-              child: Text(l10n.brakeDiagramEndLegend(brakeTotalSeconds),
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: finished
-                          ? Colors.greenAccent
-                          : Colors.grey.shade400)),
+              child: Text(
+                l10n.brakeDiagramEndLegend(brakeTotalSeconds),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: finished ? Colors.greenAccent : Colors.grey.shade400,
+                ),
+              ),
             ),
           ],
         ),
@@ -180,9 +194,14 @@ class _Block extends StatelessWidget {
       ),
       alignment: Alignment.bottomCenter,
       padding: const EdgeInsets.only(bottom: 3),
-      child: Text(label,
-          style: TextStyle(
-              fontSize: 11, fontWeight: FontWeight.bold, color: textColor)),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: textColor,
+        ),
+      ),
     );
   }
 }
@@ -192,9 +211,10 @@ class _Block extends StatelessWidget {
 /// is a metronome and not a progress bar: it says what to do and when, and the
 /// scooter itself is what tells the user whether it worked.
 class BrakeGesturePacer extends StatefulWidget {
-  const BrakeGesturePacer({super.key, this.onSequenceComplete});
+  const BrakeGesturePacer({super.key, this.onSequenceComplete, this.onCue});
 
   final VoidCallback? onSequenceComplete;
+  final void Function(InstallerCue cue)? onCue;
 
   @override
   State<BrakeGesturePacer> createState() => _BrakeGesturePacerState();
@@ -232,6 +252,7 @@ class _BrakeGesturePacerState extends State<BrakeGesturePacer> {
 
   void _tick() {
     if (!mounted) return;
+    final previous = _phase;
     setState(() {
       _remaining--;
       if (_remaining > 0) return;
@@ -262,12 +283,23 @@ class _BrakeGesturePacerState extends State<BrakeGesturePacer> {
         _ticker = null;
       }
     });
+    final cue = switch (_phase) {
+      _PacerPhase.blip when previous == _PacerPhase.hold =>
+        InstallerCue.release,
+      _PacerPhase.release when previous == _PacerPhase.hold =>
+        InstallerCue.release,
+      _PacerPhase.hold when previous != _PacerPhase.hold => InstallerCue.pull,
+      _PacerPhase.leadIn || _PacerPhase.hold => InstallerCue.beat,
+      _ => null,
+    };
+    if (cue != null) widget.onCue?.call(cue);
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final counting = _phase == _PacerPhase.leadIn ||
+    final counting =
+        _phase == _PacerPhase.leadIn ||
         _phase == _PacerPhase.hold ||
         _phase == _PacerPhase.blip;
     // The lead-in belongs to no segment, so nothing is lit until the squeeze.
@@ -279,8 +311,7 @@ class _BrakeGesturePacerState extends State<BrakeGesturePacer> {
         BrakeGestureDiagram(
           activeSegment: onPattern ? _segment : null,
           blipping: _phase == _PacerPhase.blip,
-          finished:
-              _phase == _PacerPhase.done || _phase == _PacerPhase.release,
+          finished: _phase == _PacerPhase.done || _phase == _PacerPhase.release,
         ),
         const SizedBox(height: 18),
         if (counting) ...[
@@ -302,12 +333,15 @@ class _BrakeGesturePacerState extends State<BrakeGesturePacer> {
             ),
           ),
           const SizedBox(height: 2),
-          Text('$_remaining',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  fontSize: 40,
-                  fontWeight: FontWeight.bold,
-                  fontFeatures: [FontFeature.tabularFigures()])),
+          Text(
+            '$_remaining',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 40,
+              fontWeight: FontWeight.bold,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+          ),
           const SizedBox(height: 2),
           Text(
             _phase == _PacerPhase.leadIn
@@ -318,8 +352,10 @@ class _BrakeGesturePacerState extends State<BrakeGesturePacer> {
           ),
           const SizedBox(height: 10),
           Center(
-            child:
-                TextButton(onPressed: _stop, child: Text(l10n.brakePacerStop)),
+            child: TextButton(
+              onPressed: _stop,
+              child: Text(l10n.brakePacerStop),
+            ),
           ),
         ],
         if (_phase == _PacerPhase.release) ...[
@@ -340,15 +376,19 @@ class _BrakeGesturePacerState extends State<BrakeGesturePacer> {
               const Icon(Icons.check_circle, color: Colors.green),
               const SizedBox(width: 10),
               Flexible(
-                child: Text(l10n.brakePacerDone,
-                    style: const TextStyle(fontSize: 14)),
+                child: Text(
+                  l10n.brakePacerDone,
+                  style: const TextStyle(fontSize: 14),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 10),
           Center(
             child: TextButton(
-                onPressed: _start, child: Text(l10n.brakePacerRestart)),
+              onPressed: _start,
+              child: Text(l10n.brakePacerRestart),
+            ),
           ),
         ],
         if (_phase == _PacerPhase.idle)

@@ -79,6 +79,8 @@ before each build; for local development run `scripts/update-flasher.sh`.
 
 ## Development
 
+Linux builds need `libgstreamer1.0-dev` and `libgstreamer-plugins-base1.0-dev`; local audio playback also needs `gstreamer1.0-plugins-good`. Desktop release packaging includes these playback plugins in the AppImage.
+
 ```bash
 flutter pub get
 scripts/update-flasher.sh          # populate assets/tools/ with flasher binaries

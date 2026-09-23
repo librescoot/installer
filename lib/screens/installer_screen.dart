@@ -54,6 +54,7 @@ import '../services/debug_shell.dart';
 import '../services/dry_run_operation.dart';
 import '../services/finalize_script.dart';
 import '../services/install_phase_scripts.dart';
+import '../services/installer_sounds.dart';
 import '../services/journey_log.dart';
 import '../services/serial_polling_loop.dart';
 import '../services/services.dart';
@@ -136,6 +137,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   late final DownloadService _downloadService;
   late final UpdateService _updateService;
   final SshService _sshService = SshService();
+  final InstallerSounds _sounds = InstallerSounds();
+  bool _firstImageBootSoundPlayed = false;
   late final ConfigurationPreservationService _configurationService =
       ConfigurationPreservationService(_sshService);
 
@@ -718,6 +721,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   @override
   void dispose() {
     windowManager.removeListener(this);
+    _sounds.dispose();
     unawaited(_debugShell.stop());
     _debugShell.dispose();
     _debugOutput.dispose();
@@ -920,6 +924,21 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _isProcessing = false;
     });
     _queueInstallPhaseRecord(phase);
+    if (phase != leaving &&
+        const {
+          InstallerPhase.physicalPrep,
+          InstallerPhase.installPlan,
+          InstallerPhase.configurationConfirmation,
+          InstallerPhase.scooterPrep,
+          InstallerPhase.mdbBoot,
+          InstallerPhase.bluetoothPairing,
+          InstallerPhase.keycardSetup,
+          InstallerPhase.cbbReconnect,
+          InstallerPhase.reconnect,
+          InstallerPhase.finish,
+        }.contains(phase)) {
+      _sounds.play(InstallerCue.attention);
+    }
     if (leaving == InstallerPhase.keycardSetup &&
         phase != InstallerPhase.keycardSetup) {
       unawaited(_cleanupKeycardPhase());
@@ -6169,7 +6188,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                   style: TextStyle(color: Colors.grey.shade300, height: 1.4),
                 ),
                 const SizedBox(height: 18),
-                const BrakeGesturePacer(),
+                BrakeGesturePacer(onCue: _sounds.play),
                 const SizedBox(height: 14),
                 Text(
                   l10n.brakeResetAfterNote,
@@ -6436,6 +6455,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
 
     _setStatus(l10n.mdbDetectedNetwork);
+    if (!_firstImageBootSoundPlayed && _mdbFlashStarted) {
+      _firstImageBootSoundPlayed = true;
+      _sounds.play(InstallerCue.boot);
+    }
 
     // Reconfigure the host iface BEFORE pinging. The MDB reboot tears down the
     // cdc_ether USB iface; on Linux+NetworkManager the new iface (often a fresh
@@ -9576,6 +9599,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             setState(() {
               if (isConnected && !_bleConnected && _btPairingActive) {
                 _blePairedCount++;
+                _sounds.play(InstallerCue.confirmed);
               }
               _bleConnected = isConnected;
               _blePinCode = pin;
@@ -10376,6 +10400,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           _keycardSessionTapCount += 1;
           _keycardAuthorizedCount = (_keycardAuthorizedCount ?? 0) + 1;
         });
+        _sounds.play(InstallerCue.confirmed);
       }
     } else if (payload.startsWith('card-duplicate:')) {
       if (_keycardLearning) {
@@ -10396,6 +10421,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         return;
       }
       _keycardMasterLearning = false;
+      _sounds.play(InstallerCue.confirmed);
       _keycardShowToast(l10n.keycardMasterStageLearnedToast, Colors.green);
       _keycardRefreshCounts();
       _keycardAdvanceTimer?.cancel();

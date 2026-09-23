@@ -65,6 +65,7 @@ dependencies:
   url_launcher: ^6.3.0
   window_manager: ^0.5.2
   flutter_markdown_plus: ^1.0.12
+  audioplayers: ^6.5.1
 
 dev_dependencies:
   flutter_test:
@@ -94,6 +95,7 @@ flutter:
     - assets/drivers/
     - assets/tools/
     - assets/images/
+    - assets/sounds/
 
   # One variable file rather than four static weights: it is smaller than the
   # weights it replaces (880 KB against ~1.7 MB) and covers the ones in

@@ -56,15 +56,42 @@ fetch "$TOOLS_DIR/linuxdeploy-plugin-gtk.sh" \
 export PATH="$PWD/$TOOLS_DIR:$PATH"
 OUTPUT="librescoot-installer-linux-x86_64-${VERSION}.AppImage"
 
-# Populate the AppDir (bundle the Flutter libs + GTK runtime, write AppRun,
-# the root desktop file and icon) but stop short of the final packaging.
-# We invoke appimagetool ourselves below so we can supply the runtime.
+# GStreamer loads its WAV decoder and audio sink at runtime; they are not
+# visible to the dynamic-linker dependency scan of the Flutter plugin.
+GST_PLUGINS=/usr/lib/$(gcc -dumpmachine)/gstreamer-1.0
+libraries=()
+for plugin in coreelements playback typefindfunctions wavparse audioconvert \
+              audioresample autodetect pulseaudio; do
+  libraries+=(--library "$GST_PLUGINS/libgst${plugin}.so")
+done
+
+# Populate the AppDir (bundle the Flutter libs, GTK runtime and the
+# GStreamer plugin dependencies) but stop short of final packaging.
 "$TOOLS_DIR/linuxdeploy" \
   --appdir "$APPDIR" \
   --executable "$APPDIR/usr/bin/librescoot_installer" \
   --desktop-file "$APPDIR/usr/share/applications/librescoot-installer.desktop" \
   --icon-file "$APPDIR/usr/share/icons/hicolor/256x256/apps/librescoot-installer.png" \
+  "${libraries[@]}" \
   --plugin gtk
+
+mkdir -p "$APPDIR/usr/lib/gstreamer-1.0"
+for plugin in coreelements playback typefindfunctions wavparse audioconvert \
+              audioresample autodetect pulseaudio; do
+  cp "$GST_PLUGINS/libgst${plugin}.so" "$APPDIR/usr/lib/gstreamer-1.0/"
+done
+
+# AppRun invokes this path after setting the library search path. The Flutter
+# runner still lives beside its data/ and lib/ directories.
+mv "$APPDIR/usr/bin/librescoot_installer" "$APPDIR/usr/bin/librescoot_installer.bin"
+cat > "$APPDIR/usr/bin/librescoot_installer" <<'EOF'
+#!/usr/bin/env bash
+HERE="$(dirname "$(readlink -f "$0")")"
+export GST_PLUGIN_PATH_1_0="$HERE/../lib/gstreamer-1.0"
+export GST_PLUGIN_SYSTEM_PATH_1_0=
+exec "$HERE/librescoot_installer.bin" "$@"
+EOF
+chmod +x "$APPDIR/usr/bin/librescoot_installer"
 
 # AppImageKit is archived; appimagetool is now the rewrite that downloads the
 # AppImage runtime at package time instead of embedding it. Its built-in
