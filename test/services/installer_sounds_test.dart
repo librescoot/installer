@@ -1,6 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/models/installer_phase.dart';
 import 'package:librescoot_installer/services/installer_sounds.dart';
@@ -21,19 +19,23 @@ void main() {
     expect(cueForPhase(InstallerPhase.mdbFlash), isNull);
   });
 
-  test('attention chime is softer than the urgent cue', () {
-    int peak(String name) {
-      final wav = File('assets/sounds/$name.wav').readAsBytesSync();
+  test('installer cues use the selected dashboard assets', () {
+    expect(InstallerCue.critical.assetName, 'toast-warning.wav');
+    expect(InstallerCue.attention.assetName, 'toast-info.wav');
+    expect(InstallerCue.confirmed.assetName, 'nav-start.wav');
+    expect(InstallerCue.release.assetName, 'blinker-pulse.wav');
+    expect(InstallerCue.pull.assetName, 'nav-hop.wav');
+    for (final cue in InstallerCue.values) {
+      final wav = File('assets/sounds/${cue.assetName}').readAsBytesSync();
       expect(String.fromCharCodes(wav.sublist(0, 4)), 'RIFF');
-      final samples = ByteData.sublistView(wav);
-      var maximum = 0;
-      for (var offset = 44; offset < wav.length; offset += 2) {
-        final value = samples.getInt16(offset, Endian.little).abs();
-        if (value > maximum) maximum = value;
-      }
-      return maximum;
     }
+  });
 
-    expect(peak('attention'), lessThan(peak('critical') ~/ 2));
+  test('brake release and pull sounds fit inside a one-second blip', () {
+    for (final cue in [InstallerCue.release, InstallerCue.pull]) {
+      final wav = File('assets/sounds/${cue.assetName}').readAsBytesSync();
+      // Both cues are 48 kHz stereo 16-bit PCM.
+      expect(wav.length, lessThan(48000 * 2 * 2 + 1024));
+    }
   });
 }

@@ -7,6 +7,18 @@ import '../models/installer_phase.dart';
 
 enum InstallerCue { beat, release, pull, confirmed, attention, critical, boot }
 
+extension InstallerCueAsset on InstallerCue {
+  String get assetName => switch (this) {
+    InstallerCue.beat => 'beat.wav',
+    InstallerCue.release => 'blinker-pulse.wav',
+    InstallerCue.pull => 'nav-hop.wav',
+    InstallerCue.confirmed => 'nav-start.wav',
+    InstallerCue.attention => 'toast-info.wav',
+    InstallerCue.critical => 'toast-warning.wav',
+    InstallerCue.boot => 'boot.wav',
+  };
+}
+
 InstallerCue? cueForPhase(InstallerPhase phase) => switch (phase) {
   InstallerPhase.scooterPrep ||
   InstallerPhase.mdbBoot ||
@@ -36,7 +48,7 @@ class InstallerSounds {
       final player = _players.putIfAbsent(cue, AudioPlayer.new);
       await player.setReleaseMode(ReleaseMode.stop);
       if (_disposed) return;
-      await player.play(AssetSource('sounds/${cue.name}.wav'));
+      await player.play(AssetSource('sounds/${cue.assetName}'));
     } catch (error) {
       debugPrint('Installer audio unavailable: $error');
     }
