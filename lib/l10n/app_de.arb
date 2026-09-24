@@ -300,6 +300,8 @@
     }
   },
   "scooterPrepManualFallback": "Oder den Strom von Hand trennen",
+  "confirmManualPowerCut": "Ich habe CBB und AUX getrennt",
+  "useBrakeRestart": "Stattdessen Bremshebel-Neustart verwenden",
   "deactivatingMainBattery": "Fahrakku wird abgeschaltet…",
   "waitingForMdbBoot": "Warte auf den MDB-Start",
   "mdbBootRestartingNote": "Der Neustart des Rollers dauert ein bis zwei Minuten.",

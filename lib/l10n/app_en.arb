@@ -355,6 +355,8 @@
     }
   },
   "scooterPrepManualFallback": "Or cut the power by hand",
+  "confirmManualPowerCut": "I disconnected the CBB and AUX",
+  "useBrakeRestart": "Use the brake-lever restart instead",
   "deactivatingMainBattery": "Turning the main battery off...",
   "waitingForMdbBoot": "Waiting for MDB boot",
   "mdbBootRestartingNote": "The scooter is restarting on its own. This takes a minute or two.",

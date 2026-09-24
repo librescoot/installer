@@ -898,6 +898,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get scooterPrepManualFallback => 'Oder den Strom von Hand trennen';
 
   @override
+  String get confirmManualPowerCut => 'Ich habe CBB und AUX getrennt';
+
+  @override
+  String get useBrakeRestart => 'Stattdessen Bremshebel-Neustart verwenden';
+
+  @override
   String get deactivatingMainBattery => 'Fahrakku wird abgeschaltet…';
 
   @override

@@ -249,12 +249,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   String? _dbcOutcomeReason;
   String? _dbcFailureDetails;
 
-  /// Set when the user opens the manual power-cut section rather than using
-  /// the brake gesture. The installer cannot tell the two restarts apart from
-  /// the outside (both look like the USB gadget going away), so this is the
-  /// only signal for whether anything was actually unplugged, and therefore
-  /// whether the later screens should ask for it back.
+  /// Both restarts look like a USB disconnect. Viewing the manual instructions
+  /// does not select them; the user confirms that CBB and AUX were disconnected.
   bool _manualPowerCut = false;
+  bool _manualInstructionsSeen = false;
 
   /// True once the main pack is confirmed off, which is the precondition for
   /// telling anyone to plug the CBB back in.
@@ -6388,6 +6386,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                   l10n.brakeResetIntro,
                   style: TextStyle(color: Colors.grey.shade300, height: 1.4),
                 ),
+                if (_manualPowerCut)
+                  TextButton(
+                    onPressed: () => setState(() => _manualPowerCut = false),
+                    child: Text(l10n.useBrakeRestart),
+                  ),
                 const SizedBox(height: 18),
                 BrakeGesturePacer(onCue: _sounds.play),
                 const SizedBox(height: 14),
@@ -6416,12 +6419,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 fontWeight: FontWeight.w600,
               ),
             ),
-            // Opening it is the signal. A false positive costs a step the user
-            // can ignore; a false negative hides the one instruction they
-            // needed, so err toward remembering.
             onExpansionChanged: (open) {
-              if (open && !_manualPowerCut) {
-                setState(() => _manualPowerCut = true);
+              if (open && !_manualInstructionsSeen) {
+                setState(() => _manualInstructionsSeen = true);
               }
             },
             expandedCrossAxisAlignment: CrossAxisAlignment.start,
@@ -6446,6 +6446,17 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 imageAsset:
                     'assets/images/lsi-unu_scooter_aux_pos_disconnected.jpg',
               ),
+              if (_manualInstructionsSeen)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: FilledButton.icon(
+                    onPressed: _manualPowerCut
+                        ? null
+                        : () => setState(() => _manualPowerCut = true),
+                    icon: const Icon(Icons.check),
+                    label: Text(l10n.confirmManualPowerCut),
+                  ),
+                ),
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -7913,18 +7924,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                     l10n.mainBatteryMissingHint,
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-                  ),
-                  const SizedBox(height: 10),
-                  OutlinedButton.icon(
-                    onPressed: _sshService.isConnected
-                        ? () async {
-                            try {
-                              await _sshService.runCommand('lsc open');
-                            } catch (_) {}
-                          }
-                        : null,
-                    icon: const Icon(Icons.lock_open, size: 18),
-                    label: Text(l10n.openSeatboxButton),
                   ),
                 ],
               ),

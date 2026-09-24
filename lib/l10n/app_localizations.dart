@@ -1622,6 +1622,18 @@ abstract class AppLocalizations {
   /// **'Or cut the power by hand'**
   String get scooterPrepManualFallback;
 
+  /// No description provided for @confirmManualPowerCut.
+  ///
+  /// In en, this message translates to:
+  /// **'I disconnected the CBB and AUX'**
+  String get confirmManualPowerCut;
+
+  /// No description provided for @useBrakeRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the brake-lever restart instead'**
+  String get useBrakeRestart;
+
   /// No description provided for @deactivatingMainBattery.
   ///
   /// In en, this message translates to:

@@ -883,6 +883,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scooterPrepManualFallback => 'Or cut the power by hand';
 
   @override
+  String get confirmManualPowerCut => 'I disconnected the CBB and AUX';
+
+  @override
+  String get useBrakeRestart => 'Use the brake-lever restart instead';
+
+  @override
   String get deactivatingMainBattery => 'Turning the main battery off...';
 
   @override
