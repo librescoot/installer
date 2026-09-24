@@ -2279,6 +2279,20 @@ class AppLocalizationsDe extends AppLocalizations {
   String get dbcFlashObservedSuccess => 'Der Roller hat sich entsperrt';
 
   @override
+  String get dbcFlashErrorLabel => 'FEHLER';
+
+  @override
+  String get dbcFlashErrorPrompt =>
+      'DBC-LED blinkt rot oder ein Fehler ist erkennbar.';
+
+  @override
+  String get dbcFlashSuccessLabel => 'ERFOLG';
+
+  @override
+  String get dbcFlashSuccessPrompt =>
+      'Roller entsperrt, Licht und Dashboard an.';
+
+  @override
   String get dbcFlashDoNotDisconnect =>
       'USB und Strom nicht trennen, solange das läuft.';
 

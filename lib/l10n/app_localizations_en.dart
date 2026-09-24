@@ -2240,6 +2240,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dbcFlashObservedSuccess => 'I see the completion signal';
 
   @override
+  String get dbcFlashErrorLabel => 'ERROR';
+
+  @override
+  String get dbcFlashErrorPrompt =>
+      'DBC LED blinks red, or an error is apparent.';
+
+  @override
+  String get dbcFlashSuccessLabel => 'SUCCESS';
+
+  @override
+  String get dbcFlashSuccessPrompt =>
+      'Scooter unlocked, lights and dashboard on.';
+
+  @override
   String get dbcFlashDoNotDisconnect =>
       'Do not disconnect USB or power while this runs.';
 

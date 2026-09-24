@@ -8673,7 +8673,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             onError: () {
               logJourneyEvent('button_pressed', {
                 'screen': l10n.dbcFlashInProgress,
-                'label': 'ERROR',
+                'label': l10n.dbcFlashErrorLabel,
                 'side': ActionSide.forward.name,
               });
               _dbcFlashSimulateError = true;
@@ -8684,7 +8684,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 : () {
                     logJourneyEvent('button_pressed', {
                       'screen': l10n.dbcFlashInProgress,
-                      'label': 'SUCCESS',
+                      'label': l10n.dbcFlashSuccessLabel,
                       'side': ActionSide.forward.name,
                     });
                     _finishAfterDbcSuccess();

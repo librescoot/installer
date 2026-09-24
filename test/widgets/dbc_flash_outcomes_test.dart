@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:librescoot_installer/l10n/app_localizations.dart';
 import 'package:librescoot_installer/widgets/dbc_flash_outcomes.dart';
 
 void main() {
@@ -15,6 +17,14 @@ void main() {
     var successes = 0;
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: Center(
             child: SizedBox(
@@ -32,6 +42,14 @@ void main() {
     expect(find.text('ERROR'), findsOneWidget);
     expect(find.text('SUCCESS'), findsOneWidget);
     expect(find.byType(Image), findsNWidgets(3));
+    expect(
+      tester.getTopLeft(find.text('ERROR')).dy,
+      tester.getTopLeft(find.text('SUCCESS')).dy,
+    );
+    expect(
+      tester.getTopLeft(find.textContaining('DBC LED blinks red')).dy,
+      tester.getTopLeft(find.textContaining('Scooter unlocked')).dy,
+    );
     await tester.tap(find.text('ERROR'));
     await tester.tap(find.text('SUCCESS'));
     expect(errors, 1);
@@ -49,6 +67,14 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('de'),
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: SingleChildScrollView(
             child: SizedBox(
@@ -59,11 +85,12 @@ void main() {
         ),
       ),
     );
-    expect(find.text('ERROR'), findsOneWidget);
-    expect(find.text('SUCCESS'), findsOneWidget);
+    expect(find.text('FEHLER'), findsOneWidget);
+    expect(find.text('ERFOLG'), findsOneWidget);
+    expect(find.textContaining('DBC-LED blinkt rot'), findsOneWidget);
     final button = tester.widget<OutlinedButton>(
       find.ancestor(
-        of: find.text('SUCCESS'),
+        of: find.text('ERFOLG'),
         matching: find.byType(OutlinedButton),
       ),
     );

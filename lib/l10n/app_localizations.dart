@@ -3866,6 +3866,30 @@ abstract class AppLocalizations {
   /// **'I see the completion signal'**
   String get dbcFlashObservedSuccess;
 
+  /// No description provided for @dbcFlashErrorLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'ERROR'**
+  String get dbcFlashErrorLabel;
+
+  /// No description provided for @dbcFlashErrorPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'DBC LED blinks red, or an error is apparent.'**
+  String get dbcFlashErrorPrompt;
+
+  /// No description provided for @dbcFlashSuccessLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'SUCCESS'**
+  String get dbcFlashSuccessLabel;
+
+  /// No description provided for @dbcFlashSuccessPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Scooter unlocked, lights and dashboard on.'**
+  String get dbcFlashSuccessPrompt;
+
   /// No description provided for @dbcFlashDoNotDisconnect.
   ///
   /// In en, this message translates to:
