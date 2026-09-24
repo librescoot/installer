@@ -9,20 +9,25 @@ void main() {
     source = File('lib/screens/installer_screen.dart').readAsStringSync();
   });
 
-  test('viewing AUX instructions does not select the manual restart', () {
+  test('AUX confirmation appears in the action bar only after expansion', () {
     final start = source.indexOf('Widget _buildScooterPrep(');
     final end = source.indexOf('\n  Widget _buildMdbBoot(', start);
     final prep = source.substring(start, end);
+    final actions = prep.substring(
+      prep.indexOf('actions: ['),
+      prep.indexOf('child: Column('),
+    );
     final expansion = prep.substring(prep.indexOf('onExpansionChanged:'));
     expect(expansion, contains('_manualInstructionsSeen = true'));
+    expect(expansion, isNot(contains('l10n.confirmManualPowerCut')));
+    expect(actions, contains('if (_manualInstructionsSeen)'));
+    expect(actions, contains('label: l10n.confirmManualPowerCut'));
+    expect(actions, contains('_advanceFromScooterPrep(manualPowerCut: true)'));
+    expect(actions, contains('_advanceFromScooterPrep(manualPowerCut: false)'));
     expect(
-      expansion.substring(0, expansion.indexOf('children: [')),
-      isNot(contains('_manualPowerCut = true')),
+      source,
+      contains('setState(() => _manualPowerCut = manualPowerCut)'),
     );
-    expect(expansion, contains('if (_manualInstructionsSeen)'));
-    expect(expansion, contains('l10n.confirmManualPowerCut'));
-    expect(expansion, contains('() => setState(() => _manualPowerCut = true)'));
-    expect(prep, contains('() => setState(() => _manualPowerCut = false)'));
   });
 
   test('MDB boot offers a guarded return to the AUX instructions', () {

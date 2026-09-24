@@ -833,10 +833,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die USB-Verbindung geht verloren, wenn du AUX trennst. Das ist normal. Schließe den AUX-Pol im nächsten Schritt wieder an, um das MDB zu starten.';
 
   @override
-  String get doneCbbAuxDisconnected => 'Neustart ausgelöst';
-
-  @override
-  String get doneAuxDisconnected => 'Fertig, AUX ist getrennt';
+  String get doneBrakeRestart => 'Bremshebel-Neustart ausgelöst';
 
   @override
   String get brakeResetHeading => 'Roller neu starten';
@@ -899,9 +896,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get confirmManualPowerCut => 'Ich habe CBB und AUX getrennt';
-
-  @override
-  String get useBrakeRestart => 'Stattdessen Bremshebel-Neustart verwenden';
 
   @override
   String get deactivatingMainBattery => 'Fahrakku wird abgeschaltet…';

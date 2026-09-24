@@ -1508,17 +1508,11 @@ abstract class AppLocalizations {
   /// **'The USB connection drops when you disconnect AUX. That is expected. Reconnect the AUX pole on the next screen to start the MDB.'**
   String get auxDisconnectWarning;
 
-  /// No description provided for @doneCbbAuxDisconnected.
+  /// No description provided for @doneBrakeRestart.
   ///
   /// In en, this message translates to:
-  /// **'Continue'**
-  String get doneCbbAuxDisconnected;
-
-  /// No description provided for @doneAuxDisconnected.
-  ///
-  /// In en, this message translates to:
-  /// **'Continue'**
-  String get doneAuxDisconnected;
+  /// **'Brake-lever restart triggered'**
+  String get doneBrakeRestart;
 
   /// No description provided for @brakeResetHeading.
   ///
@@ -1627,12 +1621,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'I disconnected the CBB and AUX'**
   String get confirmManualPowerCut;
-
-  /// No description provided for @useBrakeRestart.
-  ///
-  /// In en, this message translates to:
-  /// **'Use the brake-lever restart instead'**
-  String get useBrakeRestart;
 
   /// No description provided for @deactivatingMainBattery.
   ///

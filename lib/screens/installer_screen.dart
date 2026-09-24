@@ -6405,21 +6405,27 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     return false;
   }
 
+  void _advanceFromScooterPrep({required bool manualPowerCut}) {
+    setState(() => _manualPowerCut = manualPowerCut);
+    _setPhase(InstallerPhase.mdbBoot);
+  }
+
   Widget _buildScooterPrep(AppLocalizations l10n) {
     return PhaseLayout(
       title: l10n.scooterPrepHeading,
       subtitle: l10n.scooterPrepSubheading,
       actions: [
+        if (_manualInstructionsSeen)
+          PhaseAction(
+            label: l10n.confirmManualPowerCut,
+            icon: Icons.build_outlined,
+            onPressed: () => _advanceFromScooterPrep(manualPowerCut: true),
+          ),
         PhaseAction(
-          // The two routes leave the scooter in different states. Only the
-          // brake gesture restarts it; the manual route ends with AUX off and
-          // the next screen asking for it back.
-          label: _manualPowerCut
-              ? l10n.doneAuxDisconnected
-              : l10n.doneCbbAuxDisconnected,
+          label: l10n.doneBrakeRestart,
           icon: Icons.arrow_forward,
           primary: true,
-          onPressed: () => _setPhase(InstallerPhase.mdbBoot),
+          onPressed: () => _advanceFromScooterPrep(manualPowerCut: false),
         ),
       ],
       child: Column(
@@ -6452,11 +6458,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                   l10n.brakeResetIntro,
                   style: TextStyle(color: Colors.grey.shade300, height: 1.4),
                 ),
-                if (_manualPowerCut)
-                  TextButton(
-                    onPressed: () => setState(() => _manualPowerCut = false),
-                    child: Text(l10n.useBrakeRestart),
-                  ),
                 const SizedBox(height: 18),
                 BrakeGesturePacer(onCue: _sounds.play),
                 const SizedBox(height: 14),
@@ -6473,9 +6474,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           // other work, or one where the gesture does not take, still needs the
           // route that always works.
           ExpansionTile(
-            // Grey caption text read as a label, and opening this is what
-            // tells the rest of the flow the user took the manual route, so
-            // it has to look like the control it is.
             leading: const Icon(Icons.build_outlined, size: 20, color: kAccent),
             title: Text(
               l10n.scooterPrepManualFallback,
@@ -6512,17 +6510,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 imageAsset:
                     'assets/images/lsi-unu_scooter_aux_pos_disconnected.jpg',
               ),
-              if (_manualInstructionsSeen)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: FilledButton.icon(
-                    onPressed: _manualPowerCut
-                        ? null
-                        : () => setState(() => _manualPowerCut = true),
-                    icon: const Icon(Icons.check),
-                    label: Text(l10n.confirmManualPowerCut),
-                  ),
-                ),
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),

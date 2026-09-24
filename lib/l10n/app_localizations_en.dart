@@ -818,10 +818,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'The USB connection drops when you disconnect AUX. That is expected. Reconnect the AUX pole on the next screen to start the MDB.';
 
   @override
-  String get doneCbbAuxDisconnected => 'Continue';
-
-  @override
-  String get doneAuxDisconnected => 'Continue';
+  String get doneBrakeRestart => 'Brake-lever restart triggered';
 
   @override
   String get brakeResetHeading => 'Restart the scooter';
@@ -884,9 +881,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get confirmManualPowerCut => 'I disconnected the CBB and AUX';
-
-  @override
-  String get useBrakeRestart => 'Use the brake-lever restart instead';
 
   @override
   String get deactivatingMainBattery => 'Turning the main battery off...';
