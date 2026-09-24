@@ -42,6 +42,9 @@ void main() {
     expect(find.text('ERROR'), findsOneWidget);
     expect(find.text('SUCCESS'), findsOneWidget);
     expect(find.byType(Image), findsNWidgets(3));
+    final side = tester.getRect(find.byType(Image).at(1));
+    final front = tester.getRect(find.byType(Image).at(2));
+    expect(front.height, closeTo(side.height, 0.1));
     final artwork = tester.getRect(find.byType(Image).first);
     final led = tester.getRect(find.byKey(const Key('dbc-error-led-glow')));
     expect(

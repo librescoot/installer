@@ -29,28 +29,28 @@ class DbcFlashOutcomes extends StatelessWidget {
           description: l10n.dbcFlashSuccessPrompt,
           color: Colors.greenAccent,
           onPressed: onSuccess,
-          image: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Flexible(
-                flex: 4,
-                child: Image.asset(
+          image: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Image.asset(
                   'assets/images/dbc-flash-success-side.png',
+                  width: 210 * 3537 / 2181,
                   height: 210,
                   fit: BoxFit.contain,
                   excludeFromSemantics: true,
                 ),
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Image.asset(
+                const SizedBox(width: 8),
+                Image.asset(
                   'assets/images/dbc-flash-success-front.png',
+                  width: 210 * 1124 / 2159,
                   height: 210,
                   fit: BoxFit.contain,
                   excludeFromSemantics: true,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
         if (constraints.maxWidth < 660) {
