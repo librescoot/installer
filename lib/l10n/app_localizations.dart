@@ -3686,6 +3686,66 @@ abstract class AppLocalizations {
   /// **'Plug the CBB cable back into the connector in the footwell. Without the CBB, the MDB could shut down during flashing.'**
   String get reconnectCbbStepDesc;
 
+  /// No description provided for @mainBatteryPreflightTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Main battery absent at preflight'**
+  String get mainBatteryPreflightTitle;
+
+  /// No description provided for @mainBatteryPreflightWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'No main battery was detected before flashing. Losing power during a flash can leave the scooter unusable. Fit the battery and repeat the health check. Proceed only with a reliable alternative power supply.'**
+  String get mainBatteryPreflightWarning;
+
+  /// No description provided for @mainBatteryHandoffTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Main battery unconfirmed'**
+  String get mainBatteryHandoffTitle;
+
+  /// No description provided for @mainBatteryHandoffWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'The main battery could not be confirmed before dashboard work. Without reliable power, the DBC flash can fail. Proceed only if you accept the risk and have secured the power supply.'**
+  String get mainBatteryHandoffWarning;
+
+  /// No description provided for @mainBatteryPreflightAcknowledge.
+  ///
+  /// In en, this message translates to:
+  /// **'I checked the power supply and accept the risk of a failed flash.'**
+  String get mainBatteryPreflightAcknowledge;
+
+  /// No description provided for @mainBatteryPreflightOverride.
+  ///
+  /// In en, this message translates to:
+  /// **'Flash anyway'**
+  String get mainBatteryPreflightOverride;
+
+  /// No description provided for @mainBatteryUnverifiableHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Main battery cannot be checked'**
+  String get mainBatteryUnverifiableHeading;
+
+  /// No description provided for @mainBatteryUnverifiableHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The minimal MDB system cannot report main-battery presence. Physically check that the battery is fitted before dashboard work, then confirm below.'**
+  String get mainBatteryUnverifiableHint;
+
+  /// No description provided for @confirmMainBatteryInstalled.
+  ///
+  /// In en, this message translates to:
+  /// **'Main battery is fitted – continue'**
+  String get confirmMainBatteryInstalled;
+
+  /// No description provided for @proceedWithoutBatteryConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Proceed without confirmed main battery'**
+  String get proceedWithoutBatteryConfirmation;
+
   /// No description provided for @mainBatteryMissingHeading.
   ///
   /// In en, this message translates to:

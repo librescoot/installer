@@ -2137,6 +2137,41 @@ class AppLocalizationsEn extends AppLocalizations {
       'Plug the CBB cable back into the connector in the footwell. Without the CBB, the MDB could shut down during flashing.';
 
   @override
+  String get mainBatteryPreflightTitle => 'Main battery absent at preflight';
+
+  @override
+  String get mainBatteryPreflightWarning =>
+      'No main battery was detected before flashing. Losing power during a flash can leave the scooter unusable. Fit the battery and repeat the health check. Proceed only with a reliable alternative power supply.';
+
+  @override
+  String get mainBatteryHandoffTitle => 'Main battery unconfirmed';
+
+  @override
+  String get mainBatteryHandoffWarning =>
+      'The main battery could not be confirmed before dashboard work. Without reliable power, the DBC flash can fail. Proceed only if you accept the risk and have secured the power supply.';
+
+  @override
+  String get mainBatteryPreflightAcknowledge =>
+      'I checked the power supply and accept the risk of a failed flash.';
+
+  @override
+  String get mainBatteryPreflightOverride => 'Flash anyway';
+
+  @override
+  String get mainBatteryUnverifiableHeading => 'Main battery cannot be checked';
+
+  @override
+  String get mainBatteryUnverifiableHint =>
+      'The minimal MDB system cannot report main-battery presence. Physically check that the battery is fitted before dashboard work, then confirm below.';
+
+  @override
+  String get confirmMainBatteryInstalled => 'Main battery is fitted – continue';
+
+  @override
+  String get proceedWithoutBatteryConfirmation =>
+      'Proceed without confirmed main battery';
+
+  @override
   String get mainBatteryMissingHeading => 'No main battery detected';
 
   @override

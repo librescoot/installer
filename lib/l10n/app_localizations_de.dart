@@ -2173,6 +2173,42 @@ class AppLocalizationsDe extends AppLocalizations {
       'Stecke das CBB-Kabel wieder in den Anschluss im Fußraum. Ohne CBB könnte das MDB während des Flashens herunterfahren.';
 
   @override
+  String get mainBatteryPreflightTitle => 'Fahrakku fehlt beim Vorabcheck';
+
+  @override
+  String get mainBatteryPreflightWarning =>
+      'Beim Vorabcheck wurde kein Fahrakku erkannt. Ein Stromausfall während des Flashens kann den Roller unbrauchbar machen. Setze den Fahrakku ein und wiederhole die Statusprüfung. Nur mit gesicherter alternativer Stromversorgung fortfahren.';
+
+  @override
+  String get mainBatteryHandoffTitle => 'Fahrakku nicht bestätigt';
+
+  @override
+  String get mainBatteryHandoffWarning =>
+      'Der Fahrakku konnte vor den Display-Arbeiten nicht bestätigt werden. Ohne gesicherte Stromversorgung kann der DBC-Flash fehlschlagen. Fahre nur fort, wenn du das Risiko bewusst übernimmst und die Stromversorgung gesichert hast.';
+
+  @override
+  String get mainBatteryPreflightAcknowledge =>
+      'Ich habe die Stromversorgung geprüft und übernehme das Risiko eines Flash-Fehlers.';
+
+  @override
+  String get mainBatteryPreflightOverride => 'Trotzdem flashen';
+
+  @override
+  String get mainBatteryUnverifiableHeading =>
+      'Fahrakku kann nicht geprüft werden';
+
+  @override
+  String get mainBatteryUnverifiableHint =>
+      'Das minimale MDB-System meldet keinen Fahrakku. Prüfe vor den Display-Arbeiten selbst, ob der Fahrakku eingesetzt ist, und bestätige das unten.';
+
+  @override
+  String get confirmMainBatteryInstalled => 'Fahrakku ist eingesetzt – weiter';
+
+  @override
+  String get proceedWithoutBatteryConfirmation =>
+      'Ohne bestätigten Fahrakku fortfahren';
+
+  @override
   String get mainBatteryMissingHeading => 'Kein Fahrakku erkannt';
 
   @override

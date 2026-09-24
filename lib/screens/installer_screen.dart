@@ -5307,6 +5307,56 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     return artifactSeedPath(Board.mdb, item.filename);
   }
 
+  Future<bool> _confirmMainBatteryOverride({required bool atPreflight}) async {
+    final l10n = AppLocalizations.of(context)!;
+    var acknowledged = false;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, refresh) => AlertDialog(
+          title: Text(
+            atPreflight
+                ? l10n.mainBatteryPreflightTitle
+                : l10n.mainBatteryHandoffTitle,
+          ),
+          content: SizedBox(
+            width: 480,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  atPreflight
+                      ? l10n.mainBatteryPreflightWarning
+                      : l10n.mainBatteryHandoffWarning,
+                ),
+                CheckboxListTile(
+                  value: acknowledged,
+                  title: Text(l10n.mainBatteryPreflightAcknowledge),
+                  onChanged: (value) =>
+                      refresh(() => acknowledged = value ?? false),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(l10n.cancelButton),
+            ),
+            FilledButton(
+              onPressed: acknowledged
+                  ? () => Navigator.pop(dialogContext, true)
+                  : null,
+              child: Text(l10n.mainBatteryPreflightOverride),
+            ),
+          ],
+        ),
+      ),
+    );
+    return confirmed == true && mounted;
+  }
+
   Future<void> _startPlan() async {
     // --mdb-image / --dbc-image supply full sdimgs and no artifacts, so the
     // only thing a plan can mean there is the legacy full-image path.
@@ -5333,6 +5383,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       );
     }
     final plan = _plan!;
+    if ((plan.needsMdbWork || plan.needsHandoff) &&
+        _scooterHealth?.batteryPresent == false &&
+        !await _confirmMainBatteryOverride(atPreflight: true)) {
+      return;
+    }
+    if (!mounted) return;
     final preserveConfiguration =
         (plan.mdb.action == BoardAction.cleanInstall ||
             plan.mdb.action == BoardAction.fullImage) &&
@@ -7788,7 +7844,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         });
         _setStatus('');
         if (detected) {
-          final bat = _isDryRun ? true : await _sshService.isBatteryPresent();
+          final bat = _isDryRun
+              ? true
+              : _mdbStackMissing
+              ? false
+              : await _sshService.isBatteryPresent();
           if (bat) {
             debugPrint('Battery: insert detected on battery:0');
             await _sshService.logScooterStats('cbb-and-battery-reconnected');
@@ -7843,9 +7903,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     );
 
     final verifyBattery = PhaseAction(
-      label: l10n.verifyBatteryPresence,
+      label: _mdbStackMissing
+          ? l10n.confirmMainBatteryInstalled
+          : l10n.verifyBatteryPresence,
       primary: true,
       onPressed: () async {
+        if (_mdbStackMissing) {
+          debugPrint('Battery: main pack physically confirmed (bootstrap)');
+          _setPhase(_phaseAfterCbbReconnect);
+          return;
+        }
         setState(() => _isProcessing = true);
         _setStatus(l10n.checkingCbbAndBattery);
         final bat = _isDryRun ? true : await _sshService.isBatteryPresent();
@@ -7869,11 +7936,19 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // the check rather than sitting where an abort would.
     final proceedAnyway = PhaseAction(
       label: _cbbDetected
-          ? l10n.proceedWithoutMainBattery
+          ? (_mdbStackMissing
+                ? l10n.proceedWithoutBatteryConfirmation
+                : l10n.proceedWithoutMainBattery)
           : l10n.proceedWithoutCbb,
       danger: true,
       onPressed: _cbbDetected
-          ? () => _setPhase(_phaseAfterCbbReconnect)
+          ? () async {
+              if (await _confirmMainBatteryOverride(atPreflight: false) &&
+                  mounted &&
+                  _currentPhase == InstallerPhase.cbbReconnect) {
+                _setPhase(_phaseAfterCbbReconnect);
+              }
+            }
           : () => setState(() => _cbbDetected = true),
     );
 
@@ -7952,7 +8027,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    l10n.mainBatteryMissingHeading,
+                    _mdbStackMissing
+                        ? l10n.mainBatteryUnverifiableHeading
+                        : l10n.mainBatteryMissingHeading,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
@@ -7961,7 +8038,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    l10n.mainBatteryMissingHint,
+                    _mdbStackMissing
+                        ? l10n.mainBatteryUnverifiableHint
+                        : l10n.mainBatteryMissingHint,
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
                   ),
