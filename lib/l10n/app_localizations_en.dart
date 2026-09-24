@@ -1656,7 +1656,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get keycardSkipConfirmBody =>
-      'No keycard will be registered, so a keycard cannot unlock the scooter. Configure Bluetooth later if you need another unlock method.';
+      'No keycard will be registered, so a keycard cannot unlock the scooter. Skip this step only if you can already unlock the scooter reliably another way.';
 
   @override
   String get keycardSkipConfirmAction => 'Skip anyway';
@@ -2575,7 +2575,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get keycardReaderMissingHint =>
-      'The reader sits in the dashboard housing and is wired to the MDB through the DBC harness. Connect the harness, then retry.';
+      'The keycard reader may be disconnected or faulty. Check its connection and try again. Continue only if you can reliably unlock the scooter another way.';
 
   @override
   String get keycardReaderScanning => 'Hold a card to the reader';

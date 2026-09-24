@@ -2897,7 +2897,7 @@ abstract class AppLocalizations {
   /// No description provided for @keycardSkipConfirmBody.
   ///
   /// In en, this message translates to:
-  /// **'No keycard will be registered, so a keycard cannot unlock the scooter. Configure Bluetooth later if you need another unlock method.'**
+  /// **'No keycard will be registered, so a keycard cannot unlock the scooter. Skip this step only if you can already unlock the scooter reliably another way.'**
   String get keycardSkipConfirmBody;
 
   /// No description provided for @keycardSkipConfirmAction.
@@ -4445,7 +4445,7 @@ abstract class AppLocalizations {
   /// No description provided for @keycardReaderMissingHint.
   ///
   /// In en, this message translates to:
-  /// **'The reader sits in the dashboard housing and is wired to the MDB through the DBC harness. Connect the harness, then retry.'**
+  /// **'The keycard reader may be disconnected or faulty. Check its connection and try again. Continue only if you can reliably unlock the scooter another way.'**
   String get keycardReaderMissingHint;
 
   /// No description provided for @keycardReaderScanning.

@@ -1684,7 +1684,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get keycardSkipConfirmBody =>
-      'Es wird keine Schlüsselkarte angelernt. Richte später Bluetooth ein, wenn du eine andere Entsperrmethode benötigst.';
+      'Es wird keine Schlüsselkarte angelernt. Überspringe diesen Schritt nur, wenn du den Roller bereits auf andere Weise zuverlässig entsperren kannst.';
 
   @override
   String get keycardSkipConfirmAction => 'Trotzdem überspringen';
@@ -2620,7 +2620,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get keycardReaderMissingHint =>
-      'Der Leser sitzt im Display-Gehäuse und hängt über den DBC-Kabelbaum am MDB. Schließe den Kabelbaum an und versuche es erneut.';
+      'Der Kartenleser ist möglicherweise defekt oder nicht angeschlossen. Prüfe seine Verbindung und versuche es erneut. Fahre nur fort, wenn du den Roller auf andere Weise zuverlässig entsperren kannst.';
 
   @override
   String get keycardReaderScanning => 'Schlüsselkarte an den Leser halten';

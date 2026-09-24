@@ -709,7 +709,7 @@
   "keycardStopLearning": "Finish",
   "keycardStopScanning": "Stop",
   "keycardSkipConfirmTitle": "Skip without a keycard?",
-  "keycardSkipConfirmBody": "No keycard will be registered, so a keycard cannot unlock the scooter. Configure Bluetooth later if you need another unlock method.",
+  "keycardSkipConfirmBody": "No keycard will be registered, so a keycard cannot unlock the scooter. Skip this step only if you can already unlock the scooter reliably another way.",
   "keycardSkipConfirmAction": "Skip anyway",
   "keycardStartLearningFailed": "Could not start keycard learning: {error}",
   "@keycardStartLearningFailed": {
@@ -1187,7 +1187,7 @@
   "keycardRetryReader": "Retry reader",
   "keycardReaderUnreachable": "Reader not reachable",
   "keycardReaderMissing": "No keycard reader found",
-  "keycardReaderMissingHint": "The reader sits in the dashboard housing and is wired to the MDB through the DBC harness. Connect the harness, then retry.",
+  "keycardReaderMissingHint": "The keycard reader may be disconnected or faulty. Check its connection and try again. Continue only if you can reliably unlock the scooter another way.",
   "keycardReaderScanning": "Hold a card to the reader",
   "keycardCardsTaught": "{count, plural, =0{No keycards registered} =1{1 keycard registered} other{{count} keycards registered}}",
   "@keycardCardsTaught": {
