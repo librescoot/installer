@@ -1037,7 +1037,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get handoffEstimateBriefDisclaimer =>
-      'Estimated from transfer size and typical timings. Taking a little longer is normal; this is not live progress.';
+      'The bar estimates progress from the transfer size and typical timings. It is normal if the installation takes a little longer.';
 
   @override
   String get handoffEstimateExplanation =>

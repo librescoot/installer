@@ -351,7 +351,7 @@
   "waitingForDownloads": "Warte, bis das Herunterladen abgeschlossen ist…",
   "filesStagedWaitingForHandoff": "Alle Dateien sind bereit. Starte die Display-Arbeiten, wenn du bereit bist.",
   "handoffEstimateTitle": "Installationsfortschritt",
-  "handoffEstimateBriefDisclaimer": "Geschätzt aus Datenmenge und üblichen Laufzeiten. Etwas länger ist normal – kein Live-Status.",
+  "handoffEstimateBriefDisclaimer": "Der Balken schätzt den Fortschritt anhand der Datenmenge und üblicher Laufzeiten. Es ist normal, wenn die Installation etwas länger dauert.",
   "handoffEstimateExplanation": "Solange das MDB mit dem DBC verbunden ist, kann der Laptop den aktuellen Fortschritt nicht auslesen. Die Schätzung wird aus den Dateigrößen und gemessenen Laufzeiten echter Installationen berechnet. Schließe den Laptop nicht aufgrund der Schätzung wieder an, sondern warte auf den tatsächlichen Zustand an Display und Blinkern.",
   "handoffEstimateMinutes": "{minutes} Min.",
   "@handoffEstimateMinutes": {

@@ -1889,7 +1889,7 @@ abstract class AppLocalizations {
   /// No description provided for @handoffEstimateBriefDisclaimer.
   ///
   /// In en, this message translates to:
-  /// **'Estimated from transfer size and typical timings. Taking a little longer is normal; this is not live progress.'**
+  /// **'The bar estimates progress from the transfer size and typical timings. It is normal if the installation takes a little longer.'**
   String get handoffEstimateBriefDisclaimer;
 
   /// No description provided for @handoffEstimateExplanation.

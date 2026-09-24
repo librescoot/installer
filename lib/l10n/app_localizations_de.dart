@@ -1054,7 +1054,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get handoffEstimateBriefDisclaimer =>
-      'Geschätzt aus Datenmenge und üblichen Laufzeiten. Etwas länger ist normal – kein Live-Status.';
+      'Der Balken schätzt den Fortschritt anhand der Datenmenge und üblicher Laufzeiten. Es ist normal, wenn die Installation etwas länger dauert.';
 
   @override
   String get handoffEstimateExplanation =>
