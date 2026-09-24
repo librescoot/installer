@@ -1646,6 +1646,24 @@ abstract class AppLocalizations {
   /// **'Waiting for MDB boot'**
   String get waitingForMdbBoot;
 
+  /// No description provided for @manualRestartFallbackAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Open AUX instructions'**
+  String get manualRestartFallbackAction;
+
+  /// No description provided for @manualRestartFallbackTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a different restart method?'**
+  String get manualRestartFallbackTitle;
+
+  /// No description provided for @manualRestartFallbackWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'MDB boot can take several minutes. Do not disconnect the CBB or AUX during a reboot. Switch only if the brake-lever restart did not work.'**
+  String get manualRestartFallbackWarning;
+
   /// No description provided for @mdbBootRestartingNote.
   ///
   /// In en, this message translates to:

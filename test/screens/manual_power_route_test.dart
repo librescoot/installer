@@ -25,6 +25,18 @@ void main() {
     expect(prep, contains('() => setState(() => _manualPowerCut = false)'));
   });
 
+  test('MDB boot offers a guarded return to the AUX instructions', () {
+    final start = source.indexOf('Future<void> _returnToManualRestart()');
+    final end = source.indexOf('\n  void _startMdbBoot(', start);
+    final boot = source.substring(start, end);
+    expect(boot, contains('showDialog<bool>'));
+    expect(boot, contains('l10n.manualRestartFallbackWarning'));
+    expect(boot, contains('confirmed == true'));
+    expect(boot, contains('_setPhase(InstallerPhase.scooterPrep)'));
+    expect(boot, contains('actions: ['));
+    expect(boot, contains('onPressed: _returnToManualRestart'));
+  });
+
   test('bootstrap battery step does not offer unavailable seatbox action', () {
     final start = source.indexOf('Widget _buildCbbReconnect(');
     final end = source.indexOf('\n  Widget _buildDbcPrep(', start);

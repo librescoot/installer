@@ -910,6 +910,16 @@ class AppLocalizationsDe extends AppLocalizations {
   String get waitingForMdbBoot => 'Warte auf den MDB-Start';
 
   @override
+  String get manualRestartFallbackAction => 'AUX-Anleitung öffnen';
+
+  @override
+  String get manualRestartFallbackTitle => 'Andere Neustartmethode verwenden?';
+
+  @override
+  String get manualRestartFallbackWarning =>
+      'Der MDB-Start kann einige Minuten dauern. Trenne CBB und AUX nicht während eines laufenden Neustarts. Wechsle nur, wenn der Bremshebel-Neustart nicht funktioniert hat.';
+
+  @override
   String get mdbBootRestartingNote =>
       'Der Neustart des Rollers dauert ein bis zwei Minuten.';
 

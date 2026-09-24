@@ -6488,6 +6488,32 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     );
   }
 
+  Future<void> _returnToManualRestart() async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.manualRestartFallbackTitle),
+        content: Text(l10n.manualRestartFallbackWarning),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l10n.cancelButton),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l10n.manualRestartFallbackAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true &&
+        mounted &&
+        _currentPhase == InstallerPhase.mdbBoot) {
+      _setPhase(InstallerPhase.scooterPrep);
+    }
+  }
+
   Widget _buildMdbBoot(AppLocalizations l10n) {
     // The manual route has something to do on this screen - the AUX pole goes
     // back on - so it keeps the whole frame. The brake-gesture route is pure
@@ -6496,6 +6522,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       return _waitPhase(
         title: l10n.waitingForMdbBoot,
         warning: l10n.dbcFlashDoNotDisconnect,
+        actions: [
+          TextButton(
+            onPressed: _returnToManualRestart,
+            child: Text(l10n.manualRestartFallbackAction),
+          ),
+        ],
       );
     }
     return _waitingPhase(
@@ -6504,13 +6536,21 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           ? l10n.waitingForUsbDevice
           : _statusMessage,
       actions: [
-        if (_mdbBootAttempt.isFailed)
+        if (_mdbBootAttempt.isFailed) ...[
+          if (!_manualPowerCut)
+            PhaseAction(
+              label: l10n.manualRestartFallbackAction,
+              icon: Icons.build_outlined,
+              side: ActionSide.back,
+              onPressed: _returnToManualRestart,
+            ),
           PhaseAction(
             label: l10n.retryMdbBoot,
             icon: Icons.refresh,
             primary: true,
             onPressed: () => _startMdbBoot(explicitRetry: true),
           ),
+        ],
       ],
       extra: [
         const SizedBox(height: 20),

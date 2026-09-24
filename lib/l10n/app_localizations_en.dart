@@ -895,6 +895,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get waitingForMdbBoot => 'Waiting for MDB boot';
 
   @override
+  String get manualRestartFallbackAction => 'Open AUX instructions';
+
+  @override
+  String get manualRestartFallbackTitle => 'Use a different restart method?';
+
+  @override
+  String get manualRestartFallbackWarning =>
+      'MDB boot can take several minutes. Do not disconnect the CBB or AUX during a reboot. Switch only if the brake-lever restart did not work.';
+
+  @override
   String get mdbBootRestartingNote =>
       'The scooter is restarting on its own. This takes a minute or two.';
 
