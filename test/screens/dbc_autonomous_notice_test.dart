@@ -20,15 +20,19 @@ void main() {
       screen.indexOf('l10n.dbcFlashHandsOffHeading'),
       lessThan(screen.indexOf('EstimatedHandoffProgress(')),
     );
+    expect(screen, contains('DbcFlashOutcomes('));
+    expect(screen, isNot(contains('_blinkerPhases(')));
+    expect(screen, isNot(contains('l10n.dbcFlashSequence')));
   });
 
-  test('both languages name the failure and completion signals', () {
-    for (final text in [
+  test('both languages give a concise hands-off warning', () {
+    expect(
       AppLocalizationsDe().dbcFlashHandsOffBody,
+      contains('Keine Kabel oder Batterien trennen'),
+    );
+    expect(
       AppLocalizationsEn().dbcFlashHandsOffBody,
-    ]) {
-      expect(text, anyOf(contains('rot blinkt'), contains('blinks red')));
-      expect(text, anyOf(contains('entsperrt'), contains('unlocked')));
-    }
+      contains('Do not disconnect cables or batteries'),
+    );
   });
 }

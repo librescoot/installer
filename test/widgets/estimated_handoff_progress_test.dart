@@ -62,7 +62,7 @@ void main() {
     );
   });
 
-  testWidgets('German copy warns not to reconnect from the estimate', (
+  testWidgets('German copy labels the enlarged bar as an estimate', (
     tester,
   ) async {
     final plan = InstallPlan(
@@ -96,12 +96,13 @@ void main() {
     );
 
     expect(find.text('Geschätzter Fortschritt'), findsOneWidget);
-    expect(find.textContaining('nicht aufgrund der Schätzung'), findsOneWidget);
-    expect(find.textContaining('vergangen'), findsOneWidget);
+    expect(find.text('Nur Zeitschätzung – kein Live-Status.'), findsOneWidget);
+    expect(find.textContaining('Noch etwa'), findsOneWidget);
     final bar = tester.widget<LinearProgressIndicator>(
       find.byType(LinearProgressIndicator),
     );
     expect(bar.value, isNotNull);
     expect(bar.value!, lessThan(0.5));
+    expect(bar.minHeight, 18);
   });
 }

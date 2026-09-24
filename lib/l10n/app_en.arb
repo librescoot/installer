@@ -429,6 +429,7 @@
   "waitingForDownloads": "Waiting for downloads to complete...",
   "filesStagedWaitingForHandoff": "Files are ready. Start the dashboard work when you are ready.",
   "handoffEstimateTitle": "Estimated progress",
+  "handoffEstimateBriefDisclaimer": "Time estimate only – not live progress.",
   "handoffEstimateExplanation": "The laptop cannot read live progress while the MDB is connected to the DBC. The estimate is calculated from the selected file sizes and timings measured on real installs. Do not reconnect the laptop based on the estimate; wait for the display and blinkers to show the actual state.",
   "handoffEstimateMinutes": "{minutes} min",
   "@handoffEstimateMinutes": {
@@ -993,7 +994,7 @@
   "dbcFlashAllDone": "Continue",
   "dbcFlashSequence": "The scooter now completes the requested dashboard work. Progress appears on the dashboard. Stay with the scooter until it completes or reports an error.",
   "dbcFlashHandsOffHeading": "HANDS OFF – THE SCOOTER IS WORKING ON ITS OWN",
-  "dbcFlashHandsOffBody": "Until either the dashboard LED blinks red (error) or the scooter fully returns – unlocked, lights and dashboard on (success) – waiting is normal. Do not disconnect cables or batteries or operate the scooter in the meantime.",
+  "dbcFlashHandsOffBody": "Do not disconnect cables or batteries. Do not touch the scooter.",
   "dbcFlashObservedSuccess": "I see the completion signal",
   "dbcFlashDoNotDisconnect": "Do not disconnect USB or power while this runs.",
   "dbcFlashDoneSignal": "Complete: the scooter unlocks automatically, with its lights and dashboard on. You do not need to keep waiting.",

@@ -75,6 +75,7 @@ import '../widgets/phase_layout.dart';
 import '../widgets/notice_card.dart';
 import '../widgets/driver_blocked_panel.dart';
 import '../widgets/estimated_handoff_progress.dart';
+import '../widgets/dbc_flash_outcomes.dart';
 import '../widgets/overlay_card.dart';
 import '../widgets/phase_sidebar.dart';
 import '../widgets/substep_list.dart';
@@ -8616,46 +8617,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
     // Step 2: USB disconnected: MDB is flashing autonomously.
     //
-    // Once the cable is unplugged we have NO link to the MDB until it
-    // comes back as RNDIS. So this screen is purely informational:
-    // it tells the user what's happening on the scooter lights and
-    // gives them a "I see X" button to advance when the boot LED
-    // settles on green or red.
+    // Until USB returns, the installer cannot verify what the scooter shows.
+    // The outcome cards record the user's observation and start verification.
     return PhaseLayout(
       title: l10n.dbcFlashInProgress,
-      actions: [
-        // Both lead onwards: one to the last step, one to the diagnosis. The
-        // failing branch is still the way out of this screen, so it sits with
-        // the other rather than where an abort would.
-        PhaseAction(
-          label: l10n.dbcFlashSomethingWrong,
-          danger: true,
-          onPressed: () {
-            _dbcFlashSimulateError = true;
-            _setPhase(InstallerPhase.reconnect);
-          },
-        ),
-        PhaseAction(
-          label: l10n.dbcFlashObservedSuccess,
-          icon: Icons.arrow_forward,
-          onPressed: _isProcessing ? null : _finishAfterDbcSuccess,
-        ),
-      ],
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            l10n.dbcFlashSequence,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade300,
-              height: 1.45,
-            ),
-          ),
-          const SizedBox(height: 18),
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: Colors.amber.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
@@ -8668,15 +8639,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                   children: [
                     const Icon(
                       Icons.warning_amber_rounded,
-                      size: 28,
+                      size: 36,
                       color: Colors.amber,
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: Text(
                         l10n.dbcFlashHandsOffHeading,
                         style: const TextStyle(
-                          fontSize: 19,
+                          fontSize: 24,
                           fontWeight: FontWeight.w800,
                           color: Colors.amber,
                         ),
@@ -8684,13 +8655,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 Text(
                   l10n.dbcFlashHandsOffBody,
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 19,
                     fontWeight: FontWeight.w600,
-                    height: 1.45,
                     color: Colors.grey.shade100,
                   ),
                 ),
@@ -8703,51 +8673,26 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             startedAt: _autonomousHandoffStartedAt ?? DateTime.now(),
           ),
           const SizedBox(height: 18),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1A),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade800),
-            ),
-            child: _blinkerPhases(l10n),
-          ),
-          const SizedBox(height: 18),
-          // Once the laptop is unplugged the dashboard LED is the only
-          // thing that can report a failure, so name it above the outcomes
-          // instead of leaving it buried in one of them.
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                Icons.lightbulb_outline,
-                size: 20,
-                color: Colors.grey.shade400,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  l10n.dbcFlashLedIsTheSignal,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade300,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          _outcomeRow(
-            icon: Icons.lock_open,
-            colour: Colors.greenAccent,
-            text: l10n.dbcFlashDoneSignal,
-          ),
-          const SizedBox(height: 12),
-          _outcomeRow(
-            icon: Icons.warning_amber_rounded,
-            colour: Colors.redAccent,
-            text: l10n.dbcFlashFailSignal,
+          DbcFlashOutcomes(
+            onError: () {
+              logJourneyEvent('button_pressed', {
+                'screen': l10n.dbcFlashInProgress,
+                'label': 'ERROR',
+                'side': ActionSide.forward.name,
+              });
+              _dbcFlashSimulateError = true;
+              _setPhase(InstallerPhase.reconnect);
+            },
+            onSuccess: _isProcessing
+                ? null
+                : () {
+                    logJourneyEvent('button_pressed', {
+                      'screen': l10n.dbcFlashInProgress,
+                      'label': 'SUCCESS',
+                      'side': ActionSide.forward.name,
+                    });
+                    _finishAfterDbcSuccess();
+                  },
           ),
         ],
       ),
@@ -8794,101 +8739,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         return;
       }
     }
-  }
-
-  /// One of the two ways the install can end, stated the way the user will
-  /// see it happen rather than as an LED colour to decode.
-  Widget _outcomeRow({
-    required IconData icon,
-    required Color colour,
-    required String text,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 20, color: colour),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(fontSize: 14, color: colour, height: 1.4),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // The four turn-signal LEDs fill in sequence (FL -> FR -> BR -> BL), one per
-  // trampoline phase. Label each position with the step it represents so the
-  // user can read progress off the scooter itself.
-  Widget _blinkerPhases(AppLocalizations l10n) {
-    Widget phase(int n, String pos, String step) {
-      return Padding(
-        padding: const EdgeInsets.only(left: 24, bottom: 3),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 14,
-              child: Text(
-                '$n',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: kAccent,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 2,
-              child: Text(
-                pos,
-                style: TextStyle(fontSize: 12.5, color: Colors.grey.shade500),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 3,
-              child: Text(step, style: const TextStyle(fontSize: 12.5)),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(width: 8),
-                const Padding(
-                  padding: EdgeInsets.only(top: 3),
-                  child: Icon(Icons.circle, size: 8, color: kAccent),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    l10n.ledBlinkerProgress,
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          phase(1, l10n.blinkerPosFL, l10n.blinkerStepPrep),
-          phase(2, l10n.blinkerPosFR, l10n.blinkerStepFlash),
-          phase(3, l10n.blinkerPosBR, l10n.blinkerStepRestart),
-          phase(4, l10n.blinkerPosBL, l10n.blinkerStepMaps),
-        ],
-      ),
-    );
   }
 
   Widget _buildReconnect(AppLocalizations l10n) {

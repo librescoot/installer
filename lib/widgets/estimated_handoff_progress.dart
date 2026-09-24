@@ -8,8 +8,8 @@ import '../theme.dart';
 
 /// The bar tracks the calibrated estimate directly: elapsed over typical,
 /// capped at 90%, with the typical-to-upper stretch creeping to 97%. It has
-/// to agree with the countdown next to it; a bar visibly behind its own
-/// "remaining" text reads as a stall. Never full: the vehicle cannot confirm
+/// to agree with the remaining-time estimate below it; a bar visibly behind
+/// its own timing text reads as a stall. Never full: the vehicle cannot confirm
 /// completion from here, so the last stretch belongs to the scooter's own
 /// signals, and past the upper bound the bar goes indeterminate.
 @visibleForTesting
@@ -71,12 +71,6 @@ class _EstimatedHandoffProgressState extends State<EstimatedHandoffProgress> {
 
   DateTime get _now => (widget.now ?? DateTime.now)();
 
-  String _elapsed(Duration duration) {
-    final seconds = duration.inSeconds.clamp(0, 359999);
-    final minutes = seconds ~/ 60;
-    return '$minutes:${(seconds % 60).toString().padLeft(2, '0')}';
-  }
-
   String _minutes(AppLocalizations l10n, Duration duration) {
     final minutes = (duration.inSeconds / 60).ceil().clamp(1, 9999);
     return l10n.handoffEstimateMinutes(minutes);
@@ -122,7 +116,7 @@ class _EstimatedHandoffProgressState extends State<EstimatedHandoffProgress> {
     }
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: kAccent.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(8),
@@ -133,47 +127,27 @@ class _EstimatedHandoffProgressState extends State<EstimatedHandoffProgress> {
         children: [
           Text(
             l10n.handoffEstimateTitle,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           Text(
-            l10n.handoffEstimateExplanation,
-            style: TextStyle(
-              fontSize: 12.5,
-              height: 1.35,
-              color: Colors.grey.shade400,
-            ),
+            l10n.handoffEstimateBriefDisclaimer,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           LinearProgressIndicator(
             value: progress,
-            minHeight: 6,
+            minHeight: 18,
+            borderRadius: BorderRadius.circular(9),
             backgroundColor: Colors.white.withValues(alpha: 0.08),
           ),
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  timing,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: overdue ? Colors.orange.shade200 : kTextMuted,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                l10n.waitElapsed(_elapsed(elapsed)),
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: kTextMuted,
-                  fontFamily: 'Inter',
-                  fontFeatures: [FontFeature.tabularFigures()],
-                ),
-              ),
-            ],
+          const SizedBox(height: 10),
+          Text(
+            timing,
+            style: TextStyle(
+              fontSize: 14,
+              color: overdue ? Colors.orange.shade200 : kTextMuted,
+            ),
           ),
         ],
       ),

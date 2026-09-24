@@ -73,8 +73,10 @@ void main() {
     final autonomous = source.substring(start, end);
     expect(autonomous, contains('EstimatedHandoffProgress('));
     expect(autonomous, contains('_autonomousHandoffStartedAt'));
-    expect(autonomous, contains('l10n.dbcFlashSomethingWrong'));
-    expect(autonomous, contains('l10n.dbcFlashObservedSuccess'));
+    expect(autonomous, contains('DbcFlashOutcomes('));
+    expect(autonomous, contains('_dbcFlashSimulateError = true'));
+    expect(autonomous, contains('_setPhase(InstallerPhase.reconnect)'));
+    expect(autonomous, contains('_finishAfterDbcSuccess()'));
     expect(autonomous, isNot(contains('l10n.dbcFlashAllDone')));
   });
 

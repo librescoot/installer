@@ -353,6 +353,7 @@
   "waitingForDownloads": "Warte, bis das Herunterladen abgeschlossen ist…",
   "filesStagedWaitingForHandoff": "Alle Dateien sind bereit. Starte die Display-Arbeiten, wenn du bereit bist.",
   "handoffEstimateTitle": "Geschätzter Fortschritt",
+  "handoffEstimateBriefDisclaimer": "Nur Zeitschätzung – kein Live-Status.",
   "handoffEstimateExplanation": "Solange das MDB mit dem DBC verbunden ist, kann der Laptop den aktuellen Fortschritt nicht auslesen. Die Schätzung wird aus den Dateigrößen und gemessenen Laufzeiten echter Installationen berechnet. Schließe den Laptop nicht aufgrund der Schätzung wieder an, sondern warte auf den tatsächlichen Zustand an Display und Blinkern.",
   "handoffEstimateMinutes": "{minutes} Min.",
   "@handoffEstimateMinutes": {
@@ -848,7 +849,7 @@
   "dbcFlashAllDone": "Weiter zum Abschluss",
   "dbcFlashSequence": "Der Roller führt jetzt die ausgewählten Display-Arbeiten aus. Den tatsächlichen Zustand zeigen das Display und die Blinker. Warte, bis der Vorgang abgeschlossen ist oder ein Fehler angezeigt wird.",
   "dbcFlashHandsOffHeading": "FINGER WEG – DER ROLLER ARBEITET SELBSTSTÄNDIG",
-  "dbcFlashHandsOffBody": "Solange weder die LED am Tacho rot blinkt (Fehler) noch der Roller vollständig zurück ist – entsperrt, Licht an und Dashboard an (Erfolg) –, ist das Warten normal. Bis dahin keine Kabel oder Batterien trennen und nichts am Roller betätigen.",
+  "dbcFlashHandsOffBody": "Keine Kabel oder Batterien trennen. Nichts am Roller betätigen.",
   "dbcFlashObservedSuccess": "Der Roller hat sich entsperrt",
   "dbcFlashDoNotDisconnect": "USB und Strom nicht trennen, solange das läuft.",
   "dbcFlashDoneSignal": "Fertig: Der Roller hat sich automatisch entsperrt, Beleuchtung und Dashboard sind an. Du musst nicht weiter warten.",

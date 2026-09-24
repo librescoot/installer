@@ -71,10 +71,7 @@ void main() {
     expect(detect, greaterThan(-1));
     expect(refresh, greaterThan(detect));
     expect(advance, greaterThan(refresh));
-    expect(
-      source,
-      contains('onPressed: _isProcessing ? null : _finishAfterDbcSuccess'),
-    );
+    expect(source, contains('onSuccess: _isProcessing'));
   });
 
   test('a USB event on Finish polls through late ssh and finalization', () {

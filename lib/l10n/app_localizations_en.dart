@@ -1042,6 +1042,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get handoffEstimateTitle => 'Estimated progress';
 
   @override
+  String get handoffEstimateBriefDisclaimer =>
+      'Time estimate only – not live progress.';
+
+  @override
   String get handoffEstimateExplanation =>
       'The laptop cannot read live progress while the MDB is connected to the DBC. The estimate is calculated from the selected file sizes and timings measured on real installs. Do not reconnect the laptop based on the estimate; wait for the display and blinkers to show the actual state.';
 
@@ -2236,7 +2240,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dbcFlashHandsOffBody =>
-      'Until either the dashboard LED blinks red (error) or the scooter fully returns – unlocked, lights and dashboard on (success) – waiting is normal. Do not disconnect cables or batteries or operate the scooter in the meantime.';
+      'Do not disconnect cables or batteries. Do not touch the scooter.';
 
   @override
   String get dbcFlashObservedSuccess => 'I see the completion signal';

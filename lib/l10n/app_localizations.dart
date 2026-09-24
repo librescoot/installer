@@ -1898,6 +1898,12 @@ abstract class AppLocalizations {
   /// **'Estimated progress'**
   String get handoffEstimateTitle;
 
+  /// No description provided for @handoffEstimateBriefDisclaimer.
+  ///
+  /// In en, this message translates to:
+  /// **'Time estimate only – not live progress.'**
+  String get handoffEstimateBriefDisclaimer;
+
   /// No description provided for @handoffEstimateExplanation.
   ///
   /// In en, this message translates to:
@@ -3863,7 +3869,7 @@ abstract class AppLocalizations {
   /// No description provided for @dbcFlashHandsOffBody.
   ///
   /// In en, this message translates to:
-  /// **'Until either the dashboard LED blinks red (error) or the scooter fully returns – unlocked, lights and dashboard on (success) – waiting is normal. Do not disconnect cables or batteries or operate the scooter in the meantime.'**
+  /// **'Do not disconnect cables or batteries. Do not touch the scooter.'**
   String get dbcFlashHandsOffBody;
 
   /// No description provided for @dbcFlashObservedSuccess.

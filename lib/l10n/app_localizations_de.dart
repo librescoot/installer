@@ -1059,6 +1059,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get handoffEstimateTitle => 'Geschätzter Fortschritt';
 
   @override
+  String get handoffEstimateBriefDisclaimer =>
+      'Nur Zeitschätzung – kein Live-Status.';
+
+  @override
   String get handoffEstimateExplanation =>
       'Solange das MDB mit dem DBC verbunden ist, kann der Laptop den aktuellen Fortschritt nicht auslesen. Die Schätzung wird aus den Dateigrößen und gemessenen Laufzeiten echter Installationen berechnet. Schließe den Laptop nicht aufgrund der Schätzung wieder an, sondern warte auf den tatsächlichen Zustand an Display und Blinkern.';
 
@@ -2275,7 +2279,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcFlashHandsOffBody =>
-      'Solange weder die LED am Tacho rot blinkt (Fehler) noch der Roller vollständig zurück ist – entsperrt, Licht an und Dashboard an (Erfolg) –, ist das Warten normal. Bis dahin keine Kabel oder Batterien trennen und nichts am Roller betätigen.';
+      'Keine Kabel oder Batterien trennen. Nichts am Roller betätigen.';
 
   @override
   String get dbcFlashObservedSuccess => 'Der Roller hat sich entsperrt';
