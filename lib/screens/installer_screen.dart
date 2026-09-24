@@ -4545,6 +4545,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// os-release ID, but only the full image brings up a service stack, and
   /// the artifact name carries the image recipe.
   Future<BoardState> _detectMdbState() async {
+    if (_isDryRun) {
+      return const BoardState(
+        board: Board.mdb,
+        isLibrescoot: false,
+        provenance: StateProvenance.live,
+        version: 'v1.15.0',
+      );
+    }
     final osRelease = await _sshService.readOsRelease();
     final version = osRelease['VERSION_ID'] ?? _mdbInfo?.firmwareVersion;
     // Probe the stack instead of trusting _mdbStackMissing. After the
@@ -4607,6 +4615,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// hasMender is assumed rather than probed; the trampoline finds out for
   /// real and falls back to stage 0 on the spot.
   Future<BoardState> _detectDbcState() async {
+    if (_isDryRun) return BoardState.unknown;
     String? version;
     try {
       final hash = await _sshService.redisHgetall('version:dbc');
