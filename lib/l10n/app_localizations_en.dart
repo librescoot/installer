@@ -1033,11 +1033,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Files are ready. Start the dashboard work when you are ready.';
 
   @override
-  String get handoffEstimateTitle => 'Estimated progress';
+  String get handoffEstimateTitle => 'Installation progress';
 
   @override
   String get handoffEstimateBriefDisclaimer =>
-      'Time estimate only – not live progress.';
+      'Estimated from transfer size and typical timings. Taking a little longer is normal; this is not live progress.';
 
   @override
   String get handoffEstimateExplanation =>
@@ -1065,7 +1065,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get handoffEstimateTakingLonger =>
-      'Taking longer than expected. Keep the scooter powered and leave the cables connected.';
+      'Taking a little longer is normal. Keep the scooter powered and leave the cables connected.';
 
   @override
   String get startingTrampoline => 'Starting on-device installation...';

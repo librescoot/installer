@@ -426,8 +426,8 @@
   "dbcReadyButtonMaps": "Start map transfer",
   "waitingForDownloads": "Waiting for downloads to complete...",
   "filesStagedWaitingForHandoff": "Files are ready. Start the dashboard work when you are ready.",
-  "handoffEstimateTitle": "Estimated progress",
-  "handoffEstimateBriefDisclaimer": "Time estimate only – not live progress.",
+  "handoffEstimateTitle": "Installation progress",
+  "handoffEstimateBriefDisclaimer": "Estimated from transfer size and typical timings. Taking a little longer is normal; this is not live progress.",
   "handoffEstimateExplanation": "The laptop cannot read live progress while the MDB is connected to the DBC. The estimate is calculated from the selected file sizes and timings measured on real installs. Do not reconnect the laptop based on the estimate; wait for the display and blinkers to show the actual state.",
   "handoffEstimateMinutes": "{minutes} min",
   "@handoffEstimateMinutes": {
@@ -448,7 +448,7 @@
       "to": {"type": "String"}
     }
   },
-  "handoffEstimateTakingLonger": "Taking longer than expected. Keep the scooter powered and leave the cables connected.",
+  "handoffEstimateTakingLonger": "Taking a little longer is normal. Keep the scooter powered and leave the cables connected.",
   "startingTrampoline": "Starting on-device installation...",
   "uploadError": "Upload error: {error}",
   "trampolineStartFailed": "The on-device installation could not start. Details are in the installer log, and diagnostic files were saved to {path}. Try again; if it still fails, restore the scooter without this transfer.",

@@ -1050,11 +1050,11 @@ class AppLocalizationsDe extends AppLocalizations {
       'Alle Dateien sind bereit. Starte die Display-Arbeiten, wenn du bereit bist.';
 
   @override
-  String get handoffEstimateTitle => 'Geschätzter Fortschritt';
+  String get handoffEstimateTitle => 'Installationsfortschritt';
 
   @override
   String get handoffEstimateBriefDisclaimer =>
-      'Nur Zeitschätzung – kein Live-Status.';
+      'Geschätzt aus Datenmenge und üblichen Laufzeiten. Etwas länger ist normal – kein Live-Status.';
 
   @override
   String get handoffEstimateExplanation =>
@@ -1082,7 +1082,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get handoffEstimateTakingLonger =>
-      'Der Vorgang dauert länger als erwartet. Lass den Roller eingeschaltet und die Kabel verbunden.';
+      'Dauert etwas länger – kein Grund zur Sorge. Lass den Roller eingeschaltet und die Kabel verbunden.';
 
   @override
   String get startingTrampoline =>

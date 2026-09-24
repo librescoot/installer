@@ -350,8 +350,8 @@
   "dbcReadyButtonMaps": "Kartenübertragung starten",
   "waitingForDownloads": "Warte, bis das Herunterladen abgeschlossen ist…",
   "filesStagedWaitingForHandoff": "Alle Dateien sind bereit. Starte die Display-Arbeiten, wenn du bereit bist.",
-  "handoffEstimateTitle": "Geschätzter Fortschritt",
-  "handoffEstimateBriefDisclaimer": "Nur Zeitschätzung – kein Live-Status.",
+  "handoffEstimateTitle": "Installationsfortschritt",
+  "handoffEstimateBriefDisclaimer": "Geschätzt aus Datenmenge und üblichen Laufzeiten. Etwas länger ist normal – kein Live-Status.",
   "handoffEstimateExplanation": "Solange das MDB mit dem DBC verbunden ist, kann der Laptop den aktuellen Fortschritt nicht auslesen. Die Schätzung wird aus den Dateigrößen und gemessenen Laufzeiten echter Installationen berechnet. Schließe den Laptop nicht aufgrund der Schätzung wieder an, sondern warte auf den tatsächlichen Zustand an Display und Blinkern.",
   "handoffEstimateMinutes": "{minutes} Min.",
   "@handoffEstimateMinutes": {
@@ -372,7 +372,7 @@
       "to": {"type": "String"}
     }
   },
-  "handoffEstimateTakingLonger": "Der Vorgang dauert länger als erwartet. Lass den Roller eingeschaltet und die Kabel verbunden.",
+  "handoffEstimateTakingLonger": "Dauert etwas länger – kein Grund zur Sorge. Lass den Roller eingeschaltet und die Kabel verbunden.",
   "startingTrampoline": "Installation auf dem Roller wird gestartet…",
   "uploadError": "Übertragungsfehler: {error}",
   "trampolineStartFailed": "Die Installation auf dem Roller konnte nicht gestartet werden. Details stehen im Protokoll; Diagnose-Dateien wurden unter {path} gespeichert. Versuche es erneut. Falls der Fehler bestehen bleibt, stelle den Roller ohne diese Übertragung wieder her.",

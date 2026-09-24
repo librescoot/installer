@@ -95,8 +95,8 @@ void main() {
       ),
     );
 
-    expect(find.text('Geschätzter Fortschritt'), findsOneWidget);
-    expect(find.text('Nur Zeitschätzung – kein Live-Status.'), findsOneWidget);
+    expect(find.text('Installationsfortschritt'), findsOneWidget);
+    expect(find.textContaining('üblichen Laufzeiten'), findsOneWidget);
     expect(find.textContaining('Noch etwa'), findsOneWidget);
     final bar = tester.widget<LinearProgressIndicator>(
       find.byType(LinearProgressIndicator),

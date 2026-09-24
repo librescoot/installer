@@ -1883,13 +1883,13 @@ abstract class AppLocalizations {
   /// No description provided for @handoffEstimateTitle.
   ///
   /// In en, this message translates to:
-  /// **'Estimated progress'**
+  /// **'Installation progress'**
   String get handoffEstimateTitle;
 
   /// No description provided for @handoffEstimateBriefDisclaimer.
   ///
   /// In en, this message translates to:
-  /// **'Time estimate only – not live progress.'**
+  /// **'Estimated from transfer size and typical timings. Taking a little longer is normal; this is not live progress.'**
   String get handoffEstimateBriefDisclaimer;
 
   /// No description provided for @handoffEstimateExplanation.
@@ -1925,7 +1925,7 @@ abstract class AppLocalizations {
   /// No description provided for @handoffEstimateTakingLonger.
   ///
   /// In en, this message translates to:
-  /// **'Taking longer than expected. Keep the scooter powered and leave the cables connected.'**
+  /// **'Taking a little longer is normal. Keep the scooter powered and leave the cables connected.'**
   String get handoffEstimateTakingLonger;
 
   /// No description provided for @startingTrampoline.
