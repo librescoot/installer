@@ -247,6 +247,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   final bool _showElevatedHandoff = false;
   bool _dbcFlashSimulateError = false;
   _DbcOutcome _dbcOutcome = _DbcOutcome.pending;
+  bool _dbcUnlockObserved = false;
   String? _dbcOutcomeReason;
   String? _dbcFailureDetails;
 
@@ -9081,15 +9082,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
     if (!mounted) return;
     setState(() {
+      _dbcUnlockObserved = true;
       if (_finishCompletionConfirmed && !_dbcOutcome.isIncomplete) {
         _dbcOutcome = _DbcOutcome.verified;
         _dbcOutcomeReason = null;
         _dbcFailureDetails = null;
-      } else if (!_finishCompletionConfirmed) {
-        _dbcOutcome = _DbcOutcome.incomplete;
-        _dbcOutcomeReason = AppLocalizations.of(
-          context,
-        )!.dbcFinishedWithoutCompletionReason;
       }
     });
     _setPhase(InstallerPhase.finish);
@@ -11551,7 +11548,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final configurationConfirmed =
         _configurationBackup == null ||
         (_configurationRestoreVerified && _configurationPostFinalizeVerified);
-    if (deviceConfirmed && !configurationConfirmed) {
+    final unlockObserved = _dbcUnlockObserved && !_dbcOutcome.isIncomplete;
+    if ((deviceConfirmed || unlockObserved) && !configurationConfirmed) {
       if (_configurationBackupError != null &&
           !_configurationPostFinalizeVerificationInFlight) {
         return _buildConfigurationVerificationFailure(l10n);
@@ -11560,6 +11558,37 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
     final confirmed =
         deviceConfirmed && !_dbcOutcome.isIncomplete && configurationConfirmed;
+
+    if (unlockObserved) {
+      return PhaseLayout(
+        title: l10n.welcomeToLibrescoot,
+        actions: [
+          if (deviceConfirmed)
+            PhaseAction(
+              label: l10n.finishKeepDownloadedFiles,
+              icon: Icons.folder_outlined,
+              side: ActionSide.back,
+              onPressed: () =>
+                  _finishAndExit(confirmed: true, keepDownloads: true),
+            ),
+          PhaseAction(
+            label: l10n.installAnother,
+            icon: Icons.restart_alt,
+            onPressed: _installAnother,
+          ),
+          PhaseAction(
+            label: l10n.closeInstaller,
+            icon: Icons.close,
+            primary: true,
+            onPressed: () => _finishAndExit(
+              confirmed: deviceConfirmed,
+              keepDownloads: false,
+            ),
+          ),
+        ],
+        child: _buildGettingStarted(l10n),
+      );
+    }
 
     // Nothing is confirmed yet, so this is a full screen of its own rather
     // than a notice above a screen that already says "done". The seatbox and
