@@ -850,7 +850,7 @@
   "dbcFlashHandsOffBody": "Keine Kabel oder Batterien trennen. Nichts am Roller betätigen.",
   "dbcFlashObservedSuccess": "Der Roller hat sich entsperrt",
   "dbcFlashErrorLabel": "FEHLER",
-  "dbcFlashErrorPrompt": "DBC-LED blinkt rot oder ein Fehler ist erkennbar.",
+  "dbcFlashErrorPrompt": "DBC-LED blinkt rot",
   "dbcFlashSuccessLabel": "ERFOLG",
   "dbcFlashSuccessPrompt": "Roller entsperrt, Licht und Dashboard an.",
   "dbcFlashDoNotDisconnect": "USB und Strom nicht trennen, solange das läuft.",

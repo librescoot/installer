@@ -2243,8 +2243,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dbcFlashErrorLabel => 'ERROR';
 
   @override
-  String get dbcFlashErrorPrompt =>
-      'DBC LED blinks red, or an error is apparent.';
+  String get dbcFlashErrorPrompt => 'DBC LED blinks red';
 
   @override
   String get dbcFlashSuccessLabel => 'SUCCESS';

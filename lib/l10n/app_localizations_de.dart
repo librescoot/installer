@@ -2282,8 +2282,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get dbcFlashErrorLabel => 'FEHLER';
 
   @override
-  String get dbcFlashErrorPrompt =>
-      'DBC-LED blinkt rot oder ein Fehler ist erkennbar.';
+  String get dbcFlashErrorPrompt => 'DBC-LED blinkt rot';
 
   @override
   String get dbcFlashSuccessLabel => 'ERFOLG';

@@ -42,6 +42,32 @@ void main() {
     expect(find.text('ERROR'), findsOneWidget);
     expect(find.text('SUCCESS'), findsOneWidget);
     expect(find.byType(Image), findsNWidgets(3));
+    final artwork = tester.getRect(find.byType(Image).first);
+    final led = tester.getRect(find.byKey(const Key('dbc-error-led-glow')));
+    expect(
+      led.center.dx,
+      closeTo(artwork.left + artwork.width * 2260 / 2467, 1),
+    );
+    expect(
+      led.center.dy,
+      closeTo(artwork.top + artwork.height * 1007 / 2136, 1),
+    );
+    Color ledColor() =>
+        (tester
+                    .widget<Container>(
+                      find.byKey(const Key('dbc-error-led-glow')),
+                    )
+                    .decoration!
+                as BoxDecoration)
+            .color!;
+    final dim = ledColor().a;
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(ledColor().a, greaterThan(dim));
+    expect(ledColor().r, 1);
+    expect(ledColor().g, 0);
+    expect(ledColor().b, 0);
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(ledColor().a, lessThan(1));
     expect(
       tester.getTopLeft(find.text('ERROR')).dy,
       tester.getTopLeft(find.text('SUCCESS')).dy,

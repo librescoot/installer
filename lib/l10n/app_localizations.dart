@@ -3875,7 +3875,7 @@ abstract class AppLocalizations {
   /// No description provided for @dbcFlashErrorPrompt.
   ///
   /// In en, this message translates to:
-  /// **'DBC LED blinks red, or an error is apparent.'**
+  /// **'DBC LED blinks red'**
   String get dbcFlashErrorPrompt;
 
   /// No description provided for @dbcFlashSuccessLabel.

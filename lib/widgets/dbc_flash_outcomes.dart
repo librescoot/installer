@@ -22,12 +22,7 @@ class DbcFlashOutcomes extends StatelessWidget {
           description: l10n.dbcFlashErrorPrompt,
           color: Colors.redAccent,
           onPressed: onError,
-          image: Image.asset(
-            'assets/images/dbc-flash-error.png',
-            height: 210,
-            fit: BoxFit.contain,
-            excludeFromSemantics: true,
-          ),
+          image: const _PulsingDbcLedImage(),
         );
         final success = _card(
           label: l10n.dbcFlashSuccessLabel,
@@ -119,6 +114,84 @@ class DbcFlashOutcomes extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PulsingDbcLedImage extends StatefulWidget {
+  const _PulsingDbcLedImage();
+
+  @override
+  State<_PulsingDbcLedImage> createState() => _PulsingDbcLedImageState();
+}
+
+class _PulsingDbcLedImageState extends State<_PulsingDbcLedImage>
+    with SingleTickerProviderStateMixin {
+  static const imageWidth = 2467.0;
+  static const imageHeight = 2136.0;
+  static const ledCenter = Offset(2260, 1007);
+  static const ledDiameter = 6.0;
+
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 250),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AspectRatio(
+      aspectRatio: imageWidth / imageHeight,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final scale = constraints.maxHeight / imageHeight;
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: Image.asset(
+                  'assets/images/dbc-flash-error-off.png',
+                  fit: BoxFit.fill,
+                  excludeFromSemantics: true,
+                ),
+              ),
+              // Source artwork is 2467×2136; the LED centre is (2260, 1007).
+              Positioned(
+                left: ledCenter.dx * scale - ledDiameter / 2,
+                top: ledCenter.dy * scale - ledDiameter / 2,
+                child: AnimatedBuilder(
+                  animation: _pulse,
+                  builder: (context, child) {
+                    final glow = const Color(
+                      0xFFFF0000,
+                    ).withValues(alpha: _pulse.value);
+                    return Container(
+                      key: const Key('dbc-error-led-glow'),
+                      width: ledDiameter,
+                      height: ledDiameter,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: glow,
+                        boxShadow: [
+                          BoxShadow(
+                            color: glow.withValues(alpha: _pulse.value * 0.8),
+                            blurRadius: 12,
+                            spreadRadius: 4,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

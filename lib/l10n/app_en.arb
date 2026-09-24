@@ -995,7 +995,7 @@
   "dbcFlashHandsOffBody": "Do not disconnect cables or batteries. Do not touch the scooter.",
   "dbcFlashObservedSuccess": "I see the completion signal",
   "dbcFlashErrorLabel": "ERROR",
-  "dbcFlashErrorPrompt": "DBC LED blinks red, or an error is apparent.",
+  "dbcFlashErrorPrompt": "DBC LED blinks red",
   "dbcFlashSuccessLabel": "SUCCESS",
   "dbcFlashSuccessPrompt": "Scooter unlocked, lights and dashboard on.",
   "dbcFlashDoNotDisconnect": "Do not disconnect USB or power while this runs.",
