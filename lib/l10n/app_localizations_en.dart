@@ -2253,6 +2253,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Scooter unlocked, lights and dashboard on.';
 
   @override
+  String get dbcFlashChooseOutcomeHint =>
+      'Wait until one of these outcomes occurs, then click the matching picture. Until then, do not touch the scooter or cables.';
+
+  @override
   String get dbcFlashDoNotDisconnect =>
       'Do not disconnect USB or power while this runs.';
 

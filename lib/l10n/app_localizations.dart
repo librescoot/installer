@@ -3890,6 +3890,12 @@ abstract class AppLocalizations {
   /// **'Scooter unlocked, lights and dashboard on.'**
   String get dbcFlashSuccessPrompt;
 
+  /// No description provided for @dbcFlashChooseOutcomeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Wait until one of these outcomes occurs, then click the matching picture. Until then, do not touch the scooter or cables.'**
+  String get dbcFlashChooseOutcomeHint;
+
   /// No description provided for @dbcFlashDoNotDisconnect.
   ///
   /// In en, this message translates to:

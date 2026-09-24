@@ -8668,7 +8668,17 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             estimate: _autonomousHandoffEstimate(),
             startedAt: _autonomousHandoffStartedAt ?? DateTime.now(),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
+          Text(
+            l10n.dbcFlashChooseOutcomeHint,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade200,
+            ),
+          ),
+          const SizedBox(height: 16),
           DbcFlashOutcomes(
             onError: () {
               logJourneyEvent('button_pressed', {

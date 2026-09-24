@@ -21,6 +21,14 @@ void main() {
       lessThan(screen.indexOf('EstimatedHandoffProgress(')),
     );
     expect(screen, contains('DbcFlashOutcomes('));
+    expect(
+      screen.indexOf('l10n.dbcFlashChooseOutcomeHint'),
+      greaterThan(screen.indexOf('EstimatedHandoffProgress(')),
+    );
+    expect(
+      screen.indexOf('l10n.dbcFlashChooseOutcomeHint'),
+      lessThan(screen.indexOf('DbcFlashOutcomes(')),
+    );
     expect(screen, isNot(contains('_blinkerPhases(')));
     expect(screen, isNot(contains('l10n.dbcFlashSequence')));
   });
@@ -34,5 +42,7 @@ void main() {
       AppLocalizationsEn().dbcFlashHandsOffBody,
       contains('Do not disconnect cables or batteries'),
     );
+    expect(AppLocalizationsDe().dbcFlashChooseOutcomeHint, contains('Klicke'));
+    expect(AppLocalizationsEn().dbcFlashChooseOutcomeHint, contains('click'));
   });
 }

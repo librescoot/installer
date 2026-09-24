@@ -2292,6 +2292,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Roller entsperrt, Licht und Dashboard an.';
 
   @override
+  String get dbcFlashChooseOutcomeHint =>
+      'Warte, bis eines der beiden Ergebnisse eintritt. Klicke dann auf das passende Bild. Berühre bis dahin weder den Roller noch die Kabel.';
+
+  @override
   String get dbcFlashDoNotDisconnect =>
       'USB und Strom nicht trennen, solange das läuft.';
 
