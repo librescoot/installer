@@ -58,8 +58,14 @@ void main() {
       AppLocalizationsDe().mdbFinishWaitHint,
       'Lass den Roller eingeschaltet. Klicke erst bei einem Signal auf das passende Bild.',
     );
-    expect(AppLocalizationsDe().mdbFinishSuccessPrompt, 'Roller entsperrt');
-    expect(AppLocalizationsEn().mdbFinishSuccessPrompt, 'Scooter unlocked');
+    expect(
+      AppLocalizationsDe().mdbFinishSuccessPrompt,
+      'Der Roller hat sich entsperrt: Das Standlicht und das Rücklicht leuchten',
+    );
+    expect(
+      AppLocalizationsEn().mdbFinishSuccessPrompt,
+      contains('front position light and rear light'),
+    );
     expect(AppLocalizationsDe().mdbFinishFailureBody, contains('DBC-LED'));
     expect(AppLocalizationsEn().mdbFinishFailureBody, contains('DBC LED'));
   });

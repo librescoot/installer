@@ -5,9 +5,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/l10n/app_localizations.dart';
+import 'package:librescoot_installer/l10n/app_localizations_de.dart';
+import 'package:librescoot_installer/l10n/app_localizations_en.dart';
 import 'package:librescoot_installer/widgets/dbc_flash_outcomes.dart';
 
 void main() {
+  test('both unlock outcomes name the front and rear lights', () {
+    const success =
+        'Der Roller hat sich entsperrt: Das Standlicht und das Rücklicht leuchten';
+    final de = AppLocalizationsDe();
+    final en = AppLocalizationsEn();
+    expect(de.dbcFlashSuccessPrompt, success);
+    expect(de.mdbFinishSuccessPrompt, success);
+    expect(
+      en.dbcFlashSuccessPrompt,
+      contains('front position light and rear light'),
+    );
+    expect(en.mdbFinishSuccessPrompt, en.dbcFlashSuccessPrompt);
+  });
+
   test('the LED-off artwork has no baked-in red glow', () async {
     final codec = await ui.instantiateImageCodec(
       File('assets/images/dbc-flash-error-off.png').readAsBytesSync(),
@@ -109,7 +125,7 @@ void main() {
     );
     expect(
       tester.getTopLeft(find.textContaining('DBC LED blinks red')).dy,
-      tester.getTopLeft(find.textContaining('Scooter unlocked')).dy,
+      tester.getTopLeft(find.textContaining('The scooter has unlocked')).dy,
     );
     await tester.tap(find.text('ERROR'));
     await tester.tap(find.text('SUCCESS'));
@@ -140,11 +156,7 @@ void main() {
           body: SingleChildScrollView(
             child: SizedBox(
               width: 500,
-              child: DbcFlashOutcomes(
-                onError: () {},
-                onSuccess: null,
-                successDescription: 'Roller entsperrt',
-              ),
+              child: DbcFlashOutcomes(onError: () {}, onSuccess: null),
             ),
           ),
         ),
@@ -152,7 +164,12 @@ void main() {
     );
     expect(find.text('FEHLER'), findsOneWidget);
     expect(find.text('ERFOLG'), findsOneWidget);
-    expect(find.text('Roller entsperrt'), findsOneWidget);
+    expect(
+      find.text(
+        'Der Roller hat sich entsperrt: Das Standlicht und das Rücklicht leuchten',
+      ),
+      findsOneWidget,
+    );
     expect(find.textContaining('DBC-LED blinkt rot'), findsOneWidget);
     final button = tester.widget<OutlinedButton>(
       find.ancestor(

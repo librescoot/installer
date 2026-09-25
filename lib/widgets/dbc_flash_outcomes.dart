@@ -81,7 +81,7 @@ class DbcFlashOutcomes extends StatelessWidget {
   }) {
     return SizedBox(
       width: double.infinity,
-      height: 350,
+      height: 370,
       child: OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
@@ -106,12 +106,18 @@ class DbcFlashOutcomes extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            Text(
-              description,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 14),
+            SizedBox(
+              height: 56,
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: Text(
+                  description,
+                  textAlign: TextAlign.center,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ),
             ),
           ],
         ),

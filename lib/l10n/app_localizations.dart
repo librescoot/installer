@@ -2267,7 +2267,7 @@ abstract class AppLocalizations {
   /// No description provided for @mdbFinishSuccessPrompt.
   ///
   /// In en, this message translates to:
-  /// **'Scooter unlocked'**
+  /// **'The scooter has unlocked: its front position light and rear light are on'**
   String get mdbFinishSuccessPrompt;
 
   /// No description provided for @mdbFinishFailureTitle.
@@ -3935,7 +3935,7 @@ abstract class AppLocalizations {
   /// No description provided for @dbcFlashSuccessPrompt.
   ///
   /// In en, this message translates to:
-  /// **'Scooter unlocked'**
+  /// **'The scooter has unlocked: its front position light and rear light are on'**
   String get dbcFlashSuccessPrompt;
 
   /// No description provided for @dbcFlashChooseOutcomeHint.

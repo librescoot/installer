@@ -1267,7 +1267,8 @@ class AppLocalizationsEn extends AppLocalizations {
       'Keep the scooter powered. Click the matching picture only when its signal appears.';
 
   @override
-  String get mdbFinishSuccessPrompt => 'Scooter unlocked';
+  String get mdbFinishSuccessPrompt =>
+      'The scooter has unlocked: its front position light and rear light are on';
 
   @override
   String get mdbFinishFailureTitle => 'Installation error';
@@ -2277,7 +2278,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dbcFlashSuccessLabel => 'SUCCESS';
 
   @override
-  String get dbcFlashSuccessPrompt => 'Scooter unlocked';
+  String get dbcFlashSuccessPrompt =>
+      'The scooter has unlocked: its front position light and rear light are on';
 
   @override
   String get dbcFlashChooseOutcomeHint =>

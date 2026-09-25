@@ -1286,7 +1286,8 @@ class AppLocalizationsDe extends AppLocalizations {
       'Lass den Roller eingeschaltet. Klicke erst bei einem Signal auf das passende Bild.';
 
   @override
-  String get mdbFinishSuccessPrompt => 'Roller entsperrt';
+  String get mdbFinishSuccessPrompt =>
+      'Der Roller hat sich entsperrt: Das Standlicht und das Rücklicht leuchten';
 
   @override
   String get mdbFinishFailureTitle => 'Installationsfehler';
@@ -2316,7 +2317,8 @@ class AppLocalizationsDe extends AppLocalizations {
   String get dbcFlashSuccessLabel => 'ERFOLG';
 
   @override
-  String get dbcFlashSuccessPrompt => 'Roller entsperrt';
+  String get dbcFlashSuccessPrompt =>
+      'Der Roller hat sich entsperrt: Das Standlicht und das Rücklicht leuchten';
 
   @override
   String get dbcFlashChooseOutcomeHint =>
