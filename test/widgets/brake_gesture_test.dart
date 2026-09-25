@@ -94,19 +94,30 @@ void main() {
     expect(find.textContaining('That was the pattern'), findsOneWidget);
   });
 
-  testWidgets('audio marks every beat and each lever transition', (
+  testWidgets('audio cues only the moments to engage and release', (
     tester,
   ) async {
     final cues = <InstallerCue>[];
     await tester.pumpWidget(_host(BrakeGesturePacer(onCue: cues.add)));
     await tester.tap(find.text('Start the timer'));
     await tester.pump();
+    await _advance(tester, brakeLeadInSeconds - 1);
+    expect(cues, isEmpty);
+    await _advance(tester, 1);
+    expect(cues, [InstallerCue.pull]);
+    await _advance(tester, brakeHoldSecondsFor(1) - 1);
+    expect(cues, [InstallerCue.pull]);
+    await _advance(tester, 1);
+    expect(cues, [InstallerCue.pull, InstallerCue.release]);
+    await _advance(tester, brakeBlipSeconds);
+    expect(cues, [InstallerCue.pull, InstallerCue.release, InstallerCue.pull]);
     await _advance(
       tester,
-      brakeLeadInSeconds + brakeTotalSeconds + brakeReleaseSeconds,
+      brakeTotalSeconds -
+          brakeHoldSecondsFor(1) -
+          brakeBlipSeconds +
+          brakeReleaseSeconds,
     );
-
-    expect(cues.where((cue) => cue == InstallerCue.beat).length, 37);
     expect(cues.where((cue) => cue == InstallerCue.pull).length, 4);
     expect(cues.where((cue) => cue == InstallerCue.release).length, 4);
     expect(cues.last, InstallerCue.release);

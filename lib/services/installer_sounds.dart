@@ -5,20 +5,10 @@ import 'package:flutter/foundation.dart';
 
 import '../models/installer_phase.dart';
 
-enum InstallerCue {
-  beat,
-  release,
-  pull,
-  confirmed,
-  attention,
-  critical,
-  error,
-  boot,
-}
+enum InstallerCue { release, pull, confirmed, attention, critical, error, boot }
 
 extension InstallerCueAsset on InstallerCue {
   String get assetName => switch (this) {
-    InstallerCue.beat => 'beat.wav',
     InstallerCue.release => 'blinker-pulse.wav',
     InstallerCue.pull => 'nav-hop.wav',
     InstallerCue.confirmed => 'nav-start.wav',

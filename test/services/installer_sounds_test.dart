@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/models/installer_phase.dart';
 import 'package:librescoot_installer/services/installer_sounds.dart';
@@ -38,6 +40,13 @@ void main() {
       final wav = File('assets/sounds/${cue.assetName}').readAsBytesSync();
       // Both cues are 48 kHz stereo 16-bit PCM.
       expect(wav.length, lessThan(48000 * 2 * 2 + 1024));
+      final samples = ByteData.sublistView(wav, 44);
+      var peak = 0;
+      for (var i = 0; i < samples.lengthInBytes; i += 2) {
+        final amplitude = samples.getInt16(i, Endian.little).abs();
+        if (amplitude > peak) peak = amplitude;
+      }
+      expect(peak, greaterThan(20000));
     }
   });
 }

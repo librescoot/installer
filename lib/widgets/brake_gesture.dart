@@ -289,7 +289,6 @@ class _BrakeGesturePacerState extends State<BrakeGesturePacer> {
       _PacerPhase.release when previous == _PacerPhase.hold =>
         InstallerCue.release,
       _PacerPhase.hold when previous != _PacerPhase.hold => InstallerCue.pull,
-      _PacerPhase.leadIn || _PacerPhase.hold => InstallerCue.beat,
       _ => null,
     };
     if (cue != null) widget.onCue?.call(cue);
