@@ -51,36 +51,39 @@ void reportUnhandledError(Object error, StackTrace? stack, {String? from}) {
     FlutterErrorDetails(exception: error, stack: stack, library: 'installer'),
   );
 
-  final messenger = rootScaffoldMessengerKey.currentState;
-  if (messenger == null) return;
+  if (rootScaffoldMessengerKey.currentState == null) return;
   _unhandledErrorSounds.play(InstallerCue.error);
 
-  // The MaterialApp isn't necessarily built yet when this fires (e.g. an
-  // error during startup, before runApp's first frame), so the messenger's
-  // context may not carry a Localizations ancestor. Fall back to English
-  // literals rather than the German ones this used to hardcode.
-  final l10n = AppLocalizations.of(messenger.context);
-  final internalErrorText = l10n?.internalError(error.toString()) ?? 'Internal error: $error';
-  final copyLogText = l10n?.copyLog ?? 'Copy log';
+  // Rendering failures can arrive while Flutter is painting; showing a
+  // SnackBar then would schedule another build during the same frame.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    final messenger = rootScaffoldMessengerKey.currentState;
+    if (messenger == null || !messenger.mounted) return;
+    final l10n = AppLocalizations.of(messenger.context);
+    final internalErrorText =
+        l10n?.internalError(error.toString()) ?? 'Internal error: $error';
+    final copyLogText = l10n?.copyLog ?? 'Copy log';
 
-  messenger.hideCurrentSnackBar();
-  messenger.showSnackBar(
-    SnackBar(
-      backgroundColor: Colors.red.shade900,
-      duration: const Duration(seconds: 8),
-      content: Text(
-        internalErrorText,
-        style: const TextStyle(color: Colors.white),
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        backgroundColor: Colors.red.shade900,
+        duration: const Duration(seconds: 8),
+        content: Text(
+          internalErrorText,
+          style: const TextStyle(color: Colors.white),
+        ),
+        action: SnackBarAction(
+          label: copyLogText,
+          textColor: Colors.white,
+          onPressed: () {
+            Clipboard.setData(ClipboardData(text: installerLog.join('\n')));
+          },
+        ),
       ),
-      action: SnackBarAction(
-        label: copyLogText,
-        textColor: Colors.white,
-        onPressed: () {
-          Clipboard.setData(ClipboardData(text: installerLog.join('\n')));
-        },
-      ),
-    ),
-  );
+    );
+  });
+  WidgetsBinding.instance.ensureVisualUpdate();
 }
 
 /// CLI args passed from unelevated → elevated process.
