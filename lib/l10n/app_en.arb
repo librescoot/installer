@@ -846,9 +846,9 @@
     }
   },
   "actionCleanInstallDetail": "Erases main-board data. Detected device configurations can be selected in the next step",
-  "actionUpgradeDetailDbc": "Keeps the offline maps",
-  "actionCleanInstallDetailDbc": "Erases the offline maps only",
-  "actionCleanInstallDetailDbcTiles": "Erases the offline maps. They are installed again in this run",
+  "actionUpgradeDetailDbc": "Keeps offline maps and navigation data",
+  "actionCleanInstallDetailDbc": "Erases offline maps and navigation data",
+  "actionCleanInstallDetailDbcTiles": "Erases and reinstalls offline maps and navigation data",
   "actionLeave": "Leave alone",
   "actionLeaveDetail": "This board is not touched",
   "upgradeBlockedNotLibrescoot": "Upgrade needs Librescoot to already be installed",

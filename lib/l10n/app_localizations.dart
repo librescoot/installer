@@ -3371,19 +3371,19 @@ abstract class AppLocalizations {
   /// No description provided for @actionUpgradeDetailDbc.
   ///
   /// In en, this message translates to:
-  /// **'Keeps the offline maps'**
+  /// **'Keeps offline maps and navigation data'**
   String get actionUpgradeDetailDbc;
 
   /// No description provided for @actionCleanInstallDetailDbc.
   ///
   /// In en, this message translates to:
-  /// **'Erases the offline maps only'**
+  /// **'Erases offline maps and navigation data'**
   String get actionCleanInstallDetailDbc;
 
   /// No description provided for @actionCleanInstallDetailDbcTiles.
   ///
   /// In en, this message translates to:
-  /// **'Erases the offline maps. They are installed again in this run'**
+  /// **'Erases and reinstalls offline maps and navigation data'**
   String get actionCleanInstallDetailDbcTiles;
 
   /// No description provided for @actionLeave.

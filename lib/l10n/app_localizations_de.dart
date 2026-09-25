@@ -1976,14 +1976,16 @@ class AppLocalizationsDe extends AppLocalizations {
       'Löscht die Daten des Hauptboards. Erkannte Gerätekonfigurationen können im nächsten Schritt ausgewählt werden';
 
   @override
-  String get actionUpgradeDetailDbc => 'Behält die Offline-Karten';
+  String get actionUpgradeDetailDbc =>
+      'Behält Offline-Karten und Navigationsdaten';
 
   @override
-  String get actionCleanInstallDetailDbc => 'Löscht nur die Offline-Karten';
+  String get actionCleanInstallDetailDbc =>
+      'Löscht Offline-Karten und Navigationsdaten';
 
   @override
   String get actionCleanInstallDetailDbcTiles =>
-      'Löscht die Offline-Karten. Sie werden in diesem Vorgang neu installiert';
+      'Offline-Karten und Navigationsdaten werden gelöscht und neu installiert';
 
   @override
   String get actionLeave => 'Unverändert lassen';

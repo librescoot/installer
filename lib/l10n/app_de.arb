@@ -708,9 +708,9 @@
     }
   },
   "actionCleanInstallDetail": "Löscht die Daten des Hauptboards. Erkannte Gerätekonfigurationen können im nächsten Schritt ausgewählt werden",
-  "actionUpgradeDetailDbc": "Behält die Offline-Karten",
-  "actionCleanInstallDetailDbc": "Löscht nur die Offline-Karten",
-  "actionCleanInstallDetailDbcTiles": "Löscht die Offline-Karten. Sie werden in diesem Vorgang neu installiert",
+  "actionUpgradeDetailDbc": "Behält Offline-Karten und Navigationsdaten",
+  "actionCleanInstallDetailDbc": "Löscht Offline-Karten und Navigationsdaten",
+  "actionCleanInstallDetailDbcTiles": "Offline-Karten und Navigationsdaten werden gelöscht und neu installiert",
   "actionLeave": "Unverändert lassen",
   "actionLeaveDetail": "Dieses Board bleibt unverändert",
   "upgradeBlockedNotLibrescoot": "Aktualisieren setzt eine vorhandene Librescoot-Installation voraus",

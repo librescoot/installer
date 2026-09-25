@@ -1943,14 +1943,15 @@ class AppLocalizationsEn extends AppLocalizations {
       'Erases main-board data. Detected device configurations can be selected in the next step';
 
   @override
-  String get actionUpgradeDetailDbc => 'Keeps the offline maps';
+  String get actionUpgradeDetailDbc => 'Keeps offline maps and navigation data';
 
   @override
-  String get actionCleanInstallDetailDbc => 'Erases the offline maps only';
+  String get actionCleanInstallDetailDbc =>
+      'Erases offline maps and navigation data';
 
   @override
   String get actionCleanInstallDetailDbcTiles =>
-      'Erases the offline maps. They are installed again in this run';
+      'Erases and reinstalls offline maps and navigation data';
 
   @override
   String get actionLeave => 'Leave alone';

@@ -502,7 +502,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Erases the offline maps only'), findsOneWidget);
+    expect(find.text('Erases offline maps and navigation data'), findsOneWidget);
     // Main-board data is erased, while detected preservable configuration is
     // offered as a separate choice rather than silently discarded.
     expect(
