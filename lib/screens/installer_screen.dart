@@ -78,6 +78,7 @@ import '../widgets/estimated_handoff_progress.dart';
 import '../widgets/dbc_flash_outcomes.dart';
 import '../widgets/overlay_card.dart';
 import '../widgets/phase_sidebar.dart';
+import '../widgets/region_picker.dart';
 import '../widgets/substep_list.dart';
 import '../widgets/wait_overlay.dart';
 import '../widgets/action_overlay.dart';
@@ -530,9 +531,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (!mounted || regions.isEmpty) return;
     setState(() {
       _availableRegions = regions;
-      // If a region was already chosen (launch args / IP), keep the user's
-      // pick but swap in the instance from the live list so dropdown identity
-      // lines up. Equality is by slug, so this is a no-op when slugs match.
+      // Keep launch-argument and IP selections when the live list arrives.
       final selected = _downloadState.selectedRegion;
       if (selected != null) {
         _downloadState.selectedRegion = regions
@@ -540,47 +539,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             .firstOrNull;
       }
     });
-  }
-
-  static const _regionHeaderPrefix = '__country__';
-
-  List<DropdownMenuEntry<Region>> _regionMenuEntries(List<Region> regions) {
-    final entries = <DropdownMenuEntry<Region>>[];
-    String? currentCountry;
-    for (final region in regions) {
-      if (region.country != currentCountry) {
-        currentCountry = region.country;
-        entries.add(
-          DropdownMenuEntry<Region>(
-            value: Region(
-              name: region.country,
-              slug: '$_regionHeaderPrefix${region.country}',
-            ),
-            label: region.country.toUpperCase(),
-            enabled: false,
-            style: MenuItemButton.styleFrom(
-              foregroundColor: kAccent.withValues(alpha: 0.75),
-              textStyle: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
-                height: 2.0,
-              ),
-            ),
-          ),
-        );
-      }
-      entries.add(
-        DropdownMenuEntry<Region>(
-          value: region,
-          label: region.name,
-          style: MenuItemButton.styleFrom(
-            padding: const EdgeInsets.only(left: 28, right: 16),
-          ),
-        ),
-      );
-    }
-    return entries;
   }
 
   Future<void> _detectRegionFromIp() async {
@@ -2147,31 +2105,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           ),
           const SizedBox(height: 8),
           if (_downloadState.wantsOfflineMaps)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: DropdownMenu<Region>(
-                width: 420,
-                menuHeight: 400,
-                initialSelection: _downloadState.selectedRegion,
-                hintText: l10n.selectRegion,
-                enableFilter: false,
-                requestFocusOnTap: false,
-                leadingIcon: Icon(
-                  Icons.place_outlined,
-                  size: 20,
-                  color: Colors.grey.shade400,
-                ),
-                dropdownMenuEntries: _regionMenuEntries(_availableRegions),
-                onSelected: (r) {
-                  if (r == null || r.slug.startsWith(_regionHeaderPrefix)) {
-                    return;
-                  }
-                  if (_downloadState.selectedRegion == r) return;
-                  _updateDownloadSelection(() {
-                    _downloadState.selectedRegion = r;
-                  });
-                },
-              ),
+            RegionPicker(
+              regions: _availableRegions,
+              selectedRegion: _downloadState.selectedRegion,
+              onSelected: (region) => _updateDownloadSelection(() {
+                _downloadState.selectedRegion = region;
+              }),
             ),
 
           const SizedBox(height: 24),
@@ -5062,18 +5001,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                       refresh(() => wantsMaps = !(skip ?? false)),
                 ),
                 if (wantsMaps)
-                  DropdownButtonFormField<Region>(
-                    initialValue: region,
-                    isExpanded: true,
-                    hint: Text(l10n.selectRegion),
-                    items: [
-                      for (final option in _availableRegions)
-                        DropdownMenuItem(
-                          value: option,
-                          child: Text(option.name),
-                        ),
-                    ],
-                    onChanged: (value) => refresh(() => region = value),
+                  RegionPicker(
+                    regions: _availableRegions,
+                    selectedRegion: region,
+                    maxRegionHeight: 240,
+                    onSelected: (value) => refresh(() => region = value),
                   ),
               ],
             ),

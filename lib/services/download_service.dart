@@ -540,7 +540,7 @@ class DownloadService {
 
   /// Derive the regions on offer from the published tile assets: every slug
   /// that has both an OSM display tile and a Valhalla routing tile. Falls back
-  /// to [Region.all] if the listings can't be fetched, so the dropdown is
+  /// to [Region.all] if the listings can't be fetched, so the picker is
   /// never empty offline.
   Future<List<Region>> fetchAvailableRegions() async {
     try {

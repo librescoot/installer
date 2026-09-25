@@ -11,13 +11,13 @@ class Region {
   final String name;
   final String slug;
 
-  /// Country the region belongs to, used to group the dropdown. Empty for
+  /// Country the region belongs to, used by the region picker. Empty for
   /// regions we don't recognise (they fall under [_unknownCountry]).
   final String country;
 
   static const _unknownCountry = 'Weitere';
 
-  /// Known slugs, in dropdown order (grouped by country: German states first,
+  /// Known slugs, grouped by country (German states first,
   /// then the neighbours). Single source of truth for [all], the offline
   /// fallback catalogue. Slugs published by the tile repos but missing here
   /// still work via [fromSlug], which humanises the slug.
@@ -111,7 +111,7 @@ class Region {
   /// Try to detect the user's region from their IP via ip-api.com.
   ///
   /// The free tier is HTTP-only and non-commercial. That is acceptable here:
-  /// the worst a spoofed answer can do is preselect a dropdown entry the user
+  /// the worst a spoofed answer can do is preselect a region the user
   /// can change, and the HTTPS provider we tried instead placed German
   /// consumer lines in the wrong state more often.
   ///
