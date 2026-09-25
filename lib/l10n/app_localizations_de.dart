@@ -2298,11 +2298,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcFlashHandsOffHeading =>
-      'FINGER WEG – DER ROLLER ARBEITET SELBSTSTÄNDIG';
+      'TACHO AN HEISST NICHT FERTIG – FINGER WEG';
 
   @override
   String get dbcFlashHandsOffBody =>
-      'Keine Kabel oder Batterien trennen. Nichts am Roller betätigen.';
+      'Warte, bis sich der Roller entsperrt: Das Standlicht und das Rücklicht leuchten. Keine Kabel oder Batterien trennen. Nichts am Roller betätigen.';
 
   @override
   String get dbcFlashObservedSuccess => 'Der Roller hat sich entsperrt';

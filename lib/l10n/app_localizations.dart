@@ -3899,13 +3899,13 @@ abstract class AppLocalizations {
   /// No description provided for @dbcFlashHandsOffHeading.
   ///
   /// In en, this message translates to:
-  /// **'HANDS OFF – THE SCOOTER IS WORKING ON ITS OWN'**
+  /// **'DASHBOARD ON DOES NOT MEAN DONE – HANDS OFF'**
   String get dbcFlashHandsOffHeading;
 
   /// No description provided for @dbcFlashHandsOffBody.
   ///
   /// In en, this message translates to:
-  /// **'Do not disconnect cables or batteries. Do not touch the scooter.'**
+  /// **'Wait until the scooter unlocks: its front position light and rear light are on. Do not disconnect cables or batteries. Do not touch the scooter.'**
   String get dbcFlashHandsOffBody;
 
   /// No description provided for @dbcFlashObservedSuccess.

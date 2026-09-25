@@ -33,13 +33,30 @@ void main() {
     expect(screen, isNot(contains('l10n.dbcFlashSequence')));
   });
 
-  test('both languages give a concise hands-off warning', () {
+  test('both languages distinguish dashboard power-on from completion', () {
+    final de = AppLocalizationsDe();
+    final en = AppLocalizationsEn();
     expect(
-      AppLocalizationsDe().dbcFlashHandsOffBody,
+      de.dbcFlashHandsOffHeading,
+      contains('TACHO AN HEISST NICHT FERTIG'),
+    );
+    expect(de.dbcFlashHandsOffHeading, contains('FINGER WEG'));
+    expect(
+      en.dbcFlashHandsOffHeading,
+      contains('DASHBOARD ON DOES NOT MEAN DONE'),
+    );
+    expect(en.dbcFlashHandsOffHeading, contains('HANDS OFF'));
+    expect(de.dbcFlashHandsOffBody, contains('Standlicht und das Rücklicht'));
+    expect(
+      de.dbcFlashHandsOffBody,
       contains('Keine Kabel oder Batterien trennen'),
     );
     expect(
-      AppLocalizationsEn().dbcFlashHandsOffBody,
+      en.dbcFlashHandsOffBody,
+      contains('front position light and rear light'),
+    );
+    expect(
+      en.dbcFlashHandsOffBody,
       contains('Do not disconnect cables or batteries'),
     );
     expect(AppLocalizationsDe().dbcFlashChooseOutcomeHint, contains('Klicke'));
