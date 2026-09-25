@@ -9,7 +9,7 @@ void main() {
     'Welcome lists administrator access and offline navigation in German',
     () {
       final l10n = AppLocalizationsDe();
-      expect(l10n.prerequisiteAdminAccess, contains('Administratorrechte'));
+      expect(l10n.prerequisiteAdminAccess, 'Administratorrechte');
       expect(l10n.firmwareChannel, 'Firmware auswählen');
       expect(l10n.firmwareChannelHint, contains('Stabil'));
       expect(l10n.region, contains('Navigation'));
@@ -23,10 +23,7 @@ void main() {
     'Welcome lists administrator access and offline navigation in English',
     () {
       final l10n = AppLocalizationsEn();
-      expect(
-        l10n.prerequisiteAdminAccess,
-        contains('administrator privileges'),
-      );
+      expect(l10n.prerequisiteAdminAccess, 'Administrator privileges');
       expect(l10n.firmwareChannel, 'Choose firmware');
       expect(l10n.firmwareChannelHint, contains('Stable'));
       expect(l10n.region, contains('navigation'));

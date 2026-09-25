@@ -182,8 +182,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Ungefähr 20 Minuten Zeit, zuzüglich Downloadzeit';
 
   @override
-  String get prerequisiteAdminAccess =>
-      'Zugriff auf Administratorrechte für diesen Computer';
+  String get prerequisiteAdminAccess => 'Administratorrechte';
 
   @override
   String get reliabilityWarningTitle => 'Bevor du startest';

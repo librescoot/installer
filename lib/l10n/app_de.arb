@@ -64,7 +64,7 @@
   "prerequisiteScrewdriverFlat": "Schlitz- oder PH1-Schraubendreher für das USB-Kabel",
   "prerequisiteUsbCable": "USB-Kabel (Laptop zu Mini-B)",
   "prerequisiteTime": "Ungefähr 20 Minuten Zeit, zuzüglich Downloadzeit",
-  "prerequisiteAdminAccess": "Zugriff auf Administratorrechte für diesen Computer",
+  "prerequisiteAdminAccess": "Administratorrechte",
   "reliabilityWarningTitle": "Bevor du startest",
   "reliabilityWarningBody": "Das Flashen dauert mehrere Minuten. Eine instabile USB-Verbindung oder der Ruhemodus des Laptops kann das MDB in einen inkonsistenten Zustand bringen. Prüfe:\n• Ein zuverlässiges USB-Kabel, an beiden Enden fest eingesteckt\n• Laptop am Netzteil oder vollständig geladen. Energiesparmodus und Ruhemodus können den Vorgang unterbrechen\n• Möglichst einen direkten USB-Port, keinen USB-Hub\n• Während des Flashens nichts umstecken oder bewegen",
   "noPowerCycleWarningTitle": "Stromversorgung nur nach Anweisung trennen",

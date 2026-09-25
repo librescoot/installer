@@ -2064,50 +2064,53 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           const SizedBox(height: 24),
 
           // Region selection with skip checkbox inline
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 12,
-            runSpacing: 4,
-            children: [
-              Text(
-                l10n.region,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-              InkWell(
-                onTap: () => _updateDownloadSelection(() {
-                  _downloadState.wantsOfflineMaps =
-                      !_downloadState.wantsOfflineMaps;
-                }),
-                borderRadius: BorderRadius.circular(4),
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Checkbox(
-                        value: !_downloadState.wantsOfflineMaps,
-                        onChanged: (v) => _updateDownloadSelection(() {
-                          _downloadState.wantsOfflineMaps = !(v ?? false);
-                        }),
-                      ),
-                      Flexible(
-                        child: Text(
-                          l10n.skipOfflineMaps,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey.shade400,
-                          ),
-                        ),
-                      ),
-                    ],
+          SizedBox(
+            width: double.infinity,
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 4,
+              children: [
+                Text(
+                  l10n.region,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
                   ),
                 ),
-              ),
-            ],
+                InkWell(
+                  onTap: () => _updateDownloadSelection(() {
+                    _downloadState.wantsOfflineMaps =
+                        !_downloadState.wantsOfflineMaps;
+                  }),
+                  borderRadius: BorderRadius.circular(4),
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Checkbox(
+                          value: !_downloadState.wantsOfflineMaps,
+                          onChanged: (v) => _updateDownloadSelection(() {
+                            _downloadState.wantsOfflineMaps = !(v ?? false);
+                          }),
+                        ),
+                        Flexible(
+                          child: Text(
+                            l10n.skipOfflineMaps,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade400,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 4),
           Text(

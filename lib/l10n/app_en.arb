@@ -64,7 +64,7 @@
   "prerequisiteScrewdriverFlat": "Flat head or PH1 screwdriver for USB cable",
   "prerequisiteUsbCable": "USB cable (laptop to Mini-B)",
   "prerequisiteTime": "About 20 minutes, plus download time",
-  "prerequisiteAdminAccess": "Access to administrator privileges on this computer",
+  "prerequisiteAdminAccess": "Administrator privileges",
   "reliabilityWarningTitle": "Before you start",
   "reliabilityWarningBody": "Flashing takes several minutes. A USB disconnect or laptop sleep during the write can leave the MDB in an incomplete state. Check:\n• Use a known-good USB cable, firmly connected at both ends\n• Keep the laptop on power or fully charged; disable battery saver and sleep\n• Use a direct USB port rather than a hub where possible\n• Keep cables and power connected once flashing starts",
   "noPowerCycleWarningTitle": "Keep power connected during flashing",

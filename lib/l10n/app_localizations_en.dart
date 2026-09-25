@@ -180,8 +180,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get prerequisiteTime => 'About 20 minutes, plus download time';
 
   @override
-  String get prerequisiteAdminAccess =>
-      'Access to administrator privileges on this computer';
+  String get prerequisiteAdminAccess => 'Administrator privileges';
 
   @override
   String get reliabilityWarningTitle => 'Before you start';

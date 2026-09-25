@@ -419,7 +419,7 @@ abstract class AppLocalizations {
   /// No description provided for @prerequisiteAdminAccess.
   ///
   /// In en, this message translates to:
-  /// **'Access to administrator privileges on this computer'**
+  /// **'Administrator privileges'**
   String get prerequisiteAdminAccess;
 
   /// No description provided for @reliabilityWarningTitle.
