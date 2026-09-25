@@ -545,7 +545,7 @@
     }
   },
   "trampolineStatusUnknown": "The installer could not determine whether the dashboard work finished. Open the installer log for details.",
-  "welcomeToLibrescoot": "Welcome to Librescoot",
+  "welcomeToLibrescoot": "Welcome to Librescoot 🎉",
   "finishStatusTitle": "Installation status",
   "finishPendingHeading": "Installation still running",
   "mdbFinishWaitTitle": "Wait for the scooter",

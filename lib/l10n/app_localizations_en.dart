@@ -1244,7 +1244,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'The installer could not determine whether the dashboard work finished. Open the installer log for details.';
 
   @override
-  String get welcomeToLibrescoot => 'Welcome to Librescoot';
+  String get welcomeToLibrescoot => 'Welcome to Librescoot 🎉';
 
   @override
   String get finishStatusTitle => 'Installation status';

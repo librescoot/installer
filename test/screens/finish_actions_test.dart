@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:librescoot_installer/l10n/app_localizations_de.dart';
+import 'package:librescoot_installer/l10n/app_localizations_en.dart';
 
 void main() {
   late String source;
@@ -35,6 +37,17 @@ void main() {
     expect(source, contains('l10n.finishPendingHeading'));
     expect(source, contains('l10n.finishCompleteHeading'));
     expect(source, contains('l10n.finishSkippedHeading'));
+  });
+
+  test('confirmed Welcome title celebrates in both languages', () {
+    expect(
+      AppLocalizationsDe().welcomeToLibrescoot,
+      'Willkommen bei Librescoot 🎉',
+    );
+    expect(
+      AppLocalizationsEn().welcomeToLibrescoot,
+      'Welcome to Librescoot 🎉',
+    );
   });
 
   test('normal close deletes confirmed downloads before cleanup', () {

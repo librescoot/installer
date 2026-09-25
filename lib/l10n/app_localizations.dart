@@ -2225,7 +2225,7 @@ abstract class AppLocalizations {
   /// No description provided for @welcomeToLibrescoot.
   ///
   /// In en, this message translates to:
-  /// **'Welcome to Librescoot'**
+  /// **'Welcome to Librescoot 🎉'**
   String get welcomeToLibrescoot;
 
   /// No description provided for @finishStatusTitle.
