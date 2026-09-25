@@ -1263,7 +1263,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Der Installer konnte nicht feststellen, ob die Display-Arbeiten abgeschlossen wurden. Einzelheiten stehen im Installationsprotokoll.';
 
   @override
-  String get welcomeToLibrescoot => 'Willkommen bei Librescoot 🎉';
+  String get welcomeToLibrescoot => 'Willkommen bei Librescoot';
 
   @override
   String get finishStatusTitle => 'Installationsstatus';

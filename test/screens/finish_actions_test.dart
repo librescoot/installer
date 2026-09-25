@@ -39,15 +39,14 @@ void main() {
     expect(source, contains('l10n.finishSkippedHeading'));
   });
 
-  test('confirmed Welcome title celebrates in both languages', () {
+  test('confirmed Welcome renders celebration without an emoji font', () {
     expect(
       AppLocalizationsDe().welcomeToLibrescoot,
-      'Willkommen bei Librescoot 🎉',
+      'Willkommen bei Librescoot',
     );
-    expect(
-      AppLocalizationsEn().welcomeToLibrescoot,
-      'Welcome to Librescoot 🎉',
-    );
+    expect(AppLocalizationsEn().welcomeToLibrescoot, 'Welcome to Librescoot');
+    expect(finish, contains('titleTrailing: const Icon(Icons.celebration'));
+    expect(finish, contains('titleTrailing: confirmed'));
   });
 
   test('normal close deletes confirmed downloads before cleanup', () {

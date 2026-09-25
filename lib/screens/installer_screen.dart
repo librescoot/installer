@@ -11538,6 +11538,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (unlockObserved || (confirmed && mdbOnly)) {
       return PhaseLayout(
         title: l10n.welcomeToLibrescoot,
+        titleTrailing: const Icon(Icons.celebration, color: Colors.amberAccent),
         actions: [
           if (deviceConfirmed)
             PhaseAction(
@@ -11578,6 +11579,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
     return PhaseLayout(
       title: confirmed ? l10n.welcomeToLibrescoot : l10n.finishStatusTitle,
+      titleTrailing: confirmed
+          ? const Icon(Icons.celebration, color: Colors.amberAccent)
+          : null,
       actions: [
         if (confirmed)
           PhaseAction(

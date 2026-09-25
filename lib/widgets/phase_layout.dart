@@ -141,6 +141,7 @@ class PhaseLayout extends StatelessWidget {
     required this.title,
     required this.child,
     this.subtitle,
+    this.titleTrailing,
     this.actions = const [],
     this.onBack,
     this.backLabel,
@@ -149,6 +150,7 @@ class PhaseLayout extends StatelessWidget {
 
   final String title;
   final String? subtitle;
+  final Widget? titleTrailing;
   final Widget child;
 
   /// Rendered left to right. The primary action is pulled to the right edge
@@ -199,13 +201,31 @@ class PhaseLayout extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: kAccent),
-                  ),
+                  if (titleTrailing == null)
+                    Text(
+                      title,
+                      style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: kAccent),
+                    )
+                  else
+                    Row(
+                      children: [
+                        Flexible(
+                          fit: FlexFit.loose,
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: kAccent),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        titleTrailing!,
+                      ],
+                    ),
                   if (subtitle != null) ...[
                     const SizedBox(height: 6),
                     Text(subtitle!,

@@ -9,6 +9,19 @@ import 'package:librescoot_installer/widgets/phase_layout.dart';
 void main() {
   Widget host(Widget child) => MaterialApp(home: Scaffold(body: child));
 
+  testWidgets('a trailing celebration icon follows the title', (tester) async {
+    await tester.pumpWidget(host(const PhaseLayout(
+      title: 'Welcome to Librescoot',
+      titleTrailing: Icon(Icons.celebration, key: Key('celebration')),
+      child: Text('Getting started'),
+    )));
+
+    final title = tester.getRect(find.text('Welcome to Librescoot'));
+    final icon = tester.getRect(find.byKey(const Key('celebration')));
+    expect(icon.left, greaterThan(title.right));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('actions stay on screen and tappable in a short window',
       (tester) async {
     tester.view.physicalSize = const Size(1000, 300);

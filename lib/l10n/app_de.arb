@@ -434,7 +434,7 @@
   "finishWithoutDbcHeading": "Installation unvollständig: DBC nicht abgeschlossen",
   "finishWithoutDbcBody": "Das MDB ist möglicherweise nutzbar, aber die angeforderte DBC-Installation wurde nicht abgeschlossen. Behandle dies nicht als erfolgreiche vollständige Installation. {reason}",
   "trampolineStatusUnknown": "Der Installer konnte nicht feststellen, ob die Display-Arbeiten abgeschlossen wurden. Einzelheiten stehen im Installationsprotokoll.",
-  "welcomeToLibrescoot": "Willkommen bei Librescoot 🎉",
+  "welcomeToLibrescoot": "Willkommen bei Librescoot",
   "finishStatusTitle": "Installationsstatus",
   "finishPendingHeading": "Installation läuft noch",
   "mdbFinishWaitTitle": "Warte auf den Roller",
