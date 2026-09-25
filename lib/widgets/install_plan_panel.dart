@@ -117,7 +117,9 @@ class InstallPlanPanel extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: Wrap(
-                alignment: WrapAlignment.spaceBetween,
+                // The maps toggle belongs to this board's header, so it stays
+                // beside the title instead of being pushed to the card edge.
+                alignment: WrapAlignment.start,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 spacing: 8,
                 children: [

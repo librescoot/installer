@@ -285,6 +285,7 @@ void main() {
     final header = tester.getRect(find.text('DBC (dashboard)'));
     final checkbox = tester.getRect(find.byType(Checkbox));
     expect((header.center.dy - checkbox.center.dy).abs(), lessThan(26));
+    expect(checkbox.left - header.right, lessThan(24));
 
     await tester.ensureVisible(find.byType(Checkbox));
     await tester.pumpAndSettle();
