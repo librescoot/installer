@@ -1586,22 +1586,10 @@ abstract class AppLocalizations {
   /// **'The left lever stays squeezed the whole time.'**
   String get brakeLeftStaysHint;
 
-  /// No description provided for @brakeLeadInLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Squeeze both brakes in'**
-  String get brakeLeadInLabel;
-
-  /// No description provided for @brakeLeadInHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Step over to the handlebars and put a hand on each lever.'**
-  String get brakeLeadInHint;
-
   /// No description provided for @brakeKeepHolding.
   ///
   /// In en, this message translates to:
-  /// **'Hold both brakes'**
+  /// **'Pull and hold both brakes'**
   String get brakeKeepHolding;
 
   /// No description provided for @brakeReleaseNow.

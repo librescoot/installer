@@ -36,12 +36,46 @@ InstallerCue? cueForPhase(InstallerPhase phase) => switch (phase) {
 
 /// Best-effort local playback: audio must never interrupt an installation.
 class InstallerSounds {
+  InstallerSounds() {
+    for (final cue in [InstallerCue.pull, InstallerCue.release]) {
+      unawaited(_prepareBrakeCue(cue));
+    }
+  }
+
   final Map<InstallerCue, AudioPlayer> _players = {};
+  final Set<InstallerCue> _preparedBrakeCues = {};
   bool _disposed = false;
 
   void play(InstallerCue cue) {
     if (_disposed) return;
+    if (cue == InstallerCue.pull || cue == InstallerCue.release) {
+      if (!_preparedBrakeCues.contains(cue)) {
+        debugPrint('Installer brake audio not ready: ${cue.name}');
+        return;
+      }
+      unawaited(_resumeBrakeCue(cue));
+      return;
+    }
     unawaited(_play(cue));
+  }
+
+  Future<void> _prepareBrakeCue(InstallerCue cue) async {
+    try {
+      final player = _players.putIfAbsent(cue, AudioPlayer.new);
+      await player.setReleaseMode(ReleaseMode.stop);
+      await player.setSource(AssetSource('sounds/${cue.assetName}'));
+      if (!_disposed) _preparedBrakeCues.add(cue);
+    } catch (error) {
+      debugPrint('Installer brake audio unavailable: $error');
+    }
+  }
+
+  Future<void> _resumeBrakeCue(InstallerCue cue) async {
+    try {
+      await _players[cue]!.resume();
+    } catch (error) {
+      debugPrint('Installer brake audio unavailable: $error');
+    }
   }
 
   Future<void> _play(InstallerCue cue) async {
@@ -61,5 +95,6 @@ class InstallerSounds {
       unawaited(player.dispose());
     }
     _players.clear();
+    _preparedBrakeCues.clear();
   }
 }

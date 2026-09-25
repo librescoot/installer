@@ -36,12 +36,6 @@ const brakeTotalSeconds = brakeMarkSeconds * brakeSegments;
 int brakeHoldSecondsFor(int segment) =>
     segment == 1 ? brakeMarkSeconds : brakeMarkSeconds - brakeBlipSeconds;
 
-/// Long enough to step from the laptop to the handlebars and get a hand on
-/// each lever. Without it the count starts when the button is pressed, which
-/// is a different moment from when the squeeze starts, and every beat after
-/// that inherits the gap.
-const brakeLeadInSeconds = 5;
-
 /// How long the closing "let go of both" instruction stays up in large type
 /// before shrinking into the done summary. Letting go is the one step with no
 /// beat after it, so the cue has to outlive the moment it fires.
@@ -220,7 +214,7 @@ class BrakeGesturePacer extends StatefulWidget {
   State<BrakeGesturePacer> createState() => _BrakeGesturePacerState();
 }
 
-enum _PacerPhase { idle, leadIn, hold, blip, release, done }
+enum _PacerPhase { idle, hold, blip, release, done }
 
 class _BrakeGesturePacerState extends State<BrakeGesturePacer> {
   Timer? _ticker;
@@ -237,10 +231,11 @@ class _BrakeGesturePacerState extends State<BrakeGesturePacer> {
   void _start() {
     _ticker?.cancel();
     setState(() {
-      _phase = _PacerPhase.leadIn;
+      _phase = _PacerPhase.hold;
       _segment = 1;
-      _remaining = brakeLeadInSeconds;
+      _remaining = brakeHoldSecondsFor(1);
     });
+    widget.onCue?.call(InstallerCue.pull);
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
   }
 
@@ -256,13 +251,7 @@ class _BrakeGesturePacerState extends State<BrakeGesturePacer> {
     setState(() {
       _remaining--;
       if (_remaining > 0) return;
-      if (_phase == _PacerPhase.leadIn) {
-        // Zero is the squeeze cue, so the first hold starts on the same beat
-        // the user's hands do.
-        _phase = _PacerPhase.hold;
-        _segment = 1;
-        _remaining = brakeHoldSecondsFor(1);
-      } else if (_phase == _PacerPhase.hold) {
+      if (_phase == _PacerPhase.hold) {
         if (_segment == brakeSegments) {
           // Letting go is what triggers the restart, so completion fires
           // here; the release phase after it is display time, not gesture.
@@ -297,11 +286,7 @@ class _BrakeGesturePacerState extends State<BrakeGesturePacer> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final counting =
-        _phase == _PacerPhase.leadIn ||
-        _phase == _PacerPhase.hold ||
-        _phase == _PacerPhase.blip;
-    // The lead-in belongs to no segment, so nothing is lit until the squeeze.
+    final counting = _phase == _PacerPhase.hold || _phase == _PacerPhase.blip;
     final onPattern = _phase == _PacerPhase.hold || _phase == _PacerPhase.blip;
 
     return Column(
@@ -316,7 +301,6 @@ class _BrakeGesturePacerState extends State<BrakeGesturePacer> {
         if (counting) ...[
           Text(
             switch (_phase) {
-              _PacerPhase.leadIn => l10n.brakeLeadInLabel,
               _PacerPhase.blip => l10n.brakeBlipRight,
               _ => l10n.brakeKeepHolding,
             },
@@ -325,7 +309,6 @@ class _BrakeGesturePacerState extends State<BrakeGesturePacer> {
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: switch (_phase) {
-                _PacerPhase.leadIn => Colors.white,
                 _PacerPhase.blip => Colors.orangeAccent,
                 _ => Colors.cyanAccent,
               },
@@ -343,9 +326,7 @@ class _BrakeGesturePacerState extends State<BrakeGesturePacer> {
           ),
           const SizedBox(height: 2),
           Text(
-            _phase == _PacerPhase.leadIn
-                ? l10n.brakeLeadInHint
-                : l10n.brakeLeftStaysHint,
+            l10n.brakeLeftStaysHint,
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
           ),
