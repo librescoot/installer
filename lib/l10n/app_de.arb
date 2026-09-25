@@ -652,15 +652,8 @@
   "phaseMdbArtifactDescription": "Firmware installieren",
   "majorStepMdbUpgrade": "MDB aktualisieren",
   "majorStepDbcUpgrade": "DBC aktualisieren",
-  "installPlanHeading": "Was soll der Installer tun?",
-  "installPlanIntro": "Wähle eine Aktion für jedes Board. Zielversion: {version}",
-  "@installPlanIntro": {
-    "placeholders": {
-      "version": {
-        "type": "String"
-      }
-    }
-  },
+  "installPlanHeading": "Installation planen",
+  "installPlanIntro": "Wähle die gewünschte Aktion für Hauptboard und Display.",
   "boardMdb": "MDB (Hauptboard)",
   "boardDbc": "DBC (Display)",
   "bootstrapImageLabel": "Librescoot-Bootstrap-Image ({board})",
@@ -700,8 +693,20 @@
   },
   "boardVersionUnknown": "Version unbekannt",
   "actionUpgrade": "Aktualisieren",
+  "actionUpgradeToVersion": "Auf Librescoot {version} aktualisieren",
+  "@actionUpgradeToVersion": {
+    "placeholders": {
+      "version": {"type": "String"}
+    }
+  },
   "actionUpgradeDetail": "Behält Einstellungen, Schlüsselkarten und Karten",
   "actionCleanInstall": "Neu installieren",
+  "actionCleanInstallVersion": "Librescoot {version} neu installieren",
+  "@actionCleanInstallVersion": {
+    "placeholders": {
+      "version": {"type": "String"}
+    }
+  },
   "actionCleanInstallDetail": "Löscht die Daten des Hauptboards. Erkannte Gerätekonfigurationen können im nächsten Schritt ausgewählt werden",
   "actionUpgradeDetailDbc": "Behält die Offline-Karten",
   "actionCleanInstallDetailDbc": "Löscht nur die Offline-Karten",
@@ -713,12 +718,11 @@
   "upgradeBlockedMinimalImage": "Dieses Board läuft nur mit dem Grundsystem und muss neu installiert werden",
   "upgradeBlockedNoMender": "Dieses Board hat keinen Update-Client und kann nur neu installiert werden",
   "planTilesNeedDbcHandoff": "Für neue Kartendaten muss das DBC-Kabel umgesteckt werden, auch wenn das DBC unverändert bleibt",
-  "planInstallTiles": "Offline-Karten aktualisieren",
-  "planInstallTilesDetail": "Fügt einen DBC-Schritt hinzu: Die Karten werden auf das MDB übertragen. Danach wird das Kabel zurückgesteckt und die Karten werden automatisch installiert.",
+  "planInstallTiles": "Offline-Karten und Navigation installieren",
   "planTilesUnknownDbc": "Die DBC-Software konnte nicht erkannt werden. Offline-Karten können nur auf einer bekannten, vollständigen Librescoot-Installation installiert werden. Wähle für das DBC „Neu installieren“ oder fahre ohne Karten fort und starte den Installer erneut, nachdem das DBC verbunden ist und läuft.",
   "planTilesBootstrapDbc": "Das DBC läuft mit einem Bootstrap-Image. Dieses kann keine Offline-Karten verwenden. Wähle für das DBC „Neu installieren“ oder fahre ohne Karten fort und starte den Installer später erneut.",
   "planTilesNeedKnownDbc": "Das Display wurde nicht als vollständige Librescoot-Installation erkannt. Installiere das Display neu, um Offline-Karten hinzuzufügen.",
-  "planTilesNotDownloaded": "Nicht heruntergeladen. Offline-Karten wurden im ersten Schritt übersprungen.",
+  "planTilesNotDownloaded": "Offline-Karten und Navigation wurden nicht heruntergeladen.",
   "planChangeOfflineMaps": "Offline-Karten ändern",
   "planMapDownloadsPending": "Offline-Karten werden heruntergeladen. Warte, bevor du mit ihrer Installation fortfährst.",
   "actionLeaveBlockedStockMdb": "Das Serien-Hauptboard muss installiert werden, bevor weitere Aktionen möglich sind",

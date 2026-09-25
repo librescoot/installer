@@ -5078,13 +5078,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 (_plan!.installTiles && !_downloadState.offlineMapsReady)));
     return PhaseLayout(
       title: l10n.installPlanHeading,
-      subtitle: l10n.installPlanIntro(_downloadState.releaseTag ?? ''),
-      // The health check needs a board that answers, which the one in mass
-      // storage does not.
-      onBack: _directMassStorageRoute
-          ? null
-          : () => _setPhase(InstallerPhase.healthCheck),
-      backLabel: l10n.backButton,
+      subtitle: l10n.installPlanIntro,
       actions: [
         if (!launchArgs.hasLocalImagesOnly)
           PhaseAction(

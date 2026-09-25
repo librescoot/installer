@@ -1916,12 +1916,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get majorStepDbcUpgrade => 'DBC aktualisieren';
 
   @override
-  String get installPlanHeading => 'Was soll der Installer tun?';
+  String get installPlanHeading => 'Installation planen';
 
   @override
-  String installPlanIntro(String version) {
-    return 'Wähle eine Aktion für jedes Board. Zielversion: $version';
-  }
+  String get installPlanIntro =>
+      'Wähle die gewünschte Aktion für Hauptboard und Display.';
 
   @override
   String get boardMdb => 'MDB (Hauptboard)';
@@ -1956,11 +1955,21 @@ class AppLocalizationsDe extends AppLocalizations {
   String get actionUpgrade => 'Aktualisieren';
 
   @override
+  String actionUpgradeToVersion(String version) {
+    return 'Auf Librescoot $version aktualisieren';
+  }
+
+  @override
   String get actionUpgradeDetail =>
       'Behält Einstellungen, Schlüsselkarten und Karten';
 
   @override
   String get actionCleanInstall => 'Neu installieren';
+
+  @override
+  String actionCleanInstallVersion(String version) {
+    return 'Librescoot $version neu installieren';
+  }
 
   @override
   String get actionCleanInstallDetail =>
@@ -2003,11 +2012,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Für neue Kartendaten muss das DBC-Kabel umgesteckt werden, auch wenn das DBC unverändert bleibt';
 
   @override
-  String get planInstallTiles => 'Offline-Karten aktualisieren';
-
-  @override
-  String get planInstallTilesDetail =>
-      'Fügt einen DBC-Schritt hinzu: Die Karten werden auf das MDB übertragen. Danach wird das Kabel zurückgesteckt und die Karten werden automatisch installiert.';
+  String get planInstallTiles => 'Offline-Karten und Navigation installieren';
 
   @override
   String get planTilesUnknownDbc =>
@@ -2023,7 +2028,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get planTilesNotDownloaded =>
-      'Nicht heruntergeladen. Offline-Karten wurden im ersten Schritt übersprungen.';
+      'Offline-Karten und Navigation wurden nicht heruntergeladen.';
 
   @override
   String get planChangeOfflineMaps => 'Offline-Karten ändern';

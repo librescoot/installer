@@ -1884,12 +1884,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get majorStepDbcUpgrade => 'Upgrade DBC';
 
   @override
-  String get installPlanHeading => 'Choose installation actions';
+  String get installPlanHeading => 'Plan the installation';
 
   @override
-  String installPlanIntro(String version) {
-    return 'Pick an action for each board. Target version: $version';
-  }
+  String get installPlanIntro =>
+      'Choose an action for the main board and display.';
 
   @override
   String get boardMdb => 'MDB (main board)';
@@ -1924,10 +1923,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get actionUpgrade => 'Upgrade';
 
   @override
+  String actionUpgradeToVersion(String version) {
+    return 'Upgrade to Librescoot $version';
+  }
+
+  @override
   String get actionUpgradeDetail => 'Keeps settings, keycards and maps';
 
   @override
   String get actionCleanInstall => 'Clean install';
+
+  @override
+  String actionCleanInstallVersion(String version) {
+    return 'Clean install Librescoot $version';
+  }
 
   @override
   String get actionCleanInstallDetail =>
@@ -1970,11 +1979,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Refreshing map tiles needs the DBC cable swap, even with the DBC left alone';
 
   @override
-  String get planInstallTiles => 'Update the offline maps';
-
-  @override
-  String get planInstallTilesDetail =>
-      'Adds a dashboard step: the maps go to the main board, then the cable swaps back and the scooter copies them over.';
+  String get planInstallTiles => 'Install offline maps and navigation';
 
   @override
   String get planTilesUnknownDbc =>
@@ -1990,7 +1995,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get planTilesNotDownloaded =>
-      'Not downloaded. Offline maps were skipped on the first screen.';
+      'Offline maps and navigation were not downloaded.';
 
   @override
   String get planChangeOfflineMaps => 'Change offline maps';

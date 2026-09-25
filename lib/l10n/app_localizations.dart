@@ -3281,14 +3281,14 @@ abstract class AppLocalizations {
   /// No description provided for @installPlanHeading.
   ///
   /// In en, this message translates to:
-  /// **'Choose installation actions'**
+  /// **'Plan the installation'**
   String get installPlanHeading;
 
   /// No description provided for @installPlanIntro.
   ///
   /// In en, this message translates to:
-  /// **'Pick an action for each board. Target version: {version}'**
-  String installPlanIntro(String version);
+  /// **'Choose an action for the main board and display.'**
+  String get installPlanIntro;
 
   /// No description provided for @boardMdb.
   ///
@@ -3338,6 +3338,12 @@ abstract class AppLocalizations {
   /// **'Upgrade'**
   String get actionUpgrade;
 
+  /// No description provided for @actionUpgradeToVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade to Librescoot {version}'**
+  String actionUpgradeToVersion(String version);
+
   /// No description provided for @actionUpgradeDetail.
   ///
   /// In en, this message translates to:
@@ -3349,6 +3355,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Clean install'**
   String get actionCleanInstall;
+
+  /// No description provided for @actionCleanInstallVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Clean install Librescoot {version}'**
+  String actionCleanInstallVersion(String version);
 
   /// No description provided for @actionCleanInstallDetail.
   ///
@@ -3419,14 +3431,8 @@ abstract class AppLocalizations {
   /// No description provided for @planInstallTiles.
   ///
   /// In en, this message translates to:
-  /// **'Update the offline maps'**
+  /// **'Install offline maps and navigation'**
   String get planInstallTiles;
-
-  /// No description provided for @planInstallTilesDetail.
-  ///
-  /// In en, this message translates to:
-  /// **'Adds a dashboard step: the maps go to the main board, then the cable swaps back and the scooter copies them over.'**
-  String get planInstallTilesDetail;
 
   /// No description provided for @planTilesUnknownDbc.
   ///
@@ -3449,7 +3455,7 @@ abstract class AppLocalizations {
   /// No description provided for @planTilesNotDownloaded.
   ///
   /// In en, this message translates to:
-  /// **'Not downloaded. Offline maps were skipped on the first screen.'**
+  /// **'Offline maps and navigation were not downloaded.'**
   String get planTilesNotDownloaded;
 
   /// No description provided for @planChangeOfflineMaps.

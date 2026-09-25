@@ -61,6 +61,8 @@ void main() {
     // belongs to.
     expect(find.text('Currently Librescoot v1.2.0'), findsOneWidget);
     expect(find.text('Version unknown'), findsOneWidget);
+    expect(find.text('Upgrade to Librescoot v1.2.1'), findsNWidgets(2));
+    expect(find.text('Clean install Librescoot v1.2.1'), findsNWidgets(2));
   });
 
   testWidgets('names bootstrap images instead of installed Librescoot', (
@@ -138,7 +140,7 @@ void main() {
     // The DBC's Upgrade tile is the disabled one: tapping it must not be
     // able to select it. This is the property that actually protects the
     // user, not just the blocker text rendering.
-    final upgradeLabels = find.text('Upgrade');
+    final upgradeLabels = find.text('Upgrade to Librescoot v1.2.1');
     expect(upgradeLabels, findsNWidgets(2));
     await tester.tap(upgradeLabels.at(1));
     await tester.pump();
@@ -182,7 +184,9 @@ void main() {
     final reason = find.text('Upgrade needs a known version on this board');
     expect(reason, findsOneWidget);
     final reasonBox = tester.getRect(reason);
-    final upgradeBox = tester.getRect(find.text('Upgrade').at(1));
+    final upgradeBox = tester.getRect(
+      find.text('Upgrade to Librescoot v1.2.1').at(1),
+    );
     expect(reasonBox.top, greaterThan(upgradeBox.top));
     expect(reasonBox.top - upgradeBox.bottom, lessThan(24.0));
 
@@ -255,12 +259,9 @@ void main() {
     expect(seen!.mdb.action, BoardAction.leave);
   });
 
-  testWidgets('the maps are a choice here and say what they cost', (
+  testWidgets('offline navigation installs from the DBC header checkbox', (
     tester,
   ) async {
-    // The welcome screen decides whether to DOWNLOAD them, which reads as a
-    // size choice. Whether to install them belongs with the rest of what this
-    // run will do, and the cost is a dashboard step the user did not ask for.
     InstallPlan? seen;
     final plan = InstallPlan(
       mdb: const BoardPlan(board: Board.mdb, action: BoardAction.upgrade),
@@ -279,15 +280,48 @@ void main() {
       ),
     );
 
-    expect(find.text('Update the offline maps'), findsOneWidget);
-    expect(find.textContaining('Adds a dashboard step'), findsOneWidget);
+    expect(find.text('Install offline maps and navigation'), findsOneWidget);
+    expect(find.textContaining('Adds a dashboard step'), findsNothing);
+    final header = tester.getRect(find.text('DBC (dashboard)'));
+    final checkbox = tester.getRect(find.byType(Checkbox));
+    expect((header.center.dy - checkbox.center.dy).abs(), lessThan(26));
 
-    await tester.ensureVisible(find.byType(CheckboxListTile));
+    await tester.ensureVisible(find.byType(Checkbox));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(CheckboxListTile));
+    await tester.tap(find.byType(Checkbox));
     await tester.pump();
     expect(seen, isNotNull);
     expect(seen!.installTiles, isFalse);
+  });
+
+  testWidgets('compact DBC card wraps the maps checkbox without overflow', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(480, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _host(
+        InstallPlanPanel(
+          plan: const InstallPlan(
+            mdb: BoardPlan(board: Board.mdb, action: BoardAction.upgrade),
+            dbc: BoardPlan(board: Board.dbc, action: BoardAction.leave),
+            installTiles: true,
+          ),
+          mdbState: _mdbState,
+          dbcState: _librescootDbc,
+          targetVersion: 'testing-20260924T225338',
+          onChanged: (_) {},
+        ),
+      ),
+    );
+    await tester.ensureVisible(
+      find.text('Install offline maps and navigation'),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('unknown unchanged DBC cannot receive offline maps', (
@@ -320,9 +354,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    final checkbox = tester.widget<CheckboxListTile>(
-      find.byType(CheckboxListTile),
-    );
+    final checkbox = tester.widget<Checkbox>(find.byType(Checkbox));
     expect(checkbox.value, isFalse);
     expect(checkbox.onChanged, isNull);
     expect(seen, isNull);
@@ -364,9 +396,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    final checkbox = tester.widget<CheckboxListTile>(
-      find.byType(CheckboxListTile),
-    );
+    final checkbox = tester.widget<Checkbox>(find.byType(Checkbox));
     expect(checkbox.value, isFalse);
     expect(checkbox.onChanged, isNull);
   });
@@ -417,10 +447,10 @@ void main() {
       ),
     );
 
-    expect(find.textContaining('Not downloaded'), findsOneWidget);
-    await tester.ensureVisible(find.byType(CheckboxListTile));
+    expect(find.textContaining('were not downloaded'), findsOneWidget);
+    await tester.ensureVisible(find.byType(Checkbox));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(CheckboxListTile));
+    await tester.tap(find.byType(Checkbox));
     await tester.pump();
     expect(seen, isNull, reason: 'a disabled control must not change the plan');
   });

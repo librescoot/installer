@@ -790,15 +790,8 @@
   "phaseMdbArtifactDescription": "Install the firmware update",
   "majorStepMdbUpgrade": "Upgrade MDB",
   "majorStepDbcUpgrade": "Upgrade DBC",
-  "installPlanHeading": "Choose installation actions",
-  "installPlanIntro": "Pick an action for each board. Target version: {version}",
-  "@installPlanIntro": {
-    "placeholders": {
-      "version": {
-        "type": "String"
-      }
-    }
-  },
+  "installPlanHeading": "Plan the installation",
+  "installPlanIntro": "Choose an action for the main board and display.",
   "boardMdb": "MDB (main board)",
   "boardDbc": "DBC (dashboard)",
   "bootstrapImageLabel": "Librescoot Bootstrap Image ({board})",
@@ -838,8 +831,20 @@
   },
   "boardVersionUnknown": "Version unknown",
   "actionUpgrade": "Upgrade",
+  "actionUpgradeToVersion": "Upgrade to Librescoot {version}",
+  "@actionUpgradeToVersion": {
+    "placeholders": {
+      "version": {"type": "String"}
+    }
+  },
   "actionUpgradeDetail": "Keeps settings, keycards and maps",
   "actionCleanInstall": "Clean install",
+  "actionCleanInstallVersion": "Clean install Librescoot {version}",
+  "@actionCleanInstallVersion": {
+    "placeholders": {
+      "version": {"type": "String"}
+    }
+  },
   "actionCleanInstallDetail": "Erases main-board data. Detected device configurations can be selected in the next step",
   "actionUpgradeDetailDbc": "Keeps the offline maps",
   "actionCleanInstallDetailDbc": "Erases the offline maps only",
@@ -851,12 +856,11 @@
   "upgradeBlockedMinimalImage": "This board is running a bootstrap image and has to be installed",
   "upgradeBlockedNoMender": "This board has no update client, so it can only be reinstalled",
   "planTilesNeedDbcHandoff": "Refreshing map tiles needs the DBC cable swap, even with the DBC left alone",
-  "planInstallTiles": "Update the offline maps",
-  "planInstallTilesDetail": "Adds a dashboard step: the maps go to the main board, then the cable swaps back and the scooter copies them over.",
+  "planInstallTiles": "Install offline maps and navigation",
   "planTilesUnknownDbc": "The DBC software could not be identified. Offline maps can only be installed on a known, complete Librescoot system. Choose Clean install for the DBC, or continue without maps and run the installer again after the DBC is connected and running.",
   "planTilesBootstrapDbc": "The DBC is running a bootstrap image. The bootstrap image cannot use offline maps. Choose Clean install for the DBC, or continue without maps and run the installer again later.",
   "planTilesNeedKnownDbc": "The dashboard was not identified as a complete Librescoot installation. Reinstall the dashboard to add offline maps.",
-  "planTilesNotDownloaded": "Not downloaded. Offline maps were skipped on the first screen.",
+  "planTilesNotDownloaded": "Offline maps and navigation were not downloaded.",
   "planChangeOfflineMaps": "Change offline maps",
   "planMapDownloadsPending": "Offline maps are downloading. Wait before continuing with their installation.",
   "actionLeaveBlockedStockMdb": "A stock main board has to be installed before anything else can be done",

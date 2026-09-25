@@ -39,10 +39,6 @@ class InstallPlanPanel extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final tilesAllowed = plan.tilesAllowedFor(dbcState);
     final tilesSelectable = tilesAvailable && tilesAllowed;
-    // Only the board cards and warnings live here now. The heading and the
-    // Continue button are the enclosing PhaseLayout's job, which is where
-    // every other phase keeps them too; this panel used to pin them itself
-    // because it was the only screen that needed to.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -55,35 +51,25 @@ class InstallPlanPanel extends StatelessWidget {
           (p) => onChanged(plan.withMdb(p)),
         ),
         const SizedBox(height: 12),
-        _boardCard(context, l10n, l10n.boardDbc, dbcState, plan.dbc, (p) {
-          var next = plan.withDbc(p);
-          if (!next.tilesAllowedFor(dbcState)) {
-            next = next.withTiles(false);
-          }
-          onChanged(next);
-        }),
-        const SizedBox(height: 12),
-        // The maps used to be decided on the welcome screen, where the control
-        // reads as a download-size choice, and this screen only stated the
-        // consequence without offering a way to act on it. Every other part of
-        // what this run will do is chosen here, so the maps are too.
-        Card(
-          child: CheckboxListTile(
-            value: tilesSelectable && plan.installTiles,
-            onChanged: tilesSelectable
-                ? (v) => onChanged(plan.withTiles(v ?? false))
-                : null,
-            title: Text(l10n.planInstallTiles),
-            subtitle: Text(
-              !tilesAvailable
-                  ? l10n.planTilesNotDownloaded
-                  : !tilesAllowed
-                  ? _tilesUnavailableDetail(l10n, dbcState)
-                  : l10n.planInstallTilesDetail,
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-            controlAffinity: ListTileControlAffinity.leading,
-          ),
+        _boardCard(
+          context,
+          l10n,
+          l10n.boardDbc,
+          dbcState,
+          plan.dbc,
+          (p) {
+            var next = plan.withDbc(p);
+            if (!next.tilesAllowedFor(dbcState)) {
+              next = next.withTiles(false);
+            }
+            onChanged(next);
+          },
+          tilesSelectable: tilesSelectable,
+          tilesReason: !tilesAvailable
+              ? l10n.planTilesNotDownloaded
+              : !tilesAllowed
+              ? _tilesUnavailableDetail(l10n, dbcState)
+              : null,
         ),
         if (plan.dbcWorkStrandedOn(mdbState))
           Padding(
@@ -113,8 +99,10 @@ class InstallPlanPanel extends StatelessWidget {
     String title,
     BoardState state,
     BoardPlan boardPlan,
-    ValueChanged<BoardPlan> onBoardChanged,
-  ) {
+    ValueChanged<BoardPlan> onBoardChanged, {
+    bool? tilesSelectable,
+    String? tilesReason,
+  }) {
     assert(
       state.board == boardPlan.board,
       'state and boardPlan must describe the same board',
@@ -126,12 +114,34 @@ class InstallPlanPanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+            SizedBox(
+              width: double.infinity,
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  if (tilesSelectable != null)
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 340),
+                      child: _tilesCheckbox(l10n, tilesSelectable),
+                    ),
+                ],
+              ),
+            ),
             const SizedBox(height: 4),
             Text(
               _versionLabel(l10n, state),
               style: Theme.of(context).textTheme.bodySmall,
             ),
+            if (tilesReason != null) ...[
+              const SizedBox(height: 8),
+              Text(tilesReason, style: Theme.of(context).textTheme.bodySmall),
+            ],
             if (locked) ...[
               const SizedBox(height: 8),
               Text(
@@ -216,6 +226,24 @@ class InstallPlanPanel extends StatelessWidget {
     );
   }
 
+  Widget _tilesCheckbox(AppLocalizations l10n, bool selectable) {
+    void toggle() => onChanged(plan.withTiles(!plan.installTiles));
+    return InkWell(
+      onTap: selectable ? toggle : null,
+      borderRadius: BorderRadius.circular(4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Checkbox(
+            value: selectable && plan.installTiles,
+            onChanged: selectable ? (_) => toggle() : null,
+          ),
+          Flexible(child: Text(l10n.planInstallTiles)),
+        ],
+      ),
+    );
+  }
+
   /// The warning to show under an Upgrade, or null when the target is at least
   /// as new as what the board runs.
   String? _keepDataWarning(AppLocalizations l10n, BoardState state) =>
@@ -247,8 +275,14 @@ class InstallPlanPanel extends StatelessWidget {
 
   String _actionLabel(AppLocalizations l10n, BoardAction action) =>
       switch (action) {
-        BoardAction.upgrade => l10n.actionUpgrade,
-        BoardAction.cleanInstall => l10n.actionCleanInstall,
+        BoardAction.upgrade =>
+          targetVersion.isEmpty
+              ? l10n.actionUpgrade
+              : l10n.actionUpgradeToVersion(targetVersion),
+        BoardAction.cleanInstall =>
+          targetVersion.isEmpty
+              ? l10n.actionCleanInstall
+              : l10n.actionCleanInstallVersion(targetVersion),
         BoardAction.leave => l10n.actionLeave,
         BoardAction.fullImage => l10n.artifactFallBackToFullImage,
       };
