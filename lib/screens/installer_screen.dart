@@ -3458,7 +3458,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       } catch (e) {
         _setStatus('[DRY RUN] Auth load failed: $e: continuing anyway');
       }
-      await Future.delayed(const Duration(seconds: 1));
+      await Future.delayed(const Duration(seconds: 5));
+      if (!mounted) return;
       _setPhase(InstallerPhase.healthCheck);
       return;
     }
@@ -4940,7 +4941,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (!mounted) return;
     setState(() => _isProcessing = true);
     if (_isDryRun) {
-      if (!mounted) return;
+      await Future.delayed(const Duration(seconds: 5));
+      if (!mounted || _currentPhase != InstallerPhase.healthCheck) return;
       setState(
         () => _scooterHealth = ScooterHealth()
           ..auxCharge = 75
@@ -5626,8 +5628,17 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       ),
     ]);
     if (_isDryRun) {
-      _setStatus('[DRY RUN] Simulating UMS mode...');
-      await Future.delayed(const Duration(seconds: 1));
+      _setStatus(l10n.deactivatingMainBattery);
+      await Future.delayed(const Duration(seconds: 4));
+      if (!_ownsMdbToUmsAttempt(generation)) return;
+      _setStatus(l10n.uploadingBootloaderTools);
+      await Future.delayed(const Duration(seconds: 5));
+      if (!_ownsMdbToUmsAttempt(generation)) return;
+      _setStatus(l10n.rebootingMdbUms);
+      await Future.delayed(const Duration(seconds: 8));
+      if (!_ownsMdbToUmsAttempt(generation)) return;
+      _setStatus(l10n.waitingForUmsDevice);
+      await Future.delayed(const Duration(seconds: 6));
       if (!_ownsMdbToUmsAttempt(generation)) return;
       _mdbToUmsAttempt.complete(generation);
       _setPhase(InstallerPhase.mdbFlash);
@@ -6075,13 +6086,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (_isDryRun) {
       criticalOperation = _acquireCriticalOperation();
       try {
-        for (var i = 0; i <= 10; i++) {
-          _setStatus(
-            '[DRY RUN] Simulating flash... ${i * 10}%',
-            progress: i / 10,
-          );
-          await Future.delayed(const Duration(milliseconds: 200));
-          if (!mounted) return;
+        _setStatus(l10n.waitingForDevicePath);
+        await Future.delayed(const Duration(seconds: 5));
+        if (!mounted || _currentPhase != InstallerPhase.mdbFlash) return;
+        for (var i = 0; i <= 100; i++) {
+          _setStatus(l10n.flashingMdb, progress: i / 100);
+          await Future.delayed(const Duration(milliseconds: 900));
+          if (!mounted || _currentPhase != InstallerPhase.mdbFlash) return;
         }
         _setPhase(InstallerPhase.scooterPrep);
         return;
@@ -6694,8 +6705,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     ]);
 
     if (_isDryRun) {
-      _setStatus('[DRY RUN] Simulating MDB boot...');
-      await Future.delayed(const Duration(seconds: 2));
+      _setStatus(l10n.waitingForMdbRestart);
+      await Future.delayed(const Duration(seconds: 25));
+      if (!_ownsMdbBootAttempt(generation)) return;
+      _setStatus(l10n.reconnectingSsh);
+      await Future.delayed(const Duration(seconds: 20));
       if (!_ownsMdbBootAttempt(generation)) return;
       _mdbBootAttempt.complete(generation);
       _setPhase(_beginMdbInstall());
@@ -7437,10 +7451,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final l10n = AppLocalizations.of(context)!;
 
     if (_isDryRun) {
-      for (var pct = 0; pct <= 100; pct += 20) {
+      for (var pct = 0; pct <= 100; pct += 5) {
         if (!mounted) return;
         setState(() => _mdbStageProgress = pct / 100);
-        await Future.delayed(const Duration(milliseconds: 120));
+        await Future.delayed(const Duration(seconds: 3));
       }
       if (mounted) setState(() => _mdbStageDone = true);
       return;
@@ -7543,10 +7557,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         _isProcessing = true;
         _artifactError = null;
       });
-      for (var pct = 0; pct <= 100; pct += 10) {
+      for (var pct = 0; pct <= 100; pct += 5) {
         _setStatus(l10n.artifactStaging, progress: pct / 100);
-        await Future.delayed(const Duration(milliseconds: 150));
-        if (!mounted) return;
+        await Future.delayed(const Duration(seconds: 3));
+        if (!mounted || _currentPhase != InstallerPhase.mdbArtifact) return;
       }
       _expectMinimalMdb = false;
       _setPhase(_phaseAfterMdbInstall);
@@ -8202,10 +8216,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         _dbcUploadReady = false;
         _dbcPrepBlocked = false;
       });
-      _setStatus('[DRY RUN] Simulating DBC upload...');
+      _setStatus(l10n.artifactStaging);
       await const DryRunUploadOperation().execute(
         coordinator: _criticalOperations,
-        delay: () => Future<void>.delayed(const Duration(seconds: 1)),
+        delay: () => Future<void>.delayed(const Duration(seconds: 90)),
         owns: () => _ownsDbcUpload(uploadGeneration),
         onOwned: () {
           _setStatus(l10n.filesStagedWaitingForHandoff, progress: 1);
@@ -8419,8 +8433,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final criticalOperation = _acquireCriticalOperation();
 
     if (_isDryRun) {
-      _setStatus('[DRY RUN] Simulating trampoline start...');
-      await Future.delayed(const Duration(seconds: 1));
+      _setStatus(l10n.startingTrampoline);
+      await Future.delayed(const Duration(seconds: 8));
       criticalOperation.release();
       _trampolineStartInFlight = false;
       _setPhase(InstallerPhase.dbcFlash);
@@ -9151,7 +9165,22 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
     if (_isDryRun) {
       await const DryRunReconnectOperation().execute(
-        delay: () => Future<void>.delayed(const Duration(seconds: 1)),
+        delay: () async {
+          for (final (id, status, seconds) in [
+            ('rndis', l10n.waitingForRndisDevice, 20),
+            ('net', l10n.configuringNetwork, 4),
+            ('ssh', l10n.reconnectingSsh, 12),
+            ('completion', l10n.substepCheckCompletionRecord, 5),
+            ('status', l10n.substepReadStatus, 5),
+          ]) {
+            if (!_ownsReconnect(generation)) return;
+            setStep(id, SubstepState.active);
+            _setStatus(status);
+            await Future.delayed(Duration(seconds: seconds));
+            if (!_ownsReconnect(generation)) return;
+            setStep(id, SubstepState.done);
+          }
+        },
         owns: () => _ownsReconnect(generation),
         onOwned: () {
           if (_dbcFlashSimulateError) {
