@@ -139,7 +139,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get welcomeSubheading =>
-      'Dieser Assistent führt dich durch die Installation der Librescoot-Firmware auf deinem Roller.';
+      'Wähle Firmware und optional Offline-Karten mit Navigation. Danach begleitet dich der Installer durch Anschluss und Installation.';
 
   @override
   String get updateAvailableTitle => 'Installer-Update verfügbar';
@@ -178,7 +178,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get prerequisiteUsbCable => 'USB-Kabel (Laptop zu Mini-B)';
 
   @override
-  String get prerequisiteTime => 'Ungefähr 20 Minuten Zeit';
+  String get prerequisiteTime =>
+      'Ungefähr 20 Minuten Zeit, zuzüglich Downloadzeit';
+
+  @override
+  String get prerequisiteAdminAccess =>
+      'Zugriff auf Administratorrechte für diesen Computer';
 
   @override
   String get reliabilityWarningTitle => 'Bevor du startest';
@@ -235,7 +240,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get elevationNoticeWelcome =>
-      'Wenn du auf Installation starten klickst, fragt dein System nach Administratorrechten. Der Installer benötigt sie, um auf den Speicher des Rollers zu schreiben und das Netzwerk zu konfigurieren.';
+      'Windows zeigt beim Start eine UAC-Abfrage. Du musst sie bestätigen oder Administratorzugangsdaten eingeben können.';
 
   @override
   String get arm64EmulationNoticeWelcome =>
@@ -246,7 +251,11 @@ class AppLocalizationsDe extends AppLocalizations {
       'Administratorrechte werden angefragt…';
 
   @override
-  String get firmwareChannel => 'Firmware-Kanal';
+  String get firmwareChannel => 'Firmware auswählen';
+
+  @override
+  String get firmwareChannelHint =>
+      'Stabil ist für die meisten Roller die richtige Wahl. Testing und Nightly enthalten neuere, weniger erprobte Änderungen.';
 
   @override
   String get channelStable => 'Stabil';
@@ -278,7 +287,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get loadingChannels => 'Verfügbare Kanäle werden geladen…';
 
   @override
-  String get region => 'Region';
+  String get region => 'Offline-Karten & Navigation';
 
   @override
   String get selectRegion => 'Region auswählen';
@@ -1593,10 +1602,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get regionHint =>
-      'Wähle, welche Offline-Karten heruntergeladen werden. Ob sie installiert werden, entscheidest du später zusammen mit dem restlichen Plan.';
+      'Wähle die Region für Offline-Karten und Navigationsdaten auf deinem Roller.';
 
   @override
-  String get skipOfflineMaps => 'Offline-Karten nicht herunterladen';
+  String get skipOfflineMaps =>
+      'Offline-Karten und Navigation nicht herunterladen';
 
   @override
   String get bluetoothPairingHeading => 'Bluetooth-Kopplung';

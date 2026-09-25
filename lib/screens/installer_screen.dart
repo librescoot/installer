@@ -153,7 +153,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   UsbDevice? _device;
 
   // Welcome screen state
-  final List<bool> _prerequisiteChecks = [false, false, false, false];
+  final List<bool> _prerequisiteChecks = [false, false, false, false, false];
   Map<DownloadChannel, ({String tag, String date})>? _availableChannels;
   bool _channelsLoading = true;
   bool _channelsLoadFailed = false;
@@ -1949,6 +1949,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       l10n.prerequisiteScrewdriverFlat,
       l10n.prerequisiteUsbCable,
       l10n.prerequisiteTime,
+      l10n.prerequisiteAdminAccess,
     ];
 
     return PhaseLayout(
@@ -1997,6 +1998,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           Text(
             l10n.firmwareChannel,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            l10n.firmwareChannelHint,
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
           ),
           const SizedBox(height: 8),
           if (_channelsLoading)
@@ -2058,7 +2064,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           const SizedBox(height: 24),
 
           // Region selection with skip checkbox inline
-          Row(
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 4,
             children: [
               Text(
                 l10n.region,
@@ -2067,7 +2077,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                   fontSize: 16,
                 ),
               ),
-              const Spacer(),
               InkWell(
                 onTap: () => _updateDownloadSelection(() {
                   _downloadState.wantsOfflineMaps =
@@ -2085,11 +2094,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                           _downloadState.wantsOfflineMaps = !(v ?? false);
                         }),
                       ),
-                      Text(
-                        l10n.skipOfflineMaps,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade400,
+                      Flexible(
+                        child: Text(
+                          l10n.skipOfflineMaps,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade400,
+                          ),
                         ),
                       ),
                     ],

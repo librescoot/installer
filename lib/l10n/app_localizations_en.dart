@@ -138,7 +138,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get welcomeSubheading =>
-      'Install Librescoot firmware on your scooter.';
+      'Choose firmware and, if wanted, offline maps and navigation. The installer then guides you through connection and installation.';
 
   @override
   String get updateAvailableTitle => 'Installer update available';
@@ -177,7 +177,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get prerequisiteUsbCable => 'USB cable (laptop to Mini-B)';
 
   @override
-  String get prerequisiteTime => 'About 20 minutes';
+  String get prerequisiteTime => 'About 20 minutes, plus download time';
+
+  @override
+  String get prerequisiteAdminAccess =>
+      'Access to administrator privileges on this computer';
 
   @override
   String get reliabilityWarningTitle => 'Before you start';
@@ -230,7 +234,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get elevationNoticeWelcome =>
-      'When you click Start Installation, your system will ask you to allow administrator access. The installer needs it to write to the scooter\'s storage and configure networking.';
+      'Windows will show a UAC prompt when you start. You must be able to approve it or enter administrator credentials.';
 
   @override
   String get arm64EmulationNoticeWelcome =>
@@ -241,7 +245,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Requesting administrator privileges...';
 
   @override
-  String get firmwareChannel => 'Firmware channel';
+  String get firmwareChannel => 'Choose firmware';
+
+  @override
+  String get firmwareChannelHint =>
+      'Stable is the right choice for most scooters. Testing and Nightly include newer, less-tested changes.';
 
   @override
   String get channelStable => 'Stable';
@@ -272,7 +280,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get loadingChannels => 'Loading available channels...';
 
   @override
-  String get region => 'Region';
+  String get region => 'Offline maps & navigation';
 
   @override
   String get selectRegion => 'Select your region';
@@ -1568,10 +1576,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get regionHint =>
-      'Choose which offline maps to download. Installation is selected later with the rest of the plan.';
+      'Choose the region for offline maps and navigation data on your scooter.';
 
   @override
-  String get skipOfflineMaps => 'Do not download offline maps';
+  String get skipOfflineMaps =>
+      'Do not download offline maps or navigation data';
 
   @override
   String get bluetoothPairingHeading => 'Bluetooth pairing';

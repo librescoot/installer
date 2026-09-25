@@ -347,7 +347,7 @@ abstract class AppLocalizations {
   /// No description provided for @welcomeSubheading.
   ///
   /// In en, this message translates to:
-  /// **'Install Librescoot firmware on your scooter.'**
+  /// **'Choose firmware and, if wanted, offline maps and navigation. The installer then guides you through connection and installation.'**
   String get welcomeSubheading;
 
   /// No description provided for @updateAvailableTitle.
@@ -413,8 +413,14 @@ abstract class AppLocalizations {
   /// No description provided for @prerequisiteTime.
   ///
   /// In en, this message translates to:
-  /// **'About 20 minutes'**
+  /// **'About 20 minutes, plus download time'**
   String get prerequisiteTime;
+
+  /// No description provided for @prerequisiteAdminAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Access to administrator privileges on this computer'**
+  String get prerequisiteAdminAccess;
 
   /// No description provided for @reliabilityWarningTitle.
   ///
@@ -509,7 +515,7 @@ abstract class AppLocalizations {
   /// No description provided for @elevationNoticeWelcome.
   ///
   /// In en, this message translates to:
-  /// **'When you click Start Installation, your system will ask you to allow administrator access. The installer needs it to write to the scooter\'s storage and configure networking.'**
+  /// **'Windows will show a UAC prompt when you start. You must be able to approve it or enter administrator credentials.'**
   String get elevationNoticeWelcome;
 
   /// No description provided for @arm64EmulationNoticeWelcome.
@@ -527,8 +533,14 @@ abstract class AppLocalizations {
   /// No description provided for @firmwareChannel.
   ///
   /// In en, this message translates to:
-  /// **'Firmware channel'**
+  /// **'Choose firmware'**
   String get firmwareChannel;
+
+  /// No description provided for @firmwareChannelHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Stable is the right choice for most scooters. Testing and Nightly include newer, less-tested changes.'**
+  String get firmwareChannelHint;
 
   /// No description provided for @channelStable.
   ///
@@ -587,7 +599,7 @@ abstract class AppLocalizations {
   /// No description provided for @region.
   ///
   /// In en, this message translates to:
-  /// **'Region'**
+  /// **'Offline maps & navigation'**
   String get region;
 
   /// No description provided for @selectRegion.
@@ -2783,13 +2795,13 @@ abstract class AppLocalizations {
   /// No description provided for @regionHint.
   ///
   /// In en, this message translates to:
-  /// **'Choose which offline maps to download. Installation is selected later with the rest of the plan.'**
+  /// **'Choose the region for offline maps and navigation data on your scooter.'**
   String get regionHint;
 
   /// No description provided for @skipOfflineMaps.
   ///
   /// In en, this message translates to:
-  /// **'Do not download offline maps'**
+  /// **'Do not download offline maps or navigation data'**
   String get skipOfflineMaps;
 
   /// No description provided for @bluetoothPairingHeading.
