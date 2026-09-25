@@ -2273,8 +2273,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dbcFlashSuccessLabel => 'SUCCESS';
 
   @override
-  String get dbcFlashSuccessPrompt =>
-      'Scooter unlocked, lights and dashboard on.';
+  String get dbcFlashSuccessPrompt => 'Scooter unlocked';
 
   @override
   String get dbcFlashChooseOutcomeHint =>

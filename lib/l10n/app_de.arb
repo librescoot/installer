@@ -859,7 +859,7 @@
   "dbcFlashErrorLabel": "FEHLER",
   "dbcFlashErrorPrompt": "DBC-LED blinkt rot",
   "dbcFlashSuccessLabel": "ERFOLG",
-  "dbcFlashSuccessPrompt": "Roller entsperrt, Licht und Dashboard an.",
+  "dbcFlashSuccessPrompt": "Roller entsperrt",
   "dbcFlashChooseOutcomeHint": "Warte, bis eines der beiden Ergebnisse eintritt. Klicke dann auf das passende Bild. Berühre bis dahin weder den Roller noch die Kabel.",
   "dbcFlashDoNotDisconnect": "USB und Strom nicht trennen, solange das läuft.",
   "dbcFlashDoneSignal": "Fertig: Der Roller hat sich automatisch entsperrt, Beleuchtung und Dashboard sind an. Du musst nicht weiter warten.",

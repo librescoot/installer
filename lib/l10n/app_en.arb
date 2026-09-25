@@ -1004,7 +1004,7 @@
   "dbcFlashErrorLabel": "ERROR",
   "dbcFlashErrorPrompt": "DBC LED blinks red",
   "dbcFlashSuccessLabel": "SUCCESS",
-  "dbcFlashSuccessPrompt": "Scooter unlocked, lights and dashboard on.",
+  "dbcFlashSuccessPrompt": "Scooter unlocked",
   "dbcFlashChooseOutcomeHint": "Wait until one of these outcomes occurs, then click the matching picture. Until then, do not touch the scooter or cables.",
   "dbcFlashDoNotDisconnect": "Do not disconnect USB or power while this runs.",
   "dbcFlashDoneSignal": "Complete: the scooter unlocks automatically, with its lights and dashboard on. You do not need to keep waiting.",

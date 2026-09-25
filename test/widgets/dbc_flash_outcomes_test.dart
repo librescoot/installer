@@ -61,6 +61,20 @@ void main() {
     final side = tester.getRect(find.byType(Image).at(1));
     final front = tester.getRect(find.byType(Image).at(2));
     expect(front.height, closeTo(side.height, 0.1));
+    expect(front.height, greaterThan(210));
+    final errorCard = tester.getRect(
+      find.ancestor(
+        of: find.text('ERROR'),
+        matching: find.byType(OutlinedButton),
+      ),
+    );
+    final successCard = tester.getRect(
+      find.ancestor(
+        of: find.text('SUCCESS'),
+        matching: find.byType(OutlinedButton),
+      ),
+    );
+    expect(successCard.width, greaterThan(errorCard.width));
     final artwork = tester.getRect(find.byType(Image).first);
     final led = tester.getRect(find.byKey(const Key('dbc-error-led-glow')));
     expect(

@@ -2312,8 +2312,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get dbcFlashSuccessLabel => 'ERFOLG';
 
   @override
-  String get dbcFlashSuccessPrompt =>
-      'Roller entsperrt, Licht und Dashboard an.';
+  String get dbcFlashSuccessPrompt => 'Roller entsperrt';
 
   @override
   String get dbcFlashChooseOutcomeHint =>

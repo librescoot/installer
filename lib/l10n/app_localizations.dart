@@ -3929,7 +3929,7 @@ abstract class AppLocalizations {
   /// No description provided for @dbcFlashSuccessPrompt.
   ///
   /// In en, this message translates to:
-  /// **'Scooter unlocked, lights and dashboard on.'**
+  /// **'Scooter unlocked'**
   String get dbcFlashSuccessPrompt;
 
   /// No description provided for @dbcFlashChooseOutcomeHint.
