@@ -139,7 +139,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get welcomeSubheading =>
-      'Wähle Firmware und optional Offline-Karten mit Navigation. Danach begleitet dich der Installer durch Anschluss und Installation.';
+      'Dieser Assistent führt dich durch die Installation der Librescoot-Firmware auf deinem Roller.';
 
   @override
   String get updateAvailableTitle => 'Installer-Update verfügbar';
@@ -178,8 +178,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get prerequisiteUsbCable => 'USB-Kabel (Laptop zu Mini-B)';
 
   @override
-  String get prerequisiteTime =>
-      'Ungefähr 20 Minuten Zeit, zuzüglich Downloadzeit';
+  String get prerequisiteTime => 'Ungefähr 20 Minuten Zeit';
 
   @override
   String get prerequisiteAdminAccess => 'Administratorrechte';
@@ -239,7 +238,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get elevationNoticeWelcome =>
-      'Windows zeigt beim Start eine UAC-Abfrage. Du musst sie bestätigen oder Administratorzugangsdaten eingeben können.';
+      'Wenn du auf Installation starten klickst, fragt dein System nach Administratorrechten. Der Installer benötigt sie, um auf den Speicher des Rollers zu schreiben und das Netzwerk zu konfigurieren.';
 
   @override
   String get arm64EmulationNoticeWelcome =>
@@ -251,10 +250,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get firmwareChannel => 'Firmware auswählen';
-
-  @override
-  String get firmwareChannelHint =>
-      'Stabil ist für die meisten Roller die richtige Wahl. Testing und Nightly enthalten neuere, weniger erprobte Änderungen.';
 
   @override
   String get channelStable => 'Stabil';
@@ -1598,10 +1593,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String errorPrefix(String error) {
     return 'Fehler: $error';
   }
-
-  @override
-  String get regionHint =>
-      'Wähle die Region für Offline-Karten und Navigationsdaten auf deinem Roller.';
 
   @override
   String get skipOfflineMaps =>

@@ -347,7 +347,7 @@ abstract class AppLocalizations {
   /// No description provided for @welcomeSubheading.
   ///
   /// In en, this message translates to:
-  /// **'Choose firmware and, if wanted, offline maps and navigation. The installer then guides you through connection and installation.'**
+  /// **'Install Librescoot firmware on your scooter.'**
   String get welcomeSubheading;
 
   /// No description provided for @updateAvailableTitle.
@@ -413,7 +413,7 @@ abstract class AppLocalizations {
   /// No description provided for @prerequisiteTime.
   ///
   /// In en, this message translates to:
-  /// **'About 20 minutes, plus download time'**
+  /// **'About 20 minutes'**
   String get prerequisiteTime;
 
   /// No description provided for @prerequisiteAdminAccess.
@@ -515,7 +515,7 @@ abstract class AppLocalizations {
   /// No description provided for @elevationNoticeWelcome.
   ///
   /// In en, this message translates to:
-  /// **'Windows will show a UAC prompt when you start. You must be able to approve it or enter administrator credentials.'**
+  /// **'When you click Start Installation, your system will ask you to allow administrator access. The installer needs it to write to the scooter\'s storage and configure networking.'**
   String get elevationNoticeWelcome;
 
   /// No description provided for @arm64EmulationNoticeWelcome.
@@ -535,12 +535,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Choose firmware'**
   String get firmwareChannel;
-
-  /// No description provided for @firmwareChannelHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Stable is the right choice for most scooters. Testing and Nightly include newer, less-tested changes.'**
-  String get firmwareChannelHint;
 
   /// No description provided for @channelStable.
   ///
@@ -2791,12 +2785,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Error: {error}'**
   String errorPrefix(String error);
-
-  /// No description provided for @regionHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Choose the region for offline maps and navigation data on your scooter.'**
-  String get regionHint;
 
   /// No description provided for @skipOfflineMaps.
   ///

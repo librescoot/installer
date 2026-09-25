@@ -41,7 +41,7 @@
   "majorStepFinish": "Finish",
   "majorStepSkippedSuffix": "skipped",
   "welcomeHeading": "Welcome to Librescoot Installer",
-  "welcomeSubheading": "Choose firmware and, if wanted, offline maps and navigation. The installer then guides you through connection and installation.",
+  "welcomeSubheading": "Install Librescoot firmware on your scooter.",
   "updateAvailableTitle": "Installer update available",
   "updateAvailableBody": "Librescoot Installer {latestVersion} is available. You are using {currentVersion}.",
   "@updateAvailableBody": {
@@ -63,7 +63,7 @@
   "prerequisiteScrewdriverPH2": "PH2 or H4 screwdriver for footwell screws",
   "prerequisiteScrewdriverFlat": "Flat head or PH1 screwdriver for USB cable",
   "prerequisiteUsbCable": "USB cable (laptop to Mini-B)",
-  "prerequisiteTime": "About 20 minutes, plus download time",
+  "prerequisiteTime": "About 20 minutes",
   "prerequisiteAdminAccess": "Administrator privileges",
   "reliabilityWarningTitle": "Before you start",
   "reliabilityWarningBody": "Flashing takes several minutes. A USB disconnect or laptop sleep during the write can leave the MDB in an incomplete state. Check:\n• Use a known-good USB cable, firmly connected at both ends\n• Keep the laptop on power or fully charged; disable battery saver and sleep\n• Use a direct USB port rather than a hub where possible\n• Keep cables and power connected once flashing starts",
@@ -80,11 +80,10 @@
   "backButton": "Back",
   "elevationRequiredTitle": "Administrator privileges required",
   "elevationRequiredBody": "Librescoot Installer needs administrator privileges to write to the scooter's storage and configure the network interface. The elevation prompt was declined or could not be shown.\n\nSelect Continue to dismiss this dialog and try again. The installer cannot continue until access is approved.",
-  "elevationNoticeWelcome": "Windows will show a UAC prompt when you start. You must be able to approve it or enter administrator credentials.",
+  "elevationNoticeWelcome": "When you click Start Installation, your system will ask you to allow administrator access. The installer needs it to write to the scooter's storage and configure networking.",
   "arm64EmulationNoticeWelcome": "This machine has an ARM64 processor, so the installer runs under x64 emulation. That can slow USB detection down, and the bundled USB driver is built for x86/x64 only. An x64 machine is the most reliable choice.",
   "requestingAdminPrivileges": "Requesting administrator privileges...",
   "firmwareChannel": "Choose firmware",
-  "firmwareChannelHint": "Stable is the right choice for most scooters. Testing and Nightly include newer, less-tested changes.",
   "channelStable": "Stable",
   "channelTesting": "Testing",
   "channelNightly": "Nightly",
@@ -667,7 +666,6 @@
       }
     }
   },
-  "regionHint": "Choose the region for offline maps and navigation data on your scooter.",
   "skipOfflineMaps": "Do not download offline maps or navigation data",
   "bluetoothPairingHeading": "Bluetooth pairing",
   "bluetoothPairingHint": "Pair a Bluetooth device with the scooter.",

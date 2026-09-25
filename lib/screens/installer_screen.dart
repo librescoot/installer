@@ -1999,11 +1999,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             l10n.firmwareChannel,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
-          const SizedBox(height: 4),
-          Text(
-            l10n.firmwareChannelHint,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-          ),
           const SizedBox(height: 8),
           if (_channelsLoading)
             Padding(
@@ -2112,12 +2107,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               ],
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            l10n.regionHint,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-          ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           if (_downloadState.wantsOfflineMaps)
             RegionPicker(
               regions: _availableRegions,
@@ -2544,7 +2534,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       ),
       borderRadius: BorderRadius.circular(4),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
             _prerequisiteChecks[index]
@@ -2554,12 +2543,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             color: _prerequisiteChecks[index] ? kAccent : Colors.grey,
           ),
           const SizedBox(width: 8),
-          Text(
-            text,
-            style: TextStyle(
-              color: _prerequisiteChecks[index]
-                  ? Colors.grey.shade200
-                  : Colors.grey.shade400,
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: _prerequisiteChecks[index]
+                    ? Colors.grey.shade200
+                    : Colors.grey.shade400,
+              ),
             ),
           ),
         ],

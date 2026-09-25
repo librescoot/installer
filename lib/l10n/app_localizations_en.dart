@@ -138,7 +138,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get welcomeSubheading =>
-      'Choose firmware and, if wanted, offline maps and navigation. The installer then guides you through connection and installation.';
+      'Install Librescoot firmware on your scooter.';
 
   @override
   String get updateAvailableTitle => 'Installer update available';
@@ -177,7 +177,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get prerequisiteUsbCable => 'USB cable (laptop to Mini-B)';
 
   @override
-  String get prerequisiteTime => 'About 20 minutes, plus download time';
+  String get prerequisiteTime => 'About 20 minutes';
 
   @override
   String get prerequisiteAdminAccess => 'Administrator privileges';
@@ -233,7 +233,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get elevationNoticeWelcome =>
-      'Windows will show a UAC prompt when you start. You must be able to approve it or enter administrator credentials.';
+      'When you click Start Installation, your system will ask you to allow administrator access. The installer needs it to write to the scooter\'s storage and configure networking.';
 
   @override
   String get arm64EmulationNoticeWelcome =>
@@ -245,10 +245,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get firmwareChannel => 'Choose firmware';
-
-  @override
-  String get firmwareChannelHint =>
-      'Stable is the right choice for most scooters. Testing and Nightly include newer, less-tested changes.';
 
   @override
   String get channelStable => 'Stable';
@@ -1572,10 +1568,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String errorPrefix(String error) {
     return 'Error: $error';
   }
-
-  @override
-  String get regionHint =>
-      'Choose the region for offline maps and navigation data on your scooter.';
 
   @override
   String get skipOfflineMaps =>

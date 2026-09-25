@@ -11,10 +11,7 @@ void main() {
       final l10n = AppLocalizationsDe();
       expect(l10n.prerequisiteAdminAccess, 'Administratorrechte');
       expect(l10n.firmwareChannel, 'Firmware auswählen');
-      expect(l10n.firmwareChannelHint, contains('Stabil'));
       expect(l10n.region, contains('Navigation'));
-      expect(l10n.regionHint, contains('Navigationsdaten'));
-      expect(l10n.regionHint, isNot(contains('installiert wird')));
       expect(l10n.skipOfflineMaps, contains('Navigation'));
     },
   );
@@ -25,10 +22,7 @@ void main() {
       final l10n = AppLocalizationsEn();
       expect(l10n.prerequisiteAdminAccess, 'Administrator privileges');
       expect(l10n.firmwareChannel, 'Choose firmware');
-      expect(l10n.firmwareChannelHint, contains('Stable'));
       expect(l10n.region, contains('navigation'));
-      expect(l10n.regionHint, contains('navigation data'));
-      expect(l10n.regionHint, isNot(contains('Installation is selected')));
       expect(l10n.skipOfflineMaps, contains('navigation data'));
     },
   );
@@ -42,6 +36,11 @@ void main() {
         'final List<bool> _prerequisiteChecks = [false, false, false, false, false]',
       ),
     );
-    expect(source, contains('l10n.firmwareChannelHint'));
+    expect(source, isNot(contains('l10n.regionHint')));
+    expect(source, isNot(contains('l10n.firmwareChannelHint')));
+    expect(
+      source,
+      contains('Expanded(\n            child: Text(\n              text,'),
+    );
   });
 }
