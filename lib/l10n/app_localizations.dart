@@ -407,8 +407,14 @@ abstract class AppLocalizations {
   /// No description provided for @prerequisiteUsbCable.
   ///
   /// In en, this message translates to:
-  /// **'USB cable (laptop to Mini-B)'**
+  /// **'A USB Mini-B cable to connect your computer to the MDB'**
   String get prerequisiteUsbCable;
+
+  /// No description provided for @shopUsbCable.
+  ///
+  /// In en, this message translates to:
+  /// **'Cable in shop'**
+  String get shopUsbCable;
 
   /// No description provided for @prerequisiteTime.
   ///

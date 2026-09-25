@@ -10,6 +10,11 @@ void main() {
     () {
       final l10n = AppLocalizationsDe();
       expect(l10n.prerequisiteAdminAccess, 'Administratorrechte');
+      expect(
+        l10n.prerequisiteUsbCable,
+        'Ein USB-Mini-B-Kabel, um deinen Computer mit dem MDB zu verbinden',
+      );
+      expect(l10n.shopUsbCable, 'Kabel im Shop');
       expect(l10n.firmwareChannel, 'Firmware auswählen');
       expect(l10n.region, contains('Navigation'));
       expect(l10n.skipOfflineMaps, contains('Navigation'));
@@ -21,6 +26,8 @@ void main() {
     () {
       final l10n = AppLocalizationsEn();
       expect(l10n.prerequisiteAdminAccess, 'Administrator privileges');
+      expect(l10n.prerequisiteUsbCable, contains('USB Mini-B cable'));
+      expect(l10n.shopUsbCable, 'Cable in shop');
       expect(l10n.firmwareChannel, 'Choose firmware');
       expect(l10n.region, contains('navigation'));
       expect(l10n.skipOfflineMaps, contains('navigation data'));
@@ -30,6 +37,12 @@ void main() {
   test('Welcome presents administrator access as a prerequisite', () {
     final source = File('lib/screens/installer_screen.dart').readAsStringSync();
     expect(source, contains('l10n.prerequisiteAdminAccess,'));
+    expect(
+      source,
+      contains("'https://shop.librescoot.org/product/mini-usb-kabel-mdb/'"),
+    );
+    expect(source, contains('l10n.shopUsbCable'));
+    expect(source, contains('mode: LaunchMode.externalApplication'));
     expect(
       source,
       contains(

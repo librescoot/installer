@@ -175,7 +175,11 @@ class AppLocalizationsDe extends AppLocalizations {
       'Schlitz- oder PH1-Schraubendreher für das USB-Kabel';
 
   @override
-  String get prerequisiteUsbCable => 'USB-Kabel (Laptop zu Mini-B)';
+  String get prerequisiteUsbCable =>
+      'Ein USB-Mini-B-Kabel, um deinen Computer mit dem MDB zu verbinden';
+
+  @override
+  String get shopUsbCable => 'Kabel im Shop';
 
   @override
   String get prerequisiteTime => 'Ungefähr 20 Minuten Zeit';

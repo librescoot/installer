@@ -174,7 +174,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Flat head or PH1 screwdriver for USB cable';
 
   @override
-  String get prerequisiteUsbCable => 'USB cable (laptop to Mini-B)';
+  String get prerequisiteUsbCable =>
+      'A USB Mini-B cable to connect your computer to the MDB';
+
+  @override
+  String get shopUsbCable => 'Cable in shop';
 
   @override
   String get prerequisiteTime => 'About 20 minutes';

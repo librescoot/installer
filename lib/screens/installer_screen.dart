@@ -1989,7 +1989,17 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (int i = 0; i < prerequisites.length; i++)
-                _prerequisite(prerequisites[i], i),
+                _prerequisite(
+                  prerequisites[i],
+                  i,
+                  trailing: i == 2
+                      ? _buildLinkButton(
+                          Icons.open_in_new,
+                          l10n.shopUsbCable,
+                          'https://shop.librescoot.org/product/mini-usb-kabel-mdb/',
+                        )
+                      : null,
+                ),
             ],
           ),
           const SizedBox(height: 24),
@@ -2527,7 +2537,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     );
   }
 
-  Widget _prerequisite(String text, int index) {
+  Widget _prerequisite(String text, int index, {Widget? trailing}) {
     return InkWell(
       onTap: () => setState(
         () => _prerequisiteChecks[index] = !_prerequisiteChecks[index],
@@ -2553,6 +2563,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               ),
             ),
           ),
+          if (trailing != null) trailing,
         ],
       ),
     );
