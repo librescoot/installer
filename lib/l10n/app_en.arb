@@ -336,7 +336,7 @@
   "brakePacerStart": "Start the timer",
   "brakePacerStop": "Stop",
   "brakePacerRestart": "Run it again",
-  "brakePacerDone": "That was the pattern. The scooter restarts a few seconds later on its own.",
+  "brakePacerDone": "If you followed the pattern correctly, the scooter should restart within 10–20 seconds. When the dashboard LED lights up, the restart is underway.",
   "brakeDiagramBlipLegend": "Right lever released for about a second",
   "brakeDiagramEndLegend": "Just let go at {seconds} seconds",
   "brakeBandBothHeld": "Left lever held down throughout",

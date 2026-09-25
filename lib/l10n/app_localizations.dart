@@ -1553,7 +1553,7 @@ abstract class AppLocalizations {
   /// No description provided for @brakePacerDone.
   ///
   /// In en, this message translates to:
-  /// **'That was the pattern. The scooter restarts a few seconds later on its own.'**
+  /// **'If you followed the pattern correctly, the scooter should restart within 10–20 seconds. When the dashboard LED lights up, the restart is underway.'**
   String get brakePacerDone;
 
   /// No description provided for @brakeDiagramBlipLegend.

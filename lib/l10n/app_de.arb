@@ -281,7 +281,7 @@
   "brakePacerStart": "Timer starten",
   "brakePacerStop": "Timer stoppen",
   "brakePacerRestart": "Erneut starten",
-  "brakePacerDone": "Das war das richtige Muster. Der Neustart folgt wenige Sekunden später von selbst.",
+  "brakePacerDone": "Wenn du das Muster richtig befolgt hast, sollte der Roller innerhalb von 10–20 Sekunden neu starten. Wenn die LED im Tacho leuchtet, ist der Neustart im Gange.",
   "brakeDiagramBlipLegend": "Rechten Hebel etwa eine Sekunde loslassen",
   "brakeDiagramEndLegend": "Bei {seconds} Sekunden loslassen",
   "brakeBandBothHeld": "Linker Hebel bleibt durchgehend gezogen",

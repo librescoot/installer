@@ -857,7 +857,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get brakePacerDone =>
-      'Das war das richtige Muster. Der Neustart folgt wenige Sekunden später von selbst.';
+      'Wenn du das Muster richtig befolgt hast, sollte der Roller innerhalb von 10–20 Sekunden neu starten. Wenn die LED im Tacho leuchtet, ist der Neustart im Gange.';
 
   @override
   String get brakeDiagramBlipLegend =>

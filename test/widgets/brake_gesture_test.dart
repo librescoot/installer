@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/l10n/app_localizations.dart';
+import 'package:librescoot_installer/l10n/app_localizations_de.dart';
 import 'package:librescoot_installer/widgets/brake_gesture.dart';
 import 'package:librescoot_installer/services/installer_sounds.dart';
 
@@ -77,7 +78,10 @@ void main() {
 
     await _advance(tester, brakeReleaseSeconds);
     expect(find.text('Let go of both brakes'), findsNothing);
-    expect(find.textContaining('That was the pattern'), findsOneWidget);
+    expect(
+      find.textContaining('should restart within 10–20 seconds'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('audio cues only the moments to engage and release', (
@@ -125,6 +129,12 @@ void main() {
     await _advance(tester, brakeTotalSeconds);
     expect(find.text('Start the timer'), findsOneWidget);
     expect(cues.length, countAtStop);
+  });
+
+  test('German guidance names the restart window and dashboard LED', () {
+    final message = AppLocalizationsDe().brakePacerDone;
+    expect(message, contains('10–20 Sekunden'));
+    expect(message, contains('LED im Tacho'));
   });
 
   test('the whole gesture is forty seconds, blips included', () {
