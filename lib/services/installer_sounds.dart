@@ -44,6 +44,7 @@ class InstallerSounds {
 
   final Map<InstallerCue, AudioPlayer> _players = {};
   final Set<InstallerCue> _preparedBrakeCues = {};
+  final Map<InstallerCue, Timer> _brakeRetries = {};
   bool _disposed = false;
 
   void play(InstallerCue cue) {
@@ -60,21 +61,47 @@ class InstallerSounds {
   }
 
   Future<void> _prepareBrakeCue(InstallerCue cue) async {
+    if (_disposed) return;
+    final player = AudioPlayer();
+    _players[cue] = player;
     try {
-      final player = _players.putIfAbsent(cue, AudioPlayer.new);
       await player.setReleaseMode(ReleaseMode.stop);
       await player.setSource(AssetSource('sounds/${cue.assetName}'));
       if (!_disposed) _preparedBrakeCues.add(cue);
     } catch (error) {
-      debugPrint('Installer brake audio unavailable: $error');
+      debugPrint('Installer brake audio ${cue.name} unavailable: $error');
+      _players.remove(cue);
+      unawaited(_disposePlayer(player));
+      _scheduleBrakeRetry(cue);
+    }
+  }
+
+  void _scheduleBrakeRetry(InstallerCue cue) {
+    if (_disposed || _brakeRetries.containsKey(cue)) return;
+    _brakeRetries[cue] = Timer(const Duration(seconds: 10), () {
+      _brakeRetries.remove(cue);
+      unawaited(_prepareBrakeCue(cue));
+    });
+  }
+
+  Future<void> _disposePlayer(AudioPlayer player) async {
+    try {
+      await player.dispose();
+    } catch (error) {
+      debugPrint('Installer audio cleanup failed: $error');
     }
   }
 
   Future<void> _resumeBrakeCue(InstallerCue cue) async {
+    final player = _players[cue]!;
     try {
-      await _players[cue]!.resume();
+      await player.resume();
     } catch (error) {
-      debugPrint('Installer brake audio unavailable: $error');
+      debugPrint('Installer brake audio ${cue.name} unavailable: $error');
+      _preparedBrakeCues.remove(cue);
+      _players.remove(cue);
+      unawaited(_disposePlayer(player));
+      _scheduleBrakeRetry(cue);
     }
   }
 
@@ -91,8 +118,12 @@ class InstallerSounds {
 
   void dispose() {
     _disposed = true;
+    for (final retry in _brakeRetries.values) {
+      retry.cancel();
+    }
+    _brakeRetries.clear();
     for (final player in _players.values) {
-      unawaited(player.dispose());
+      unawaited(_disposePlayer(player));
     }
     _players.clear();
     _preparedBrakeCues.clear();

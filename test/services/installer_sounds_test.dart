@@ -35,6 +35,25 @@ void main() {
     }
   });
 
+  test(
+    'brake playback never waits for loading and retries failed preloads',
+    () {
+      final source = File(
+        'lib/services/installer_sounds.dart',
+      ).readAsStringSync();
+      final playback = source.substring(
+        source.indexOf('void play(InstallerCue cue)'),
+        source.indexOf('Future<void> _prepareBrakeCue'),
+      );
+      expect(playback, contains('unawaited(_resumeBrakeCue(cue))'));
+      expect(playback, isNot(contains('await ')));
+      expect(source, contains('await player.setSource(AssetSource('));
+      expect(source, contains('_players.remove(cue)'));
+      expect(source, contains('_brakeRetries[cue] = Timer('));
+      expect(source, contains('retry.cancel()'));
+    },
+  );
+
   test('brake release and pull sounds fit inside a one-second blip', () {
     for (final cue in [InstallerCue.release, InstallerCue.pull]) {
       final wav = File('assets/sounds/${cue.assetName}').readAsBytesSync();

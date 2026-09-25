@@ -96,8 +96,22 @@ void main() {
     expect(cues, [InstallerCue.pull]);
     await _advance(tester, 1);
     expect(cues, [InstallerCue.pull, InstallerCue.release]);
+    expect(find.text('Right lever off, now'), findsOneWidget);
+    expect(
+      tester
+          .widget<BrakeGestureDiagram>(find.byType(BrakeGestureDiagram))
+          .blipping,
+      isTrue,
+    );
     await _advance(tester, brakeBlipSeconds);
     expect(cues, [InstallerCue.pull, InstallerCue.release, InstallerCue.pull]);
+    expect(find.text('Pull and hold both brakes'), findsOneWidget);
+    expect(
+      tester
+          .widget<BrakeGestureDiagram>(find.byType(BrakeGestureDiagram))
+          .blipping,
+      isFalse,
+    );
     await _advance(
       tester,
       brakeTotalSeconds -
