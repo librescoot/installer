@@ -2249,7 +2249,7 @@ abstract class AppLocalizations {
   /// No description provided for @mdbFinishWaitHint.
   ///
   /// In en, this message translates to:
-  /// **'Wait for one of these two signals, then click the matching picture. Keep the scooter powered until then.'**
+  /// **'Keep the scooter powered. Click the matching picture only when its signal appears.'**
   String get mdbFinishWaitHint;
 
   /// No description provided for @mdbFinishSuccessPrompt.

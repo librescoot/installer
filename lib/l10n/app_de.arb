@@ -438,7 +438,7 @@
   "mdbFinishWaitTitle": "Warte auf den Roller",
   "mdbFinishReconnectCable": "Zieh das Laptop-Kabel vom MDB ab und verbinde das DBC-Kabel wieder.",
   "mdbFinishKeepCable": "Lass das DBC-Kabel mit dem MDB verbunden.",
-  "mdbFinishWaitHint": "Warte auf eines der beiden Signale und klicke dann auf das passende Bild. Lass den Roller bis dahin eingeschaltet.",
+  "mdbFinishWaitHint": "Lass den Roller eingeschaltet. Klicke erst bei einem Signal auf das passende Bild.",
   "mdbFinishSuccessPrompt": "Roller entsperrt",
   "mdbFinishFailureTitle": "Installationsfehler",
   "mdbFinishFailureBody": "Die DBC-LED blinkt rot. Verbinde den Laptop wieder mit dem MDB und klicke auf Erneut prüfen. Lass den Roller eingeschaltet.",

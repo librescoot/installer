@@ -1276,7 +1276,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get mdbFinishWaitHint =>
-      'Warte auf eines der beiden Signale und klicke dann auf das passende Bild. Lass den Roller bis dahin eingeschaltet.';
+      'Lass den Roller eingeschaltet. Klicke erst bei einem Signal auf das passende Bild.';
 
   @override
   String get mdbFinishSuccessPrompt => 'Roller entsperrt';

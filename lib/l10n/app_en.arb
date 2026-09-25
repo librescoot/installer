@@ -549,7 +549,7 @@
   "mdbFinishWaitTitle": "Wait for the scooter",
   "mdbFinishReconnectCable": "Unplug the laptop cable from the MDB and reconnect the DBC cable.",
   "mdbFinishKeepCable": "Keep the DBC cable connected to the MDB.",
-  "mdbFinishWaitHint": "Wait for one of these two signals, then click the matching picture. Keep the scooter powered until then.",
+  "mdbFinishWaitHint": "Keep the scooter powered. Click the matching picture only when its signal appears.",
   "mdbFinishSuccessPrompt": "Scooter unlocked",
   "mdbFinishFailureTitle": "Installation error",
   "mdbFinishFailureBody": "The DBC LED is blinking red. Reconnect the laptop to the MDB and click Check again. Keep the scooter powered.",

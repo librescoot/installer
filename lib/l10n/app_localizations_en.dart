@@ -1257,7 +1257,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mdbFinishWaitHint =>
-      'Wait for one of these two signals, then click the matching picture. Keep the scooter powered until then.';
+      'Keep the scooter powered. Click the matching picture only when its signal appears.';
 
   @override
   String get mdbFinishSuccessPrompt => 'Scooter unlocked';

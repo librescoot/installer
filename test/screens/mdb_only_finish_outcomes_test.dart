@@ -54,6 +54,10 @@ void main() {
   });
 
   test('both languages name the observable signals', () {
+    expect(
+      AppLocalizationsDe().mdbFinishWaitHint,
+      'Lass den Roller eingeschaltet. Klicke erst bei einem Signal auf das passende Bild.',
+    );
     expect(AppLocalizationsDe().mdbFinishSuccessPrompt, 'Roller entsperrt');
     expect(AppLocalizationsEn().mdbFinishSuccessPrompt, 'Scooter unlocked');
     expect(AppLocalizationsDe().mdbFinishFailureBody, contains('DBC-LED'));
