@@ -3908,12 +3908,6 @@ abstract class AppLocalizations {
   /// **'DASHBOARD ON DOES NOT MEAN DONE – HANDS OFF'**
   String get dbcFlashHandsOffHeading;
 
-  /// No description provided for @dbcFlashHandsOffBody.
-  ///
-  /// In en, this message translates to:
-  /// **'Wait until the scooter unlocks: its front position light and rear light are on. Do not disconnect cables or batteries. Do not touch the scooter.'**
-  String get dbcFlashHandsOffBody;
-
   /// No description provided for @dbcFlashObservedSuccess.
   ///
   /// In en, this message translates to:
@@ -3929,7 +3923,7 @@ abstract class AppLocalizations {
   /// No description provided for @dbcFlashErrorPrompt.
   ///
   /// In en, this message translates to:
-  /// **'DBC LED blinks red'**
+  /// **'Hazard lights turn on, DBC LED blinks red'**
   String get dbcFlashErrorPrompt;
 
   /// No description provided for @dbcFlashSuccessLabel.
@@ -3947,7 +3941,7 @@ abstract class AppLocalizations {
   /// No description provided for @dbcFlashChooseOutcomeHint.
   ///
   /// In en, this message translates to:
-  /// **'Wait until one of these outcomes occurs, then click the matching picture. Until then, do not touch the scooter or cables.'**
+  /// **'When either of these happens, click the matching picture.'**
   String get dbcFlashChooseOutcomeHint;
 
   /// No description provided for @dbcFlashDoNotDisconnect.

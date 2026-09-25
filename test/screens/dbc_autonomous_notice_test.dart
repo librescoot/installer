@@ -11,7 +11,7 @@ void main() {
     final end = source.indexOf('Future<void> _watchDbcFlash()', start);
     final screen = source.substring(start, end);
     expect(screen, contains('l10n.dbcFlashHandsOffHeading'));
-    expect(screen, contains('l10n.dbcFlashHandsOffBody'));
+    expect(screen, isNot(contains('l10n.dbcFlashHandsOffBody')));
     expect(
       screen.indexOf('l10n.dbcFlashHandsOffHeading'),
       greaterThan(screen.indexOf('if (!_dbcUsbDisconnected)')),
@@ -46,20 +46,15 @@ void main() {
       contains('DASHBOARD ON DOES NOT MEAN DONE'),
     );
     expect(en.dbcFlashHandsOffHeading, contains('HANDS OFF'));
-    expect(de.dbcFlashHandsOffBody, contains('Standlicht und das Rücklicht'));
     expect(
-      de.dbcFlashHandsOffBody,
-      contains('Keine Kabel oder Batterien trennen'),
+      de.dbcFlashChooseOutcomeHint,
+      'Wenn eines dieser beiden Ereignisse eintritt, klicke das passende Bild.',
     );
     expect(
-      en.dbcFlashHandsOffBody,
-      contains('front position light and rear light'),
+      en.dbcFlashChooseOutcomeHint,
+      'When either of these happens, click the matching picture.',
     );
-    expect(
-      en.dbcFlashHandsOffBody,
-      contains('Do not disconnect cables or batteries'),
-    );
-    expect(AppLocalizationsDe().dbcFlashChooseOutcomeHint, contains('Klicke'));
-    expect(AppLocalizationsEn().dbcFlashChooseOutcomeHint, contains('click'));
+    expect(de.dbcFlashErrorPrompt, 'Warnblinker geht an, DBC-LED blinkt rot');
+    expect(en.dbcFlashErrorPrompt, 'Hazard lights turn on, DBC LED blinks red');
   });
 }

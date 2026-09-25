@@ -8586,42 +8586,28 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: Colors.amber, width: 2),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.warning_amber_rounded,
-                      size: 36,
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  size: 36,
+                  color: Colors.amber,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    l10n.dbcFlashHandsOffHeading,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
                       color: Colors.amber,
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        l10n.dbcFlashHandsOffHeading,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.amber,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  l10n.dbcFlashHandsOffBody,
-                  style: TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade100,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 8),
           EstimatedHandoffProgress(
             estimate: _autonomousHandoffEstimate(),
             startedAt: _autonomousHandoffStartedAt ?? DateTime.now(),

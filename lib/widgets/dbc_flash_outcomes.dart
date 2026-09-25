@@ -85,7 +85,7 @@ class DbcFlashOutcomes extends StatelessWidget {
       child: OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          padding: const EdgeInsets.fromLTRB(12, 16, 12, 6),
           foregroundColor: color,
           backgroundColor: color.withValues(alpha: 0.06),
           side: BorderSide(color: color.withValues(alpha: 0.65), width: 2),
@@ -108,8 +108,7 @@ class DbcFlashOutcomes extends StatelessWidget {
             const SizedBox(height: 4),
             SizedBox(
               height: 56,
-              child: Align(
-                alignment: Alignment.topCenter,
+              child: Center(
                 child: Text(
                   description,
                   textAlign: TextAlign.center,

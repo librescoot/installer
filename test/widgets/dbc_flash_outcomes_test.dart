@@ -123,10 +123,14 @@ void main() {
       tester.getTopLeft(find.text('ERROR')).dy,
       tester.getTopLeft(find.text('SUCCESS')).dy,
     );
-    expect(
-      tester.getTopLeft(find.textContaining('DBC LED blinks red')).dy,
-      tester.getTopLeft(find.textContaining('The scooter has unlocked')).dy,
+    final errorCaption = tester.getRect(
+      find.textContaining('DBC LED blinks red'),
     );
+    final successCaption = tester.getRect(
+      find.textContaining('The scooter has unlocked'),
+    );
+    expect(errorCard.bottom - errorCaption.bottom, lessThan(36));
+    expect(successCard.bottom - successCaption.bottom, lessThan(36));
     await tester.tap(find.text('ERROR'));
     await tester.tap(find.text('SUCCESS'));
     expect(errors, 1);

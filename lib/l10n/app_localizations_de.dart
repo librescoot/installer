@@ -2308,17 +2308,13 @@ class AppLocalizationsDe extends AppLocalizations {
       'TACHO AN HEISST NICHT FERTIG – FINGER WEG';
 
   @override
-  String get dbcFlashHandsOffBody =>
-      'Warte, bis sich der Roller entsperrt: Das Standlicht und das Rücklicht leuchten. Keine Kabel oder Batterien trennen. Nichts am Roller betätigen.';
-
-  @override
   String get dbcFlashObservedSuccess => 'Der Roller hat sich entsperrt';
 
   @override
   String get dbcFlashErrorLabel => 'FEHLER';
 
   @override
-  String get dbcFlashErrorPrompt => 'DBC-LED blinkt rot';
+  String get dbcFlashErrorPrompt => 'Warnblinker geht an, DBC-LED blinkt rot';
 
   @override
   String get dbcFlashSuccessLabel => 'ERFOLG';
@@ -2329,7 +2325,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcFlashChooseOutcomeHint =>
-      'Warte, bis eines der beiden Ergebnisse eintritt. Klicke dann auf das passende Bild. Berühre bis dahin weder den Roller noch die Kabel.';
+      'Wenn eines dieser beiden Ereignisse eintritt, klicke das passende Bild.';
 
   @override
   String get dbcFlashDoNotDisconnect =>

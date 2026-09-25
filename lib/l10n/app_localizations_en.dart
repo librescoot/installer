@@ -2268,17 +2268,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'DASHBOARD ON DOES NOT MEAN DONE – HANDS OFF';
 
   @override
-  String get dbcFlashHandsOffBody =>
-      'Wait until the scooter unlocks: its front position light and rear light are on. Do not disconnect cables or batteries. Do not touch the scooter.';
-
-  @override
   String get dbcFlashObservedSuccess => 'I see the completion signal';
 
   @override
   String get dbcFlashErrorLabel => 'ERROR';
 
   @override
-  String get dbcFlashErrorPrompt => 'DBC LED blinks red';
+  String get dbcFlashErrorPrompt => 'Hazard lights turn on, DBC LED blinks red';
 
   @override
   String get dbcFlashSuccessLabel => 'SUCCESS';
@@ -2289,7 +2285,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dbcFlashChooseOutcomeHint =>
-      'Wait until one of these outcomes occurs, then click the matching picture. Until then, do not touch the scooter or cables.';
+      'When either of these happens, click the matching picture.';
 
   @override
   String get dbcFlashDoNotDisconnect =>
