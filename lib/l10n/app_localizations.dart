@@ -2228,6 +2228,48 @@ abstract class AppLocalizations {
   /// **'Installation still running'**
   String get finishPendingHeading;
 
+  /// No description provided for @mdbFinishWaitTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Wait for the scooter'**
+  String get mdbFinishWaitTitle;
+
+  /// No description provided for @mdbFinishReconnectCable.
+  ///
+  /// In en, this message translates to:
+  /// **'Unplug the laptop cable from the MDB and reconnect the DBC cable.'**
+  String get mdbFinishReconnectCable;
+
+  /// No description provided for @mdbFinishKeepCable.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep the DBC cable connected to the MDB.'**
+  String get mdbFinishKeepCable;
+
+  /// No description provided for @mdbFinishWaitHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Wait for one of these two signals, then click the matching picture. Keep the scooter powered until then.'**
+  String get mdbFinishWaitHint;
+
+  /// No description provided for @mdbFinishSuccessPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Scooter unlocked'**
+  String get mdbFinishSuccessPrompt;
+
+  /// No description provided for @mdbFinishFailureTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Installation error'**
+  String get mdbFinishFailureTitle;
+
+  /// No description provided for @mdbFinishFailureBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The DBC LED is blinking red. Reconnect the laptop to the MDB and click Check again. Keep the scooter powered.'**
+  String get mdbFinishFailureBody;
+
   /// No description provided for @finishCompleteHeading.
   ///
   /// In en, this message translates to:

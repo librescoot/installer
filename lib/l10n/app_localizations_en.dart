@@ -1246,6 +1246,30 @@ class AppLocalizationsEn extends AppLocalizations {
   String get finishPendingHeading => 'Installation still running';
 
   @override
+  String get mdbFinishWaitTitle => 'Wait for the scooter';
+
+  @override
+  String get mdbFinishReconnectCable =>
+      'Unplug the laptop cable from the MDB and reconnect the DBC cable.';
+
+  @override
+  String get mdbFinishKeepCable => 'Keep the DBC cable connected to the MDB.';
+
+  @override
+  String get mdbFinishWaitHint =>
+      'Wait for one of these two signals, then click the matching picture. Keep the scooter powered until then.';
+
+  @override
+  String get mdbFinishSuccessPrompt => 'Scooter unlocked';
+
+  @override
+  String get mdbFinishFailureTitle => 'Installation error';
+
+  @override
+  String get mdbFinishFailureBody =>
+      'The DBC LED is blinking red. Reconnect the laptop to the MDB and click Check again. Keep the scooter powered.';
+
+  @override
   String get finishCompleteHeading => 'Installation complete';
 
   @override

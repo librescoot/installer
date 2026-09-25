@@ -108,7 +108,11 @@ void main() {
           body: SingleChildScrollView(
             child: SizedBox(
               width: 500,
-              child: DbcFlashOutcomes(onError: () {}, onSuccess: null),
+              child: DbcFlashOutcomes(
+                onError: () {},
+                onSuccess: null,
+                successDescription: 'Roller entsperrt',
+              ),
             ),
           ),
         ),
@@ -116,6 +120,7 @@ void main() {
     );
     expect(find.text('FEHLER'), findsOneWidget);
     expect(find.text('ERFOLG'), findsOneWidget);
+    expect(find.text('Roller entsperrt'), findsOneWidget);
     expect(find.textContaining('DBC-LED blinkt rot'), findsOneWidget);
     final button = tester.widget<OutlinedButton>(
       find.ancestor(

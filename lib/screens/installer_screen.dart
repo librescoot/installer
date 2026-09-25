@@ -247,7 +247,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   final bool _showElevatedHandoff = false;
   bool _dbcFlashSimulateError = false;
   _DbcOutcome _dbcOutcome = _DbcOutcome.pending;
-  bool _dbcUnlockObserved = false;
+  bool _unlockObserved = false;
+  bool _mdbFinishErrorObserved = false;
   String? _dbcOutcomeReason;
   String? _dbcFailureDetails;
 
@@ -9082,7 +9083,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
     if (!mounted) return;
     setState(() {
-      _dbcUnlockObserved = true;
+      _unlockObserved = true;
       if (_finishCompletionConfirmed && !_dbcOutcome.isIncomplete) {
         _dbcOutcome = _DbcOutcome.verified;
         _dbcOutcomeReason = null;
@@ -11538,6 +11539,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         ),
       );
     }
+    if (_mdbFinishErrorObserved) return _buildMdbOnlyFinishFailure(l10n);
+
     final state = finalScreenState(
       laptopOccupiesMdbUsb: _device != null,
       completionConfirmed: _finishCompletionConfirmed,
@@ -11548,7 +11551,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final configurationConfirmed =
         _configurationBackup == null ||
         (_configurationRestoreVerified && _configurationPostFinalizeVerified);
-    final unlockObserved = _dbcUnlockObserved && !_dbcOutcome.isIncomplete;
+    final unlockObserved = _unlockObserved && !_dbcOutcome.isIncomplete;
+    final mdbOnly =
+        _plan != null && !_plan!.needsHandoff && !_dashboardTransferSkipped;
     if ((deviceConfirmed || unlockObserved) && !configurationConfirmed) {
       if (_configurationBackupError != null &&
           !_configurationPostFinalizeVerificationInFlight) {
@@ -11559,7 +11564,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final confirmed =
         deviceConfirmed && !_dbcOutcome.isIncomplete && configurationConfirmed;
 
-    if (unlockObserved) {
+    if (unlockObserved || (confirmed && mdbOnly)) {
       return PhaseLayout(
         title: l10n.welcomeToLibrescoot,
         actions: [
@@ -11595,6 +11600,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // the first ride belong to the confirmed screen and nowhere else, or the
     // owner reads them as permission to start before the unlock has landed.
     if (!confirmed) {
+      if (mdbOnly && !_dbcOutcome.isIncomplete) {
+        return _buildMdbOnlyFinishPending(l10n, state);
+      }
       return _buildFinishPending(l10n, state);
     }
     return PhaseLayout(
@@ -11646,6 +11654,80 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           const SizedBox(height: 16),
           _buildGettingStarted(l10n),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMdbOnlyFinishPending(
+    AppLocalizations l10n,
+    FinalScreenState state,
+  ) {
+    final laptopConnected = state == FinalScreenState.reconnectDbc;
+    return PhaseLayout(
+      title: l10n.mdbFinishWaitTitle,
+      actions: [
+        PhaseAction(
+          label: l10n.closeInstaller,
+          icon: Icons.close,
+          side: ActionSide.back,
+          onPressed: () =>
+              _finishAndExit(confirmed: false, keepDownloads: false),
+        ),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          NoticeCard(
+            severity: NoticeSeverity.info,
+            title: laptopConnected
+                ? l10n.dbcFlashSwapCablesTitle
+                : l10n.mdbFinishWaitTitle,
+            body: laptopConnected
+                ? l10n.mdbFinishReconnectCable
+                : l10n.mdbFinishKeepCable,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            l10n.mdbFinishWaitHint,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 16),
+          DbcFlashOutcomes(
+            successDescription: l10n.mdbFinishSuccessPrompt,
+            onError: () => setState(() => _mdbFinishErrorObserved = true),
+            onSuccess: () => setState(() => _unlockObserved = true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMdbOnlyFinishFailure(AppLocalizations l10n) {
+    return PhaseLayout(
+      title: l10n.mdbFinishFailureTitle,
+      actions: [
+        PhaseAction(
+          label: l10n.closeInstaller,
+          icon: Icons.close,
+          side: ActionSide.back,
+          onPressed: () =>
+              _finishAndExit(confirmed: false, keepDownloads: false),
+        ),
+        PhaseAction(
+          label: l10n.retryVerification,
+          icon: Icons.refresh,
+          primary: true,
+          onPressed: () {
+            setState(() => _mdbFinishErrorObserved = false);
+            unawaited(_retryFinishCompletion());
+          },
+        ),
+      ],
+      child: NoticeCard(
+        severity: NoticeSeverity.danger,
+        title: l10n.mdbFinishFailureTitle,
+        body: l10n.mdbFinishFailureBody,
       ),
     );
   }

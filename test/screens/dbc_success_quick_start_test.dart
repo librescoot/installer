@@ -13,7 +13,7 @@ void main() {
     );
     final success = source.substring(start, end);
 
-    expect(success, contains('_dbcUnlockObserved = true'));
+    expect(success, contains('_unlockObserved = true'));
     expect(success, isNot(contains('_dbcOutcome = _DbcOutcome.incomplete')));
     expect(success, contains('_setPhase(InstallerPhase.finish)'));
   });
@@ -25,7 +25,9 @@ void main() {
       start,
     );
     final finish = source.substring(start, end);
-    final quickStart = finish.indexOf('if (unlockObserved) {');
+    final quickStart = finish.indexOf(
+      'if (unlockObserved || (confirmed && mdbOnly)) {',
+    );
     final pending = finish.indexOf('if (!confirmed) {');
 
     expect(quickStart, greaterThan(-1));
@@ -42,7 +44,7 @@ void main() {
       finish.substring(quickStart, pending),
       isNot(contains('_finalSteps(')),
     );
-    expect(finish, contains('_dbcUnlockObserved && !_dbcOutcome.isIncomplete'));
+    expect(finish, contains('_unlockObserved && !_dbcOutcome.isIncomplete'));
     expect(
       finish,
       contains(
@@ -53,7 +55,7 @@ void main() {
 
   test('unverified completion keeps downloaded artifacts on close', () {
     final start = source.indexOf(
-      'if (unlockObserved) {',
+      'if (unlockObserved || (confirmed && mdbOnly)) {',
       source.indexOf('Widget _buildFinish('),
     );
     final end = source.indexOf('if (!confirmed) {', start);

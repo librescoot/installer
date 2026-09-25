@@ -15,7 +15,7 @@ void main() {
     // still running, since a plan with no dashboard work does not need the
     // cable to finish, only to reassemble.
     final start = source.indexOf('final state = finalScreenState(');
-    final end = source.indexOf('\n    final confirmed', start);
+    final end = source.indexOf('\n    final deviceConfirmed', start);
     final call = source.substring(start, end);
     expect(call, contains('laptopOccupiesMdbUsb: _device != null'));
     expect(call, isNot(contains('needsHandoff')));

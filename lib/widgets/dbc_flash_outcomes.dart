@@ -7,10 +7,14 @@ class DbcFlashOutcomes extends StatelessWidget {
     super.key,
     required this.onError,
     required this.onSuccess,
+    this.errorDescription,
+    this.successDescription,
   });
 
   final VoidCallback onError;
   final VoidCallback? onSuccess;
+  final String? errorDescription;
+  final String? successDescription;
 
   @override
   Widget build(BuildContext context) {
@@ -19,14 +23,14 @@ class DbcFlashOutcomes extends StatelessWidget {
       builder: (context, constraints) {
         final error = _card(
           label: l10n.dbcFlashErrorLabel,
-          description: l10n.dbcFlashErrorPrompt,
+          description: errorDescription ?? l10n.dbcFlashErrorPrompt,
           color: Colors.redAccent,
           onPressed: onError,
           image: const _PulsingDbcLedImage(),
         );
         final success = _card(
           label: l10n.dbcFlashSuccessLabel,
-          description: l10n.dbcFlashSuccessPrompt,
+          description: successDescription ?? l10n.dbcFlashSuccessPrompt,
           color: Colors.greenAccent,
           onPressed: onSuccess,
           image: FittedBox(

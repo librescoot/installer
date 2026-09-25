@@ -1265,6 +1265,30 @@ class AppLocalizationsDe extends AppLocalizations {
   String get finishPendingHeading => 'Installation läuft noch';
 
   @override
+  String get mdbFinishWaitTitle => 'Warte auf den Roller';
+
+  @override
+  String get mdbFinishReconnectCable =>
+      'Zieh das Laptop-Kabel vom MDB ab und verbinde das DBC-Kabel wieder.';
+
+  @override
+  String get mdbFinishKeepCable => 'Lass das DBC-Kabel mit dem MDB verbunden.';
+
+  @override
+  String get mdbFinishWaitHint =>
+      'Warte auf eines der beiden Signale und klicke dann auf das passende Bild. Lass den Roller bis dahin eingeschaltet.';
+
+  @override
+  String get mdbFinishSuccessPrompt => 'Roller entsperrt';
+
+  @override
+  String get mdbFinishFailureTitle => 'Installationsfehler';
+
+  @override
+  String get mdbFinishFailureBody =>
+      'Die DBC-LED blinkt rot. Verbinde den Laptop wieder mit dem MDB und klicke auf Erneut prüfen. Lass den Roller eingeschaltet.';
+
+  @override
   String get finishCompleteHeading => 'Installation abgeschlossen';
 
   @override
