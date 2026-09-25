@@ -879,6 +879,13 @@ class AppLocalizationsDe extends AppLocalizations {
       'Der linke Hebel bleibt die ganze Zeit gezogen.';
 
   @override
+  String get brakeLeadInLabel => 'Beide Bremsen ziehen in';
+
+  @override
+  String get brakeLeadInHint =>
+      'Gehe zum Lenker und lege die Hände an die Bremshebel.';
+
+  @override
   String get brakeKeepHolding => 'Beide Bremsen ziehen und halten';
 
   @override

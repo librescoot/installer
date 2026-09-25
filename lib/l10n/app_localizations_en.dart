@@ -864,6 +864,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'The left lever stays squeezed the whole time.';
 
   @override
+  String get brakeLeadInLabel => 'Squeeze both brakes in';
+
+  @override
+  String get brakeLeadInHint =>
+      'Step over to the handlebars and put a hand on each lever.';
+
+  @override
   String get brakeKeepHolding => 'Pull and hold both brakes';
 
   @override

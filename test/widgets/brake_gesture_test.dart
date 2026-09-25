@@ -20,13 +20,29 @@ Future<void> _advance(WidgetTester tester, int seconds) async {
 }
 
 void main() {
-  testWidgets('Start cues the first pull as the hold appears', (tester) async {
+  testWidgets('the silent count-in ends with the first pull and hold', (
+    tester,
+  ) async {
     final cues = <InstallerCue>[];
     await tester.pumpWidget(_host(BrakeGesturePacer(onCue: cues.add)));
 
     await tester.tap(find.text('Start the timer'));
-    expect(cues, [InstallerCue.pull]);
     await tester.pump();
+    expect(cues, isEmpty);
+    expect(find.text('Squeeze both brakes in'), findsOneWidget);
+    expect(find.text('$brakeLeadInSeconds'), findsOneWidget);
+    expect(
+      tester
+          .widget<BrakeGestureDiagram>(find.byType(BrakeGestureDiagram))
+          .activeSegment,
+      isNull,
+    );
+
+    await _advance(tester, brakeLeadInSeconds - 1);
+    expect(cues, isEmpty);
+    expect(find.text('Squeeze both brakes in'), findsOneWidget);
+    await _advance(tester, 1);
+    expect(cues, [InstallerCue.pull]);
     expect(find.text('Pull and hold both brakes'), findsOneWidget);
     expect(find.text('${brakeHoldSecondsFor(1)}'), findsOneWidget);
     expect(
@@ -35,6 +51,9 @@ void main() {
           .activeSegment,
       1,
     );
+    await _advance(tester, 3);
+    expect(cues, [InstallerCue.pull]);
+    expect(find.text('${brakeHoldSecondsFor(1) - 3}'), findsOneWidget);
   });
 
   testWidgets('a hold is followed by the right-lever blip, then another hold', (
@@ -43,6 +62,7 @@ void main() {
     await tester.pumpWidget(_host(const BrakeGesturePacer()));
     await tester.tap(find.text('Start the timer'));
     await tester.pump();
+    await _advance(tester, brakeLeadInSeconds);
 
     await _advance(tester, brakeHoldSecondsFor(1));
     expect(find.text('Right lever off, now'), findsOneWidget);
@@ -62,6 +82,7 @@ void main() {
     );
     await tester.tap(find.text('Start the timer'));
     await tester.pump();
+    await _advance(tester, brakeLeadInSeconds);
 
     // Three hold-and-blip rounds, then the fourth hold on its own.
     for (var i = 0; i < brakeSegments - 1; i++) {
@@ -91,6 +112,9 @@ void main() {
     await tester.pumpWidget(_host(BrakeGesturePacer(onCue: cues.add)));
     await tester.tap(find.text('Start the timer'));
     await tester.pump();
+    await _advance(tester, brakeLeadInSeconds - 1);
+    expect(cues, isEmpty);
+    await _advance(tester, 1);
     expect(cues, [InstallerCue.pull]);
     await _advance(tester, brakeHoldSecondsFor(1) - 1);
     expect(cues, [InstallerCue.pull]);

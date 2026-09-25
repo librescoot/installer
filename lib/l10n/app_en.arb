@@ -342,6 +342,8 @@
   "brakeBandBothHeld": "Left lever held down throughout",
   "brakeBlipRight": "Right lever off, now",
   "brakeLeftStaysHint": "The left lever stays squeezed the whole time.",
+  "brakeLeadInLabel": "Squeeze both brakes in",
+  "brakeLeadInHint": "Step over to the handlebars and put a hand on each lever.",
   "brakeKeepHolding": "Pull and hold both brakes",
   "brakeReleaseNow": "Let go of both brakes",
   "@brakeDiagramEndLegend": {
