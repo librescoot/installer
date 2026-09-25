@@ -139,8 +139,16 @@ class _PulsingDbcLedImageState extends State<_PulsingDbcLedImage>
 
   late final AnimationController _pulse = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 250),
-  )..repeat(reverse: true);
+    duration: const Duration(seconds: 1),
+  )..repeat();
+
+  late final Animation<double> _brightness = TweenSequence<double>([
+    TweenSequenceItem(tween: ConstantTween<double>(0), weight: 20),
+    TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 15),
+    TweenSequenceItem(tween: ConstantTween<double>(1), weight: 30),
+    TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 15),
+    TweenSequenceItem(tween: ConstantTween<double>(0), weight: 20),
+  ]).animate(_pulse);
 
   @override
   void dispose() {
@@ -169,11 +177,11 @@ class _PulsingDbcLedImageState extends State<_PulsingDbcLedImage>
                 left: ledCenter.dx * scale - ledDiameter / 2,
                 top: ledCenter.dy * scale - ledDiameter / 2,
                 child: AnimatedBuilder(
-                  animation: _pulse,
+                  animation: _brightness,
                   builder: (context, child) {
                     final glow = const Color(
                       0xFFFF0000,
-                    ).withValues(alpha: _pulse.value);
+                    ).withValues(alpha: _brightness.value);
                     return Container(
                       key: const Key('dbc-error-led-glow'),
                       width: ledDiameter,
@@ -183,7 +191,9 @@ class _PulsingDbcLedImageState extends State<_PulsingDbcLedImage>
                         color: glow,
                         boxShadow: [
                           BoxShadow(
-                            color: glow.withValues(alpha: _pulse.value * 0.8),
+                            color: glow.withValues(
+                              alpha: _brightness.value * 0.8,
+                            ),
                             blurRadius: 12,
                             spreadRadius: 4,
                           ),

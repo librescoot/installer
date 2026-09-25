@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -5,6 +8,19 @@ import 'package:librescoot_installer/l10n/app_localizations.dart';
 import 'package:librescoot_installer/widgets/dbc_flash_outcomes.dart';
 
 void main() {
+  test('the LED-off artwork has no baked-in red glow', () async {
+    final codec = await ui.instantiateImageCodec(
+      File('assets/images/dbc-flash-error-off.png').readAsBytesSync(),
+    );
+    final image = (await codec.getNextFrame()).image;
+    final rgba = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    final pixel = (1007 * image.width + 2280) * 4;
+    expect(rgba!.getUint8(pixel), rgba.getUint8(pixel + 1));
+    expect(rgba.getUint8(pixel), rgba.getUint8(pixel + 2));
+    image.dispose();
+    codec.dispose();
+  });
+
   testWidgets('both outcome graphics trigger their respective actions', (
     tester,
   ) async {
@@ -63,14 +79,16 @@ void main() {
                     .decoration!
                 as BoxDecoration)
             .color!;
-    final dim = ledColor().a;
-    await tester.pump(const Duration(milliseconds: 250));
-    expect(ledColor().a, greaterThan(dim));
+    expect(ledColor().a, 0);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(ledColor().a, 0);
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(ledColor().a, 1);
     expect(ledColor().r, 1);
     expect(ledColor().g, 0);
     expect(ledColor().b, 0);
-    await tester.pump(const Duration(milliseconds: 250));
-    expect(ledColor().a, lessThan(1));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(ledColor().a, 0);
     expect(
       tester.getTopLeft(find.text('ERROR')).dy,
       tester.getTopLeft(find.text('SUCCESS')).dy,
