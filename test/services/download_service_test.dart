@@ -261,6 +261,73 @@ void main() {
     );
 
     test(
+      'download queue prefers compressed routing from maps-routing',
+      () async {
+        final cache = File(
+          p.join(
+            (await DownloadService.getCacheDir()).path,
+            'maps-routing.json',
+          ),
+        );
+        if (await cache.exists()) await cache.delete();
+        addTearDown(() async {
+          if (await cache.exists()) await cache.delete();
+        });
+        final service = DownloadService(
+          client: http_testing.MockClient((request) async {
+            if (request.url.path.endsWith('latest.json')) {
+              return http.Response(
+                jsonEncode({'stable': _release('v1.2.0', [])}),
+                200,
+              );
+            }
+            if (request.url.path.endsWith('maps-routing.json')) {
+              return http.Response(
+                jsonEncode({
+                  'version': 1,
+                  'regions': {
+                    'graz': {
+                      'country': 'AT',
+                      'name': 'Graz',
+                      'map': {
+                        'url': 'https://example.com/tiles_graz.mbtiles',
+                        'size': 100,
+                      },
+                      'routing': {
+                        'url': 'https://example.com/valhalla_tiles_graz.tar',
+                        'size': 200,
+                        'compressed': {
+                          'url':
+                              'https://example.com/valhalla_tiles_graz.tar.zst',
+                          'size': 80,
+                          'sha256': 'abc',
+                        },
+                      },
+                    },
+                  },
+                }),
+                200,
+              );
+            }
+            return http.Response('Not found', 404);
+          }),
+        );
+        addTearDown(service.dispose);
+        final items = await service.buildDownloadQueue(
+          channel: DownloadChannel.stable,
+          region: Region.fromSlug('graz'),
+          wantsOfflineMaps: true,
+        );
+        expect(items.map((i) => i.filename), [
+          'tiles_graz.mbtiles',
+          'valhalla_tiles_graz.tar.zst',
+        ]);
+        expect(items.last.expectedSize, 80);
+        expect(items.last.expectedSha256, 'abc');
+      },
+    );
+
+    test(
       'resolveTileAssets reads the per-repo manifest, not the GitHub API',
       () async {
         final dir = await DownloadService.getCacheDir();
