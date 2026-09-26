@@ -8142,6 +8142,25 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     );
   }
 
+  SubstepLabels _substepLabels(AppLocalizations l10n) => SubstepLabels(
+    checkExisting: l10n.substepCheckExisting,
+    uploadFlasher: l10n.substepUploadFlasher,
+    uploadFwTools: l10n.substepUploadFwTools,
+    uploadScript: l10n.substepUploadScript,
+    uploadFile: l10n.substepUploadFile,
+    verifying: l10n.substepVerifying,
+    imageName: l10n.substepFileImage,
+    imageMapName: l10n.substepFileImageMap,
+    firmwareName: l10n.substepFileFirmware,
+    mapsName: l10n.substepFileMaps,
+    routingName: l10n.substepFileRouting,
+    alreadyThere: l10n.substepAlreadyThere,
+    starting: l10n.substepUploadStarting,
+    complete: l10n.substepUploadComplete,
+    nothingToDo: l10n.substepUploadNothingToDo,
+    remaining: l10n.substepRemaining,
+  );
+
   /// [background] when this runs behind another phase's screen: its progress
   /// then belongs on the overlay's second line, not in the status the phase
   /// is reporting for itself.
@@ -8159,10 +8178,72 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         _dbcUploadReady = false;
         _dbcPrepBlocked = false;
       });
-      _setStatus(l10n.artifactStaging);
+      final labels = _substepLabels(l10n);
+      final stagesImage = _plan?.needsDbcStage0 ?? true;
+      final dbcAction = _plan?.dbc.action;
+      final stagesArtifact =
+          dbcAction == null ||
+          dbcAction == BoardAction.upgrade ||
+          dbcAction == BoardAction.cleanInstall;
+      final stagesTiles =
+          (_plan?.installTiles ?? _downloadState.wantsOfflineMaps) &&
+          (_plan?.tilesAllowedFor(_dbcState) ?? true);
+      int sizeOf(String? path, int fallback) {
+        final file = path == null ? null : File(path);
+        return file != null && file.existsSync() ? file.lengthSync() : fallback;
+      }
+
+      const mb = 1024 * 1024;
+      final files = [
+        if (stagesImage)
+          DryRunFile(
+            labels.imageName,
+            sizeOf(_downloadState.imageFor(Board.dbc)?.localPath, 600 * mb),
+          ),
+        if (stagesImage)
+          DryRunFile(
+            labels.imageMapName,
+            sizeOf(
+              _downloadState.itemOfType(DownloadItemType.dbcBmap)?.localPath,
+              mb,
+            ),
+          ),
+        if (stagesArtifact)
+          DryRunFile(
+            labels.firmwareName,
+            sizeOf(_downloadState.artifactFor(Board.dbc)?.localPath, 250 * mb),
+          ),
+        if (stagesTiles)
+          DryRunFile(
+            labels.mapsName,
+            sizeOf(
+              _downloadState.itemOfType(DownloadItemType.osmTiles)?.localPath,
+              300 * mb,
+            ),
+          ),
+        if (stagesTiles)
+          DryRunFile(
+            labels.routingName,
+            sizeOf(
+              _downloadState
+                  .itemOfType(DownloadItemType.valhallaTiles)
+                  ?.localPath,
+              200 * mb,
+            ),
+          ),
+      ];
       await const DryRunUploadOperation().execute(
         coordinator: _criticalOperations,
-        delay: () => Future<void>.delayed(const Duration(seconds: 90)),
+        delay: () => simulateDryRunUpload(
+          files: files,
+          stagesImage: stagesImage,
+          labels: labels,
+          owns: () => _ownsDbcUpload(uploadGeneration),
+          onSubsteps: (steps) => setState(() => _dbcPrepSubsteps = steps),
+          onProgress: (status, progress) => background
+              ? _setBackgroundStatus(status, progress: progress)
+              : _setStatus(status, progress: progress),
+        ),
         owns: () => _ownsDbcUpload(uploadGeneration),
         onOwned: () {
           _setStatus(l10n.filesStagedWaitingForHandoff, progress: 1);
@@ -8281,24 +8362,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             setState(() => _dbcPrepSubsteps = steps);
           }
         },
-        labels: SubstepLabels(
-          checkExisting: l10n.substepCheckExisting,
-          uploadFlasher: l10n.substepUploadFlasher,
-          uploadFwTools: l10n.substepUploadFwTools,
-          uploadScript: l10n.substepUploadScript,
-          uploadFile: l10n.substepUploadFile,
-          verifying: l10n.substepVerifying,
-          imageName: l10n.substepFileImage,
-          imageMapName: l10n.substepFileImageMap,
-          firmwareName: l10n.substepFileFirmware,
-          mapsName: l10n.substepFileMaps,
-          routingName: l10n.substepFileRouting,
-          alreadyThere: l10n.substepAlreadyThere,
-          starting: l10n.substepUploadStarting,
-          complete: l10n.substepUploadComplete,
-          nothingToDo: l10n.substepUploadNothingToDo,
-          remaining: l10n.substepRemaining,
-        ),
+        labels: _substepLabels(l10n),
       );
 
       // Starting the trampoline is an explicit user action after staging.

@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/models/phase_attempt.dart';
 import 'package:librescoot_installer/services/critical_operation_coordinator.dart';
+import 'package:librescoot_installer/models/substep.dart';
 import 'package:librescoot_installer/services/dry_run_operation.dart';
+import 'package:librescoot_installer/services/trampoline_service.dart';
 
 void main() {
   group('DryRunReconnectOperation', () {
@@ -84,6 +86,89 @@ void main() {
         throwsStateError,
       );
       expect(coordinator.isCritical, isFalse);
+    });
+  });
+
+  group('simulateDryRunUpload', () {
+    const mb = 1024 * 1024;
+    const files = [
+      DryRunFile('dashboard image', 600 * mb),
+      DryRunFile('dashboard firmware', 200 * mb),
+      DryRunFile('map tiles', 200 * mb),
+    ];
+
+    test('reports the real staging steps and finishes each one', () async {
+      final snapshots = <List<Substep>>[];
+      final progress = <double>[];
+      await simulateDryRunUpload(
+        files: files,
+        stagesImage: true,
+        labels: const SubstepLabels(),
+        onSubsteps: snapshots.add,
+        onProgress: (_, p) => progress.add(p),
+        owns: () => true,
+        total: const Duration(seconds: 10),
+        sleep: (_) async {},
+      );
+
+      expect(snapshots.first.map((s) => s.label), [
+        'Check existing files',
+        'Upload dashboard image',
+        'Upload dashboard firmware',
+        'Upload map tiles',
+        'Upload flasher tool',
+        'Upload DBC bootloader tools',
+        'Upload trampoline script',
+      ]);
+      expect(
+        snapshots.first.every((s) => s.state == SubstepState.pending),
+        isTrue,
+      );
+      expect(snapshots.last.every((s) => s.state == SubstepState.done), isTrue);
+      for (var i = 1; i < progress.length; i++) {
+        expect(progress[i], greaterThanOrEqualTo(progress[i - 1]));
+      }
+      expect(progress.last, 1.0);
+    });
+
+    test('shows a byte count while a file is active', () async {
+      final details = <String>[];
+      await simulateDryRunUpload(
+        files: files,
+        stagesImage: false,
+        labels: const SubstepLabels(),
+        onSubsteps: (steps) {
+          for (final s in steps) {
+            if (s.state == SubstepState.active && s.detail != null) {
+              details.add(s.detail!);
+            }
+          }
+        },
+        onProgress: (_, _) {},
+        owns: () => true,
+        total: const Duration(seconds: 10),
+        sleep: (_) async {},
+      );
+
+      expect(details.any((d) => d.startsWith('600 / 600 MB')), isTrue);
+      expect(details.every((d) => d.contains('remaining')), isTrue);
+    });
+
+    test('stops when a newer upload takes over', () async {
+      var ticks = 0;
+      final snapshots = <List<Substep>>[];
+      await simulateDryRunUpload(
+        files: files,
+        stagesImage: true,
+        labels: const SubstepLabels(),
+        onSubsteps: snapshots.add,
+        onProgress: (_, _) {},
+        owns: () => ticks < 5,
+        total: const Duration(seconds: 10),
+        sleep: (_) async => ticks++,
+      );
+
+      expect(snapshots.last.any((s) => s.state != SubstepState.done), isTrue);
     });
   });
 }
