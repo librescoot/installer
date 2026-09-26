@@ -35,6 +35,7 @@ class DownloadService {
   static const _osmTilesRepo = 'librescoot/osm-tiles';
   static const _valhallaTilesRepo = 'librescoot/valhalla-tiles';
   static const _manifestBase = 'https://downloads.librescoot.org/releases';
+  static const _mapsRoutingManifest = '$_manifestBase/maps-routing.json';
   static const _latestManifestUrl = '$_manifestBase/latest.json';
 
   final http.Client _client;
@@ -58,10 +59,10 @@ class DownloadService {
     Duration requestTimeout = const Duration(seconds: 30),
     Duration idleTimeout = const Duration(seconds: 60),
     List<Duration> retryDelays = defaultRetryDelays,
-  })  : _client = client ?? http.Client(),
-        _requestTimeout = requestTimeout,
-        _idleTimeout = idleTimeout,
-        _retryDelays = retryDelays;
+  }) : _client = client ?? http.Client(),
+       _requestTimeout = requestTimeout,
+       _idleTimeout = idleTimeout,
+       _retryDelays = retryDelays;
 
   /// Failures of the connection rather than of the content: worth another
   /// attempt. A bad status, a size or digest mismatch and a cancellation are
@@ -112,8 +113,10 @@ class DownloadService {
     const maxCacheAge = Duration(hours: 1);
     final fresh = await _readCachedManifest(cacheFile, maxAge: maxCacheAge);
     if (fresh != null) {
-      debugPrint('latest.json: served from disk cache '
-          '(under ${maxCacheAge.inHours}h old)');
+      debugPrint(
+        'latest.json: served from disk cache '
+        '(under ${maxCacheAge.inHours}h old)',
+      );
       _cachedLatest = fresh;
       return _cachedLatest!;
     }
@@ -134,16 +137,22 @@ class DownloadService {
           // it.
           final parsed = jsonDecode(response.body) as Map<String, dynamic>;
           await cacheFile.writeAsString(response.body);
-          debugPrint('latest.json: fetched from network '
-              '(attempt ${attempt + 1}/${delays.length})');
+          debugPrint(
+            'latest.json: fetched from network '
+            '(attempt ${attempt + 1}/${delays.length})',
+          );
           _cachedLatest = parsed;
           return _cachedLatest!;
         }
-        debugPrint('latest.json fetch HTTP ${response.statusCode} '
-            '(attempt ${attempt + 1}/${delays.length})');
+        debugPrint(
+          'latest.json fetch HTTP ${response.statusCode} '
+          '(attempt ${attempt + 1}/${delays.length})',
+        );
       } catch (e) {
-        debugPrint('latest.json fetch failed '
-            '(attempt ${attempt + 1}/${delays.length}): $e');
+        debugPrint(
+          'latest.json fetch failed '
+          '(attempt ${attempt + 1}/${delays.length}): $e',
+        );
       }
     }
 
@@ -160,7 +169,9 @@ class DownloadService {
       // at build time. The welcome screen looks identical either way, so it
       // has to be told.
       manifestIsBundled = true;
-      final bundled = await rootBundle.loadString('assets/latest.json.fallback');
+      final bundled = await rootBundle.loadString(
+        'assets/latest.json.fallback',
+      );
       _cachedLatest = jsonDecode(bundled) as Map<String, dynamic>;
       return _cachedLatest!;
     } catch (e) {
@@ -186,9 +197,18 @@ class DownloadService {
     }
     final String base;
     if (Platform.isWindows) {
-      base = p.join(Platform.environment['LOCALAPPDATA'] ?? '', 'Librescoot', 'Installer', 'cache');
+      base = p.join(
+        Platform.environment['LOCALAPPDATA'] ?? '',
+        'Librescoot',
+        'Installer',
+        'cache',
+      );
     } else {
-      base = p.join(Platform.environment['HOME'] ?? '', '.cache', 'librescoot-installer');
+      base = p.join(
+        Platform.environment['HOME'] ?? '',
+        '.cache',
+        'librescoot-installer',
+      );
     }
     final dir = Directory(base);
     if (!await dir.exists()) await dir.create(recursive: true);
@@ -197,7 +217,8 @@ class DownloadService {
 
   /// Determine which channels have releases available. Returns a map of
   /// channel -> (tag, publishedAt date string) for non-null channel entries.
-  Future<Map<DownloadChannel, ({String tag, String date})>> fetchAvailableChannels() async {
+  Future<Map<DownloadChannel, ({String tag, String date})>>
+  fetchAvailableChannels() async {
     final latest = await _fetchLatest();
     final result = <DownloadChannel, ({String tag, String date})>{};
     for (final channel in DownloadChannel.values) {
@@ -205,7 +226,9 @@ class DownloadService {
       if (entry is! Map<String, dynamic>) continue;
       final tag = entry['tag_name'] as String;
       final published = entry['published_at'] as String? ?? '';
-      final date = published.length >= 10 ? published.substring(0, 10) : published;
+      final date = published.length >= 10
+          ? published.substring(0, 10)
+          : published;
       result[channel] = (tag: tag, date: date);
     }
     return result;
@@ -288,7 +311,7 @@ class DownloadService {
   /// Null means an older manifest without the entry, which falls back to the
   /// target release's own stage-0.
   Future<({String tag, List<Map<String, dynamic>> assets})?>
-      resolveBootstrapRelease() async {
+  resolveBootstrapRelease() async {
     try {
       final latest = await _fetchLatest();
       final entry = latest['bootstrap'];
@@ -381,7 +404,9 @@ class DownloadService {
       final recorded = (await sidecar.readAsString()).trim().toLowerCase();
       return recorded.isEmpty ? null : recorded;
     } catch (e) {
-      debugPrint('Download: unreadable sidecar for ${p.basename(cached.path)} ($e)');
+      debugPrint(
+        'Download: unreadable sidecar for ${p.basename(cached.path)} ($e)',
+      );
       return null;
     }
   }
@@ -392,7 +417,9 @@ class DownloadService {
     } catch (e) {
       // A cache that cannot hold the digest still holds the file; the next
       // run just pays for the hash again.
-      debugPrint('Download: could not record digest for ${p.basename(cached.path)} ($e)');
+      debugPrint(
+        'Download: could not record digest for ${p.basename(cached.path)} ($e)',
+      );
     }
   }
 
@@ -435,7 +462,9 @@ class DownloadService {
       final sidecar = _sidecarFor(cached);
       if (await sidecar.exists()) await sidecar.delete();
     } catch (e) {
-      debugPrint('Download: could not drop sidecar for ${p.basename(cached.path)} ($e)');
+      debugPrint(
+        'Download: could not drop sidecar for ${p.basename(cached.path)} ($e)',
+      );
     }
   }
 
@@ -498,8 +527,10 @@ class DownloadService {
       if (!await cacheFile.exists()) return null;
       return _assetsFromCache(await cacheFile.readAsString());
     } catch (e) {
-      debugPrint('Download: ignoring unreadable manifest cache '
-          '${cacheFile.path}: $e');
+      debugPrint(
+        'Download: ignoring unreadable manifest cache '
+        '${cacheFile.path}: $e',
+      );
       return null;
     }
   }
@@ -538,20 +569,80 @@ class DownloadService {
     return assets.cast<Map<String, dynamic>>();
   }
 
-  /// Derive the regions on offer from the published tile assets: every slug
-  /// that has both an OSM display tile and a Valhalla routing tile. Falls back
-  /// to [Region.all] if the listings can't be fetched, so the picker is
-  /// never empty offline.
+  Future<Map<String, dynamic>> resolveMapsRouting() async {
+    final dir = await getCacheDir();
+    final file = File(p.join(dir.path, 'maps-routing.json'));
+    Map<String, dynamic> parse(String body) {
+      final data = jsonDecode(body) as Map<String, dynamic>;
+      if (data['version'] != 1 || data['regions'] is! Map<String, dynamic>) {
+        throw const FormatException('unsupported maps-routing manifest');
+      }
+      return data;
+    }
+
+    if (await file.exists() &&
+        DateTime.now().difference(await file.lastModified()).inHours < 1) {
+      try {
+        return parse(await file.readAsString());
+      } catch (_) {}
+    }
+    try {
+      final response = await _client.get(Uri.parse(_mapsRoutingManifest));
+      if (response.statusCode != 200) {
+        throw Exception('maps-routing manifest: HTTP ${response.statusCode}');
+      }
+      final data = parse(response.body);
+      await _writeCache(file, response.body);
+      return data;
+    } catch (_) {
+      if (await file.exists()) {
+        try {
+          return parse(await file.readAsString());
+        } catch (_) {}
+      }
+      rethrow;
+    }
+  }
+
+  /// Offer regions with both display and routing assets. The flat asset lists
+  /// remain a fallback for installations with a cached older site manifest.
   Future<List<Region>> fetchAvailableRegions() async {
     try {
-      final osmAssets = await resolveTileAssets(_osmTilesRepo, 'tiles_');
-      final valhallaAssets =
-          await resolveTileAssets(_valhallaTilesRepo, 'valhalla_tiles_');
-      final regions = regionsFromAssets(osmAssets, valhallaAssets);
-      return regions.isEmpty ? Region.all : regions;
+      final manifest = await resolveMapsRouting();
+      final entries = manifest['regions'] as Map<String, dynamic>;
+      final regions = entries.entries
+          .where((e) {
+            final data = e.value;
+            return data is Map<String, dynamic> &&
+                data['map'] is Map &&
+                data['routing'] is Map;
+          })
+          .map(
+            (e) => Region.fromManifest(e.key, e.value as Map<String, dynamic>),
+          )
+          .toList();
+      final order = Region.all.map((r) => r.slug).toList();
+      regions.sort((a, b) {
+        final ia = order.indexOf(a.slug), ib = order.indexOf(b.slug);
+        if (ia != -1 && ib != -1) return ia.compareTo(ib);
+        if (ia != -1) return -1;
+        if (ib != -1) return 1;
+        return a.name.compareTo(b.name);
+      });
+      return regions;
     } catch (e) {
-      debugPrint('fetchAvailableRegions failed, using fallback catalogue: $e');
-      return Region.all;
+      debugPrint('maps-routing unavailable, using legacy tile listings: $e');
+      try {
+        final osm = await resolveTileAssets(_osmTilesRepo, 'tiles_');
+        final routing = await resolveTileAssets(
+          _valhallaTilesRepo,
+          'valhalla_tiles_',
+        );
+        final regions = regionsFromAssets(osm, routing);
+        return regions.isEmpty ? Region.all : regions;
+      } catch (_) {
+        return Region.all;
+      }
     }
   }
 
@@ -583,7 +674,9 @@ class DownloadService {
   }
 
   static Set<String> _slugsFrom(
-      List<Map<String, dynamic>> assets, RegExp pattern) {
+    List<Map<String, dynamic>> assets,
+    RegExp pattern,
+  ) {
     final slugs = <String>{};
     for (final asset in assets) {
       final name = asset['name'] as String?;
@@ -621,8 +714,9 @@ class DownloadService {
     final release = await resolveRelease(channel);
     final bootstrap = await resolveBootstrapRelease();
     final assets = <Map<String, dynamic>>[
-      ...release.assets.where((a) =>
-          bootstrap == null || !_isStageZero(a['name'] as String)),
+      ...release.assets.where(
+        (a) => bootstrap == null || !_isStageZero(a['name'] as String),
+      ),
       ...?bootstrap?.assets.where((a) => _isStageZero(a['name'] as String)),
     ];
     if (bootstrap != null) {
@@ -654,11 +748,15 @@ class DownloadService {
 
       final DownloadItemType type;
       if (isArtifact) {
-        type = isMdb ? DownloadItemType.mdbArtifact : DownloadItemType.dbcArtifact;
+        type = isMdb
+            ? DownloadItemType.mdbArtifact
+            : DownloadItemType.dbcArtifact;
       } else if (isBmap) {
         type = isMdb ? DownloadItemType.mdbBmap : DownloadItemType.dbcBmap;
       } else {
-        type = isMdb ? DownloadItemType.mdbFirmware : DownloadItemType.dbcFirmware;
+        type = isMdb
+            ? DownloadItemType.mdbFirmware
+            : DownloadItemType.dbcFirmware;
       }
 
       final cached = File(p.join(cacheDir.path, name));
@@ -682,48 +780,51 @@ class DownloadService {
 
     // Tile downloads
     if (wantsOfflineMaps && region != null) {
-      // OSM display tiles
-      final osmAssets = await resolveTileAssets(_osmTilesRepo, 'tiles_');
-      for (final asset in osmAssets) {
-        final name = asset['name'] as String;
-        if (name != region.osmTilesFilename) continue;
-        final cached = File(p.join(cacheDir.path, name));
-        final expectedSize = asset['size'] as int;
+      Future<void> addTile(
+        Map<String, dynamic> asset,
+        DownloadItemType type,
+      ) async {
+        final url = asset['url'] as String;
+        final name = Uri.parse(url).pathSegments.last;
         final item = DownloadItem(
-          type: DownloadItemType.osmTiles,
-          url: asset['url'] as String,
+          type: type,
+          url: url,
           filename: name,
-          expectedSize: expectedSize,
+          expectedSize: asset['size'] as int,
           expectedSha256: _sha256FromAsset(asset),
         );
-        await _restoreCachedFile(cached, item);
+        await _restoreCachedFile(File(p.join(cacheDir.path, name)), item);
         items.add(item);
       }
 
-      // Valhalla routing tiles. Prefer the zstd form, which is about a third
-      // the size; the DBC decompresses it during install, so this shrinks both
-      // the download and the upload over the vehicle's own network. Falls back
-      // to the plain tar for a region that has no compressed asset published.
-      final valhallaAssets = await resolveTileAssets(_valhallaTilesRepo, 'valhalla_tiles_');
-      final wanted = valhallaAssets.any(
-              (a) => a['name'] == region.valhallaTilesCompressedFilename)
-          ? region.valhallaTilesCompressedFilename
-          : region.valhallaTilesFilename;
-      for (final asset in valhallaAssets) {
-        final name = asset['name'] as String;
-        if (name != wanted) continue;
-        final cached = File(p.join(cacheDir.path, name));
-        final expectedSize = asset['size'] as int;
-        final item = DownloadItem(
-          type: DownloadItemType.valhallaTiles,
-          url: asset['url'] as String,
-          filename: name,
-          expectedSize: expectedSize,
-          expectedSha256: _sha256FromAsset(asset),
+      late Map<String, dynamic> map;
+      late Map<String, dynamic> selected;
+      try {
+        final manifest = await resolveMapsRouting();
+        final entries = manifest['regions'] as Map<String, dynamic>;
+        final data = entries[region.slug] as Map<String, dynamic>;
+        map = data['map'] as Map<String, dynamic>;
+        final routing = data['routing'] as Map<String, dynamic>;
+        final compressed = routing['compressed'];
+        selected = compressed is Map<String, dynamic> ? compressed : routing;
+      } catch (e) {
+        debugPrint('maps-routing unavailable, using legacy tile listings: $e');
+        final maps = await resolveTileAssets(_osmTilesRepo, 'tiles_');
+        final routes = await resolveTileAssets(
+          _valhallaTilesRepo,
+          'valhalla_tiles_',
         );
-        await _restoreCachedFile(cached, item);
-        items.add(item);
+        map = maps.firstWhere((a) => a['name'] == region.osmTilesFilename);
+        selected =
+            routes
+                .where(
+                  (a) => a['name'] == region.valhallaTilesCompressedFilename,
+                )
+                .firstOrNull ??
+            routes.firstWhere((a) => a['name'] == region.valhallaTilesFilename);
       }
+      await addTile(map, DownloadItemType.osmTiles);
+      await addTile(selected, DownloadItemType.valhallaTiles);
     }
 
     // Sort by enum index so downloads proceed in the order the install
@@ -739,7 +840,7 @@ class DownloadService {
     void Function(int bytesDownloaded, int totalBytes)? onProgress,
     DownloadCancellationToken? cancellationToken,
   }) async {
-    for (var attempt = 0;; attempt++) {
+    for (var attempt = 0; ; attempt++) {
       try {
         await _downloadOnce(
           item,
@@ -754,8 +855,10 @@ class DownloadService {
           rethrow;
         }
         final delay = _retryDelays[attempt];
-        debugPrint('Download: ${item.filename} attempt ${attempt + 1} failed '
-            '($e), retrying in ${delay.inSeconds}s');
+        debugPrint(
+          'Download: ${item.filename} attempt ${attempt + 1} failed '
+          '($e), retrying in ${delay.inSeconds}s',
+        );
         await Future.delayed(delay);
         cancellationToken?.throwIfCancelled();
       }
@@ -772,12 +875,16 @@ class DownloadService {
 
     final cacheDir = await getCacheDir();
     final targetFile = File(p.join(cacheDir.path, item.filename));
-    final partFile = File(cancellationToken == null
-        ? '${targetFile.path}.part'
-        : '${targetFile.path}.${cancellationToken.generation}.part');
+    final partFile = File(
+      cancellationToken == null
+          ? '${targetFile.path}.part'
+          : '${targetFile.path}.${cancellationToken.generation}.part',
+    );
 
     final request = http.Request('GET', Uri.parse(item.url));
-    final response = await _client.send(request).timeout(
+    final response = await _client
+        .send(request)
+        .timeout(
           _requestTimeout,
           onTimeout: () => throw TimeoutException(
             'Download request timed out for ${item.filename}',
@@ -801,10 +908,12 @@ class DownloadService {
       try {
         await for (final chunk in response.stream.timeout(
           _idleTimeout,
-          onTimeout: (sink) => sink.addError(TimeoutException(
-            'Download stalled for ${item.filename}',
-            _idleTimeout,
-          )),
+          onTimeout: (sink) => sink.addError(
+            TimeoutException(
+              'Download stalled for ${item.filename}',
+              _idleTimeout,
+            ),
+          ),
         )) {
           cancellationToken?.throwIfCancelled();
           sink.add(chunk);
@@ -863,15 +972,19 @@ class DownloadService {
   /// Delete older cached files of the same family/channel as the new item.
   /// Files of the *same* family but a *different* channel flavour are kept
   /// (e.g. downloading stable v1.0.1 must not nuke a cached nightly image).
-  Future<void> _cleanupOldVersions(Directory cacheDir, DownloadItem item) async {
+  Future<void> _cleanupOldVersions(
+    Directory cacheDir,
+    DownloadItem item,
+  ) async {
     final name = item.filename;
     final suffix = name.endsWith('.bmap') ? '.bmap' : p.extension(name);
     final escSuffix = RegExp.escape(suffix);
 
     RegExp? cleanupPattern;
 
-    final channelMatch =
-        RegExp(r'^(.*?-)(nightly|testing|stable)-').firstMatch(name);
+    final channelMatch = RegExp(
+      r'^(.*?-)(nightly|testing|stable)-',
+    ).firstMatch(name);
     final versionMatch = RegExp(r'^(.*?)-v\d').firstMatch(name);
 
     if (channelMatch != null) {
@@ -888,8 +1001,7 @@ class DownloadService {
     } else {
       // Tiles etc: use everything before the first digit/date
       final tileMatch = RegExp(r'^([a-z_]+)').firstMatch(name);
-      final prefix =
-          RegExp.escape(tileMatch?.group(1) ?? name.substring(0, 5));
+      final prefix = RegExp.escape(tileMatch?.group(1) ?? name.substring(0, 5));
       cleanupPattern = RegExp('^$prefix.*$escSuffix\$');
     }
 
@@ -912,15 +1024,20 @@ class DownloadService {
   /// Download all items in order, calling onProgress for each.
   Future<void> downloadAll(
     List<DownloadItem> items, {
-    void Function(DownloadItem item, int bytesDownloaded, int totalBytes)? onProgress,
+    void Function(DownloadItem item, int bytesDownloaded, int totalBytes)?
+    onProgress,
     DownloadCancellationToken? cancellationToken,
   }) async {
     for (final item in items) {
       cancellationToken?.throwIfCancelled();
       if (item.isComplete) continue;
-      await downloadItem(item, onProgress: (bytes, total) {
-        onProgress?.call(item, bytes, total);
-      }, cancellationToken: cancellationToken);
+      await downloadItem(
+        item,
+        onProgress: (bytes, total) {
+          onProgress?.call(item, bytes, total);
+        },
+        cancellationToken: cancellationToken,
+      );
     }
   }
 

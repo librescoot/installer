@@ -71,11 +71,11 @@ class _FlakyClient extends http.BaseClient {
 void main() {
   group('transient network errors', () {
     DownloadItem item(String name, int size) => DownloadItem(
-          type: DownloadItemType.mdbFirmware,
-          url: 'https://example.com/$name',
-          filename: name,
-          expectedSize: size,
-        );
+      type: DownloadItemType.mdbFirmware,
+      url: 'https://example.com/$name',
+      filename: name,
+      expectedSize: size,
+    );
 
     tearDown(() async {
       final dir = await DownloadService.getCacheDir();
@@ -93,7 +93,10 @@ void main() {
         retryDelays: const [Duration.zero, Duration.zero],
       );
       addTearDown(service.dispose);
-      final target = item('flaky-once-${DateTime.now().microsecondsSinceEpoch}.sdimg.gz', 3);
+      final target = item(
+        'flaky-once-${DateTime.now().microsecondsSinceEpoch}.sdimg.gz',
+        3,
+      );
 
       await service.downloadItem(target);
 
@@ -102,23 +105,28 @@ void main() {
       expect(File(target.localPath!).lengthSync(), 3);
     });
 
-    test('a handshake that keeps failing is given up after the delays run out',
-        () async {
-      final client = _FlakyClient(failures: 10, body: [1]);
-      final service = DownloadService(
-        client: client,
-        retryDelays: const [Duration.zero, Duration.zero],
-      );
-      addTearDown(service.dispose);
-      final target = item('flaky-always-${DateTime.now().microsecondsSinceEpoch}.sdimg.gz', 1);
+    test(
+      'a handshake that keeps failing is given up after the delays run out',
+      () async {
+        final client = _FlakyClient(failures: 10, body: [1]);
+        final service = DownloadService(
+          client: client,
+          retryDelays: const [Duration.zero, Duration.zero],
+        );
+        addTearDown(service.dispose);
+        final target = item(
+          'flaky-always-${DateTime.now().microsecondsSinceEpoch}.sdimg.gz',
+          1,
+        );
 
-      await expectLater(
-        service.downloadItem(target),
-        throwsA(isA<HandshakeException>()),
-      );
-      expect(client.calls, 3);
-      expect(target.localPath, isNull);
-    });
+        await expectLater(
+          service.downloadItem(target),
+          throwsA(isA<HandshakeException>()),
+        );
+        expect(client.calls, 3);
+        expect(target.localPath, isNull);
+      },
+    );
 
     test('a bad status is not a network error and is not retried', () async {
       final client = _FlakyClient(failures: 0, body: [1], status: 404);
@@ -127,9 +135,15 @@ void main() {
         retryDelays: const [Duration.zero, Duration.zero],
       );
       addTearDown(service.dispose);
-      final target = item('flaky-404-${DateTime.now().microsecondsSinceEpoch}.sdimg.gz', 1);
+      final target = item(
+        'flaky-404-${DateTime.now().microsecondsSinceEpoch}.sdimg.gz',
+        1,
+      );
 
-      await expectLater(service.downloadItem(target), throwsA(isA<Exception>()));
+      await expectLater(
+        service.downloadItem(target),
+        throwsA(isA<Exception>()),
+      );
       expect(client.calls, 1);
     });
   });
@@ -185,6 +199,66 @@ void main() {
       expect(result.tag, 'testing-20260318T114803');
       expect(result.assets.length, 2);
     });
+
+    test(
+      'maps-routing supplies names, countries and regional assets',
+      () async {
+        final cache = File(
+          p.join(
+            (await DownloadService.getCacheDir()).path,
+            'maps-routing.json',
+          ),
+        );
+        if (await cache.exists()) await cache.delete();
+        addTearDown(() async {
+          if (await cache.exists()) await cache.delete();
+        });
+        final requested = <String>[];
+        final service = DownloadService(
+          client: http_testing.MockClient((request) async {
+            requested.add(request.url.toString());
+            return http.Response(
+              jsonEncode({
+                'version': 1,
+                'regions': {
+                  'graz': {
+                    'country': 'AT',
+                    'name': 'Graz',
+                    'map': {
+                      'url': 'https://example.com/tiles_graz.mbtiles',
+                      'size': 100,
+                    },
+                    'routing': {
+                      'url': 'https://example.com/valhalla_tiles_graz.tar',
+                      'size': 200,
+                      'compressed': {
+                        'url':
+                            'https://example.com/valhalla_tiles_graz.tar.zst',
+                        'size': 80,
+                      },
+                    },
+                  },
+                },
+              }),
+              200,
+            );
+          }),
+        );
+        addTearDown(service.dispose);
+        final regions = await service.fetchAvailableRegions();
+        expect(requested, [
+          'https://downloads.librescoot.org/releases/maps-routing.json',
+        ]);
+        expect(regions.single.country, 'Österreich');
+        expect(regions.single.name, 'Graz');
+        final manifest = await service.resolveMapsRouting();
+        expect(
+          (manifest['regions'] as Map)['graz']['routing']['compressed']['size'],
+          80,
+        );
+        expect(requested.length, 1);
+      },
+    );
 
     test(
       'resolveTileAssets reads the per-repo manifest, not the GitHub API',
@@ -509,14 +583,22 @@ void main() {
         channel: DownloadChannel.stable,
         wantsOfflineMaps: false,
       );
-      int at(DownloadItemType type) =>
-          items.indexWhere((i) => i.type == type);
+      int at(DownloadItemType type) => items.indexWhere((i) => i.type == type);
       // The MDB flash is the first thing that waits on a file, so its image
       // leads; its artifact is needed one boot later; the DBC files only
       // once the MDB is done.
-      expect(at(DownloadItemType.mdbFirmware), lessThan(at(DownloadItemType.mdbArtifact)));
-      expect(at(DownloadItemType.mdbArtifact), lessThan(at(DownloadItemType.dbcFirmware)));
-      expect(at(DownloadItemType.dbcFirmware), lessThan(at(DownloadItemType.dbcArtifact)));
+      expect(
+        at(DownloadItemType.mdbFirmware),
+        lessThan(at(DownloadItemType.mdbArtifact)),
+      );
+      expect(
+        at(DownloadItemType.mdbArtifact),
+        lessThan(at(DownloadItemType.dbcFirmware)),
+      );
+      expect(
+        at(DownloadItemType.dbcFirmware),
+        lessThan(at(DownloadItemType.dbcArtifact)),
+      );
     });
 
     test('a valid SHA256 cache entry is restored as complete', () async {
@@ -728,10 +810,16 @@ void main() {
         wantsOfflineMaps: false,
       )).single;
 
-      expect(item.localPath, cached.path,
-          reason: 'a file that hashes correctly is still usable');
-      expect(await sidecar.readAsString(), digest,
-          reason: 'so the run after this one does not hash it again');
+      expect(
+        item.localPath,
+        cached.path,
+        reason: 'a file that hashes correctly is still usable',
+      );
+      expect(
+        await sidecar.readAsString(),
+        digest,
+        reason: 'so the run after this one does not hash it again',
+      );
     });
 
     test('a sidecar that disagrees with the manifest saves nothing', () async {
@@ -767,9 +855,13 @@ void main() {
 
       expect(item.localPath, isNull);
       expect(await cached.exists(), isFalse);
-      expect(await sidecar.exists(), isFalse,
-          reason: 'a digest for a file that is gone vouches for the next '
-              'thing to take the name');
+      expect(
+        await sidecar.exists(),
+        isFalse,
+        reason:
+            'a digest for a file that is gone vouches for the next '
+            'thing to take the name',
+      );
     });
 
     test("an evicted old version takes its sidecar with it", () async {
@@ -814,9 +906,13 @@ void main() {
       await service.downloadItem(item);
 
       expect(await old.exists(), isFalse);
-      expect(await oldSidecar.exists(), isFalse,
-          reason: 'an orphan digest outlives the file it describes and then '
-              'vouches for a reused name');
+      expect(
+        await oldSidecar.exists(),
+        isFalse,
+        reason:
+            'an orphan digest outlives the file it describes and then '
+            'vouches for a reused name',
+      );
     });
 
     test('a stalled response stream fails after the idle deadline', () async {

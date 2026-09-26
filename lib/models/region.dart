@@ -2,11 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class Region {
-  const Region({
-    required this.name,
-    required this.slug,
-    this.country = '',
-  });
+  const Region({required this.name, required this.slug, this.country = ''});
 
   final String name;
   final String slug;
@@ -16,6 +12,16 @@ class Region {
   final String country;
 
   static const _unknownCountry = 'Weitere';
+  static const _countryNames = {
+    'DE': 'Deutschland',
+    'AT': 'Österreich',
+    'FR': 'Frankreich',
+    'ES': 'Spanien',
+    'IT': 'Italien',
+    'BE': 'Belgien',
+    'NL': 'Niederlande',
+    'LU': 'Luxemburg',
+  };
 
   /// Known slugs, grouped by country (German states first,
   /// then the neighbours). Single source of truth for [all], the offline
@@ -24,14 +30,22 @@ class Region {
   static const _catalog = <String, ({String name, String country})>{
     'baden-wuerttemberg': (name: 'Baden-Württemberg', country: 'Deutschland'),
     'bayern': (name: 'Bayern', country: 'Deutschland'),
-    'berlin_brandenburg': (name: 'Berlin & Brandenburg', country: 'Deutschland'),
+    'berlin_brandenburg': (
+      name: 'Berlin & Brandenburg',
+      country: 'Deutschland',
+    ),
     'bremen': (name: 'Bremen', country: 'Deutschland'),
     'hamburg': (name: 'Hamburg', country: 'Deutschland'),
     'hessen': (name: 'Hessen', country: 'Deutschland'),
-    'mecklenburg-vorpommern':
-        (name: 'Mecklenburg-Vorpommern', country: 'Deutschland'),
+    'mecklenburg-vorpommern': (
+      name: 'Mecklenburg-Vorpommern',
+      country: 'Deutschland',
+    ),
     'niedersachsen': (name: 'Niedersachsen', country: 'Deutschland'),
-    'nordrhein-westfalen': (name: 'Nordrhein-Westfalen', country: 'Deutschland'),
+    'nordrhein-westfalen': (
+      name: 'Nordrhein-Westfalen',
+      country: 'Deutschland',
+    ),
     'rheinland-pfalz': (name: 'Rheinland-Pfalz', country: 'Deutschland'),
     'saarland': (name: 'Saarland', country: 'Deutschland'),
     'sachsen': (name: 'Sachsen', country: 'Deutschland'),
@@ -42,6 +56,10 @@ class Region {
     'netherlands': (name: 'Niederlande', country: 'Niederlande'),
     'luxembourg': (name: 'Luxemburg', country: 'Luxemburg'),
     'ile-de-france': (name: 'Île-de-France', country: 'Frankreich'),
+    'alsace': (name: 'Alsace', country: 'Frankreich'),
+    'islas-baleares': (name: 'Islas Baleares (Mallorca)', country: 'Spanien'),
+    'graz': (name: 'Graz', country: 'Österreich'),
+    'vienna': (name: 'Vienna', country: 'Österreich'),
     'italy-nord-ovest': (name: 'Italien (Nordwest)', country: 'Italien'),
   };
 
@@ -102,6 +120,16 @@ class Region {
         : Region(name: entry.name, slug: slug, country: entry.country);
   }
 
+  factory Region.fromManifest(String slug, Map<String, dynamic> data) {
+    final fallback = Region.fromSlug(slug);
+    final code = data['country'] as String?;
+    return Region(
+      slug: slug,
+      name: data['name'] as String? ?? fallback.name,
+      country: _countryNames[code] ?? fallback.country,
+    );
+  }
+
   static String _humanize(String slug) => slug
       .split(RegExp(r'[-_]'))
       .where((w) => w.isNotEmpty)
@@ -123,8 +151,11 @@ class Region {
     try {
       final c = client ?? http.Client();
       final response = await c
-          .get(Uri.parse(
-              'http://ip-api.com/json/?fields=status,countryCode,region'))
+          .get(
+            Uri.parse(
+              'http://ip-api.com/json/?fields=status,countryCode,region',
+            ),
+          )
           .timeout(const Duration(seconds: 12));
       if (client == null) c.close();
       if (response.statusCode != 200) return null;
@@ -151,8 +182,10 @@ class Region {
   /// can't be fetched. Identity is by slug, so a Region built here compares
   /// equal to one built by [fromSlug] from the live tile listing.
   static final List<Region> all = _catalog.entries
-      .map((e) =>
-          Region(name: e.value.name, slug: e.key, country: e.value.country))
+      .map(
+        (e) =>
+            Region(name: e.value.name, slug: e.key, country: e.value.country),
+      )
       .toList(growable: false);
 
   @override
