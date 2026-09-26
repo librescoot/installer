@@ -8,14 +8,20 @@ void main() {
 
   group('waiting on the background dashboard upload can end', () {
     test('it waits the way the downloads beside it do', () {
-      final start = source.indexOf('if (_dbcStageInFlight) {');
-      final wait = source.substring(
-        start,
-        source.indexOf('_setPhase(_phaseAfterMdbInstall);', start),
-      );
-      expect(wait, contains('await waitForDownloads('));
-      expect(wait, contains('currentError: () => _dbcStageError'));
-      expect(wait, isNot(contains('while (_dbcStageInFlight)')));
+      // The dry run and the real install each wait before leaving the step.
+      final starts = RegExp(
+        r'if \(_dbcStageInFlight\) \{',
+      ).allMatches(source).map((m) => m.start).toList();
+      expect(starts, hasLength(2));
+      for (final start in starts) {
+        final wait = source.substring(
+          start,
+          source.indexOf('_setPhase(_phaseAfterMdbInstall);', start),
+        );
+        expect(wait, contains('await waitForDownloads('));
+        expect(wait, contains('currentError: () => _dbcStageError'));
+        expect(wait, isNot(contains('while (_dbcStageInFlight)')));
+      }
     });
 
     test('a throw before the upload own try still releases the waiter', () {

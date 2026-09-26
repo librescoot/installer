@@ -7505,6 +7505,27 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         await Future.delayed(const Duration(seconds: 3));
         if (!mounted || _currentPhase != InstallerPhase.mdbArtifact) return;
       }
+      // As on a real run, the dashboard files finish before the step ends.
+      if (_dbcStageInFlight) {
+        _setStatus(l10n.waitingForDbcUpload);
+        try {
+          await waitForDownloads(
+            isReady: () => !_dbcStageInFlight,
+            currentError: () => _dbcStageError,
+            isCancelled: () =>
+                !mounted || _currentPhase != InstallerPhase.mdbArtifact,
+            subject: 'The dashboard upload',
+          );
+        } on DownloadWaitCancelled {
+          return;
+        } on DownloadWaitFailure catch (e) {
+          setState(() {
+            _artifactError = e.toString();
+            _isProcessing = false;
+          });
+          return;
+        }
+      }
       _expectMinimalMdb = false;
       _setPhase(_phaseAfterMdbInstall);
       return;
