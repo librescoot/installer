@@ -8665,6 +8665,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          EstimatedHandoffProgress(
+            estimate: _autonomousHandoffEstimate(),
+            startedAt: _autonomousHandoffStartedAt ?? DateTime.now(),
+          ),
+          const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -8692,11 +8697,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 8),
-          EstimatedHandoffProgress(
-            estimate: _autonomousHandoffEstimate(),
-            startedAt: _autonomousHandoffStartedAt ?? DateTime.now(),
           ),
           const SizedBox(height: 16),
           Text(

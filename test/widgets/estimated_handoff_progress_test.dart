@@ -95,7 +95,8 @@ void main() {
       ),
     );
 
-    expect(find.text('Installationsfortschritt'), findsOneWidget);
+    expect(find.text('Installationsfortschritt'), findsNothing);
+    expect(find.text('2:00 vergangen'), findsOneWidget);
     expect(find.textContaining('anhand der Datenmenge'), findsOneWidget);
     expect(find.textContaining('Noch etwa'), findsOneWidget);
     final bar = tester.widget<LinearProgressIndicator>(

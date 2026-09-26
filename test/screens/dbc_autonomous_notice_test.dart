@@ -16,9 +16,11 @@ void main() {
       screen.indexOf('l10n.dbcFlashHandsOffHeading'),
       greaterThan(screen.indexOf('if (!_dbcUsbDisconnected)')),
     );
+    // The estimate leads; the hands-off notice sits between it and the
+    // outcome pictures.
     expect(
       screen.indexOf('l10n.dbcFlashHandsOffHeading'),
-      lessThan(screen.indexOf('EstimatedHandoffProgress(')),
+      greaterThan(screen.indexOf('EstimatedHandoffProgress(')),
     );
     expect(screen, contains('DbcFlashOutcomes('));
     expect(

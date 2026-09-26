@@ -76,6 +76,11 @@ class _EstimatedHandoffProgressState extends State<EstimatedHandoffProgress> {
     return l10n.handoffEstimateMinutes(minutes);
   }
 
+  String _clock(Duration duration) {
+    final seconds = duration.inSeconds.clamp(0, 359999);
+    return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -126,11 +131,6 @@ class _EstimatedHandoffProgressState extends State<EstimatedHandoffProgress> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            l10n.handoffEstimateTitle,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-          ),
-          const SizedBox(height: 4),
-          Text(
             l10n.handoffEstimateBriefDisclaimer,
             style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
           ),
@@ -142,12 +142,27 @@ class _EstimatedHandoffProgressState extends State<EstimatedHandoffProgress> {
             backgroundColor: Colors.white.withValues(alpha: 0.08),
           ),
           const SizedBox(height: 10),
-          Text(
-            timing,
-            style: TextStyle(
-              fontSize: 14,
-              color: overdue ? Colors.orange.shade200 : kTextMuted,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  timing,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: overdue ? Colors.orange.shade200 : kTextMuted,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                l10n.waitElapsed(_clock(elapsed)),
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: kTextMuted,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
           ),
         ],
       ),

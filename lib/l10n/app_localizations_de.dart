@@ -1057,9 +1057,6 @@ class AppLocalizationsDe extends AppLocalizations {
       'Alle Dateien sind bereit. Starte die Display-Arbeiten, wenn du bereit bist.';
 
   @override
-  String get handoffEstimateTitle => 'Installationsfortschritt';
-
-  @override
   String get handoffEstimateBriefDisclaimer =>
       'Der Balken schätzt den Fortschritt anhand der Datenmenge und üblicher Laufzeiten. Es ist normal, wenn die Installation etwas länger dauert.';
 

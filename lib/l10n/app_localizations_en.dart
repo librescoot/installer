@@ -1040,9 +1040,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Files are ready. Start the dashboard work when you are ready.';
 
   @override
-  String get handoffEstimateTitle => 'Installation progress';
-
-  @override
   String get handoffEstimateBriefDisclaimer =>
       'The bar estimates progress from the transfer size and typical timings. It is normal if the installation takes a little longer.';
 

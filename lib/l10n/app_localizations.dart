@@ -1892,12 +1892,6 @@ abstract class AppLocalizations {
   /// **'Files are ready. Start the dashboard work when you are ready.'**
   String get filesStagedWaitingForHandoff;
 
-  /// No description provided for @handoffEstimateTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Installation progress'**
-  String get handoffEstimateTitle;
-
   /// No description provided for @handoffEstimateBriefDisclaimer.
   ///
   /// In en, this message translates to:
