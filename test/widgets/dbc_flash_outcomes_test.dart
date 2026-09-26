@@ -73,9 +73,12 @@ void main() {
 
     expect(find.text('ERROR'), findsOneWidget);
     expect(find.text('SUCCESS'), findsOneWidget);
-    expect(find.byType(Image), findsNWidgets(3));
+    // Error artwork, then unlit and lit layers of the side and front views.
+    expect(find.byType(Image), findsNWidgets(5));
     final side = tester.getRect(find.byType(Image).at(1));
-    final front = tester.getRect(find.byType(Image).at(2));
+    final front = tester.getRect(find.byType(Image).at(3));
+    expect(tester.getRect(find.byType(Image).at(2)), side);
+    expect(tester.getRect(find.byType(Image).at(4)), front);
     expect(front.height, closeTo(side.height, 0.1));
     expect(front.height, greaterThan(210));
     final errorCard = tester.getRect(
@@ -119,6 +122,18 @@ void main() {
     expect(ledColor().b, 0);
     await tester.pump(const Duration(milliseconds: 500));
     expect(ledColor().a, 0);
+    double lit() => tester
+        .widget<FadeTransition>(find.byKey(const Key('dbc-success-side-lit')))
+        .opacity
+        .value;
+    // 500 ms fade in, 1.5 s on, 250 ms fade out, 500 ms off.
+    expect(lit(), 1);
+    await tester.pump(const Duration(milliseconds: 1125));
+    expect(lit(), closeTo(0.5, 0.01));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(lit(), 0);
+    await tester.pump(const Duration(milliseconds: 475));
+    expect(lit(), closeTo(0.5, 0.01));
     expect(
       tester.getTopLeft(find.text('ERROR')).dy,
       tester.getTopLeft(find.text('SUCCESS')).dy,

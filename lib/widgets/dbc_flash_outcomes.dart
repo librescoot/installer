@@ -33,29 +33,7 @@ class DbcFlashOutcomes extends StatelessWidget {
           description: successDescription ?? l10n.dbcFlashSuccessPrompt,
           color: Colors.greenAccent,
           onPressed: onSuccess,
-          image: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Image.asset(
-                  'assets/images/dbc-flash-success-side.png',
-                  width: 230 * 3537 / 2181,
-                  height: 230,
-                  fit: BoxFit.contain,
-                  excludeFromSemantics: true,
-                ),
-                const SizedBox(width: 8),
-                Image.asset(
-                  'assets/images/dbc-flash-success-front.png',
-                  width: 230 * 1124 / 2159,
-                  height: 230,
-                  fit: BoxFit.contain,
-                  excludeFromSemantics: true,
-                ),
-              ],
-            ),
-          ),
+          image: const _LightingSuccessImage(),
         );
         if (constraints.maxWidth < 660) {
           return Column(children: [error, const SizedBox(height: 16), success]);
@@ -208,6 +186,74 @@ class _PulsingDbcLedImageState extends State<_PulsingDbcLedImage>
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// The success pictures with their lights coming on: the lit artwork fades in
+/// over the unlit one, holds, and fades out again.
+class _LightingSuccessImage extends StatefulWidget {
+  const _LightingSuccessImage();
+
+  @override
+  State<_LightingSuccessImage> createState() => _LightingSuccessImageState();
+}
+
+class _LightingSuccessImageState extends State<_LightingSuccessImage>
+    with SingleTickerProviderStateMixin {
+  // 500 ms fade in, 1.5 s on, 250 ms fade out, 500 ms off.
+  late final AnimationController _cycle = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2750),
+  )..repeat();
+
+  late final Animation<double> _lit = TweenSequence<double>([
+    TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 500),
+    TweenSequenceItem(tween: ConstantTween<double>(1), weight: 1500),
+    TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 250),
+    TweenSequenceItem(tween: ConstantTween<double>(0), weight: 500),
+  ]).animate(_cycle);
+
+  @override
+  void dispose() {
+    _cycle.dispose();
+    super.dispose();
+  }
+
+  Widget _layered(String name, double width) {
+    Widget image(String path) => Image.asset(
+      path,
+      width: width,
+      height: 230,
+      fit: BoxFit.contain,
+      excludeFromSemantics: true,
+    );
+    return Stack(
+      children: [
+        image('assets/images/dbc-flash-success-$name-off.png'),
+        FadeTransition(
+          key: Key('dbc-success-$name-lit'),
+          opacity: _lit,
+          child: image('assets/images/dbc-flash-success-$name.png'),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Each off image has the same canvas as its lit counterpart, so the
+    // layers line up without offsets.
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _layered('side', 230 * 3537 / 2181),
+          const SizedBox(width: 8),
+          _layered('front', 230 * 1124 / 2159),
+        ],
       ),
     );
   }
