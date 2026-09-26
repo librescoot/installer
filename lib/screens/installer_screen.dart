@@ -2068,11 +2068,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           ],
           const SizedBox(height: 24),
 
-          // Region selection with skip checkbox inline
+          // Region selection with skip checkbox inline. The checkbox belongs
+          // to this heading, so it stays beside it instead of at the far edge.
           SizedBox(
             width: double.infinity,
             child: Wrap(
-              alignment: WrapAlignment.spaceBetween,
+              alignment: WrapAlignment.start,
               crossAxisAlignment: WrapCrossAlignment.center,
               spacing: 12,
               runSpacing: 4,
