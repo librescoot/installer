@@ -629,6 +629,9 @@ class DownloadService {
         if (ib != -1) return 1;
         return a.name.compareTo(b.name);
       });
+      if (regions.isEmpty) {
+        throw const FormatException('no complete map regions');
+      }
       return regions;
     } catch (e) {
       debugPrint('maps-routing unavailable, using legacy tile listings: $e');
@@ -806,7 +809,11 @@ class DownloadService {
         map = data['map'] as Map<String, dynamic>;
         final routing = data['routing'] as Map<String, dynamic>;
         final compressed = routing['compressed'];
-        selected = compressed is Map<String, dynamic> ? compressed : routing;
+        selected =
+            compressed is Map<String, dynamic> &&
+                (compressed['codec'] == null || compressed['codec'] == 'zstd')
+            ? compressed
+            : routing;
       } catch (e) {
         debugPrint('maps-routing unavailable, using legacy tile listings: $e');
         final maps = await resolveTileAssets(_osmTilesRepo, 'tiles_');
