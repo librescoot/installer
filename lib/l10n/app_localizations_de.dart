@@ -1861,6 +1861,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get showLog => 'Log anzeigen';
 
   @override
+  String get muteSounds => 'Ton ausschalten';
+
+  @override
+  String get unmuteSounds => 'Ton einschalten';
+
+  @override
   String get retryMdbFlash => 'Erneut versuchen';
 
   @override

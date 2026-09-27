@@ -1830,6 +1830,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get showLog => 'Show log';
 
   @override
+  String get muteSounds => 'Mute sounds';
+
+  @override
+  String get unmuteSounds => 'Unmute sounds';
+
+  @override
   String get retryMdbFlash => 'Retry';
 
   @override

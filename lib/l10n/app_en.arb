@@ -772,6 +772,8 @@
   "retryMdbConnect": "Retry",
   "retryMdbToUms": "Retry",
   "showLog": "Show log",
+  "muteSounds": "Mute sounds",
+  "unmuteSounds": "Unmute sounds",
   "retryMdbFlash": "Retry",
   "retryMdbBoot": "Retry",
   "retryDbcPrep": "Retry",

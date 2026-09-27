@@ -634,6 +634,8 @@
   "retryMdbConnect": "Erneut versuchen",
   "retryMdbToUms": "Erneut versuchen",
   "showLog": "Log anzeigen",
+  "muteSounds": "Ton ausschalten",
+  "unmuteSounds": "Ton einschalten",
   "retryMdbFlash": "Erneut versuchen",
   "retryMdbBoot": "Erneut versuchen",
   "retryDbcPrep": "Erneut versuchen",

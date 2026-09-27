@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/l10n/app_localizations.dart';
 import 'package:librescoot_installer/models/download_state.dart';
+import 'package:librescoot_installer/services/installer_sounds.dart';
 import 'package:librescoot_installer/theme.dart';
 import 'package:librescoot_installer/models/installer_phase.dart';
 import 'package:librescoot_installer/l10n/phase_l10n.dart';
@@ -17,8 +18,10 @@ void main() {
   // as the real face: any width measured here would be a measurement of a
   // font the app never uses, and this file is all about widths.
   setUpAll(loadRealFonts);
+  tearDown(() => InstallerSounds.muted.value = false);
 
-  Widget host(Widget child, {Locale locale = const Locale('de')}) => MaterialApp(
+  Widget host(Widget child, {Locale locale = const Locale('de')}) =>
+      MaterialApp(
         theme: librescootTheme(),
         locale: locale,
         localizationsDelegates: const [
@@ -32,10 +35,14 @@ void main() {
       );
 
   testWidgets('step titles fit on one line in both languages', (tester) async {
-    await tester.pumpWidget(host(const PhaseSidebar(
-      currentPhase: InstallerPhase.welcome,
-      completedPhases: {},
-    )));
+    await tester.pumpWidget(
+      host(
+        const PhaseSidebar(
+          currentPhase: InstallerPhase.welcome,
+          completedPhases: {},
+        ),
+      ),
+    );
 
     // The budget is the 300 sidebar minus 16+16 padding, the 18px marker and
     // the 10px gap after it. Measured in the weight the active step uses,
@@ -51,24 +58,32 @@ void main() {
             ),
             textDirection: TextDirection.ltr,
           )..layout();
-          expect(painter.width, lessThanOrEqualTo(240),
-              reason: '${locale.languageCode}/${step.name} wraps in the sidebar');
+          expect(
+            painter.width,
+            lessThanOrEqualTo(240),
+            reason: '${locale.languageCode}/${step.name} wraps in the sidebar',
+          );
         }
       }
     }
   });
 
-  testWidgets('a skipped step says so without wrecking its title',
-      (tester) async {
-    await tester.pumpWidget(host(const PhaseSidebar(
-      currentPhase: InstallerPhase.welcome,
-      completedPhases: {},
-      skippedPhases: {
-        InstallerPhase.dbcPrep,
-        InstallerPhase.dbcFlash,
-        InstallerPhase.reconnect,
-      },
-    )));
+  testWidgets('a skipped step says so without wrecking its title', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      host(
+        const PhaseSidebar(
+          currentPhase: InstallerPhase.welcome,
+          completedPhases: {},
+          skippedPhases: {
+            InstallerPhase.dbcPrep,
+            InstallerPhase.dbcFlash,
+            InstallerPhase.reconnect,
+          },
+        ),
+      ),
+    );
 
     // The word is its own line. Bracketed onto the end of the title it pushed
     // the title into a second, ragged line.
@@ -78,23 +93,58 @@ void main() {
 
   testWidgets('the foot of the column fits in both languages', (tester) async {
     for (final locale in [const Locale('de'), const Locale('en')]) {
-      await tester.pumpWidget(host(
-        const PhaseSidebar(
-          currentPhase: InstallerPhase.welcome,
-          completedPhases: {},
+      await tester.pumpWidget(
+        host(
+          const PhaseSidebar(
+            currentPhase: InstallerPhase.welcome,
+            completedPhases: {},
+          ),
+          locale: locale,
         ),
-        locale: locale,
-      ));
+      );
       await tester.pump();
       // An overflow paints a striped banner and, in a test, throws. The log
       // label is the one that has to survive; the language name may shorten.
-      expect(tester.takeException(), isNull,
-          reason: '${locale.languageCode}: the footer row overflowed');
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: '${locale.languageCode}: the footer row overflowed',
+      );
       // With both children at their natural size and no flex sibling to eat
       // the room, an overflow is the only way a label gets cut. A painter
       // comparison here would measure the fallback face, not what the widget
       // just drew, which is how this file came to report a problem the app
       // did not have.
+    }
+  });
+
+  testWidgets('footer toggles sound for the whole session', (tester) async {
+    for (final locale in [const Locale('de'), const Locale('en')]) {
+      InstallerSounds.muted.value = false;
+      await tester.pumpWidget(
+        host(
+          const PhaseSidebar(
+            currentPhase: InstallerPhase.welcome,
+            completedPhases: {},
+          ),
+          locale: locale,
+        ),
+      );
+      final enabled = locale.languageCode == 'de'
+          ? 'Ton ausschalten'
+          : 'Mute sounds';
+      final disabled = locale.languageCode == 'de'
+          ? 'Ton einschalten'
+          : 'Unmute sounds';
+      expect(find.text(enabled), findsOneWidget);
+      await tester.tap(find.text(enabled));
+      await tester.pump();
+      expect(InstallerSounds.muted.value, isTrue);
+      expect(find.text(disabled), findsOneWidget);
+      await tester.tap(find.text(disabled));
+      await tester.pump();
+      expect(InstallerSounds.muted.value, isFalse);
+      expect(tester.takeException(), isNull);
     }
   });
 
@@ -114,11 +164,15 @@ void main() {
       ),
     ];
 
-    await tester.pumpWidget(host(PhaseSidebar(
-      currentPhase: InstallerPhase.welcome,
-      completedPhases: const {},
-      downloadItems: items,
-    )));
+    await tester.pumpWidget(
+      host(
+        PhaseSidebar(
+          currentPhase: InstallerPhase.welcome,
+          completedPhases: const {},
+          downloadItems: items,
+        ),
+      ),
+    );
 
     expect(find.text('Karten'), findsOneWidget);
     expect(find.text('MDB-Firmware'), findsOneWidget);

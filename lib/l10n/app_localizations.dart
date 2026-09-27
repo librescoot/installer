@@ -3170,6 +3170,18 @@ abstract class AppLocalizations {
   /// **'Show log'**
   String get showLog;
 
+  /// No description provided for @muteSounds.
+  ///
+  /// In en, this message translates to:
+  /// **'Mute sounds'**
+  String get muteSounds;
+
+  /// No description provided for @unmuteSounds.
+  ///
+  /// In en, this message translates to:
+  /// **'Unmute sounds'**
+  String get unmuteSounds;
+
   /// No description provided for @retryMdbFlash.
   ///
   /// In en, this message translates to:

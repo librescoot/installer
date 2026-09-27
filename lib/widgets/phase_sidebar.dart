@@ -5,6 +5,7 @@ import '../l10n/phase_l10n.dart';
 import '../main.dart' show appVersion;
 import '../models/download_state.dart';
 import '../models/installer_phase.dart';
+import '../services/installer_sounds.dart';
 import '../theme.dart';
 import 'language_switcher.dart';
 
@@ -106,7 +107,9 @@ class PhaseSidebar extends StatelessWidget {
                     step: major,
                     isActive: major.isActive(currentPhase),
                     isCompleted: major.isCompleted(currentPhase),
-                    isSkipped: major.phases.every((p) => skippedPhases.contains(p)),
+                    isSkipped: major.phases.every(
+                      (p) => skippedPhases.contains(p),
+                    ),
                     isUpgrade: upgradingSteps.contains(major),
                     mapsOnly: dbcMapsOnly,
                     l10n: l10n,
@@ -118,7 +121,9 @@ class PhaseSidebar extends StatelessWidget {
                         _SubStepItem(
                           phase: phase,
                           isCurrent: phase == currentPhase,
-                          isCompleted: completedPhases.contains(phase) || phase.index < currentPhase.index,
+                          isCompleted:
+                              completedPhases.contains(phase) ||
+                              phase.index < currentPhase.index,
                           l10n: l10n,
                           mapsOnly: dbcMapsOnly,
                         ),
@@ -128,7 +133,10 @@ class PhaseSidebar extends StatelessWidget {
           ),
           if (statusMessage != null && statusMessage!.trim().isNotEmpty)
             _StatusLine(
-                message: statusMessage!, busy: isBusy, progress: progress),
+              message: statusMessage!,
+              busy: isBusy,
+              progress: progress,
+            ),
           if (downloadItems.isNotEmpty)
             downloadItems.every((i) => i.isComplete)
                 ? const _DownloadsFinished()
@@ -199,26 +207,55 @@ class _SidebarFooter extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: kSidebarEdge)),
       ),
-      child: Row(
-        // Spaced, not spaced-by-a-Spacer: a Spacer is a flex child and takes
-        // the free space before a Flexible sibling sees any, which is what
-        // was cutting one of these two labels short.
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          const LanguageSwitcher(),
-          TextButton.icon(
-            onPressed: onShowLog,
-            icon: const Icon(Icons.article_outlined, size: 16),
-            label: Text(l10n.showLog, style: const TextStyle(fontSize: 12.5)),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.grey.shade400,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ValueListenableBuilder<bool>(
+            valueListenable: InstallerSounds.muted,
+            builder: (context, muted, _) => TextButton.icon(
+              onPressed: () => InstallerSounds.muted.value = !muted,
+              icon: Icon(
+                muted ? Icons.volume_off_outlined : Icons.volume_up_outlined,
+                size: 16,
+              ),
+              label: Text(
+                muted ? l10n.unmuteSounds : l10n.muteSounds,
+                style: const TextStyle(fontSize: 12.5),
+              ),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.grey.shade400,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
             ),
           ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const LanguageSwitcher(),
+              TextButton.icon(
+                onPressed: onShowLog,
+                icon: const Icon(Icons.article_outlined, size: 16),
+                label: Text(
+                  l10n.showLog,
+                  style: const TextStyle(fontSize: 12.5),
+                ),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.grey.shade400,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+          ),
         ],
-      )
+      ),
     );
   }
 }
@@ -250,7 +287,11 @@ class _MajorStepItem extends StatelessWidget {
 
     if (isSkipped) {
       textColor = Colors.grey.shade700;
-      leading = Icon(Icons.circle_outlined, size: 18, color: Colors.grey.shade700);
+      leading = Icon(
+        Icons.circle_outlined,
+        size: 18,
+        color: Colors.grey.shade700,
+      );
     } else if (isCompleted) {
       textColor = Colors.grey;
       leading = const Icon(Icons.check_circle, size: 18, color: kAccent);
@@ -259,14 +300,15 @@ class _MajorStepItem extends StatelessWidget {
       leading = Container(
         width: 18,
         height: 18,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: kAccent,
-        ),
+        decoration: BoxDecoration(shape: BoxShape.circle, color: kAccent),
         child: Center(
           child: Text(
             '$stepNum',
-            style: const TextStyle(color: kOnAccent, fontSize: 11, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              color: kOnAccent,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       );
@@ -301,8 +343,11 @@ class _MajorStepItem extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  step.localizedTitle(l10n,
-                      upgrade: isUpgrade, mapsOnly: mapsOnly),
+                  step.localizedTitle(
+                    l10n,
+                    upgrade: isUpgrade,
+                    mapsOnly: mapsOnly,
+                  ),
                   style: TextStyle(
                     color: textColor,
                     fontSize: 14,
@@ -315,9 +360,10 @@ class _MajorStepItem extends StatelessWidget {
                   Text(
                     l10n.majorStepSkippedSuffix,
                     style: TextStyle(
-                        color: Colors.grey.shade700,
-                        fontSize: 11,
-                        fontStyle: FontStyle.italic),
+                      color: Colors.grey.shade700,
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                    ),
                   ),
               ],
             ),
@@ -356,7 +402,11 @@ class _SubStepItem extends StatelessWidget {
       leading = const Icon(Icons.arrow_right, size: 14, color: kAccent);
     } else {
       textColor = Colors.grey.shade700;
-      leading = Icon(Icons.circle_outlined, size: 8, color: Colors.grey.shade700);
+      leading = Icon(
+        Icons.circle_outlined,
+        size: 8,
+        color: Colors.grey.shade700,
+      );
     }
 
     return Padding(
@@ -401,11 +451,15 @@ class _DownloadsFinished extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(l10n.downloadsFinished,
-                    style: const TextStyle(fontSize: 11, color: kAccent)),
+                Text(
+                  l10n.downloadsFinished,
+                  style: const TextStyle(fontSize: 11, color: kAccent),
+                ),
                 const SizedBox(height: 2),
-                Text(l10n.downloadsFinishedHint,
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
+                Text(
+                  l10n.downloadsFinishedHint,
+                  style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
+                ),
               ],
             ),
           ),
@@ -453,8 +507,10 @@ class _DownloadStatus extends StatelessWidget {
             children: [
               Icon(Icons.download, size: 14, color: Colors.grey.shade400),
               const SizedBox(width: 6),
-              Text(l10n.downloads,
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+              Text(
+                l10n.downloads,
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+              ),
               const Spacer(),
               Text(
                 '${(downloadedBytes / 1024 / 1024).toStringAsFixed(0)} / ${(totalBytes / 1024 / 1024).toStringAsFixed(0)} MB',
@@ -463,10 +519,7 @@ class _DownloadStatus extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          LinearProgressIndicator(
-            value: overallProgress,
-            minHeight: 3,
-          ),
+          LinearProgressIndicator(value: overallProgress, minHeight: 3),
           const SizedBox(height: 4),
           Wrap(
             spacing: 8,
@@ -487,7 +540,9 @@ class _DownloadStatus extends StatelessWidget {
                       Text(
                         label,
                         style: TextStyle(
-                            fontSize: 10, color: Colors.grey.shade500),
+                          fontSize: 10,
+                          color: Colors.grey.shade500,
+                        ),
                       ),
                     ],
                   ),

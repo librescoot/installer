@@ -1,11 +1,65 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:audioplayers_platform_interface/audioplayers_platform_interface.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/models/installer_phase.dart';
 import 'package:librescoot_installer/services/installer_sounds.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('mute stops all sound instances and prevents new playback', () async {
+    final originalAudio = AudioplayersPlatformInterface.instance;
+    final originalGlobal = GlobalAudioplayersPlatformInterface.instance;
+    final cacheDir = Directory.systemTemp.createTempSync(
+      'installer-sounds-test-',
+    );
+    const pathChannel = MethodChannel('plugins.flutter.io/path_provider');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(pathChannel, (call) async => cacheDir.path);
+    final audio = _RecordingAudioPlatform();
+    AudioplayersPlatformInterface.instance = audio;
+    GlobalAudioplayersPlatformInterface.instance = _TestGlobalAudioPlatform();
+    InstallerSounds? first;
+    InstallerSounds? second;
+    try {
+      InstallerSounds.muted.value = true;
+      first = InstallerSounds();
+      first.play(InstallerCue.attention);
+      await Future<void>.delayed(Duration.zero);
+      expect(audio.calls, isEmpty);
+
+      InstallerSounds.muted.value = false;
+      second = InstallerSounds();
+      await _waitForCalls(audio, 'source', 4);
+      expect(audio.calls.where((call) => call == 'create'), hasLength(4));
+
+      InstallerSounds.muted.value = true;
+      await _waitForCalls(audio, 'stop', 4);
+      audio.calls.clear();
+      first.play(InstallerCue.error);
+      second.play(InstallerCue.critical);
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        audio.calls.where((call) => call == 'create' || call == 'resume'),
+        isEmpty,
+      );
+    } finally {
+      first?.dispose();
+      second?.dispose();
+      if (second != null) await _waitForCalls(audio, 'dispose', 4);
+      InstallerSounds.muted.value = false;
+      AudioplayersPlatformInterface.instance = originalAudio;
+      GlobalAudioplayersPlatformInterface.instance = originalGlobal;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(pathChannel, null);
+      cacheDir.deleteSync(recursive: true);
+    }
+  });
+
   test('manual power and restart steps use the stronger cue', () {
     expect(cueForPhase(InstallerPhase.notices), InstallerCue.critical);
     expect(cueForPhase(InstallerPhase.scooterPrep), InstallerCue.critical);
@@ -68,4 +122,83 @@ void main() {
       expect(peak, greaterThan(20000));
     }
   });
+}
+
+Future<void> _waitForCalls(
+  _RecordingAudioPlatform audio,
+  String method,
+  int count,
+) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 5));
+  while (audio.calls.where((call) => call == method).length < count) {
+    if (DateTime.now().isAfter(deadline)) {
+      fail('Timed out waiting for $count $method calls: ${audio.calls}');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
+}
+
+class _TestGlobalAudioPlatform extends GlobalAudioplayersPlatformInterface {
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError(invocation.memberName.toString());
+
+  @override
+  Future<void> init() async {}
+
+  @override
+  Stream<GlobalAudioEvent> getGlobalEventStream() => const Stream.empty();
+}
+
+class _RecordingAudioPlatform extends AudioplayersPlatformInterface {
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError(invocation.memberName.toString());
+
+  final List<String> calls = [];
+  final Map<String, StreamController<AudioEvent>> streams = {};
+
+  @override
+  Future<void> create(String playerId) async {
+    calls.add('create');
+    streams[playerId] = StreamController<AudioEvent>.broadcast();
+  }
+
+  @override
+  Stream<AudioEvent> getEventStream(String playerId) =>
+      streams[playerId]!.stream;
+
+  @override
+  Future<void> setReleaseMode(String playerId, ReleaseMode releaseMode) async {}
+
+  @override
+  Future<void> setSourceUrl(
+    String playerId,
+    String url, {
+    bool? isLocal,
+    String? mimeType,
+  }) async {
+    calls.add('source');
+    streams[playerId]!.add(
+      const AudioEvent(eventType: AudioEventType.prepared, isPrepared: true),
+    );
+  }
+
+  @override
+  Future<void> resume(String playerId) async => calls.add('resume');
+
+  @override
+  Future<void> release(String playerId) async {}
+
+  @override
+  Future<void> stop(String playerId) async => calls.add('stop');
+
+  @override
+  Future<int?> getCurrentPosition(String playerId) async => 0;
+
+  @override
+  Future<void> dispose(String playerId) async {
+    await streams.remove(playerId)?.close();
+    calls.add('dispose');
+  }
 }
