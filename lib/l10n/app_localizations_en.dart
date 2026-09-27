@@ -261,10 +261,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get channelStableDesc => 'Tested and reliable';
 
   @override
-  String get channelTestingDesc => 'Latest features, may have rough edges';
+  String get channelRecommended => 'RECOMMENDED';
 
   @override
-  String get channelNightlyDesc => 'Built daily from main, for developers';
+  String get channelTestingDesc =>
+      'Preview releases for testing, without a stability guarantee';
+
+  @override
+  String get channelNightlyDesc => 'Updated daily, for developers only';
 
   @override
   String get channelNoReleases => 'No releases available';

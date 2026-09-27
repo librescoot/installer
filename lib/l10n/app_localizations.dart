@@ -566,16 +566,22 @@ abstract class AppLocalizations {
   /// **'Tested and reliable'**
   String get channelStableDesc;
 
+  /// No description provided for @channelRecommended.
+  ///
+  /// In en, this message translates to:
+  /// **'RECOMMENDED'**
+  String get channelRecommended;
+
   /// No description provided for @channelTestingDesc.
   ///
   /// In en, this message translates to:
-  /// **'Latest features, may have rough edges'**
+  /// **'Preview releases for testing, without a stability guarantee'**
   String get channelTestingDesc;
 
   /// No description provided for @channelNightlyDesc.
   ///
   /// In en, this message translates to:
-  /// **'Built daily from main, for developers'**
+  /// **'Updated daily, for developers only'**
   String get channelNightlyDesc;
 
   /// No description provided for @channelNoReleases.
