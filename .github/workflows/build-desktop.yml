@@ -119,6 +119,7 @@ jobs:
             clang \
             cmake \
             ninja-build \
+            patchelf \
             pkg-config \
             libgtk-3-dev \
             liblzma-dev \

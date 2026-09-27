@@ -78,7 +78,9 @@ done
 mkdir -p "$APPDIR/usr/lib/gstreamer-1.0"
 for plugin in coreelements playback typefindfunctions wavparse audioconvert \
               audioresample autodetect pulseaudio; do
-  cp "$GST_PLUGINS/libgst${plugin}.so" "$APPDIR/usr/lib/gstreamer-1.0/"
+  cp "$APPDIR/usr/lib/libgst${plugin}.so" "$APPDIR/usr/lib/gstreamer-1.0/"
+  patchelf --set-rpath '$ORIGIN/..' \
+    "$APPDIR/usr/lib/gstreamer-1.0/libgst${plugin}.so"
 done
 
 # AppRun invokes this path after setting the library search path. The Flutter
