@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/l10n/app_localizations.dart';
 import 'package:librescoot_installer/widgets/welcome_requirements.dart';
+import 'package:optimal_wrap_text/optimal_wrap_text.dart';
 
 import '../goldens/font_harness.dart';
 
@@ -32,6 +33,7 @@ void main() {
           ),
         );
 
+        expect(find.byType(OptimalWrapRichText), findsOneWidget);
         final paragraph = tester.widget<Text>(
           find
               .descendant(

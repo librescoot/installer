@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:optimal_wrap_text/optimal_wrap_text.dart';
 
 import 'phase_layout.dart';
 
@@ -40,7 +41,7 @@ class DriverBlockedPanel extends StatelessWidget with OwnsPhaseLayout {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          OptimalWrapText(
             body,
             style: TextStyle(
               fontSize: 14,

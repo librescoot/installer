@@ -5,6 +5,7 @@ import 'package:librescoot_installer/l10n/app_localizations.dart';
 import 'package:librescoot_installer/models/download_state.dart';
 import 'package:librescoot_installer/theme.dart';
 import 'package:librescoot_installer/widgets/firmware_channel_selector.dart';
+import 'package:optimal_wrap_text/optimal_wrap_text.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -43,6 +44,7 @@ void main() {
   ) async {
     await tester.pumpWidget(host(selected: DownloadChannel.testing));
     expect(find.text('EMPFOHLEN'), findsOneWidget);
+    expect(find.byType(OptimalWrapText), findsNWidgets(3));
     expect(
       find.text(
         'Testversionen für das nächste Release, ohne Stabilitätsgarantie, nur für technisch versierte Tester*innen empfohlen',
@@ -77,6 +79,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('channel-nightly')));
     await tester.pumpAndSettle();
     expect(find.text('Nightly wirklich auswählen?'), findsOneWidget);
+    expect(find.byType(OptimalWrapRichText), findsOneWidget);
     expect(
       tester
           .getSize(

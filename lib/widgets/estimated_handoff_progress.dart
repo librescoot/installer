@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:optimal_wrap_text/optimal_wrap_text.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/install_time_estimate.dart';
@@ -130,7 +131,7 @@ class _EstimatedHandoffProgressState extends State<EstimatedHandoffProgress> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
+          OptimalWrapText(
             l10n.handoffEstimateBriefDisclaimer,
             style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
           ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:optimal_wrap_text/optimal_wrap_text.dart';
 
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
@@ -50,7 +51,7 @@ class WelcomeRequirements extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text.rich(
+        OptimalWrapRichText(
           TextSpan(
             style: style,
             children: [

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:optimal_wrap_text/optimal_wrap_text.dart';
 
 import 'notice_card.dart';
 import 'phase_layout.dart';
@@ -73,7 +74,7 @@ class ConnectFailurePanel extends StatelessWidget with OwnsPhaseLayout {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (lead != null) Text(lead, style: prose),
+          if (lead != null) OptimalWrapText(lead, style: prose),
           if (bullets.isNotEmpty) ...[
             const SizedBox(height: 18),
             NoticeCard(
@@ -84,7 +85,7 @@ class ConnectFailurePanel extends StatelessWidget with OwnsPhaseLayout {
             ),
           ] else if (trail != null) ...[
             const SizedBox(height: 12),
-            Text(trail, style: prose),
+            OptimalWrapText(trail, style: prose),
           ],
           if (details.isNotEmpty) ...[
             const SizedBox(height: 22),
@@ -189,9 +190,8 @@ class _TechnicalDetailsState extends State<_TechnicalDetails> {
             runSpacing: 8,
             children: [
               OutlinedButton.icon(
-                onPressed: () => Clipboard.setData(
-                  ClipboardData(text: widget.details),
-                ),
+                onPressed: () =>
+                    Clipboard.setData(ClipboardData(text: widget.details)),
                 icon: const Icon(Icons.copy, size: 16),
                 label: Text(widget.copyLabel),
                 style: OutlinedButton.styleFrom(

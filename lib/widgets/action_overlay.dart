@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:optimal_wrap_text/optimal_wrap_text.dart';
 
 import '../theme.dart';
 import 'overlay_card.dart';
@@ -46,7 +47,7 @@ class ActionOverlay extends StatelessWidget {
             Icon(icon, size: 28, color: kAccent),
             const SizedBox(width: 16),
             Expanded(
-              child: Text(
+              child: OptimalWrapText(
                 instruction,
                 style: const TextStyle(fontSize: 14, color: kTextPrimary),
               ),
@@ -68,12 +69,14 @@ class ActionOverlay extends StatelessWidget {
                       height: 4,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                            color: kTextMuted, shape: BoxShape.circle),
+                          color: kTextMuted,
+                          shape: BoxShape.circle,
+                        ),
                       ),
                     ),
                   ),
                   Expanded(
-                    child: Text(
+                    child: OptimalWrapText(
                       hint,
                       style: const TextStyle(fontSize: 13, color: kTextMuted),
                     ),
@@ -92,7 +95,7 @@ class ActionOverlay extends StatelessWidget {
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: Text(
+              child: OptimalWrapText(
                 watching,
                 style: const TextStyle(fontSize: 13, color: kTextMuted),
               ),

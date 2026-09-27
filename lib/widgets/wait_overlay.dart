@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:optimal_wrap_text/optimal_wrap_text.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/wait_plan.dart';
@@ -118,15 +119,18 @@ class _WaitOverlayState extends State<WaitOverlay> {
 
   /// "~2 min" for the long ones, "~40 s" for the short: a step that usually
   /// takes forty seconds should not be advertised as "~1 min".
-  static String formatTypical(Duration d) =>
-      d.inSeconds >= 90 ? '~${(d.inSeconds / 60).round()} min' : '~${d.inSeconds} s';
+  static String formatTypical(Duration d) => d.inSeconds >= 90
+      ? '~${(d.inSeconds / 60).round()} min'
+      : '~${d.inSeconds} s';
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final now = _now;
     final total = now.difference(widget.startedAt);
-    final stepElapsed = now.difference(widget.stepStartedAt ?? widget.startedAt);
+    final stepElapsed = now.difference(
+      widget.stepStartedAt ?? widget.startedAt,
+    );
     final active = widget.steps.isEmpty
         ? null
         : widget.steps[widget.currentStep.clamp(0, widget.steps.length - 1)];
@@ -153,8 +157,8 @@ class _WaitOverlayState extends State<WaitOverlay> {
             state: i < widget.currentStep
                 ? WaitStepState.done
                 : i == widget.currentStep
-                    ? WaitStepState.active
-                    : WaitStepState.todo,
+                ? WaitStepState.active
+                : WaitStepState.todo,
             elapsed: stepElapsed,
             remaining: estimateRemaining(stepElapsed, widget.progress),
             overdue: overdue,
@@ -162,34 +166,41 @@ class _WaitOverlayState extends State<WaitOverlay> {
           ),
         const SizedBox(height: 14),
         if (widget.steps.isNotEmpty)
-        Row(
-          children: [
-            Text(
-              l10n.waitStepCounter(
+          Row(
+            children: [
+              Text(
+                l10n.waitStepCounter(
                   (widget.currentStep + 1).clamp(1, widget.steps.length),
-                  widget.steps.length),
-              style: TextStyle(
+                  widget.steps.length,
+                ),
+                style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey.shade500,
-                  fontFamily: 'monospace'),
-            ),
-            const Spacer(),
-            Text(
-              l10n.waitElapsed(formatDuration(total)),
-              style: TextStyle(
+                  fontFamily: 'monospace',
+                ),
+              ),
+              const Spacer(),
+              Text(
+                l10n.waitElapsed(formatDuration(total)),
+                style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey.shade500,
-                  fontFamily: 'monospace'),
-            ),
-          ],
-        ),
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ],
+          ),
         if (widget.backgroundLabel != null) ...[
           const SizedBox(height: 14),
           Divider(height: 1, color: kOutlineQuiet),
           const SizedBox(height: 12),
           Row(
             children: [
-              const Icon(Icons.cloud_upload_outlined, size: 14, color: kTextMuted),
+              const Icon(
+                Icons.cloud_upload_outlined,
+                size: 14,
+                color: kTextMuted,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -215,9 +226,10 @@ class _WaitOverlayState extends State<WaitOverlay> {
               Icon(Icons.power_off, size: 16, color: Colors.orange.shade300),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(widget.warning!,
-                    style: TextStyle(
-                        fontSize: 13, color: Colors.orange.shade200)),
+                child: OptimalWrapText(
+                  widget.warning!,
+                  style: TextStyle(fontSize: 13, color: Colors.orange.shade200),
+                ),
               ),
             ],
           ),
@@ -231,11 +243,16 @@ class _WaitOverlayState extends State<WaitOverlay> {
               padding: const EdgeInsets.symmetric(vertical: 10),
               child: Row(
                 children: [
-                  Icon(_logOpen ? Icons.expand_less : Icons.expand_more,
-                      size: 18, color: kAccent),
+                  Icon(
+                    _logOpen ? Icons.expand_less : Icons.expand_more,
+                    size: 18,
+                    color: kAccent,
+                  ),
                   const SizedBox(width: 6),
-                  Text(_logOpen ? l10n.waitHideLog : l10n.waitShowLog,
-                      style: const TextStyle(fontSize: 13, color: kAccent)),
+                  Text(
+                    _logOpen ? l10n.waitHideLog : l10n.waitShowLog,
+                    style: const TextStyle(fontSize: 13, color: kAccent),
+                  ),
                 ],
               ),
             ),
@@ -254,10 +271,11 @@ class _WaitOverlayState extends State<WaitOverlay> {
                 child: Text(
                   widget.logTail.join('\n'),
                   style: TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 11,
-                      height: 1.4,
-                      color: Colors.grey.shade400),
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    height: 1.4,
+                    color: Colors.grey.shade400,
+                  ),
                 ),
               ),
             ),
@@ -267,10 +285,7 @@ class _WaitOverlayState extends State<WaitOverlay> {
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              for (final a in widget.actions) ...[
-                const SizedBox(width: 8),
-                a,
-              ],
+              for (final a in widget.actions) ...[const SizedBox(width: 8), a],
             ],
           ),
         ],
@@ -292,19 +307,27 @@ class _WaitOverlayState extends State<WaitOverlay> {
       WaitStepState.todo => Colors.grey.shade600,
     };
     final Widget marker = switch (state) {
-      WaitStepState.done =>
-        const Icon(Icons.check_circle, size: 14, color: kAccent),
+      WaitStepState.done => const Icon(
+        Icons.check_circle,
+        size: 14,
+        color: kAccent,
+      ),
       WaitStepState.active => Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-                color: overdue ? Colors.orange.shade300 : kAccent, width: 2),
+        width: 12,
+        height: 12,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: overdue ? Colors.orange.shade300 : kAccent,
+            width: 2,
           ),
         ),
-      WaitStepState.todo => Icon(Icons.circle_outlined,
-          size: 12, color: Colors.grey.shade700),
+      ),
+      WaitStepState.todo => Icon(
+        Icons.circle_outlined,
+        size: 12,
+        color: Colors.grey.shade700,
+      ),
     };
 
     final String timing = switch (state) {
@@ -312,10 +335,13 @@ class _WaitOverlayState extends State<WaitOverlay> {
       // A measured estimate beats the plan's guess once the work reports
       // enough progress to compute one, so it replaces the typical rather
       // than sitting beside it.
-      WaitStepState.active => overdue
-          ? l10n.waitLongerThanUsual(_WaitOverlayState.formatDuration(elapsed))
-          : '${_WaitOverlayState.formatDuration(elapsed)} / '
-              '${remaining == null ? _WaitOverlayState.formatTypical(step.typical) : l10n.waitRemaining(_WaitOverlayState.formatDuration(remaining))}',
+      WaitStepState.active =>
+        overdue
+            ? l10n.waitLongerThanUsual(
+                _WaitOverlayState.formatDuration(elapsed),
+              )
+            : '${_WaitOverlayState.formatDuration(elapsed)} / '
+                  '${remaining == null ? _WaitOverlayState.formatTypical(step.typical) : l10n.waitRemaining(_WaitOverlayState.formatDuration(remaining))}',
       WaitStepState.todo => _WaitOverlayState.formatTypical(step.typical),
     };
 
@@ -329,17 +355,22 @@ class _WaitOverlayState extends State<WaitOverlay> {
               SizedBox(width: 16, child: Center(child: marker)),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(step.label,
-                    style: TextStyle(fontSize: 14, color: colour)),
+                child: Text(
+                  step.label,
+                  style: TextStyle(fontSize: 14, color: colour),
+                ),
               ),
               const SizedBox(width: 10),
-              Text(timing,
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontFamily: 'monospace',
-                      color: overdue && state == WaitStepState.active
-                          ? Colors.orange.shade300
-                          : Colors.grey.shade500)),
+              Text(
+                timing,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'monospace',
+                  color: overdue && state == WaitStepState.active
+                      ? Colors.orange.shade300
+                      : Colors.grey.shade500,
+                ),
+              ),
             ],
           ),
           if (state == WaitStepState.active) ...[

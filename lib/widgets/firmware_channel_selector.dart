@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:optimal_wrap_text/optimal_wrap_text.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/app_localizations.dart';
@@ -51,7 +52,7 @@ class _FirmwareChannelSelectorState extends State<FirmwareChannelSelector> {
           builder: (dialogContext) => AlertDialog(
             constraints: const BoxConstraints(maxWidth: 520),
             title: Text(l10n.nightlyWarningTitle),
-            content: Text.rich(
+            content: OptimalWrapRichText(
               TextSpan(
                 children: [
                   TextSpan(
@@ -61,6 +62,7 @@ class _FirmwareChannelSelectorState extends State<FirmwareChannelSelector> {
                   TextSpan(text: '\n\n${l10n.nightlyWarningBody}'),
                 ],
               ),
+              width: 472,
             ),
             actions: [
               TextButton(
@@ -107,25 +109,28 @@ class _FirmwareChannelSelectorState extends State<FirmwareChannelSelector> {
       ),
     };
 
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (final channel in DownloadChannel.values) ...[
-            if (channel.index > 0) const SizedBox(width: 12),
-            Expanded(
-              child: _card(
-                channel: channel,
-                name: channelInfo[channel]!.name,
-                description: channelInfo[channel]!.desc,
-                release: widget.channels?[channel],
-                available: widget.channels?.containsKey(channel) ?? false,
-                selected: widget.selected == channel,
-                l10n: l10n,
+    return LayoutBuilder(
+      builder: (context, constraints) => IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final channel in DownloadChannel.values) ...[
+              if (channel.index > 0) const SizedBox(width: 12),
+              Expanded(
+                child: _card(
+                  channel: channel,
+                  name: channelInfo[channel]!.name,
+                  description: channelInfo[channel]!.desc,
+                  descriptionWidth: (constraints.maxWidth - 24) / 3 - 32,
+                  release: widget.channels?[channel],
+                  available: widget.channels?.containsKey(channel) ?? false,
+                  selected: widget.selected == channel,
+                  l10n: l10n,
+                ),
               ),
-            ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -134,6 +139,7 @@ class _FirmwareChannelSelectorState extends State<FirmwareChannelSelector> {
     required DownloadChannel channel,
     required String name,
     required String description,
+    required double descriptionWidth,
     required ({String tag, String date})? release,
     required bool available,
     required bool selected,
@@ -206,8 +212,9 @@ class _FirmwareChannelSelectorState extends State<FirmwareChannelSelector> {
                   ],
                 ),
                 const SizedBox(height: 6),
-                Text(
+                OptimalWrapText(
                   description,
+                  width: descriptionWidth,
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
                 ),
                 const Spacer(),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:optimal_wrap_text/optimal_wrap_text.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/phase_l10n.dart';
@@ -456,7 +457,7 @@ class _DownloadsFinished extends StatelessWidget {
                   style: const TextStyle(fontSize: 11, color: kAccent),
                 ),
                 const SizedBox(height: 2),
-                Text(
+                OptimalWrapText(
                   l10n.downloadsFinishedHint,
                   style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
                 ),

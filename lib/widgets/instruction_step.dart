@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:optimal_wrap_text/optimal_wrap_text.dart';
 
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
@@ -66,7 +67,10 @@ class InstructionStep extends StatelessWidget {
             backgroundColor: isWarning ? Colors.orange : kAccent,
             foregroundColor: Colors.black,
             child: number != null
-                ? Text('$number', style: const TextStyle(fontWeight: FontWeight.bold))
+                ? Text(
+                    '$number',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  )
                 : const Icon(Icons.circle, size: 10),
           ),
           const SizedBox(width: 16),
@@ -74,68 +78,107 @@ class InstructionStep extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                        color: expanded ? null : Colors.grey.shade500)),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: expanded ? null : Colors.grey.shade500,
+                  ),
+                ),
                 if (expanded) ...[
-                const SizedBox(height: 4),
-                Text(description, style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
-                if (beforeImageAsset != null && imageAsset != null) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: Image.asset(beforeImageAsset!, height: 240, fit: BoxFit.cover),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(l10n.beforeImageLabel, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                          ],
-                        ),
-                      ),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 8),
-                        child: Icon(Icons.arrow_forward, color: Colors.grey, size: 20),
-                      ),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: Image.asset(imageAsset!, height: 240, fit: BoxFit.cover),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(l10n.afterImageLabel, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                          ],
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 4),
+                  OptimalWrapText(
+                    description,
+                    style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                   ),
-                ] else if (imageAsset != null) ...[
-                  const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: Image.asset(imageAsset!, height: 300, fit: BoxFit.cover),
-                  ),
-                ] else if (imagePlaceholder != null) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    height: 120,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade900,
+                  if (beforeImageAsset != null && imageAsset != null) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: Image.asset(
+                                  beforeImageAsset!,
+                                  height: 240,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                l10n.beforeImageLabel,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 8),
+                          child: Icon(
+                            Icons.arrow_forward,
+                            color: Colors.grey,
+                            size: 20,
+                          ),
+                        ),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: Image.asset(
+                                  imageAsset!,
+                                  height: 240,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                l10n.afterImageLabel,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else if (imageAsset != null) ...[
+                    const SizedBox(height: 8),
+                    ClipRRect(
                       borderRadius: BorderRadius.circular(4),
+                      child: Image.asset(
+                        imageAsset!,
+                        height: 300,
+                        fit: BoxFit.cover,
+                      ),
                     ),
-                    child: Center(
-                      child: Text(imagePlaceholder!,
-                          style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                  ] else if (imagePlaceholder != null) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      height: 120,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade900,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Center(
+                        child: Text(
+                          imagePlaceholder!,
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
                 ],
               ],
             ),

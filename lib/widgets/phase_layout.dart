@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:optimal_wrap_text/optimal_wrap_text.dart';
 
 import '../services/journey_log.dart';
 import '../theme.dart';
@@ -50,11 +51,11 @@ class PhaseAction {
     required Widget this.child,
     this.primary = false,
     this.side = ActionSide.forward,
-  })  : label = '',
-        onPressed = null,
-        icon = null,
-        danger = false,
-        style = null;
+  }) : label = '',
+       onPressed = null,
+       icon = null,
+       danger = false,
+       style = null;
 
   final String label;
   final VoidCallback? onPressed;
@@ -98,7 +99,8 @@ class PhaseAction {
               onPressed: callback,
               style: style,
               icon: Icon(icon, size: 18),
-              label: label);
+              label: label,
+            );
     }
     final fallback = OutlinedButton.styleFrom(
       foregroundColor: danger ? Colors.orangeAccent : null,
@@ -115,7 +117,8 @@ class PhaseAction {
             onPressed: callback,
             style: effective,
             icon: Icon(icon, size: 18),
-            label: label);
+            label: label,
+          );
   }
 }
 
@@ -205,9 +208,10 @@ class PhaseLayout extends StatelessWidget {
                     Text(
                       title,
                       style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: kAccent),
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: kAccent,
+                      ),
                     )
                   else
                     Row(
@@ -217,9 +221,10 @@ class PhaseLayout extends StatelessWidget {
                           child: Text(
                             title,
                             style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: kAccent),
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: kAccent,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -228,8 +233,10 @@ class PhaseLayout extends StatelessWidget {
                     ),
                   if (subtitle != null) ...[
                     const SizedBox(height: 6),
-                    Text(subtitle!,
-                        style: TextStyle(color: Colors.grey.shade400)),
+                    OptimalWrapText(
+                      subtitle!,
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
                   ],
                 ],
               ),
@@ -255,9 +262,11 @@ class PhaseLayout extends StatelessWidget {
                     if (onBack != null) ...[
                       TextButton.icon(
                         onPressed: () {
-                          final label = backLabel ??
-                              MaterialLocalizations.of(context)
-                                  .backButtonTooltip;
+                          final label =
+                              backLabel ??
+                              MaterialLocalizations.of(
+                                context,
+                              ).backButtonTooltip;
                           logJourneyEvent('button_pressed', {
                             'screen': title,
                             'label': label,
@@ -266,9 +275,12 @@ class PhaseLayout extends StatelessWidget {
                           onBack!();
                         },
                         icon: const Icon(Icons.arrow_back, size: 18),
-                        label: Text(backLabel ??
-                            MaterialLocalizations.of(context)
-                                .backButtonTooltip),
+                        label: Text(
+                          backLabel ??
+                              MaterialLocalizations.of(
+                                context,
+                              ).backButtonTooltip,
+                        ),
                       ),
                       const SizedBox(width: 8),
                     ],
@@ -283,7 +295,7 @@ class PhaseLayout extends StatelessWidget {
                           runSpacing: 8,
                           children: [
                             for (final a in leaving)
-                              a.build(context, screen: title)
+                              a.build(context, screen: title),
                           ],
                         ),
                       ),
@@ -294,7 +306,8 @@ class PhaseLayout extends StatelessWidget {
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          for (final a in onward) a.build(context, screen: title)
+                          for (final a in onward)
+                            a.build(context, screen: title),
                         ],
                       ),
                     ),
@@ -329,10 +342,8 @@ class PhaseLayout extends StatelessWidget {
     // room is below it, and a body that stops where its text stops answers
     // "none", which is why the region list only ever unfolded upwards.
     return LayoutBuilder(
-      builder: (context, constraints) => _ScrollableBody(
-        minHeight: constraints.maxHeight,
-        child: constrained,
-      ),
+      builder: (context, constraints) =>
+          _ScrollableBody(minHeight: constraints.maxHeight, child: constrained),
     );
   }
 }
@@ -401,8 +412,12 @@ class _ScrollableBodyState extends State<_ScrollableBody> {
               controller: _controller,
               padding: const EdgeInsets.fromLTRB(32, 20, 32, 20),
               child: ConstrainedBox(
-                constraints:
-                    BoxConstraints(minHeight: (widget.minHeight - 40).clamp(0.0, double.infinity)),
+                constraints: BoxConstraints(
+                  minHeight: (widget.minHeight - 40).clamp(
+                    0.0,
+                    double.infinity,
+                  ),
+                ),
                 child: Align(
                   alignment: Alignment.topCenter,
                   child: widget.child,
@@ -430,8 +445,11 @@ class _ScrollableBodyState extends State<_ScrollableBody> {
                   ),
                   alignment: Alignment.bottomCenter,
                   padding: const EdgeInsets.only(bottom: 2),
-                  child: Icon(Icons.keyboard_arrow_down,
-                      size: 20, color: kAccent.withValues(alpha: 0.8)),
+                  child: Icon(
+                    Icons.keyboard_arrow_down,
+                    size: 20,
+                    color: kAccent.withValues(alpha: 0.8),
+                  ),
                 ),
               ),
             ),

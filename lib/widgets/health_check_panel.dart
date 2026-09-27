@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:optimal_wrap_text/optimal_wrap_text.dart';
 import '../l10n/app_localizations.dart';
 import '../models/scooter_health.dart';
 import '../theme.dart';
@@ -78,7 +79,8 @@ class HealthCheckPanel extends StatelessWidget {
           // Its own row rather than a figure in the one above, the same way
           // the CBB keeps charge and health apart: fitted and charged are
           // different questions and a board can pass one and fail the other.
-          if (health.batteryPresent == true && health.batteryCharge != null) ...[
+          if (health.batteryPresent == true &&
+              health.batteryCharge != null) ...[
             _row(
               l10n.mainBatteryCharge,
               '${health.batteryCharge}%',
@@ -95,8 +97,10 @@ class HealthCheckPanel extends StatelessWidget {
   Widget _risk(String message) {
     return Padding(
       padding: const EdgeInsets.only(left: 24, bottom: 8),
-      child: Text(message,
-          style: TextStyle(fontSize: 12, color: Colors.orange.shade300)),
+      child: OptimalWrapText(
+        message,
+        style: TextStyle(fontSize: 12, color: Colors.orange.shade300),
+      ),
     );
   }
 
@@ -120,14 +124,20 @@ class HealthCheckPanel extends StatelessWidget {
           Icon(icon, size: 16, color: color),
           const SizedBox(width: 8),
           Expanded(child: Text(label, style: const TextStyle(fontSize: 13))),
-          Text(value, style: TextStyle(
-            fontSize: 13,
-            fontFamily: 'monospace',
-            color: color,
-          )),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              fontFamily: 'monospace',
+              color: color,
+            ),
+          ),
           if (threshold.isNotEmpty) ...[
             const SizedBox(width: 8),
-            Text(threshold, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            Text(
+              threshold,
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            ),
           ],
         ],
       ),

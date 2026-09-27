@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:optimal_wrap_text/optimal_wrap_text.dart';
 
 /// How loud a notice is. Danger is for the one thing that ruins a scooter.
 enum NoticeSeverity { danger, warning, info }
@@ -40,16 +41,16 @@ class NoticeCard extends StatelessWidget {
   final Widget? footer;
 
   Color get _colour => switch (severity) {
-        NoticeSeverity.danger => Colors.red.shade400,
-        NoticeSeverity.warning => Colors.amber,
-        NoticeSeverity.info => Colors.grey.shade500,
-      };
+    NoticeSeverity.danger => Colors.red.shade400,
+    NoticeSeverity.warning => Colors.amber,
+    NoticeSeverity.info => Colors.grey.shade500,
+  };
 
   IconData get _icon => switch (severity) {
-        NoticeSeverity.danger => Icons.dangerous,
-        NoticeSeverity.warning => Icons.warning_amber,
-        NoticeSeverity.info => Icons.info_outline,
-      };
+    NoticeSeverity.danger => Icons.dangerous,
+    NoticeSeverity.warning => Icons.warning_amber,
+    NoticeSeverity.info => Icons.info_outline,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -59,8 +60,10 @@ class NoticeCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: _colour.withValues(alpha: danger ? 0.12 : 0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _colour.withValues(alpha: danger ? 1 : 0.4),
-            width: danger ? 2 : 1),
+        border: Border.all(
+          color: _colour.withValues(alpha: danger ? 1 : 0.4),
+          width: danger ? 2 : 1,
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -81,7 +84,7 @@ class NoticeCard extends StatelessWidget {
                 ),
                 if (body != null) ...[
                   const SizedBox(height: 6),
-                  Text(
+                  OptimalWrapText(
                     body!,
                     style: TextStyle(
                       fontSize: 13,
@@ -108,7 +111,7 @@ class NoticeCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Text(
+                        child: OptimalWrapText(
                           bullet,
                           style: TextStyle(
                             fontSize: 13,
@@ -122,7 +125,7 @@ class NoticeCard extends StatelessWidget {
                 ],
                 if (trail != null) ...[
                   const SizedBox(height: 8),
-                  Text(
+                  OptimalWrapText(
                     trail!,
                     style: TextStyle(
                       fontSize: 13,
@@ -131,17 +134,11 @@ class NoticeCard extends StatelessWidget {
                     ),
                   ),
                 ],
-                if (footer != null) ...[
-                  const SizedBox(height: 8),
-                  footer!,
-                ],
+                if (footer != null) ...[const SizedBox(height: 8), footer!],
               ],
             ),
           ),
-          if (trailing != null) ...[
-            const SizedBox(width: 12),
-            trailing!,
-          ],
+          if (trailing != null) ...[const SizedBox(width: 12), trailing!],
         ],
       ),
     );

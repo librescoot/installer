@@ -67,6 +67,7 @@ dependencies:
   flutter_markdown_plus: ^1.0.12
   audioplayers: ^6.5.1
   shared_preferences: ^2.5.5
+  optimal_wrap_text: ^1.5.0
 
 dev_dependencies:
   flutter_test:

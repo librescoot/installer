@@ -397,6 +397,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "9.6.0"
+  optimal_wrap_text:
+    dependency: "direct main"
+    description:
+      name: optimal_wrap_text
+      sha256: c753ff7233687af2473e46207a01d3f1ee8dc805d47f9443516bb727ab86ea8c
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.5.0"
   package_config:
     dependency: transitive
     description:

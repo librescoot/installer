@@ -11,6 +11,7 @@ import 'services/ssh_service.dart';
 import 'services/log_service.dart';
 import 'services/installer_sounds.dart';
 import 'theme.dart';
+import 'widgets/dialog_prose.dart';
 
 /// Global log buffer accessible from anywhere.
 final List<String> installerLog = [];
@@ -329,7 +330,7 @@ Future<void> showElevationRequiredDialog(BuildContext context) async {
     builder: (ctx) => AlertDialog(
       icon: const Icon(Icons.lock_outline, color: Colors.amber, size: 36),
       title: Text(l10n.elevationRequiredTitle),
-      content: Text(l10n.elevationRequiredBody),
+      content: DialogProse(l10n.elevationRequiredBody),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(ctx).pop(),

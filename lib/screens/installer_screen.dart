@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:optimal_wrap_text/optimal_wrap_text.dart';
 import 'package:path/path.dart' as path;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
@@ -67,6 +68,7 @@ import '../services/window_close_coordinator.dart';
 import '../widgets/artifact_progress_panel.dart';
 import '../widgets/connect_failure_panel.dart';
 import '../widgets/dbc_incomplete_notice.dart';
+import '../widgets/dialog_prose.dart';
 import '../widgets/health_check_panel.dart';
 import '../widgets/brake_gesture.dart';
 import '../widgets/install_plan_panel.dart';
@@ -623,11 +625,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  DialogProse(
                     l10n.updateAvailableBody(
                       update.latestVersion,
                       update.currentVersion,
                     ),
+                    maxWidth: 520,
                   ),
                   if (releaseDate != null) ...[
                     const SizedBox(height: 8),
@@ -2246,7 +2249,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Text(
+                        OptimalWrapText(
                           l10n.downloadsFailedBody,
                           style: TextStyle(
                             fontSize: 13,
@@ -2362,7 +2365,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                           ),
                         ),
                         const SizedBox(height: 6),
-                        Text(
+                        OptimalWrapText(
                           l10n.releaseMissingAssetsBody(
                             _downloadState.releaseTag ?? '',
                             missingAssets
@@ -2950,7 +2953,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             },
           ),
         ],
-        child: Text(
+        child: OptimalWrapText(
           l10n.manualPasswordUnknownBody,
           style: TextStyle(
             fontSize: 14,
@@ -3692,7 +3695,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(l10n.previousInstallErrorBody),
+              DialogProse(l10n.previousInstallErrorBody, maxWidth: 620),
               const SizedBox(height: 16),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 340),
@@ -4635,7 +4638,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
+                  OptimalWrapText(
                     l10n.untestedFirmwareBody(_mdbInfo?.firmwareVersion ?? ''),
                     style: TextStyle(fontSize: 13, color: Colors.grey.shade300),
                   ),
@@ -5721,7 +5724,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(l10n.confirmFlashTargetBody),
+                DialogProse(l10n.confirmFlashTargetBody, maxWidth: 480),
                 const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -6237,14 +6240,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(
+                OptimalWrapText(
                   l10n.brakeResetIntro,
                   style: TextStyle(color: Colors.grey.shade300, height: 1.4),
                 ),
                 const SizedBox(height: 18),
                 BrakeGesturePacer(onCue: _sounds.play),
                 const SizedBox(height: 14),
-                Text(
+                OptimalWrapText(
                   l10n.brakeResetAfterNote,
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                 ),
@@ -6306,7 +6309,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                     const Icon(Icons.warning, color: Colors.orange),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
+                      child: OptimalWrapText(
                         l10n.auxDisconnectWarning,
                         style: const TextStyle(
                           color: Colors.orange,
@@ -6330,7 +6333,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(l10n.manualRestartFallbackTitle),
-        content: Text(l10n.manualRestartFallbackWarning),
+        content: DialogProse(l10n.manualRestartFallbackWarning),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -6402,13 +6405,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             imageAsset: 'assets/images/lsi-unu_scooter_aux_connected.jpg',
           )
         else
-          Text(
+          OptimalWrapText(
             l10n.mdbBootRestartingNote,
             style: TextStyle(color: Colors.grey.shade400),
             textAlign: TextAlign.center,
           ),
         const SizedBox(height: 16),
-        Text(
+        OptimalWrapText(
           l10n.dbcLedHint,
           textAlign: TextAlign.center,
           style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
@@ -7089,7 +7092,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           ),
           if (error == l10n.artifactRebootTimeout) ...[
             const SizedBox(height: 12),
-            Text(
+            OptimalWrapText(
               l10n.artifactRebootTimeoutHint,
               style: TextStyle(
                 fontSize: 13,
@@ -7526,7 +7529,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           title: Text(l10n.fallBackWipeTitle),
           content: SizedBox(
             width: 480,
-            child: SingleChildScrollView(child: Text(l10n.fallBackWipeBody)),
+            child: SingleChildScrollView(
+              child: DialogProse(l10n.fallBackWipeBody, maxWidth: 480),
+            ),
           ),
           actions: [
             TextButton(
@@ -8249,7 +8254,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         barrierDismissible: false,
         builder: (dialogContext) => AlertDialog(
           title: Text(l10n.finishWithoutDbcConfirmTitle),
-          content: Text(l10n.finishWithoutDbcConfirmBody),
+          content: DialogProse(l10n.finishWithoutDbcConfirmBody),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
@@ -8526,7 +8531,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             ),
           ),
           const SizedBox(height: 16),
-          Text(
+          OptimalWrapText(
             l10n.dbcFlashChooseOutcomeHint,
             textAlign: TextAlign.center,
             style: TextStyle(
@@ -8735,7 +8740,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
         title: Text(l10n.finishWithoutDbcConfirmTitle),
-        content: Text(l10n.finishWithoutDbcConfirmBody),
+        content: DialogProse(l10n.finishWithoutDbcConfirmBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -8831,7 +8836,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         title: Text(l10n.dbcCleanInstallTitle),
         content: SizedBox(
           width: 480,
-          child: SingleChildScrollView(child: Text(l10n.dbcCleanInstallBody)),
+          child: SingleChildScrollView(
+            child: DialogProse(l10n.dbcCleanInstallBody, maxWidth: 480),
+          ),
         ),
         actions: [
           TextButton(
@@ -8887,7 +8894,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             ],
           ),
           const SizedBox(height: 6),
-          Text(
+          OptimalWrapText(
             l10n.reconnectTimeoutBody(waitedSecs ~/ 60),
             style: TextStyle(color: Colors.orange.shade100, fontSize: 13),
           ),
@@ -9489,7 +9496,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               ),
             ),
             const SizedBox(height: 18),
-            Text(
+            OptimalWrapText(
               l10n.blePinConfirmHint,
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
@@ -10612,7 +10619,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(l10n.keycardStartOverConfirmTitle),
-        content: Text(l10n.keycardStartOverConfirmBody),
+        content: DialogProse(l10n.keycardStartOverConfirmBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -10806,19 +10813,20 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     ),
   ];
 
-  Widget _buildKeycardAlreadyConfigured(AppLocalizations l10n) => Text(
-    l10n.keycardEntryAlreadyConfiguredBody(
-      _keycardMasterCount ?? 0,
-      _keycardAuthorizedCount ?? 0,
-    ),
-    style: TextStyle(fontSize: 14, color: Colors.grey.shade300),
-  );
+  Widget _buildKeycardAlreadyConfigured(AppLocalizations l10n) =>
+      OptimalWrapText(
+        l10n.keycardEntryAlreadyConfiguredBody(
+          _keycardMasterCount ?? 0,
+          _keycardAuthorizedCount ?? 0,
+        ),
+        style: TextStyle(fontSize: 14, color: Colors.grey.shade300),
+      );
 
   Widget _buildKeycardCardsStage(AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
+        OptimalWrapText(
           l10n.keycardLearningBody,
           style: TextStyle(fontSize: 13, color: Colors.grey.shade300),
         ),
@@ -10846,7 +10854,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
+                OptimalWrapText(
                   l10n.keycardLearningActiveHint,
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
@@ -10968,7 +10976,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           if ((masters ?? 0) > 0) line(l10n.keycardMastersRegistered(masters!)),
           if (noReader) ...[
             const SizedBox(height: 12),
-            Text(
+            OptimalWrapText(
               l10n.keycardReaderMissingHint,
               style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
             ),
@@ -11058,7 +11066,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         context: context,
         builder: (context) => AlertDialog(
           title: Text(l10n.keycardSkipConfirmTitle),
-          content: Text(l10n.keycardSkipConfirmBody),
+          content: DialogProse(l10n.keycardSkipConfirmBody),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -11181,7 +11189,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 ],
               ),
               const SizedBox(height: 8),
-              Text(
+              OptimalWrapText(
                 l10n.keycardMasterStageWarningBody,
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade200),
               ),
@@ -11206,7 +11214,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               children: [
                 const Icon(Icons.contactless, size: 28, color: kAccent),
                 const SizedBox(height: 8),
-                Text(
+                OptimalWrapText(
                   l10n.keycardMasterStageHint,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
@@ -11561,7 +11569,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 : l10n.mdbFinishKeepCable,
           ),
           const SizedBox(height: 16),
-          Text(
+          OptimalWrapText(
             l10n.mdbFinishWaitHint,
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
@@ -12318,7 +12326,7 @@ class _ManualPasswordDialogState extends State<_ManualPasswordDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(description),
+          DialogProse(description),
           const SizedBox(height: 16),
           TextField(
             controller: _controller,
