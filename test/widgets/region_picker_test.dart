@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/models/region.dart';
+import 'package:librescoot_installer/widgets/balanced_wrap.dart';
 import 'package:librescoot_installer/widgets/phase_layout.dart';
 import 'package:librescoot_installer/widgets/region_picker.dart';
 
@@ -38,7 +39,7 @@ void main() {
       'Frankreich',
       'Belgien',
     ]);
-    final pills = tester.widget<Wrap>(
+    final pills = tester.widget<BalancedWrap>(
       find.byKey(const ValueKey('region-pills')),
     );
     expect(

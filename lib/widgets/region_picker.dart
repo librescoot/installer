@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../models/region.dart';
+import 'balanced_wrap.dart';
 import '../theme.dart';
 
 /// Single-region selection with country tabs and alphabetically ordered pills.
@@ -125,7 +126,7 @@ class _RegionPickerState extends State<RegionPicker>
   Widget build(BuildContext context) {
     if (_groups.isEmpty) return const SizedBox.shrink();
     final activeCountry = _groups.keys.elementAt(_tabs.index);
-    final pills = Wrap(
+    final pills = BalancedWrap(
       key: const ValueKey('region-pills'),
       spacing: 8,
       runSpacing: 8,
