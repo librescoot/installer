@@ -23,18 +23,25 @@ class WelcomeRequirements extends StatelessWidget {
         ? 'https://downloads.librescoot.org/en/installation-video/'
         : 'https://downloads.librescoot.org/installation-video/';
 
-    WidgetSpan link(String label, String url, Key key) => WidgetSpan(
+    final shopLink = WidgetSpan(
       alignment: PlaceholderAlignment.baseline,
       baseline: TextBaseline.alphabetic,
       child: InkWell(
-        key: key,
-        onTap: () => onOpenUrl(url),
-        child: Text(
-          label,
-          style: style.copyWith(
-            color: kAccent,
-            decoration: TextDecoration.underline,
-          ),
+        key: const ValueKey('shop-link'),
+        onTap: () => onOpenUrl(shopUrl),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              l10n.requirementsShopLink,
+              style: style.copyWith(
+                color: kAccent,
+                decoration: TextDecoration.underline,
+              ),
+            ),
+            const SizedBox(width: 2),
+            const Icon(Icons.open_in_new, size: 12, color: kAccent),
+          ],
         ),
       ),
     );
@@ -52,17 +59,20 @@ class WelcomeRequirements extends StatelessWidget {
                 text: l10n.prerequisiteScrewdriverPH2,
                 style: const TextStyle(decoration: TextDecoration.underline),
               ),
-              const TextSpan(text: ', '),
+              TextSpan(text: l10n.requirementsFootwell),
               TextSpan(
                 text: l10n.prerequisiteScrewdriverFlat,
                 style: const TextStyle(decoration: TextDecoration.underline),
               ),
+              TextSpan(text: l10n.requirementsDbcCable),
               TextSpan(text: l10n.requirementsAnd),
-              link(
-                l10n.prerequisiteUsbCable,
-                shopUrl,
-                const ValueKey('shop-cable'),
+              TextSpan(
+                text: l10n.prerequisiteUsbCable,
+                style: const TextStyle(decoration: TextDecoration.underline),
               ),
+              const TextSpan(text: ' ('),
+              shopLink,
+              const TextSpan(text: ')'),
               TextSpan(text: l10n.requirementsOutro),
             ],
           ),

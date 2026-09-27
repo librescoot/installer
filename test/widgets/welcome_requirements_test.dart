@@ -4,7 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/l10n/app_localizations.dart';
 import 'package:librescoot_installer/widgets/welcome_requirements.dart';
 
+import '../goldens/font_harness.dart';
+
 void main() {
+  setUpAll(loadRealFonts);
   for (final locale in [const Locale('de'), const Locale('en')]) {
     testWidgets(
       'requirements are compact and link to the shop and video in ${locale.languageCode}',
@@ -42,7 +45,39 @@ void main() {
             .where(
               (span) => span.style?.decoration == TextDecoration.underline,
             );
-        expect(underlinedTools, hasLength(2));
+        expect(underlinedTools, hasLength(3));
+        final copy = paragraph.textSpan!.toPlainText();
+        expect(
+          copy,
+          contains(
+            locale.languageCode == 'de'
+                ? 'für das Fußbrett'
+                : 'for the footboard',
+          ),
+        );
+        expect(
+          copy,
+          contains(
+            locale.languageCode == 'de'
+                ? 'Verschraubung des DBC-Kabels'
+                : "DBC cable's mounting screw",
+          ),
+        );
+        expect(
+          copy,
+          contains(
+            locale.languageCode == 'de'
+                ? 'Admin-Rechte auf dem Computer'
+                : 'administrator rights on your computer',
+          ),
+        );
+        expect(
+          find.descendant(
+            of: find.byKey(const ValueKey('shop-link')),
+            matching: find.byIcon(Icons.open_in_new),
+          ),
+          findsOneWidget,
+        );
         expect(
           tester
               .getSize(
@@ -57,7 +92,7 @@ void main() {
           lessThan(75),
         );
 
-        await tester.tap(find.byKey(const ValueKey('shop-cable')));
+        await tester.tap(find.byKey(const ValueKey('shop-link')));
         await tester.tap(find.byKey(const ValueKey('installation-video')));
         expect(opened, [
           WelcomeRequirements.shopUrl,

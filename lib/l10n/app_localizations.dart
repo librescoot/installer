@@ -389,7 +389,7 @@ abstract class AppLocalizations {
   /// No description provided for @requirementsIntro.
   ///
   /// In en, this message translates to:
-  /// **'You\'ll need '**
+  /// **'You need administrator rights on your computer to access the MDB, '**
   String get requirementsIntro;
 
   /// No description provided for @prerequisiteScrewdriverPH2.
@@ -398,11 +398,23 @@ abstract class AppLocalizations {
   /// **'a PH2/H4 screwdriver'**
   String get prerequisiteScrewdriverPH2;
 
+  /// No description provided for @requirementsFootwell.
+  ///
+  /// In en, this message translates to:
+  /// **' for the footboard, '**
+  String get requirementsFootwell;
+
   /// No description provided for @prerequisiteScrewdriverFlat.
   ///
   /// In en, this message translates to:
   /// **'a flat-head/PH1 screwdriver'**
   String get prerequisiteScrewdriverFlat;
+
+  /// No description provided for @requirementsDbcCable.
+  ///
+  /// In en, this message translates to:
+  /// **' for the DBC cable\'s mounting screw'**
+  String get requirementsDbcCable;
 
   /// No description provided for @prerequisiteUsbCable.
   ///
@@ -413,13 +425,19 @@ abstract class AppLocalizations {
   /// No description provided for @requirementsAnd.
   ///
   /// In en, this message translates to:
-  /// **' and '**
+  /// **', and '**
   String get requirementsAnd;
+
+  /// No description provided for @requirementsShopLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Shop'**
+  String get requirementsShopLink;
 
   /// No description provided for @requirementsOutro.
   ///
   /// In en, this message translates to:
-  /// **'. Allow 20 minutes and have administrator access ready.'**
+  /// **'. Allow about 20 minutes.'**
   String get requirementsOutro;
 
   /// No description provided for @requirementsVideoLink.

@@ -164,13 +164,20 @@ class AppLocalizationsDe extends AppLocalizations {
   String get updateOpenDownloads => 'Downloadseite öffnen';
 
   @override
-  String get requirementsIntro => 'Du brauchst ';
+  String get requirementsIntro =>
+      'Du brauchst Admin-Rechte auf dem Computer, um den Zugriff zum MDB zu ermöglichen, ';
 
   @override
   String get prerequisiteScrewdriverPH2 => 'einen PH2/H4-Schraubendreher';
 
   @override
+  String get requirementsFootwell => ' für das Fußbrett, ';
+
+  @override
   String get prerequisiteScrewdriverFlat => 'einen Schlitz/PH1-Schraubendreher';
+
+  @override
+  String get requirementsDbcCable => ' für die Verschraubung des DBC-Kabels';
 
   @override
   String get prerequisiteUsbCable => 'ein USB-Mini-B-Kabel';
@@ -179,8 +186,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get requirementsAnd => ' und ';
 
   @override
-  String get requirementsOutro =>
-      '. Plane 20 Minuten ein und halte Administratorrechte bereit.';
+  String get requirementsShopLink => 'Shop';
+
+  @override
+  String get requirementsOutro => '. Plane etwa 20 Minuten ein.';
 
   @override
   String get requirementsVideoLink => 'Videoanleitung ansehen ↗';

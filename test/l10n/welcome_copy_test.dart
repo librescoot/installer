@@ -9,7 +9,7 @@ void main() {
     'Welcome lists administrator access and offline navigation in German',
     () {
       final l10n = AppLocalizationsDe();
-      expect(l10n.requirementsOutro, contains('Administratorrechte'));
+      expect(l10n.requirementsIntro, contains('Admin-Rechte auf dem Computer'));
       expect(l10n.prerequisiteUsbCable, 'ein USB-Mini-B-Kabel');
       expect(l10n.requirementsVideoLink, 'Videoanleitung ansehen ↗');
       expect(l10n.firmwareChannel, 'Firmware auswählen');
@@ -22,7 +22,10 @@ void main() {
     'Welcome lists administrator access and offline navigation in English',
     () {
       final l10n = AppLocalizationsEn();
-      expect(l10n.requirementsOutro, contains('administrator access'));
+      expect(
+        l10n.requirementsIntro,
+        contains('administrator rights on your computer'),
+      );
       expect(l10n.prerequisiteUsbCable, contains('USB Mini-B cable'));
       expect(l10n.requirementsVideoLink, 'Watch the installation video ↗');
       expect(l10n.firmwareChannel, 'Choose firmware');
