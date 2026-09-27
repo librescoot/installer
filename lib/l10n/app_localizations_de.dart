@@ -316,6 +316,75 @@ class AppLocalizationsDe extends AppLocalizations {
   String get region => 'Offline-Karten & Navigation';
 
   @override
+  String get localTilesBrowse => 'Durchsuchen…';
+
+  @override
+  String get localTilesTitle => 'Eigene Karten- und Navigationsdateien';
+
+  @override
+  String get localTilesIntro =>
+      'Wähle eine oder beide Dateien. Fehlende Dateien werden für die gewählte Region heruntergeladen.';
+
+  @override
+  String get localTilesDrop => 'Dateien hierher ziehen';
+
+  @override
+  String get localTilesPick => 'Dateien auswählen';
+
+  @override
+  String get localTilesMap => 'Karte (.mbtiles)';
+
+  @override
+  String get localTilesRouting => 'Navigation (valhalla_tiles_*.tar[.zst])';
+
+  @override
+  String get localTilesUnset => 'Wird heruntergeladen';
+
+  @override
+  String get localTilesClear => 'Auswahl entfernen';
+
+  @override
+  String get localTilesRemove => 'Datei entfernen';
+
+  @override
+  String get localTilesUse => 'Dateien verwenden';
+
+  @override
+  String get localTilesActive => 'Eigene Dateien ausgewählt';
+
+  @override
+  String get localTilesNoFiles => 'Wähle mindestens eine Datei.';
+
+  @override
+  String get localTilesNoRegion => 'Wähle eine Region für die fehlende Datei.';
+
+  @override
+  String get localTilesCustomPair =>
+      'Für eine eigene Region brauchst du beide Dateien.';
+
+  @override
+  String get localTilesInvalidMap =>
+      'Die Kartendatei ist keine MBTiles-SQLite-Datei.';
+
+  @override
+  String get localTilesUnreadable => 'Die Datei ist nicht lesbar oder leer.';
+
+  @override
+  String get localTilesMismatch =>
+      'Karten- und Navigationsdatei haben unterschiedliche Regionsnamen.';
+
+  @override
+  String get localTilesInvalidRouting =>
+      'Die Navigation muss valhalla_tiles_*.tar oder .tar.zst heißen.';
+
+  @override
+  String get localTilesInvalidExtension => 'Wähle eine .mbtiles-Kartendatei.';
+
+  @override
+  String get localTilesUnsupported =>
+      'Nur .mbtiles und valhalla_tiles_*.tar[.zst] sind erlaubt.';
+
+  @override
   String get selectRegion => 'Region auswählen';
 
   @override

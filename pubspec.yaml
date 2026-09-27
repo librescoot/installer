@@ -68,6 +68,7 @@ dependencies:
   audioplayers: ^6.5.1
   shared_preferences: ^2.5.5
   optimal_wrap_text: ^1.5.0
+  desktop_drop: ^0.8.4
 
 dev_dependencies:
   flutter_test:

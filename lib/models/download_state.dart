@@ -26,6 +26,7 @@ class DownloadItem {
     required this.filename,
     required this.expectedSize,
     this.expectedSha256,
+    this.userProvided = false,
   });
 
   final DownloadItemType type;
@@ -37,6 +38,7 @@ class DownloadItem {
   /// Null on legacy releases (pre-SHA256SUMS) or for assets the manifest
   /// doesn't list, verification is skipped in those cases.
   final String? expectedSha256;
+  final bool userProvided;
   int bytesDownloaded = 0;
   String? localPath;
   bool get isComplete => localPath != null;

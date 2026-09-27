@@ -656,6 +656,132 @@ abstract class AppLocalizations {
   /// **'Offline maps & navigation'**
   String get region;
 
+  /// No description provided for @localTilesBrowse.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse…'**
+  String get localTilesBrowse;
+
+  /// No description provided for @localTilesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Your map and navigation files'**
+  String get localTilesTitle;
+
+  /// No description provided for @localTilesIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose either or both files. Missing files will be downloaded for the selected region.'**
+  String get localTilesIntro;
+
+  /// No description provided for @localTilesDrop.
+  ///
+  /// In en, this message translates to:
+  /// **'Drop files here'**
+  String get localTilesDrop;
+
+  /// No description provided for @localTilesPick.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose files'**
+  String get localTilesPick;
+
+  /// No description provided for @localTilesMap.
+  ///
+  /// In en, this message translates to:
+  /// **'Map (.mbtiles)'**
+  String get localTilesMap;
+
+  /// No description provided for @localTilesRouting.
+  ///
+  /// In en, this message translates to:
+  /// **'Navigation (valhalla_tiles_*.tar[.zst])'**
+  String get localTilesRouting;
+
+  /// No description provided for @localTilesUnset.
+  ///
+  /// In en, this message translates to:
+  /// **'Will be downloaded'**
+  String get localTilesUnset;
+
+  /// No description provided for @localTilesClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear selection'**
+  String get localTilesClear;
+
+  /// No description provided for @localTilesRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove file'**
+  String get localTilesRemove;
+
+  /// No description provided for @localTilesUse.
+  ///
+  /// In en, this message translates to:
+  /// **'Use files'**
+  String get localTilesUse;
+
+  /// No description provided for @localTilesActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Local files selected'**
+  String get localTilesActive;
+
+  /// No description provided for @localTilesNoFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose at least one file.'**
+  String get localTilesNoFiles;
+
+  /// No description provided for @localTilesNoRegion.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a region for the missing file.'**
+  String get localTilesNoRegion;
+
+  /// No description provided for @localTilesCustomPair.
+  ///
+  /// In en, this message translates to:
+  /// **'A custom region needs both files.'**
+  String get localTilesCustomPair;
+
+  /// No description provided for @localTilesInvalidMap.
+  ///
+  /// In en, this message translates to:
+  /// **'The map is not an MBTiles SQLite file.'**
+  String get localTilesInvalidMap;
+
+  /// No description provided for @localTilesUnreadable.
+  ///
+  /// In en, this message translates to:
+  /// **'The file is unreadable or empty.'**
+  String get localTilesUnreadable;
+
+  /// No description provided for @localTilesMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'The map and navigation files name different regions.'**
+  String get localTilesMismatch;
+
+  /// No description provided for @localTilesInvalidRouting.
+  ///
+  /// In en, this message translates to:
+  /// **'The navigation file must be named valhalla_tiles_*.tar or .tar.zst.'**
+  String get localTilesInvalidRouting;
+
+  /// No description provided for @localTilesInvalidExtension.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose an .mbtiles map file.'**
+  String get localTilesInvalidExtension;
+
+  /// No description provided for @localTilesUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Only .mbtiles and valhalla_tiles_*.tar[.zst] are accepted.'**
+  String get localTilesUnsupported;
+
   /// No description provided for @selectRegion.
   ///
   /// In en, this message translates to:

@@ -311,6 +311,73 @@ class AppLocalizationsEn extends AppLocalizations {
   String get region => 'Offline maps & navigation';
 
   @override
+  String get localTilesBrowse => 'Browse…';
+
+  @override
+  String get localTilesTitle => 'Your map and navigation files';
+
+  @override
+  String get localTilesIntro =>
+      'Choose either or both files. Missing files will be downloaded for the selected region.';
+
+  @override
+  String get localTilesDrop => 'Drop files here';
+
+  @override
+  String get localTilesPick => 'Choose files';
+
+  @override
+  String get localTilesMap => 'Map (.mbtiles)';
+
+  @override
+  String get localTilesRouting => 'Navigation (valhalla_tiles_*.tar[.zst])';
+
+  @override
+  String get localTilesUnset => 'Will be downloaded';
+
+  @override
+  String get localTilesClear => 'Clear selection';
+
+  @override
+  String get localTilesRemove => 'Remove file';
+
+  @override
+  String get localTilesUse => 'Use files';
+
+  @override
+  String get localTilesActive => 'Local files selected';
+
+  @override
+  String get localTilesNoFiles => 'Choose at least one file.';
+
+  @override
+  String get localTilesNoRegion => 'Choose a region for the missing file.';
+
+  @override
+  String get localTilesCustomPair => 'A custom region needs both files.';
+
+  @override
+  String get localTilesInvalidMap => 'The map is not an MBTiles SQLite file.';
+
+  @override
+  String get localTilesUnreadable => 'The file is unreadable or empty.';
+
+  @override
+  String get localTilesMismatch =>
+      'The map and navigation files name different regions.';
+
+  @override
+  String get localTilesInvalidRouting =>
+      'The navigation file must be named valhalla_tiles_*.tar or .tar.zst.';
+
+  @override
+  String get localTilesInvalidExtension => 'Choose an .mbtiles map file.';
+
+  @override
+  String get localTilesUnsupported =>
+      'Only .mbtiles and valhalla_tiles_*.tar[.zst] are accepted.';
+
+  @override
   String get selectRegion => 'Select your region';
 
   @override

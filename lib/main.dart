@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 import 'l10n/app_localizations.dart';
 import 'models/keycard_preset.dart';
+import 'models/local_tile_selection.dart';
 import 'screens/installer_screen.dart';
 import 'services/ssh_service.dart';
 import 'services/log_service.dart';
@@ -94,11 +95,15 @@ class LaunchArgs {
   final String? lang;
   final String? mdbImage;
   final String? dbcImage;
+  final String? osmTiles;
+  final String? valhallaTiles;
+
   /// Set by self-elevation when we relaunch ourselves with admin rights.
   /// Causes the elevated process to skip the welcome screen and resume
   /// the install starting from "Start Installation" was clicked, with
   /// the user's selections carried over as --channel/--region/etc.
   final bool autoStart;
+
   /// True if the user explicitly unchecked "offline maps" before clicking
   /// Start. Lets the elevated relaunch preserve that choice (otherwise it
   /// would default back to wanting offline maps and trip over a missing
@@ -106,10 +111,12 @@ class LaunchArgs {
   final bool noOfflineMaps;
   final bool dryRun;
   final bool sshTrace;
+
   /// Log file the unelevated process already opened. The elevated relaunch
   /// appends to it instead of starting a second file, so one run produces one
   /// log the user can hand over.
   final String? logFile;
+
   /// Cards to authorise at the keycard step without holding them to the
   /// reader. `--keycard=UID`, repeatable, or `--keycards=A,B`.
   final List<String> keycards;
@@ -120,6 +127,8 @@ class LaunchArgs {
     this.lang,
     this.mdbImage,
     this.dbcImage,
+    this.osmTiles,
+    this.valhallaTiles,
     this.autoStart = false,
     this.noOfflineMaps = false,
     this.dryRun = false,
@@ -129,7 +138,14 @@ class LaunchArgs {
   });
 
   factory LaunchArgs.fromArgs(List<String> args) {
-    String? channel, region, lang, mdbImage, dbcImage, logFile;
+    String? channel,
+        region,
+        lang,
+        mdbImage,
+        dbcImage,
+        osmTiles,
+        valhallaTiles,
+        logFile;
     var autoStart = false;
     var noOfflineMaps = false;
     var dryRun = false;
@@ -147,6 +163,12 @@ class LaunchArgs {
       if (arg.startsWith('--lang=')) lang = arg.split('=')[1];
       if (arg.startsWith('--mdb-image=')) mdbImage = arg.split('=')[1];
       if (arg.startsWith('--dbc-image=')) dbcImage = arg.split('=')[1];
+      if (arg.startsWith('--osm-tiles=')) {
+        osmTiles = arg.substring('--osm-tiles='.length);
+      }
+      if (arg.startsWith('--valhalla-tiles=')) {
+        valhallaTiles = arg.substring('--valhalla-tiles='.length);
+      }
       // Paths may legitimately contain '=', so take everything after the
       // first one rather than splitting.
       if (arg.startsWith('--log-file=')) {
@@ -163,6 +185,8 @@ class LaunchArgs {
       lang: lang,
       mdbImage: mdbImage,
       dbcImage: dbcImage,
+      osmTiles: osmTiles,
+      valhallaTiles: valhallaTiles,
       autoStart: autoStart,
       noOfflineMaps: noOfflineMaps,
       dryRun: dryRun,
@@ -187,20 +211,22 @@ class LaunchArgs {
     required String channelName,
     required String? regionSlug,
     required bool wantsOfflineMaps,
-  }) =>
-      [
-        '--channel=$channelName',
-        if (regionSlug != null) '--region=$regionSlug',
-        if (lang != null) '--lang=$lang',
-        if (mdbImage != null) '--mdb-image=$mdbImage',
-        if (dbcImage != null) '--dbc-image=$dbcImage',
-        if (!wantsOfflineMaps) '--no-offline-maps',
-        if (dryRun) '--dry-run',
-        if (sshTrace) '--ssh-trace',
-        if (keycards.isNotEmpty) '--keycards=${keycards.join(',')}',
-        if (LogService.filePath != null) '--log-file=${LogService.filePath}',
-        '--auto-start',
-      ];
+    LocalTileSelection? localTiles,
+  }) => [
+    '--channel=$channelName',
+    if (regionSlug != null) '--region=$regionSlug',
+    if (lang != null) '--lang=$lang',
+    if (mdbImage != null) '--mdb-image=$mdbImage',
+    if (dbcImage != null) '--dbc-image=$dbcImage',
+    if (localTiles != null) '--osm-tiles=${localTiles.mapPath}',
+    if (localTiles != null) '--valhalla-tiles=${localTiles.routingPath}',
+    if (!wantsOfflineMaps) '--no-offline-maps',
+    if (dryRun) '--dry-run',
+    if (sshTrace) '--ssh-trace',
+    if (keycards.isNotEmpty) '--keycards=${keycards.join(',')}',
+    if (LogService.filePath != null) '--log-file=${LogService.filePath}',
+    '--auto-start',
+  ];
 }
 
 late final LaunchArgs launchArgs;
@@ -211,92 +237,110 @@ final ValueNotifier<Locale> appLocale = ValueNotifier(const Locale('de'));
 
 /// Installer version. Injected by CI via `--dart-define=APP_VERSION=<git describe>`;
 /// falls back to 'dev' for local unflagged builds.
-const String appVersion = String.fromEnvironment('APP_VERSION', defaultValue: 'dev');
+const String appVersion = String.fromEnvironment(
+  'APP_VERSION',
+  defaultValue: 'dev',
+);
 const String appTitle = 'Librescoot Installer $appVersion';
 
 void main(List<String> args) async {
-  runZonedGuarded(() async {
-    WidgetsFlutterBinding.ensureInitialized();
-    if (Platform.isLinux || Platform.isMacOS || Platform.isWindows) {
-      await windowManager.ensureInitialized();
-      await windowManager.setPreventClose(true);
-      await windowManager.setTitle(appTitle);
-    }
+  runZonedGuarded(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      if (Platform.isLinux || Platform.isMacOS || Platform.isWindows) {
+        await windowManager.ensureInitialized();
+        await windowManager.setPreventClose(true);
+        await windowManager.setTitle(appTitle);
+      }
 
-    // Flutter framework errors (build/layout/paint exceptions). Without this,
-    // a release build can end up in an unrecoverable state.
-    FlutterError.onError = (details) {
-      reportUnhandledError(details.exception, details.stack, from: 'flutter');
-    };
+      // Flutter framework errors (build/layout/paint exceptions). Without this,
+      // a release build can end up in an unrecoverable state.
+      FlutterError.onError = (details) {
+        reportUnhandledError(details.exception, details.stack, from: 'flutter');
+      };
 
-    // Async errors that escape the framework (microtasks, untriaged Futures).
-    // Returning true tells the engine we handled it, keep the app alive.
-    PlatformDispatcher.instance.onError = (error, stack) {
-      reportUnhandledError(error, stack, from: 'platform');
-      return true;
-    };
+      // Async errors that escape the framework (microtasks, untriaged Futures).
+      // Returning true tells the engine we handled it, keep the app alive.
+      PlatformDispatcher.instance.onError = (error, stack) {
+        reportUnhandledError(error, stack, from: 'platform');
+        return true;
+      };
 
-    launchArgs = LaunchArgs.fromArgs(args);
-    if (launchArgs.lang != null) {
-      appLocale.value = Locale(launchArgs.lang!);
-    }
-    SshService.traceProtocol = launchArgs.sshTrace;
+      launchArgs = LaunchArgs.fromArgs(args);
+      if (launchArgs.lang != null) {
+        appLocale.value = Locale(launchArgs.lang!);
+      }
+      SshService.traceProtocol = launchArgs.sshTrace;
 
-    // Capture all debugPrint output into the global log
-    final originalDebugPrint = debugPrint;
-    debugPrint = (String? message, {int? wrapWidth}) {
-      if (message != null) appendLog(message);
-      originalDebugPrint(message, wrapWidth: wrapWidth);
-    };
+      // Capture all debugPrint output into the global log
+      final originalDebugPrint = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) appendLog(message);
+        originalDebugPrint(message, wrapWidth: wrapWidth);
+      };
 
-    // Open the on-disk log early: anything logged before this is buffered by
-    // LogService and written out as soon as the file is there.
-    await LogService.init(
-      handoffPath: launchArgs.logFile,
-      version: appVersion,
-      locale: appLocale.value.languageCode,
-      args: args,
-    );
+      // Open the on-disk log early: anything logged before this is buffered by
+      // LogService and written out as soon as the file is there.
+      await LogService.init(
+        handoffPath: launchArgs.logFile,
+        version: appVersion,
+        locale: appLocale.value.languageCode,
+        args: args,
+      );
 
-    debugPrint('Librescoot Installer $appVersion starting (lang=${appLocale.value.languageCode}, platform=${Platform.operatingSystem})');
-    debugPrint('Log file: ${LogService.filePath ?? 'unavailable'}');
+      debugPrint(
+        'Librescoot Installer $appVersion starting (lang=${appLocale.value.languageCode}, platform=${Platform.operatingSystem})',
+      );
+      debugPrint('Log file: ${LogService.filePath ?? 'unavailable'}');
 
-    // Self-elevation no longer happens here; it's deferred until the user
-    // actually clicks Start Installation. That way the user can browse the
-    // welcome screen, pick a channel/region etc. without the UAC/sudo
-    // prompt firing in their face on every launch, AND a --dry-run launch
-    // doesn't get auto-clicked through to the next phase before the user
-    // sees anything. See _startDownloadsAndContinue in installer_screen.dart.
+      // Self-elevation no longer happens here; it's deferred until the user
+      // actually clicks Start Installation. That way the user can browse the
+      // welcome screen, pick a channel/region etc. without the UAC/sudo
+      // prompt firing in their face on every launch, AND a --dry-run launch
+      // doesn't get auto-clicked through to the next phase before the user
+      // sees anything. See _startDownloadsAndContinue in installer_screen.dart.
 
-    // On fresh Windows installs, the CA certificate store may be incomplete.
-    // Windows lazily downloads missing CA certs when SChannel-based apps (like
-    // curl.exe) connect to HTTPS endpoints, but Dart's HTTP client only reads
-    // what's already in the store. Warm up the store by hitting the endpoints
-    // we'll need.
-    if (Platform.isWindows) {
-      Future.wait([
-        Process.run('curl.exe', ['-s', '-o', 'NUL', 'https://api.github.com/']),
-        Process.run('curl.exe', ['-s', '-o', 'NUL', 'https://github.com/']),
-        Process.run('curl.exe', ['-s', '-o', 'NUL', 'https://release-assets.githubusercontent.com/']),
-      ]).catchError((_) => <ProcessResult>[]);
-    }
+      // On fresh Windows installs, the CA certificate store may be incomplete.
+      // Windows lazily downloads missing CA certs when SChannel-based apps (like
+      // curl.exe) connect to HTTPS endpoints, but Dart's HTTP client only reads
+      // what's already in the store. Warm up the store by hitting the endpoints
+      // we'll need.
+      if (Platform.isWindows) {
+        Future.wait([
+          Process.run('curl.exe', [
+            '-s',
+            '-o',
+            'NUL',
+            'https://api.github.com/',
+          ]),
+          Process.run('curl.exe', ['-s', '-o', 'NUL', 'https://github.com/']),
+          Process.run('curl.exe', [
+            '-s',
+            '-o',
+            'NUL',
+            'https://release-assets.githubusercontent.com/',
+          ]),
+        ]).catchError((_) => <ProcessResult>[]);
+      }
 
-    // If we were launched as the elevated process, bring ourselves to front
-    if (launchArgs.autoStart && Platform.isMacOS) {
-      Future.delayed(const Duration(seconds: 1), () {
-        // Activate by bundle ID: no Accessibility permissions needed
-        Process.run('osascript', [
-          '-e',
-          'tell application id "org.librescoot.installer" to activate',
-        ]);
-      });
-    }
+      // If we were launched as the elevated process, bring ourselves to front
+      if (launchArgs.autoStart && Platform.isMacOS) {
+        Future.delayed(const Duration(seconds: 1), () {
+          // Activate by bundle ID: no Accessibility permissions needed
+          Process.run('osascript', [
+            '-e',
+            'tell application id "org.librescoot.installer" to activate',
+          ]);
+        });
+      }
 
-    runApp(const LibrescootInstaller());
-  }, (error, stack) {
-    // Last-resort catch for anything that escaped both error handlers above.
-    reportUnhandledError(error, stack, from: 'zone');
-  });
+      runApp(const LibrescootInstaller());
+    },
+    (error, stack) {
+      // Last-resort catch for anything that escaped both error handlers above.
+      reportUnhandledError(error, stack, from: 'zone');
+    },
+  );
 }
 
 class LibrescootInstaller extends StatelessWidget {

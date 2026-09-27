@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p;
 
 import '../models/board_state.dart';
 import '../models/download_state.dart';
+import '../models/local_tile_selection.dart';
 import '../models/region.dart';
 
 class DownloadCancelled implements Exception {
@@ -702,6 +703,7 @@ class DownloadService {
     required DownloadChannel channel,
     Region? region,
     required bool wantsOfflineMaps,
+    LocalTileSelection? localTiles,
     Set<Board> fullImageBoards = const {},
   }) async {
     final items = <DownloadItem>[];
@@ -783,6 +785,29 @@ class DownloadService {
 
     // Tile downloads
     if (wantsOfflineMaps && region != null) {
+      if (localTiles != null) {
+        if (localTiles.regionSlug != null &&
+            region.slug != localTiles.regionSlug) {
+          throw const LocalTileException(LocalTileError.regionMismatch);
+        }
+        await localTiles.validateFiles();
+      }
+
+      Future<void> addLocal(String filePath, DownloadItemType type) async {
+        final size = await File(filePath).length();
+        items.add(
+          DownloadItem(
+              type: type,
+              url: '',
+              filename: p.basename(filePath),
+              expectedSize: size,
+              userProvided: true,
+            )
+            ..localPath = filePath
+            ..bytesDownloaded = size,
+        );
+      }
+
       Future<void> addTile(
         Map<String, dynamic> asset,
         DownloadItemType type,
@@ -800,38 +825,54 @@ class DownloadService {
         items.add(item);
       }
 
-      late Map<String, dynamic> map;
-      late Map<String, dynamic> selected;
-      try {
-        final manifest = await resolveMapsRouting();
-        final entries = manifest['regions'] as Map<String, dynamic>;
-        final data = entries[region.slug] as Map<String, dynamic>;
-        map = data['map'] as Map<String, dynamic>;
-        final routing = data['routing'] as Map<String, dynamic>;
-        final compressed = routing['compressed'];
-        selected =
-            compressed is Map<String, dynamic> &&
-                (compressed['codec'] == null || compressed['codec'] == 'zstd')
-            ? compressed
-            : routing;
-      } catch (e) {
-        debugPrint('maps-routing unavailable, using legacy tile listings: $e');
-        final maps = await resolveTileAssets(_osmTilesRepo, 'tiles_');
-        final routes = await resolveTileAssets(
-          _valhallaTilesRepo,
-          'valhalla_tiles_',
-        );
-        map = maps.firstWhere((a) => a['name'] == region.osmTilesFilename);
-        selected =
-            routes
-                .where(
-                  (a) => a['name'] == region.valhallaTilesCompressedFilename,
-                )
-                .firstOrNull ??
-            routes.firstWhere((a) => a['name'] == region.valhallaTilesFilename);
+      if (localTiles?.mapPath == null || localTiles?.routingPath == null) {
+        late Map<String, dynamic> map;
+        late Map<String, dynamic> selected;
+        try {
+          final manifest = await resolveMapsRouting();
+          final entries = manifest['regions'] as Map<String, dynamic>;
+          final data = entries[region.slug] as Map<String, dynamic>;
+          map = data['map'] as Map<String, dynamic>;
+          final routing = data['routing'] as Map<String, dynamic>;
+          final compressed = routing['compressed'];
+          selected =
+              compressed is Map<String, dynamic> &&
+                  (compressed['codec'] == null || compressed['codec'] == 'zstd')
+              ? compressed
+              : routing;
+        } catch (e) {
+          debugPrint(
+            'maps-routing unavailable, using legacy tile listings: $e',
+          );
+          final maps = await resolveTileAssets(_osmTilesRepo, 'tiles_');
+          final routes = await resolveTileAssets(
+            _valhallaTilesRepo,
+            'valhalla_tiles_',
+          );
+          map = maps.firstWhere((a) => a['name'] == region.osmTilesFilename);
+          selected =
+              routes
+                  .where(
+                    (a) => a['name'] == region.valhallaTilesCompressedFilename,
+                  )
+                  .firstOrNull ??
+              routes.firstWhere(
+                (a) => a['name'] == region.valhallaTilesFilename,
+              );
+        }
+        if (localTiles?.mapPath == null) {
+          await addTile(map, DownloadItemType.osmTiles);
+        }
+        if (localTiles?.routingPath == null) {
+          await addTile(selected, DownloadItemType.valhallaTiles);
+        }
       }
-      await addTile(map, DownloadItemType.osmTiles);
-      await addTile(selected, DownloadItemType.valhallaTiles);
+      if (localTiles?.mapPath case final path?) {
+        await addLocal(path, DownloadItemType.osmTiles);
+      }
+      if (localTiles?.routingPath case final path?) {
+        await addLocal(path, DownloadItemType.valhallaTiles);
+      }
     }
 
     // Sort by enum index so downloads proceed in the order the install
@@ -1052,7 +1093,7 @@ class DownloadService {
   Future<int> deleteCache(List<DownloadItem> items) async {
     var totalFreed = 0;
     for (final item in items) {
-      if (item.localPath != null) {
+      if (item.localPath != null && !item.userProvided) {
         final file = File(item.localPath!);
         if (await file.exists()) {
           totalFreed += await file.length();

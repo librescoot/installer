@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/main.dart';
+import 'package:librescoot_installer/models/local_tile_selection.dart';
 
 void main() {
   test('keycards come from --keycard, repeated, and --keycards, listed', () {
@@ -20,6 +21,28 @@ void main() {
     );
     expect(relaunch, contains('--keycards=46DCC300,161B4501'));
   });
+
+  test(
+    'local tile paths survive elevated relaunch with spaces and equals signs',
+    () {
+      final selection = LocalTileSelection.fromPaths(
+        mapPath: r'C:\My Maps\tiles_graz.mbtiles',
+        routingPath: r'C:\My Maps\valhalla_tiles_graz.tar.zst',
+      );
+      final relaunch = LaunchArgs.fromArgs(const []).relaunchArgs(
+        channelName: 'stable',
+        regionSlug: 'graz',
+        wantsOfflineMaps: true,
+        localTiles: selection,
+      );
+      final args = LaunchArgs.fromArgs([
+        ...relaunch,
+        '--osm-tiles=/home/me/a=b/tiles_graz.mbtiles',
+      ]);
+      expect(args.osmTiles, '/home/me/a=b/tiles_graz.mbtiles');
+      expect(args.valhallaTiles, r'C:\My Maps\valhalla_tiles_graz.tar.zst');
+    },
+  );
 
   test('--ssh-trace is off by default and survives the elevated relaunch', () {
     expect(LaunchArgs.fromArgs(const []).sshTrace, isFalse);

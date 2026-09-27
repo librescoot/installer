@@ -28,6 +28,7 @@ import '../models/board_state.dart';
 import '../models/connect_failure.dart';
 import '../models/configuration_preservation.dart';
 import '../models/download_state.dart';
+import '../models/local_tile_selection.dart';
 import '../models/dashboard_messages.dart';
 import '../models/install_plan.dart';
 import '../models/install_gate.dart';
@@ -82,6 +83,7 @@ import '../widgets/dbc_flash_outcomes.dart';
 import '../widgets/overlay_card.dart';
 import '../widgets/phase_sidebar.dart';
 import '../widgets/region_picker.dart';
+import '../widgets/local_tile_picker.dart';
 import '../widgets/substep_list.dart';
 import '../widgets/wait_overlay.dart';
 import '../widgets/action_overlay.dart';
@@ -153,6 +155,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   // State
   final DownloadState _downloadState = DownloadState();
+  LocalTileSelection? _localTiles;
   ScooterHealth? _scooterHealth;
   UsbDevice? _device;
 
@@ -164,6 +167,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   // offline catalogue so the dropdown is populated immediately, then replaced
   // once the live listing resolves.
   List<Region> _availableRegions = Region.all;
+  List<Region> _publishedRegions = Region.all;
 
   // Phase guard flags (prevent auto-start methods from re-firing on rebuild)
   bool _mdbConnectStarted = false;
@@ -533,13 +537,18 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final regions = await _downloadService.fetchAvailableRegions();
     if (!mounted || regions.isEmpty) return;
     setState(() {
+      _publishedRegions = regions;
       _availableRegions = regions;
       // Keep launch-argument and IP selections when the live list arrives.
       final selected = _downloadState.selectedRegion;
       if (selected != null) {
-        _downloadState.selectedRegion = regions
-            .where((r) => r.slug == selected.slug)
-            .firstOrNull;
+        _downloadState.selectedRegion =
+            regions.where((r) => r.slug == selected.slug).firstOrNull ??
+            (_localTiles != null ? selected : null);
+        if (_localTiles != null &&
+            !regions.any((r) => r.slug == selected.slug)) {
+          _availableRegions = [...regions, selected];
+        }
       }
     });
   }
@@ -570,6 +579,21 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (args.region != null) {
       final r = Region.all.where((r) => r.slug == args.region).firstOrNull;
       if (r != null) _downloadState.selectedRegion = r;
+    }
+    if (args.osmTiles != null || args.valhallaTiles != null) {
+      _localTiles = LocalTileSelection.fromPaths(
+        mapPath: args.osmTiles,
+        routingPath: args.valhallaTiles,
+      );
+      if (_localTiles!.regionSlug case final slug?) {
+        _downloadState.selectedRegion = Region.fromSlug(slug);
+        if (!_availableRegions.any((r) => r.slug == slug)) {
+          _availableRegions = [
+            ..._availableRegions,
+            _downloadState.selectedRegion!,
+          ];
+        }
+      }
     }
     if (args.noOfflineMaps) {
       _downloadState.wantsOfflineMaps = false;
@@ -1948,6 +1972,27 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     _waitLog.clear();
   }
 
+  Future<void> _showLocalTilePicker() async {
+    final choice = await showDialog<LocalTileChoice>(
+      context: context,
+      builder: (context) => LocalTilePicker(
+        regions: _publishedRegions,
+        selectedRegion: _downloadState.selectedRegion,
+        initialSelection: _localTiles,
+      ),
+    );
+    if (!mounted || choice == null) return;
+    _updateDownloadSelection(() {
+      _localTiles = choice.selection;
+      _downloadState.selectedRegion = choice.region;
+      if (choice.region != null &&
+          !_availableRegions.any((r) => r.slug == choice.region!.slug)) {
+        _availableRegions = [..._availableRegions, choice.region!];
+      }
+      if (choice.selection != null) _downloadState.wantsOfflineMaps = true;
+    });
+  }
+
   Widget _buildWelcome(AppLocalizations l10n) {
     return PhaseLayout(
       title: l10n.welcomeHeading,
@@ -2049,53 +2094,67 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
           // Region selection with skip checkbox inline. The checkbox belongs
           // to this heading, so it stays beside it instead of at the far edge.
-          SizedBox(
-            width: double.infinity,
-            child: Wrap(
-              alignment: WrapAlignment.start,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 12,
-              runSpacing: 4,
-              children: [
-                Text(
-                  l10n.region,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                InkWell(
-                  onTap: () => _updateDownloadSelection(() {
-                    _downloadState.wantsOfflineMaps =
-                        !_downloadState.wantsOfflineMaps;
-                  }),
-                  borderRadius: BorderRadius.circular(4),
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Checkbox(
-                          value: !_downloadState.wantsOfflineMaps,
-                          onChanged: (v) => _updateDownloadSelection(() {
-                            _downloadState.wantsOfflineMaps = !(v ?? false);
-                          }),
-                        ),
-                        Flexible(
-                          child: Text(
-                            l10n.skipOfflineMaps,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey.shade400,
-                            ),
-                          ),
-                        ),
-                      ],
+          Row(
+            children: [
+              Expanded(
+                child: Wrap(
+                  alignment: WrapAlignment.start,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 12,
+                  runSpacing: 4,
+                  children: [
+                    Text(
+                      l10n.region,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
-                  ),
+                    InkWell(
+                      onTap: () => _updateDownloadSelection(() {
+                        _downloadState.wantsOfflineMaps =
+                            !_downloadState.wantsOfflineMaps;
+                      }),
+                      borderRadius: BorderRadius.circular(4),
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Checkbox(
+                              value: !_downloadState.wantsOfflineMaps,
+                              onChanged: (v) => _updateDownloadSelection(() {
+                                _downloadState.wantsOfflineMaps = !(v ?? false);
+                              }),
+                            ),
+                            Flexible(
+                              child: Text(
+                                l10n.skipOfflineMaps,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey.shade400,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              TextButton.icon(
+                key: const ValueKey('local-tiles-browse'),
+                onPressed: _showLocalTilePicker,
+                icon: Icon(
+                  _localTiles == null
+                      ? Icons.folder_open_outlined
+                      : Icons.check_circle_outline,
+                  size: 16,
+                ),
+                label: Text(l10n.localTilesBrowse),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           if (_downloadState.wantsOfflineMaps)
@@ -2103,6 +2162,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               regions: _availableRegions,
               selectedRegion: _downloadState.selectedRegion,
               onSelected: (region) => _updateDownloadSelection(() {
+                _localTiles = null;
                 _downloadState.selectedRegion = region;
               }),
             ),
@@ -2436,6 +2496,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           channelName: _downloadState.channel.name,
           regionSlug: _downloadState.selectedRegion?.slug,
           wantsOfflineMaps: _downloadState.wantsOfflineMaps,
+          localTiles: _localTiles,
         ),
       );
       if (relaunched) {
@@ -2510,6 +2571,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         url: '',
         filename: File(path).uri.pathSegments.last,
         expectedSize: size,
+        userProvided: true,
       )
       ..localPath = path
       ..bytesDownloaded = size;
@@ -2530,6 +2592,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final channel = _downloadState.channel;
     final region = _downloadState.selectedRegion;
     final wantsOfflineMaps = _downloadState.wantsOfflineMaps;
+    final localTiles = _localTiles;
     final l10n = AppLocalizations.of(context)!;
     setState(() {
       _isProcessing = true;
@@ -2580,6 +2643,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           channel: channel,
           region: region,
           wantsOfflineMaps: wantsOfflineMaps,
+          localTiles: localTiles,
         );
         if (!_ownsDownloadGeneration(generation, cancellationToken)) return;
         // A local image named alongside a release stands in for that board's
@@ -4883,6 +4947,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
     _updateDownloadSelection(() {
       _downloadState.wantsOfflineMaps = choice.wantsMaps;
+      if (choice.region != _downloadState.selectedRegion) _localTiles = null;
       _downloadState.selectedRegion = choice.region;
     });
     setState(() {
@@ -7595,6 +7660,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         channel: _downloadState.channel,
         region: _downloadState.selectedRegion,
         wantsOfflineMaps: _downloadState.wantsOfflineMaps,
+        localTiles: _localTiles,
         fullImageBoards: const {Board.mdb},
       );
       if (!mounted) return;
