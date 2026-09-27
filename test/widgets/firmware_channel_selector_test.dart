@@ -8,7 +8,11 @@ import 'package:librescoot_installer/widgets/firmware_channel_selector.dart';
 import 'package:optimal_wrap_text/optimal_wrap_text.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../goldens/font_harness.dart';
+
 void main() {
+  setUpAll(loadRealFonts);
+
   Widget host({
     Locale locale = const Locale('de'),
     DownloadChannel selected = DownloadChannel.stable,
@@ -80,19 +84,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Nightly wirklich auswählen?'), findsOneWidget);
     expect(find.byType(OptimalWrapRichText), findsOneWidget);
-    expect(
-      tester
-          .getSize(
-            find
-                .ancestor(
-                  of: find.text('Nightly wirklich auswählen?'),
-                  matching: find.byType(Material),
-                )
-                .first,
-          )
-          .width,
-      lessThanOrEqualTo(520),
-    );
+    final surface = find
+        .ancestor(
+          of: find.text('Nightly wirklich auswählen?'),
+          matching: find.byType(Material),
+        )
+        .first;
+    expect(tester.getSize(surface).width, lessThanOrEqualTo(520));
+    expect(tester.getSize(surface).height, lessThan(500));
     expect(find.textContaining('nicht nutzbar'), findsOneWidget);
     expect(
       find.textContaining('keinen Support für Nightly-Versionen'),

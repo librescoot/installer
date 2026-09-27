@@ -63,6 +63,7 @@ class _FirmwareChannelSelectorState extends State<FirmwareChannelSelector> {
                 ],
               ),
               width: 472,
+              shrinkWrap: true,
             ),
             actions: [
               TextButton(
