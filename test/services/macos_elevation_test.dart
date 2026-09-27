@@ -104,7 +104,10 @@ void main() {
       final elevation = File(
         'lib/services/elevation_service.dart',
       ).readAsStringSync();
-      expect(elevation, contains("createTemp('librescoot_askpass_')"));
+      expect(
+        elevation,
+        matches(RegExp(r"createTemp\(\s*'librescoot_askpass_'\s*,?\s*\)")),
+      );
       expect(elevation, contains("chmod', ['0700'"));
     });
   });

@@ -3,6 +3,11 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('portable welcome runs unelevated so Explorer can drop files', () {
+    final source = File('windows/installer.nsi').readAsStringSync();
+    expect(source, contains('RequestExecutionLevel user'));
+  });
+
   test('passes the persistent wrapper path to the inner executable', () {
     final source = File('windows/installer.nsi').readAsStringSync();
     final environment = source.indexOf(

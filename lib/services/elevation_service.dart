@@ -32,7 +32,9 @@ class ElevationService {
   /// [extraArgs] are appended to the command line (e.g. --channel=testing --region=bayern --auto-start).
   /// Returns true if relaunch was initiated (caller should exit).
   /// Returns false if already elevated or elevation failed.
-  static Future<bool> elevateIfNeeded({List<String> extraArgs = const []}) async {
+  static Future<bool> elevateIfNeeded({
+    List<String> extraArgs = const [],
+  }) async {
     if (await isElevated()) {
       return false; // Already elevated
     }
@@ -41,12 +43,34 @@ class ElevationService {
     final args = [...Platform.executableArguments, ...extraArgs];
 
     if (Platform.isWindows) {
-      return _elevateWindows(executable, args);
+      final target = windowsRelaunchTarget(
+        executable: executable,
+        executableArgs: Platform.executableArguments,
+        extraArgs: extraArgs,
+        environment: Platform.environment,
+      );
+      return _elevateWindows(target.$1, target.$2);
     } else if (Platform.isMacOS) {
       return _elevateMacOS(executable, args);
     }
 
     return false;
+  }
+
+  /// Relaunch the outer portable wrapper when present so its extracted bundle
+  /// remains available after the unelevated wrapper exits.
+  @visibleForTesting
+  static (String, List<String>) windowsRelaunchTarget({
+    required String executable,
+    required List<String> executableArgs,
+    required List<String> extraArgs,
+    required Map<String, String> environment,
+  }) {
+    final wrapper = environment['LIBRESCOOT_OUTER_WRAPPER_PATH'];
+    if (wrapper != null && wrapper.isNotEmpty) {
+      return (wrapper, extraArgs);
+    }
+    return (executable, [...executableArgs, ...extraArgs]);
   }
 
   static Future<bool> _isWindowsAdmin() async {
@@ -67,14 +91,12 @@ class ElevationService {
       if (result.exitCode == 0) {
         return result.stdout.toString().trim() == '0';
       }
-    } catch (_) {
-    }
+    } catch (_) {}
     try {
       final status = await File('/proc/self/status').readAsString();
       final uid = RegExp(r'^Uid:\s*(\d+)', multiLine: true).firstMatch(status);
       if (uid != null) return uid.group(1) == '0';
-    } catch (_) {
-    }
+    } catch (_) {}
     return false;
   }
 
@@ -113,7 +135,10 @@ class ElevationService {
     return buffer.toString();
   }
 
-  static Future<bool> _elevateWindows(String executable, List<String> args) async {
+  static Future<bool> _elevateWindows(
+    String executable,
+    List<String> args,
+  ) async {
     // Use PowerShell Start-Process with -Verb RunAs for UAC elevation.
     // ArgumentList wants an array of strings, so build a real PowerShell
     // array literal rather than one space-separated string, which lets the
@@ -148,11 +173,12 @@ class ElevationService {
 
     debugPrint('Elevation: PowerShell command = $psCmd');
     try {
-      final result = await Process.run(
-        'powershell',
-        ['-NoProfile', '-NonInteractive', '-Command', psCmd],
-        runInShell: true,
-      );
+      final result = await Process.run('powershell', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        psCmd,
+      ], runInShell: true);
       final stdout = result.stdout.toString().trim();
       final stderr = result.stderr.toString().trim();
       debugPrint(
@@ -167,7 +193,10 @@ class ElevationService {
     }
   }
 
-  static Future<bool> _elevateMacOS(String executable, List<String> args) async {
+  static Future<bool> _elevateMacOS(
+    String executable,
+    List<String> args,
+  ) async {
     // Write a launcher script to avoid shell quoting issues with osascript.
     // The script logs to a file for debugging and does NOT use exec (so & works).
     //
@@ -176,10 +205,14 @@ class ElevationService {
     // local user pre-create/symlink it before we write to it (TOCTOU), which
     // `do shell script ... with administrator privileges` would then execute
     // as root.
-    final tempDir = await Directory.systemTemp.createTemp('librescoot_elevate_');
+    final tempDir = await Directory.systemTemp.createTemp(
+      'librescoot_elevate_',
+    );
     final launcher = File(path.join(tempDir.path, 'elevate.sh'));
     final logFile = path.join(tempDir.path, 'elevate.log');
-    final argLine = args.map((a) => "'${a.replaceAll("'", "'\\''")}'").join(' ');
+    final argLine = args
+        .map((a) => "'${a.replaceAll("'", "'\\''")}'")
+        .join(' ');
     // The launcher script MUST exit immediately. do shell script waits for it.
     // Only launch the app in background and exit: nothing else.
     await launcher.writeAsString(
@@ -189,7 +222,9 @@ class ElevationService {
     await Process.run('chmod', ['+x', launcher.path]);
 
     try {
-      final escapedPath = launcher.path.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+      final escapedPath = launcher.path
+          .replaceAll('\\', '\\\\')
+          .replaceAll('"', '\\"');
       final result = await Process.run('osascript', [
         '-e',
         'do shell script "$escapedPath" with administrator privileges',
@@ -211,7 +246,8 @@ class ElevationService {
   }
 
   static Future<bool> hasCommand(String name) async {
-    final pathEnv = Platform.environment['PATH'] ??
+    final pathEnv =
+        Platform.environment['PATH'] ??
         '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin';
     for (final dir in pathEnv.split(':')) {
       if (dir.isEmpty) continue;
@@ -235,15 +271,14 @@ class ElevationService {
     if (await have('sudo')) {
       final askpass = await askpassFor();
       if (askpass != null) {
-        return RootInvocation(const ['sudo', '-A'], {
-          'SUDO_ASKPASS': askpass,
-        });
+        return RootInvocation(const ['sudo', '-A'], {'SUDO_ASKPASS': askpass});
       }
     }
     return null;
   }
 
-  static String macOsAskpassScript(String reason) => '#!/bin/sh\n'
+  static String macOsAskpassScript(String reason) =>
+      '#!/bin/sh\n'
       'osascript'
       ' -e \'display dialog "Librescoot Installer needs your administrator'
       ' password $reason." with title "Librescoot Installer"'
@@ -255,8 +290,9 @@ class ElevationService {
   static Future<String?> macOsAskpassPath(String reason) {
     return _macOsAskpass.putIfAbsent(reason, () async {
       try {
-        final dir =
-            await Directory.systemTemp.createTemp('librescoot_askpass_');
+        final dir = await Directory.systemTemp.createTemp(
+          'librescoot_askpass_',
+        );
         final script = File(path.join(dir.path, 'askpass.sh'));
         await script.writeAsString(macOsAskpassScript(reason));
         await Process.run('chmod', ['0700', script.path]);
@@ -321,7 +357,10 @@ class ElevationService {
       );
     } else {
       // Unix: use sudo
-      return Process.run('sudo', [command, ...args], workingDirectory: workingDirectory);
+      return Process.run('sudo', [
+        command,
+        ...args,
+      ], workingDirectory: workingDirectory);
     }
   }
 }

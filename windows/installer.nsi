@@ -28,9 +28,9 @@ Name "${PRODUCT_NAME} ${PRODUCT_VERSION}"
 OutFile "${OUT_FILE}"
 Icon "${__FILEDIR__}/runner/resources/app_icon.ico"
 
-; The inner app needs admin (pnputil, network config, ShellHWDetection).
-; UAC prompt fires once; the inner exe inherits the elevated token.
-RequestExecutionLevel admin
+; Keep the welcome screen unelevated for file drag-and-drop from Explorer.
+; The app relaunches this wrapper with UAC when installation starts.
+RequestExecutionLevel user
 
 ; No NSIS-side UI — pure self-extract + run.
 SilentInstall silent
