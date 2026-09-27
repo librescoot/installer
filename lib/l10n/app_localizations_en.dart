@@ -271,6 +271,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get channelNightlyDesc => 'Updated daily, for developers only';
 
   @override
+  String get nightlyWarningTitle => 'Select Nightly anyway?';
+
+  @override
+  String get nightlyWarningLead => 'Nightly could leave your scooter unusable.';
+
+  @override
+  String get nightlyWarningBody =>
+      'These builds are unstable and not thoroughly tested. If installation fails, you will have to recover the scooter yourself. Select Nightly only if you know how to do that.';
+
+  @override
+  String get nightlyWarningCancel => 'Cancel';
+
+  @override
+  String get nightlyWarningAccept => 'I understand, select Nightly';
+
+  @override
   String get channelNoReleases => 'No releases available';
 
   @override

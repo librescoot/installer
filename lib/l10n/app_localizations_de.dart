@@ -276,6 +276,23 @@ class AppLocalizationsDe extends AppLocalizations {
   String get channelNightlyDesc => 'Täglich neu, nur für Entwickler*innen';
 
   @override
+  String get nightlyWarningTitle => 'Nightly wirklich auswählen?';
+
+  @override
+  String get nightlyWarningLead =>
+      'Nightly kann deinen Roller unbenutzbar machen.';
+
+  @override
+  String get nightlyWarningBody =>
+      'Diese Builds sind instabil und nicht ausreichend getestet. Falls die Installation fehlschlägt, musst du den Roller selbst wiederherstellen. Wähle Nightly nur, wenn du weißt, wie das geht.';
+
+  @override
+  String get nightlyWarningCancel => 'Abbrechen';
+
+  @override
+  String get nightlyWarningAccept => 'Risiko verstanden, Nightly wählen';
+
+  @override
   String get channelNoReleases => 'Keine Veröffentlichungen verfügbar';
 
   @override

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/download_state.dart';
 import '../theme.dart';
 
-class FirmwareChannelSelector extends StatelessWidget {
+class FirmwareChannelSelector extends StatefulWidget {
   const FirmwareChannelSelector({
     super.key,
     required this.channels,
@@ -15,6 +16,77 @@ class FirmwareChannelSelector extends StatelessWidget {
   final Map<DownloadChannel, ({String tag, String date})>? channels;
   final DownloadChannel selected;
   final ValueChanged<DownloadChannel> onSelected;
+
+  @override
+  State<FirmwareChannelSelector> createState() =>
+      _FirmwareChannelSelectorState();
+}
+
+class _FirmwareChannelSelectorState extends State<FirmwareChannelSelector> {
+  static const _nightlyAcknowledgementKey =
+      'installer.nightly-risk-acknowledged.v1';
+  bool _selectingNightly = false;
+
+  Future<void> _selectChannel(DownloadChannel channel) async {
+    if (channel == widget.selected || _selectingNightly) return;
+    if (channel != DownloadChannel.nightly) {
+      widget.onSelected(channel);
+      return;
+    }
+
+    _selectingNightly = true;
+    try {
+      SharedPreferences? preferences;
+      try {
+        preferences = await SharedPreferences.getInstance();
+      } catch (error) {
+        debugPrint('Could not read installer preferences: $error');
+      }
+      if (!mounted || channel == widget.selected) return;
+      if (preferences?.getBool(_nightlyAcknowledgementKey) != true) {
+        final l10n = AppLocalizations.of(context)!;
+        final accepted = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) => AlertDialog(
+            title: Text(l10n.nightlyWarningTitle),
+            content: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: l10n.nightlyWarningLead,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  TextSpan(text: '\n\n${l10n.nightlyWarningBody}'),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text(l10n.nightlyWarningCancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text(l10n.nightlyWarningAccept),
+              ),
+            ],
+          ),
+        );
+        if (!mounted || accepted != true) return;
+        if (preferences != null) {
+          try {
+            await preferences.setBool(_nightlyAcknowledgementKey, true);
+          } catch (error) {
+            debugPrint('Could not save Nightly acknowledgement: $error');
+          }
+        }
+      }
+      if (mounted) widget.onSelected(channel);
+    } finally {
+      _selectingNightly = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,9 +117,9 @@ class FirmwareChannelSelector extends StatelessWidget {
                 channel: channel,
                 name: channelInfo[channel]!.name,
                 description: channelInfo[channel]!.desc,
-                release: channels?[channel],
-                available: channels?.containsKey(channel) ?? false,
-                selected: selected == channel,
+                release: widget.channels?[channel],
+                available: widget.channels?.containsKey(channel) ?? false,
+                selected: widget.selected == channel,
                 l10n: l10n,
               ),
             ),
@@ -72,7 +144,7 @@ class FirmwareChannelSelector extends StatelessWidget {
       selected: selected,
       child: InkWell(
         key: ValueKey('channel-${channel.name}'),
-        onTap: available ? () => onSelected(channel) : null,
+        onTap: available ? () => _selectChannel(channel) : null,
         borderRadius: BorderRadius.circular(10),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),

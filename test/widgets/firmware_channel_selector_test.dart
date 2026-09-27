@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/l10n/app_localizations.dart';
 import 'package:librescoot_installer/models/download_state.dart';
 import 'package:librescoot_installer/widgets/firmware_channel_selector.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   Widget host({
@@ -59,6 +60,36 @@ void main() {
         .toList();
     expect(dateTop[0], dateTop[1]);
     expect(dateTop[1], dateTop[2]);
+  });
+
+  testWidgets('Nightly requires consent once and remembers it', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    DownloadChannel? selected;
+    await tester.pumpWidget(host(onSelected: (channel) => selected = channel));
+
+    await tester.tap(find.byKey(const ValueKey('channel-nightly')));
+    await tester.pumpAndSettle();
+    expect(find.text('Nightly wirklich auswählen?'), findsOneWidget);
+    expect(find.textContaining('unbenutzbar'), findsOneWidget);
+    expect(selected, isNull);
+    await tester.tap(find.text('Abbrechen'));
+    await tester.pumpAndSettle();
+    expect(selected, isNull);
+
+    await tester.tap(find.byKey(const ValueKey('channel-nightly')));
+    await tester.pumpAndSettle();
+    expect(find.text('Nightly wirklich auswählen?'), findsOneWidget);
+    await tester.tap(find.text('Risiko verstanden, Nightly wählen'));
+    await tester.pumpAndSettle();
+    expect(selected, DownloadChannel.nightly);
+
+    selected = null;
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(host(onSelected: (channel) => selected = channel));
+    await tester.tap(find.byKey(const ValueKey('channel-nightly')));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(selected, DownloadChannel.nightly);
   });
 
   testWidgets('recommended badge and English copy are localized', (
