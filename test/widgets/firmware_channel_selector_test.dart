@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/l10n/app_localizations.dart';
 import 'package:librescoot_installer/models/download_state.dart';
+import 'package:librescoot_installer/theme.dart';
 import 'package:librescoot_installer/widgets/firmware_channel_selector.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -12,6 +13,7 @@ void main() {
     DownloadChannel selected = DownloadChannel.stable,
     ValueChanged<DownloadChannel>? onSelected,
   }) => MaterialApp(
+    theme: librescootTheme(),
     locale: locale,
     localizationsDelegates: const [
       AppLocalizations.delegate,
@@ -75,6 +77,19 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('channel-nightly')));
     await tester.pumpAndSettle();
     expect(find.text('Nightly wirklich auswählen?'), findsOneWidget);
+    expect(
+      tester
+          .getSize(
+            find
+                .ancestor(
+                  of: find.text('Nightly wirklich auswählen?'),
+                  matching: find.byType(Material),
+                )
+                .first,
+          )
+          .width,
+      lessThanOrEqualTo(520),
+    );
     expect(find.textContaining('nicht nutzbar'), findsOneWidget);
     expect(
       find.textContaining('keinen Support für Nightly-Versionen'),
@@ -99,6 +114,36 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsNothing);
     expect(selected, DownloadChannel.nightly);
+  });
+
+  testWidgets('other confirmations inherit the dialog width cap', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: librescootTheme(),
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Confirm'),
+                content: Text(
+                  List.filled(20, 'Long confirmation text').join(' '),
+                ),
+              ),
+            ),
+            child: const Text('Open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    final surface = find
+        .ancestor(of: find.text('Confirm'), matching: find.byType(Material))
+        .first;
+    expect(tester.getSize(surface).width, lessThanOrEqualTo(600));
   });
 
   testWidgets('recommended badge and English copy are localized', (

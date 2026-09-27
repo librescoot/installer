@@ -1566,6 +1566,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           }
 
           return AlertDialog(
+            constraints: const BoxConstraints(maxWidth: 760),
             title: Text(l10n.logDebugShell),
             content: SizedBox(
               width: 700,
@@ -3683,6 +3684,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
+        constraints: const BoxConstraints(maxWidth: 700),
         title: Text(l10n.previousInstallErrorHeading),
         content: SizedBox(
           width: 620,

@@ -164,6 +164,7 @@ ThemeData librescootTheme() {
       ),
     ),
     dialogTheme: DialogThemeData(
+      constraints: const BoxConstraints(minWidth: 280, maxWidth: 600),
       backgroundColor: kSurface,
       surfaceTintColor: Colors.transparent,
       elevation: 16,

@@ -49,6 +49,7 @@ class _FirmwareChannelSelectorState extends State<FirmwareChannelSelector> {
           context: context,
           barrierDismissible: false,
           builder: (dialogContext) => AlertDialog(
+            constraints: const BoxConstraints(maxWidth: 520),
             title: Text(l10n.nightlyWarningTitle),
             content: Text.rich(
               TextSpan(
