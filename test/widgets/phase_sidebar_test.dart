@@ -8,6 +8,7 @@ import 'package:librescoot_installer/theme.dart';
 import 'package:librescoot_installer/models/installer_phase.dart';
 import 'package:librescoot_installer/l10n/phase_l10n.dart';
 import 'package:librescoot_installer/widgets/phase_sidebar.dart';
+import 'package:librescoot_installer/widgets/language_switcher.dart';
 
 import '../goldens/font_harness.dart';
 
@@ -136,16 +137,40 @@ void main() {
       final disabled = locale.languageCode == 'de'
           ? 'Ton einschalten'
           : 'Unmute sounds';
-      expect(find.text(enabled), findsOneWidget);
-      await tester.tap(find.text(enabled));
+      expect(find.byTooltip(enabled), findsOneWidget);
+      expect(find.text(enabled), findsNothing);
+      await tester.tap(find.byTooltip(enabled));
       await tester.pump();
       expect(InstallerSounds.muted.value, isTrue);
-      expect(find.text(disabled), findsOneWidget);
-      await tester.tap(find.text(disabled));
+      expect(find.byTooltip(disabled), findsOneWidget);
+      await tester.tap(find.byTooltip(disabled));
       await tester.pump();
       expect(InstallerSounds.muted.value, isFalse);
       expect(tester.takeException(), isNull);
     }
+  });
+
+  testWidgets('log sits above language and sound controls', (tester) async {
+    var opened = 0;
+    await tester.pumpWidget(
+      host(
+        PhaseSidebar(
+          currentPhase: InstallerPhase.welcome,
+          completedPhases: const {},
+          onShowLog: () => opened++,
+        ),
+      ),
+    );
+    final log = find.text('Log anzeigen');
+    final language = find.byType(LanguageSwitcher);
+    final sound = find.byTooltip('Ton ausschalten');
+    expect(tester.getTopLeft(log).dy, lessThan(tester.getTopLeft(language).dy));
+    expect(
+      tester.getCenter(sound).dx,
+      greaterThan(tester.getCenter(language).dx),
+    );
+    await tester.tap(log);
+    expect(opened, 1);
   });
 
   testWidgets('the download chips speak the window language', (tester) async {

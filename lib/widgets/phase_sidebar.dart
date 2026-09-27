@@ -212,45 +212,33 @@ class _SidebarFooter extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          ValueListenableBuilder<bool>(
-            valueListenable: InstallerSounds.muted,
-            builder: (context, muted, _) => TextButton.icon(
-              onPressed: () => InstallerSounds.muted.value = !muted,
-              icon: Icon(
-                muted ? Icons.volume_off_outlined : Icons.volume_up_outlined,
-                size: 16,
-              ),
-              label: Text(
-                muted ? l10n.unmuteSounds : l10n.muteSounds,
-                style: const TextStyle(fontSize: 12.5),
-              ),
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.grey.shade400,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
+          TextButton.icon(
+            onPressed: onShowLog,
+            icon: const Icon(Icons.article_outlined, size: 16),
+            label: Text(l10n.showLog, style: const TextStyle(fontSize: 12.5)),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.grey.shade400,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const LanguageSwitcher(),
-              TextButton.icon(
-                onPressed: onShowLog,
-                icon: const Icon(Icons.article_outlined, size: 16),
-                label: Text(
-                  l10n.showLog,
-                  style: const TextStyle(fontSize: 12.5),
-                ),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.grey.shade400,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
+              ValueListenableBuilder<bool>(
+                valueListenable: InstallerSounds.muted,
+                builder: (context, muted, _) => IconButton(
+                  onPressed: () => InstallerSounds.muted.value = !muted,
+                  icon: Icon(
+                    muted
+                        ? Icons.volume_off_outlined
+                        : Icons.volume_up_outlined,
                   ),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  tooltip: muted ? l10n.unmuteSounds : l10n.muteSounds,
+                  color: Colors.grey.shade400,
+                  iconSize: 18,
                 ),
               ),
             ],
