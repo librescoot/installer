@@ -249,7 +249,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get elevationNoticeWelcome =>
-      'Wenn du auf Installation starten klickst, fragt dein System nach Administratorrechten. Der Installer benötigt sie, um auf den Speicher des Rollers zu schreiben und das Netzwerk zu konfigurieren.';
+      'Beim Start werden Admin-Rechte für MDB-Zugriff und Netzwerk benötigt.';
 
   @override
   String get arm64EmulationNoticeWelcome =>

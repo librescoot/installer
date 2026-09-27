@@ -47,51 +47,105 @@ class WelcomeRequirements extends StatelessWidget {
       ),
     );
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        OptimalWrapRichText(
+    final paragraph = OptimalWrapRichText(
+      TextSpan(
+        style: style,
+        children: [
+          TextSpan(text: l10n.requirementsIntro),
           TextSpan(
-            style: style,
+            text: l10n.prerequisiteScrewdriverPH2,
+            style: const TextStyle(decoration: TextDecoration.underline),
+          ),
+          TextSpan(text: l10n.requirementsFootwell),
+          TextSpan(
+            text: l10n.prerequisiteScrewdriverFlat,
+            style: const TextStyle(decoration: TextDecoration.underline),
+          ),
+          TextSpan(text: l10n.requirementsDbcCable),
+          TextSpan(text: l10n.requirementsAnd),
+          TextSpan(
+            text: l10n.prerequisiteUsbCable,
+            style: const TextStyle(decoration: TextDecoration.underline),
+          ),
+          const TextSpan(text: ' ('),
+          shopLink,
+          const TextSpan(text: ')'),
+          TextSpan(text: l10n.requirementsOutro),
+        ],
+      ),
+      shrinkWrap: true,
+    );
+
+    final videoCard = SizedBox(
+      width: 132,
+      height: 66,
+      child: Semantics(
+        button: true,
+        label: l10n.requirementsVideoLink,
+        onTap: () => onOpenUrl(videoUrl),
+        child: Material(
+          color: const Color(0xFF242424),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: kAccent.withValues(alpha: 0.35)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            key: const ValueKey('installation-video'),
+            excludeFromSemantics: true,
+            onTap: () => onOpenUrl(videoUrl),
+            child: ExcludeSemantics(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.play_circle_fill_rounded,
+                    color: kAccent,
+                    size: 25,
+                  ),
+                  const SizedBox(height: 2),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      l10n.requirementsVideoLink,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: kAccent,
+                        fontSize: 12,
+                        height: 1.2,
+                      ),
+                      maxLines: 2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 620) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextSpan(text: l10n.requirementsIntro),
-              TextSpan(
-                text: l10n.prerequisiteScrewdriverPH2,
-                style: const TextStyle(decoration: TextDecoration.underline),
-              ),
-              TextSpan(text: l10n.requirementsFootwell),
-              TextSpan(
-                text: l10n.prerequisiteScrewdriverFlat,
-                style: const TextStyle(decoration: TextDecoration.underline),
-              ),
-              TextSpan(text: l10n.requirementsDbcCable),
-              TextSpan(text: l10n.requirementsAnd),
-              TextSpan(
-                text: l10n.prerequisiteUsbCable,
-                style: const TextStyle(decoration: TextDecoration.underline),
-              ),
-              const TextSpan(text: ' ('),
-              shopLink,
-              const TextSpan(text: ')'),
-              TextSpan(text: l10n.requirementsOutro),
+              paragraph,
+              const SizedBox(height: 8),
+              Align(alignment: Alignment.centerRight, child: videoCard),
             ],
-          ),
-        ),
-        const SizedBox(height: 4),
-        TextButton.icon(
-          key: const ValueKey('installation-video'),
-          onPressed: () => onOpenUrl(videoUrl),
-          icon: const Icon(Icons.play_circle_outline, size: 16),
-          label: Text(l10n.requirementsVideoLink),
-          style: TextButton.styleFrom(
-            foregroundColor: kAccent,
-            padding: EdgeInsets.zero,
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ),
-      ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(child: paragraph),
+            const SizedBox(width: 16),
+            videoCard,
+          ],
+        );
+      },
     );
   }
 }

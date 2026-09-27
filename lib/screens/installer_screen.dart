@@ -1994,13 +1994,21 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Widget _buildWelcome(AppLocalizations l10n) {
+    final needsAdmin = Platform.isWindows && !_isElevated;
     return PhaseLayout(
       title: l10n.welcomeHeading,
       subtitle: l10n.welcomeSubheading,
+      footerLeading: needsAdmin
+          ? Text(
+              l10n.elevationNoticeWelcome,
+              key: const ValueKey('welcome-admin-notice'),
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+            )
+          : null,
       actions: [
         PhaseAction(
           label: l10n.startInstallation,
-          icon: Icons.arrow_forward,
+          icon: needsAdmin ? Icons.shield_outlined : Icons.arrow_forward,
           primary: true,
           onPressed:
               canStartWelcome(
@@ -2168,29 +2176,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             ),
 
           const SizedBox(height: 24),
-
-          // Heads-up that clicking Start will trigger the UAC prompt.
-          // Windows-only, macOS uses per-call authopen during the flash itself.
-          if (!_isElevated && Platform.isWindows) ...[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.shield_outlined,
-                  size: 18,
-                  color: Colors.grey.shade400,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    l10n.elevationNoticeWelcome,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-          ],
 
           // x64 build under ARM64 emulation: works, but slow and with no
           // ARM64 RNDIS driver. Worth saying before the first USB wait.

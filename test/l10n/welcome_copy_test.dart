@@ -12,6 +12,8 @@ void main() {
       expect(l10n.requirementsIntro, contains('Admin-Rechte auf dem Computer'));
       expect(l10n.prerequisiteUsbCable, 'ein USB-Mini-B-Kabel');
       expect(l10n.requirementsVideoLink, 'Videoanleitung ansehen ↗');
+      expect(l10n.elevationNoticeWelcome, contains('Beim Start'));
+      expect(l10n.elevationNoticeWelcome, contains('MDB-Zugriff'));
       expect(l10n.firmwareChannel, 'Firmware auswählen');
       expect(l10n.region, contains('Navigation'));
       expect(l10n.skipOfflineMaps, contains('Navigation'));
@@ -28,6 +30,8 @@ void main() {
       );
       expect(l10n.prerequisiteUsbCable, contains('USB Mini-B cable'));
       expect(l10n.requirementsVideoLink, 'Watch the installation video ↗');
+      expect(l10n.elevationNoticeWelcome, contains('Starting requires'));
+      expect(l10n.elevationNoticeWelcome, contains('MDB storage'));
       expect(l10n.firmwareChannel, 'Choose firmware');
       expect(l10n.region, contains('navigation'));
       expect(l10n.skipOfflineMaps, contains('navigation data'));
@@ -40,6 +44,8 @@ void main() {
       source,
       contains('WelcomeRequirements(onOpenUrl: _openExternalUrl)'),
     );
+    expect(source, contains('footerLeading: needsAdmin'));
+    expect(source, contains('needsAdmin ? Icons.shield_outlined'));
     expect(source, isNot(contains('_prerequisiteChecks')));
   });
 }

@@ -244,7 +244,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get elevationNoticeWelcome =>
-      'When you click Start Installation, your system will ask you to allow administrator access. The installer needs it to write to the scooter\'s storage and configure networking.';
+      'Starting requires administrator access for MDB storage and networking.';
 
   @override
   String get arm64EmulationNoticeWelcome =>

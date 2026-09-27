@@ -539,7 +539,7 @@ abstract class AppLocalizations {
   /// No description provided for @elevationNoticeWelcome.
   ///
   /// In en, this message translates to:
-  /// **'When you click Start Installation, your system will ask you to allow administrator access. The installer needs it to write to the scooter\'s storage and configure networking.'**
+  /// **'Starting requires administrator access for MDB storage and networking.'**
   String get elevationNoticeWelcome;
 
   /// No description provided for @arm64EmulationNoticeWelcome.

@@ -51,6 +51,35 @@ void main() {
         reason: 'the action bar must not scroll away with the body');
   });
 
+  testWidgets('footer notice stays beside the action while body scrolls',
+      (tester) async {
+    tester.view.physicalSize = const Size(500, 300);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(host(PhaseLayout(
+      title: 'Welcome',
+      footerLeading: const Text('Admin access for MDB storage and networking'),
+      actions: [PhaseAction(
+        label: 'Start installation',
+        icon: Icons.shield_outlined,
+        primary: true,
+        onPressed: () {},
+      )],
+      child: Column(children: [for (var i = 0; i < 60; i++) Text('line $i')]),
+    )));
+
+    final notice = find.text('Admin access for MDB storage and networking');
+    final button = find.widgetWithText(FilledButton, 'Start installation');
+    expect(tester.getRect(notice).bottom, lessThanOrEqualTo(300));
+    expect(tester.getRect(button).bottom, lessThanOrEqualTo(300));
+    expect(tester.getCenter(notice).dx, lessThan(tester.getCenter(button).dx));
+    expect(find.descendant(of: button, matching: find.byIcon(Icons.shield_outlined)),
+        findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('phase buttons and back navigation log the visible choice',
       (tester) async {
     final messages = <String>[];

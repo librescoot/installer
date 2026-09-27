@@ -84,7 +84,7 @@
   "backButton": "Back",
   "elevationRequiredTitle": "Administrator privileges required",
   "elevationRequiredBody": "Librescoot Installer needs administrator privileges to write to the scooter's storage and configure the network interface. The elevation prompt was declined or could not be shown.\n\nSelect Continue to dismiss this dialog and try again. The installer cannot continue until access is approved.",
-  "elevationNoticeWelcome": "When you click Start Installation, your system will ask you to allow administrator access. The installer needs it to write to the scooter's storage and configure networking.",
+  "elevationNoticeWelcome": "Starting requires administrator access for MDB storage and networking.",
   "arm64EmulationNoticeWelcome": "This machine has an ARM64 processor, so the installer runs under x64 emulation. That can slow USB detection down, and the bundled USB driver is built for x86/x64 only. An x64 machine is the most reliable choice.",
   "requestingAdminPrivileges": "Requesting administrator privileges...",
   "firmwareChannel": "Choose firmware",

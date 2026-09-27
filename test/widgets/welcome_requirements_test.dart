@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/l10n/app_localizations.dart';
@@ -80,18 +81,25 @@ void main() {
           ),
           findsOneWidget,
         );
+        final paragraphRect = tester.getRect(find.byType(OptimalWrapRichText));
+        final videoRect = tester.getRect(
+          find.byKey(const ValueKey('installation-video')),
+        );
+        expect(videoRect.left, greaterThan(paragraphRect.right));
+        final videoLabel = locale.languageCode == 'de'
+            ? 'Videoanleitung ansehen ↗'
+            : 'Watch the installation video ↗';
+        final videoText = find.descendant(
+          of: find.byKey(const ValueKey('installation-video')),
+          matching: find.text(videoLabel),
+        );
         expect(
-          tester
-              .getSize(
-                find
-                    .descendant(
-                      of: find.byType(WelcomeRequirements),
-                      matching: find.byType(Text),
-                    )
-                    .first,
-              )
-              .height,
-          lessThan(75),
+          tester.renderObject<RenderParagraph>(videoText).didExceedMaxLines,
+          isFalse,
+        );
+        expect(
+          tester.getSize(find.byType(WelcomeRequirements)).height,
+          lessThanOrEqualTo(82),
         );
 
         await tester.tap(find.byKey(const ValueKey('shop-link')));
@@ -105,4 +113,56 @@ void main() {
       },
     );
   }
+
+  testWidgets('video card stays inline in a wide welcome', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      locale: const Locale('de'),
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: Scaffold(body: SizedBox(
+        width: 960,
+        child: WelcomeRequirements(onOpenUrl: (_) {}),
+      )),
+    ));
+    final paragraphRect = tester.getRect(find.byType(OptimalWrapRichText));
+    final videoRect = tester.getRect(
+      find.byKey(const ValueKey('installation-video')),
+    );
+    expect(videoRect.left, greaterThan(paragraphRect.right));
+    expect(
+      tester.getSize(find.byType(WelcomeRequirements)).height,
+      lessThanOrEqualTo(82),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('video card stacks without overflow on a narrow welcome',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      locale: const Locale('de'),
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: Scaffold(body: SizedBox(
+        width: 400,
+        child: WelcomeRequirements(onOpenUrl: (_) {}),
+      )),
+    ));
+    final paragraphRect = tester.getRect(find.byType(OptimalWrapRichText));
+    final videoRect = tester.getRect(
+      find.byKey(const ValueKey('installation-video')),
+    );
+    expect(videoRect.top, greaterThan(paragraphRect.bottom));
+    expect(videoRect.right, lessThanOrEqualTo(400));
+    expect(tester.takeException(), isNull);
+  });
 }
