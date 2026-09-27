@@ -290,11 +290,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get nightlyWarningLead =>
-      'Nightly kann deinen Roller unbenutzbar machen.';
+      'Nightly-Builds sind oft noch nicht getestet und können instabil sein, nicht oder falsch funktionieren oder schlimmstenfalls deinen Roller nicht nutzbar hinterlassen.';
 
   @override
   String get nightlyWarningBody =>
-      'Diese Builds sind instabil und nicht ausreichend getestet. Falls die Installation fehlschlägt, musst du den Roller selbst wiederherstellen. Wähle Nightly nur, wenn du weißt, wie das geht.';
+      'Bitte wähle diesen Kanal nur, wenn du dir der Konsequenzen bewusst bist und diese Wiederherstellung selbst durchführen kannst. Wir können keinen Support für Nightly-Versionen leisten.';
 
   @override
   String get nightlyWarningCancel => 'Abbrechen';

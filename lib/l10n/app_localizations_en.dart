@@ -284,11 +284,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nightlyWarningTitle => 'Select Nightly anyway?';
 
   @override
-  String get nightlyWarningLead => 'Nightly could leave your scooter unusable.';
+  String get nightlyWarningLead =>
+      'Nightly builds are often not yet tested and may be unstable, fail to work or work incorrectly, or in the worst case leave your scooter unusable.';
 
   @override
   String get nightlyWarningBody =>
-      'These builds are unstable and not thoroughly tested. If installation fails, you will have to recover the scooter yourself. Select Nightly only if you know how to do that.';
+      'Only choose this channel if you understand the consequences and can recover the scooter yourself. We cannot provide support for Nightly versions.';
 
   @override
   String get nightlyWarningCancel => 'Cancel';

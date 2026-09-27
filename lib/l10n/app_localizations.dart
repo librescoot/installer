@@ -611,13 +611,13 @@ abstract class AppLocalizations {
   /// No description provided for @nightlyWarningLead.
   ///
   /// In en, this message translates to:
-  /// **'Nightly could leave your scooter unusable.'**
+  /// **'Nightly builds are often not yet tested and may be unstable, fail to work or work incorrectly, or in the worst case leave your scooter unusable.'**
   String get nightlyWarningLead;
 
   /// No description provided for @nightlyWarningBody.
   ///
   /// In en, this message translates to:
-  /// **'These builds are unstable and not thoroughly tested. If installation fails, you will have to recover the scooter yourself. Select Nightly only if you know how to do that.'**
+  /// **'Only choose this channel if you understand the consequences and can recover the scooter yourself. We cannot provide support for Nightly versions.'**
   String get nightlyWarningBody;
 
   /// No description provided for @nightlyWarningCancel.

@@ -75,7 +75,11 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('channel-nightly')));
     await tester.pumpAndSettle();
     expect(find.text('Nightly wirklich auswählen?'), findsOneWidget);
-    expect(find.textContaining('unbenutzbar'), findsOneWidget);
+    expect(find.textContaining('nicht nutzbar'), findsOneWidget);
+    expect(
+      find.textContaining('keinen Support für Nightly-Versionen'),
+      findsOneWidget,
+    );
     expect(selected, isNull);
     await tester.tap(find.text('Abbrechen'));
     await tester.pumpAndSettle();
