@@ -489,7 +489,7 @@ void main() {
 
   group('Region', () {
     test('catalogue covers the 15 German regions plus nearby countries', () {
-      expect(Region.all.length, 24);
+      expect(Region.all.length, 25);
       final germanCount = Region.all
           .where((r) => r.country == 'Deutschland')
           .length;

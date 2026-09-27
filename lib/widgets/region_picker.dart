@@ -28,6 +28,18 @@ class _RegionPickerState extends State<RegionPicker>
   late Map<String, List<Region>> _groups;
   late TabController _tabs;
 
+  static const _countryOrder = [
+    'Deutschland',
+    'Niederlande',
+    'Frankreich',
+    'Belgien',
+    'Österreich',
+    'Spanien',
+    'Italien',
+    'Luxemburg',
+    'Schweiz',
+  ];
+
   static Map<String, List<Region>> _group(List<Region> regions) {
     final grouped = <String, List<Region>>{};
     for (final region in regions) {
@@ -35,8 +47,13 @@ class _RegionPickerState extends State<RegionPicker>
     }
     final countries = grouped.keys.toList()
       ..sort((a, b) {
-        if (a == 'Deutschland') return -1;
-        if (b == 'Deutschland') return 1;
+        if (a == 'Weitere') return 1;
+        if (b == 'Weitere') return -1;
+        final aIndex = _countryOrder.indexOf(a);
+        final bIndex = _countryOrder.indexOf(b);
+        if (aIndex >= 0 && bIndex >= 0) return aIndex.compareTo(bIndex);
+        if (aIndex >= 0) return -1;
+        if (bIndex >= 0) return 1;
         return a.toLowerCase().compareTo(b.toLowerCase());
       });
     return {
@@ -136,6 +153,13 @@ class _RegionPickerState extends State<RegionPicker>
       children: [
         TabBar(
           controller: _tabs,
+          onTap: (index) {
+            final regions = _groups.values.elementAt(index);
+            if (regions.length == 1 &&
+                widget.selectedRegion != regions.single) {
+              widget.onSelected(regions.single);
+            }
+          },
           isScrollable: true,
           tabAlignment: TabAlignment.start,
           labelPadding: const EdgeInsets.symmetric(horizontal: 16),

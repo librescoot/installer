@@ -13,7 +13,8 @@ void main() {
     slug: 'france',
     country: 'Frankreich',
   );
-  final regions = [france, zulu, belgium, alpha];
+  const alsace = Region(name: 'Alsace', slug: 'alsace', country: 'Frankreich');
+  final regions = [france, zulu, belgium, alpha, alsace];
 
   testWidgets('country tabs group unsorted input into alphabetical pills', (
     tester,
@@ -34,8 +35,8 @@ void main() {
     final tabs = tester.widget<TabBar>(find.byType(TabBar)).tabs;
     expect(tabs.map((tab) => (tab as Tab).text), [
       'Deutschland',
-      'Belgien',
       'Frankreich',
+      'Belgien',
     ]);
     final pills = tester.widget<Wrap>(
       find.byKey(const ValueKey('region-pills')),
@@ -79,7 +80,7 @@ void main() {
       isTrue,
     );
 
-    await tester.tap(find.byKey(const ValueKey('country-Belgien')));
+    await tester.tap(find.byKey(const ValueKey('country-Frankreich')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('country-Deutschland')));
     await tester.pumpAndSettle();
@@ -89,6 +90,72 @@ void main() {
           .selected,
       isTrue,
     );
+  });
+
+  testWidgets('single-region country tabs select their region', (tester) async {
+    Region? selected;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, refresh) => RegionPicker(
+              regions: regions,
+              selectedRegion: selected,
+              onSelected: (region) => refresh(() => selected = region),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(selected, isNull);
+    await tester.tap(find.byKey(const ValueKey('country-Belgien')));
+    await tester.pumpAndSettle();
+    expect(selected, belgium);
+    expect(
+      tester
+          .widget<ChoiceChip>(find.byKey(const ValueKey('region-belgium')))
+          .selected,
+      isTrue,
+    );
+    await tester.tap(find.byKey(const ValueKey('country-Belgien')));
+    await tester.pumpAndSettle();
+    expect(selected, belgium);
+  });
+
+  testWidgets('countries follow the downloads page with Weitere last', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RegionPicker(
+            regions: [
+              const Region(
+                name: 'Unknown',
+                slug: 'unknown',
+                country: 'Weitere',
+              ),
+              ...Region.all,
+            ],
+            selectedRegion: null,
+            onSelected: (_) {},
+          ),
+        ),
+      ),
+    );
+    final tabs = tester.widget<TabBar>(find.byType(TabBar)).tabs;
+    expect(tabs.map((tab) => (tab as Tab).text), [
+      'Deutschland',
+      'Niederlande',
+      'Frankreich',
+      'Belgien',
+      'Österreich',
+      'Spanien',
+      'Italien',
+      'Luxemburg',
+      'Schweiz',
+      'Weitere',
+    ]);
   });
 
   testWidgets('preselection and external changes open the matching country', (
@@ -113,7 +180,7 @@ void main() {
       ),
     );
     expect(find.byKey(const ValueKey('region-france')), findsOneWidget);
-    expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 2);
+    expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 1);
 
     refresh(() => selected = alpha);
     await tester.pumpAndSettle();

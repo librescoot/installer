@@ -21,6 +21,7 @@ class Region {
     'BE': 'Belgien',
     'NL': 'Niederlande',
     'LU': 'Luxemburg',
+    'CH': 'Schweiz',
   };
 
   /// Known slugs, grouped by country (German states first,
@@ -61,6 +62,7 @@ class Region {
     'graz': (name: 'Graz', country: 'Österreich'),
     'vienna': (name: 'Vienna', country: 'Österreich'),
     'italy-nord-ovest': (name: 'Italien (Nordwest)', country: 'Italien'),
+    'zurich': (name: 'Kanton Zürich', country: 'Schweiz'),
   };
 
   /// Map the provider's countryCode -> ISO 3166-2 subdivision code -> our
@@ -94,6 +96,7 @@ class Region {
       'TH': 'thueringen',
     },
     'FR': {'IDF': 'ile-de-france'},
+    'CH': {'ZH': 'zurich'},
     'IT': {
       '21': 'italy-nord-ovest',
       '23': 'italy-nord-ovest',
