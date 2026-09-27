@@ -42,10 +42,15 @@ void main() {
     await tester.pumpWidget(host(selected: DownloadChannel.testing));
     expect(find.text('EMPFOHLEN'), findsOneWidget);
     expect(
-      find.text('Vorschauversionen zum Testen, ohne Stabilitätsgarantie'),
+      find.text(
+        'Testversionen für das nächste Release, ohne Stabilitätsgarantie, nur für technisch versierte Tester*innen empfohlen',
+      ),
       findsOneWidget,
     );
-    expect(find.text('Täglich neu, nur für Entwickler*innen'), findsOneWidget);
+    expect(
+      find.text('Täglich neu, nur für Entwickler*innen empfohlen'),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
 
     final tags = ['v1.4.1', 'v1.5.0-beta.1', '2026.09.25'];
@@ -98,7 +103,9 @@ void main() {
     await tester.pumpWidget(host(locale: const Locale('en')));
     expect(find.text('RECOMMENDED'), findsOneWidget);
     expect(
-      find.text('Preview releases for testing, without a stability guarantee'),
+      find.text(
+        'Test builds for the next release, with no stability guarantee; recommended only for technically experienced testers',
+      ),
       findsOneWidget,
     );
   });

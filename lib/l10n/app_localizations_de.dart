@@ -279,10 +279,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get channelTestingDesc =>
-      'Vorschauversionen zum Testen, ohne Stabilitätsgarantie';
+      'Testversionen für das nächste Release, ohne Stabilitätsgarantie, nur für technisch versierte Tester*innen empfohlen';
 
   @override
-  String get channelNightlyDesc => 'Täglich neu, nur für Entwickler*innen';
+  String get channelNightlyDesc =>
+      'Täglich neu, nur für Entwickler*innen empfohlen';
 
   @override
   String get nightlyWarningTitle => 'Nightly wirklich auswählen?';

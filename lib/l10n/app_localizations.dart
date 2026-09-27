@@ -593,13 +593,13 @@ abstract class AppLocalizations {
   /// No description provided for @channelTestingDesc.
   ///
   /// In en, this message translates to:
-  /// **'Preview releases for testing, without a stability guarantee'**
+  /// **'Test builds for the next release, with no stability guarantee; recommended only for technically experienced testers'**
   String get channelTestingDesc;
 
   /// No description provided for @channelNightlyDesc.
   ///
   /// In en, this message translates to:
-  /// **'Updated daily, for developers only'**
+  /// **'Updated daily, recommended only for developers'**
   String get channelNightlyDesc;
 
   /// No description provided for @nightlyWarningTitle.
