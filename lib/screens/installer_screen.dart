@@ -83,6 +83,7 @@ import '../widgets/substep_list.dart';
 import '../widgets/wait_overlay.dart';
 import '../widgets/action_overlay.dart';
 import '../widgets/wait_scaffold.dart';
+import '../widgets/welcome_requirements.dart';
 import '../theme.dart';
 
 class InstallerScreen extends StatefulWidget {
@@ -153,7 +154,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   UsbDevice? _device;
 
   // Welcome screen state
-  final List<bool> _prerequisiteChecks = [false, false, false, false, false];
   Map<DownloadChannel, ({String tag, String date})>? _availableChannels;
   bool _channelsLoading = true;
   bool _channelsLoadFailed = false;
@@ -1944,14 +1944,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Widget _buildWelcome(AppLocalizations l10n) {
-    final prerequisites = [
-      l10n.prerequisiteScrewdriverPH2,
-      l10n.prerequisiteScrewdriverFlat,
-      l10n.prerequisiteUsbCable,
-      l10n.prerequisiteTime,
-      l10n.prerequisiteAdminAccess,
-    ];
-
     return PhaseLayout(
       title: l10n.welcomeHeading,
       subtitle: l10n.welcomeSubheading,
@@ -1977,31 +1969,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // One per line. Packed onto shared rows they read as a paragraph of
-          // fragments, and the window has the height to spare now that the
-          // status strip is gone.
-          Text(
-            l10n.whatYouNeed,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-          const SizedBox(height: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (int i = 0; i < prerequisites.length; i++)
-                _prerequisite(
-                  prerequisites[i],
-                  i,
-                  trailing: i == 2
-                      ? _buildLinkButton(
-                          Icons.open_in_new,
-                          l10n.shopUsbCable,
-                          'https://shop.librescoot.org/product/mini-usb-kabel-mdb/',
-                        )
-                      : null,
-                ),
-            ],
-          ),
+          WelcomeRequirements(onOpenUrl: _openExternalUrl),
           const SizedBox(height: 24),
 
           // Channel selection
@@ -2534,38 +2502,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _prerequisite(String text, int index, {Widget? trailing}) {
-    return InkWell(
-      onTap: () => setState(
-        () => _prerequisiteChecks[index] = !_prerequisiteChecks[index],
-      ),
-      borderRadius: BorderRadius.circular(4),
-      child: Row(
-        children: [
-          Icon(
-            _prerequisiteChecks[index]
-                ? Icons.check_box
-                : Icons.check_box_outline_blank,
-            size: 18,
-            color: _prerequisiteChecks[index] ? kAccent : Colors.grey,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                color: _prerequisiteChecks[index]
-                    ? Colors.grey.shade200
-                    : Colors.grey.shade400,
-              ),
-            ),
-          ),
-          if (trailing != null) trailing,
-        ],
       ),
     );
   }

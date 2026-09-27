@@ -164,28 +164,26 @@ class AppLocalizationsDe extends AppLocalizations {
   String get updateOpenDownloads => 'Downloadseite öffnen';
 
   @override
-  String get whatYouNeed => 'Was du brauchst:';
+  String get requirementsIntro => 'Du brauchst ';
 
   @override
-  String get prerequisiteScrewdriverPH2 =>
-      'PH2-Kreuz- oder H4-Innensechskantschraubendreher für die vier Schrauben der Fußraumabdeckung';
+  String get prerequisiteScrewdriverPH2 => 'einen PH2/H4-Schraubendreher';
 
   @override
-  String get prerequisiteScrewdriverFlat =>
-      'Schlitz- oder PH1-Schraubendreher für das USB-Kabel';
+  String get prerequisiteScrewdriverFlat => 'einen Schlitz/PH1-Schraubendreher';
 
   @override
-  String get prerequisiteUsbCable =>
-      'Ein USB-Mini-B-Kabel, um deinen Computer mit dem MDB zu verbinden';
+  String get prerequisiteUsbCable => 'ein USB-Mini-B-Kabel';
 
   @override
-  String get shopUsbCable => 'Kabel im Shop';
+  String get requirementsAnd => ' und ';
 
   @override
-  String get prerequisiteTime => 'Ungefähr 20 Minuten Zeit';
+  String get requirementsOutro =>
+      '. Plane 20 Minuten ein und halte Administratorrechte bereit.';
 
   @override
-  String get prerequisiteAdminAccess => 'Administratorrechte';
+  String get requirementsVideoLink => 'Videoanleitung ansehen ↗';
 
   @override
   String get reliabilityWarningTitle => 'Bevor du startest';

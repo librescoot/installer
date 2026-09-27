@@ -386,47 +386,47 @@ abstract class AppLocalizations {
   /// **'Open Downloads'**
   String get updateOpenDownloads;
 
-  /// No description provided for @whatYouNeed.
+  /// No description provided for @requirementsIntro.
   ///
   /// In en, this message translates to:
-  /// **'What you need:'**
-  String get whatYouNeed;
+  /// **'You\'ll need '**
+  String get requirementsIntro;
 
   /// No description provided for @prerequisiteScrewdriverPH2.
   ///
   /// In en, this message translates to:
-  /// **'PH2 or H4 screwdriver for footwell screws'**
+  /// **'a PH2/H4 screwdriver'**
   String get prerequisiteScrewdriverPH2;
 
   /// No description provided for @prerequisiteScrewdriverFlat.
   ///
   /// In en, this message translates to:
-  /// **'Flat head or PH1 screwdriver for USB cable'**
+  /// **'a flat-head/PH1 screwdriver'**
   String get prerequisiteScrewdriverFlat;
 
   /// No description provided for @prerequisiteUsbCable.
   ///
   /// In en, this message translates to:
-  /// **'A USB Mini-B cable to connect your computer to the MDB'**
+  /// **'a USB Mini-B cable'**
   String get prerequisiteUsbCable;
 
-  /// No description provided for @shopUsbCable.
+  /// No description provided for @requirementsAnd.
   ///
   /// In en, this message translates to:
-  /// **'Cable in shop'**
-  String get shopUsbCable;
+  /// **' and '**
+  String get requirementsAnd;
 
-  /// No description provided for @prerequisiteTime.
+  /// No description provided for @requirementsOutro.
   ///
   /// In en, this message translates to:
-  /// **'About 20 minutes'**
-  String get prerequisiteTime;
+  /// **'. Allow 20 minutes and have administrator access ready.'**
+  String get requirementsOutro;
 
-  /// No description provided for @prerequisiteAdminAccess.
+  /// No description provided for @requirementsVideoLink.
   ///
   /// In en, this message translates to:
-  /// **'Administrator privileges'**
-  String get prerequisiteAdminAccess;
+  /// **'Watch the installation video ↗'**
+  String get requirementsVideoLink;
 
   /// No description provided for @reliabilityWarningTitle.
   ///
