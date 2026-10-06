@@ -89,6 +89,8 @@ scripts/update-flasher.sh          # populate assets/tools/ with flasher binarie
 flutter run -d linux               # or macos, windows
 ```
 
+Run `flutter test` and `flutter analyze` locally before publishing changes. CI runs the full test suite for stable release tags (without a prerelease suffix); regular pushes and beta tags build without it. Manual workflow runs can enable `run_tests`. Failed stable-release tests block all platform builds.
+
 Release builds:
 
 ```bash

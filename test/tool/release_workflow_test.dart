@@ -7,6 +7,35 @@ void main() {
     '.github/workflows/build-desktop.yml',
   ).readAsStringSync();
 
+  test('stable releases test; pushes and betas build without the suite', () {
+    final testJob = workflow.substring(
+      workflow.indexOf('  test:\n'),
+      workflow.indexOf('  build:\n'),
+    );
+    expect(
+      testJob,
+      contains(
+        "startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')",
+      ),
+    );
+    expect(
+      testJob,
+      contains(
+        "inputs.release_tag != '' && !contains(inputs.release_tag, '-')",
+      ),
+    );
+    expect(testJob, contains('inputs.run_tests == true'));
+    expect(workflow, contains('type: boolean\n        default: false'));
+    final buildJob = workflow.substring(workflow.indexOf('  build:\n'));
+    expect(buildJob, contains('needs: test'));
+    expect(
+      buildJob,
+      contains(
+        "!cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped')",
+      ),
+    );
+  });
+
   test('fallback refresh validates a temporary file before replacement', () {
     final start = workflow.indexOf(
       '- name: Refresh bundled latest.json fallback',

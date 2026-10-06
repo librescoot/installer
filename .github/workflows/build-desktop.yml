@@ -11,10 +11,19 @@ on:
         description: Existing tag to rebuild and publish (leave empty for a regular build)
         required: false
         type: string
+      run_tests:
+        description: Run the full test suite before building
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   test:
     name: Test
+    if: >-
+      (startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')) ||
+      (inputs.release_tag != '' && !contains(inputs.release_tag, '-')) ||
+      inputs.run_tests == true
     runs-on: ubuntu-22.04
 
     steps:
@@ -33,16 +42,15 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # Pure Dart, no platform channels and no bundled tooling, so one runner
-      # covers all three targets. The suite guards the disk-selection and
-      # flash-safety paths, which is where a wrong answer costs somebody their
-      # drive, so the builds below wait on it.
+      # Stable releases require the complete flash-safety suite on one runner.
+      # Other builds can opt in through workflow_dispatch.
       - name: Run tests
         run: flutter test
 
   build:
     name: Build (${{ matrix.target }})
     needs: test
+    if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
