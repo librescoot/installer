@@ -1254,7 +1254,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get handoffEstimateExplanation =>
-      'The laptop cannot read live progress while the MDB is connected to the DBC. The estimate is calculated from the selected file sizes and timings measured on real installs. Do not reconnect the laptop based on the estimate; wait for the display and blinkers to show the actual state.';
+      'The laptop cannot read live progress while the MDB is connected to the DBC. The estimate is calculated from the selected file sizes and timings measured on real installs. Do not reconnect the laptop based on the estimate; wait for the dashboard and indicators to show the actual state.';
 
   @override
   String handoffEstimateMinutes(int minutes) {
@@ -1548,7 +1548,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get finishPendingNotDoneBody =>
-      'The display and the lights come on during the install, and the indicators briefly show progress. That is part of the install, not the end of it.';
+      'The dashboard and the lights come on during the install, and the indicators briefly show progress. That is part of the install, not the end of it.';
 
   @override
   String get finishPendingDontTitle => 'While it finishes, please do not';
@@ -2101,7 +2101,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get installPlanIntro =>
-      'Choose an action for the main board and display.';
+      'Choose an action for the main computer (MDB) and dashboard (DBC).';
 
   @override
   String get boardMdb => 'Main computer (MDB)';
@@ -2220,7 +2220,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get actionLeaveBlockedStockMdb =>
-      'A stock main board has to be installed before anything else can be done';
+      'Librescoot must be installed on the main computer (MDB) first';
 
   @override
   String get planDbcNeedsLibrescootMdb =>
@@ -2232,7 +2232,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get planMdbInMassStorage =>
-      'The main board is in mass-storage mode, so nothing on it could be read. It gets a clean install. The dashboard could not be reached either; decide for it below.';
+      'The main computer (MDB) is connected as a USB drive. Its software could not be identified and will be reinstalled. The dashboard (DBC) could not be reached either. Choose what to install on it below.';
 
   @override
   String get releaseMissingAssetsTitle => 'This release cannot be installed';
@@ -2474,7 +2474,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dbcFlashSequence =>
-      'The scooter now completes the requested dashboard work. Progress appears on the dashboard. Stay with the scooter until it completes or reports an error.';
+      'The selected installation begins once the dashboard LED stays amber. The dashboard and indicators show its actual state. Stay with the scooter until it completes or reports an error.';
 
   @override
   String get dbcFlashHandsOffHeading =>
@@ -2948,7 +2948,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Installing firmware, this takes a few minutes';
 
   @override
-  String get dbcSayInstalled => 'Firmware installed, display restarting';
+  String get dbcSayInstalled => 'Firmware installed, dashboard restarting';
 
   @override
   String dbcSayRunning(String version) {
@@ -2982,7 +2982,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'The part after the restart failed repeatedly.';
 
   @override
-  String get dbcSayFailDbc => 'The display did not come back after flashing.';
+  String get dbcSayFailDbc => 'The dashboard did not respond after writing.';
 
   @override
   String dbcSayFailTiles(String count) {

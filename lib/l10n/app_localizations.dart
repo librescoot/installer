@@ -2267,7 +2267,7 @@ abstract class AppLocalizations {
   /// No description provided for @handoffEstimateExplanation.
   ///
   /// In en, this message translates to:
-  /// **'The laptop cannot read live progress while the MDB is connected to the DBC. The estimate is calculated from the selected file sizes and timings measured on real installs. Do not reconnect the laptop based on the estimate; wait for the display and blinkers to show the actual state.'**
+  /// **'The laptop cannot read live progress while the MDB is connected to the DBC. The estimate is calculated from the selected file sizes and timings measured on real installs. Do not reconnect the laptop based on the estimate; wait for the dashboard and indicators to show the actual state.'**
   String get handoffEstimateExplanation;
 
   /// No description provided for @handoffEstimateMinutes.
@@ -2753,7 +2753,7 @@ abstract class AppLocalizations {
   /// No description provided for @finishPendingNotDoneBody.
   ///
   /// In en, this message translates to:
-  /// **'The display and the lights come on during the install, and the indicators briefly show progress. That is part of the install, not the end of it.'**
+  /// **'The dashboard and the lights come on during the install, and the indicators briefly show progress. That is part of the install, not the end of it.'**
   String get finishPendingNotDoneBody;
 
   /// No description provided for @finishPendingDontTitle.
@@ -3659,7 +3659,7 @@ abstract class AppLocalizations {
   /// No description provided for @installPlanIntro.
   ///
   /// In en, this message translates to:
-  /// **'Choose an action for the main board and display.'**
+  /// **'Choose an action for the main computer (MDB) and dashboard (DBC).'**
   String get installPlanIntro;
 
   /// No description provided for @boardMdb.
@@ -3845,7 +3845,7 @@ abstract class AppLocalizations {
   /// No description provided for @actionLeaveBlockedStockMdb.
   ///
   /// In en, this message translates to:
-  /// **'A stock main board has to be installed before anything else can be done'**
+  /// **'Librescoot must be installed on the main computer (MDB) first'**
   String get actionLeaveBlockedStockMdb;
 
   /// No description provided for @planDbcNeedsLibrescootMdb.
@@ -3863,7 +3863,7 @@ abstract class AppLocalizations {
   /// No description provided for @planMdbInMassStorage.
   ///
   /// In en, this message translates to:
-  /// **'The main board is in mass-storage mode, so nothing on it could be read. It gets a clean install. The dashboard could not be reached either; decide for it below.'**
+  /// **'The main computer (MDB) is connected as a USB drive. Its software could not be identified and will be reinstalled. The dashboard (DBC) could not be reached either. Choose what to install on it below.'**
   String get planMdbInMassStorage;
 
   /// No description provided for @releaseMissingAssetsTitle.
@@ -4271,7 +4271,7 @@ abstract class AppLocalizations {
   /// No description provided for @dbcFlashSequence.
   ///
   /// In en, this message translates to:
-  /// **'The scooter now completes the requested dashboard work. Progress appears on the dashboard. Stay with the scooter until it completes or reports an error.'**
+  /// **'The selected installation begins once the dashboard LED stays amber. The dashboard and indicators show its actual state. Stay with the scooter until it completes or reports an error.'**
   String get dbcFlashSequence;
 
   /// No description provided for @dbcFlashHandsOffHeading.
@@ -5063,7 +5063,7 @@ abstract class AppLocalizations {
   /// No description provided for @dbcSayInstalled.
   ///
   /// In en, this message translates to:
-  /// **'Firmware installed, display restarting'**
+  /// **'Firmware installed, dashboard restarting'**
   String get dbcSayInstalled;
 
   /// Shown on the dashboard once the new firmware is up. The version is filled by the trampoline script on the vehicle, not here.
@@ -5123,7 +5123,7 @@ abstract class AppLocalizations {
   /// No description provided for @dbcSayFailDbc.
   ///
   /// In en, this message translates to:
-  /// **'The display did not come back after flashing.'**
+  /// **'The dashboard did not respond after writing.'**
   String get dbcSayFailDbc;
 
   /// Shown on the dashboard when map transfers failed. The count is filled by the trampoline script on the vehicle, not here.

@@ -223,8 +223,7 @@ void main() {
     // there is no plan left to make.
     expect(
       find.text(
-        'A stock main board has to be installed before anything '
-        'else can be done',
+        'Librescoot must be installed on the main computer (MDB) first',
       ),
       findsOneWidget,
     );

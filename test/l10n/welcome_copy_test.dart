@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -9,11 +10,20 @@ void main() {
     'Welcome lists administrator access and offline navigation in German',
     () {
       final l10n = AppLocalizationsDe();
-      expect(l10n.requirementsIntro, contains('Laptop mit Administratorrechten'));
+      expect(
+        l10n.requirementsIntro,
+        contains('Laptop mit Administratorrechten'),
+      );
       expect(l10n.prerequisiteUsbCable, 'USB-Mini-B-Datenkabel');
       expect(l10n.requirementsVideoLink, 'Videoanleitung ansehen ↗');
-      expect(l10n.elevationNoticeWelcome, contains('fragt nach Administratorrechten'));
-      expect(l10n.elevationNoticeWelcome, contains('USB-Verbindung einzurichten'));
+      expect(
+        l10n.elevationNoticeWelcome,
+        contains('fragt nach Administratorrechten'),
+      );
+      expect(
+        l10n.elevationNoticeWelcome,
+        contains('USB-Verbindung einzurichten'),
+      );
       expect(l10n.firmwareChannel, 'Firmware auswählen');
       expect(l10n.region, contains('Navigation'));
       expect(l10n.skipOfflineMaps, contains('Navigation'));
@@ -30,13 +40,33 @@ void main() {
       );
       expect(l10n.prerequisiteUsbCable, contains('USB Mini-B data cable'));
       expect(l10n.requirementsVideoLink, 'Watch the installation video ↗');
-      expect(l10n.elevationNoticeWelcome, contains('requests administrator access'));
-      expect(l10n.elevationNoticeWelcome, contains('write software to the scooter'));
+      expect(
+        l10n.elevationNoticeWelcome,
+        contains('requests administrator access'),
+      );
+      expect(
+        l10n.elevationNoticeWelcome,
+        contains('write software to the scooter'),
+      );
       expect(l10n.firmwareChannel, 'Choose firmware');
       expect(l10n.region, contains('navigation'));
       expect(l10n.skipOfflineMaps, contains('navigation data'));
     },
   );
+
+  test('German board names are consistent across normal and recovery copy', () {
+    final messages =
+        jsonDecode(File('lib/l10n/app_de.arb').readAsStringSync())
+            as Map<String, dynamic>;
+    for (final entry in messages.entries) {
+      if (entry.value is! String) continue;
+      expect(
+        entry.value,
+        isNot(matches(r'Hauptboard|Display|Bremsfolge')),
+        reason: entry.key,
+      );
+    }
+  });
 
   test('Welcome uses the linked requirements list', () {
     final source = File('lib/screens/installer_screen.dart').readAsStringSync();

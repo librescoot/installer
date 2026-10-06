@@ -206,7 +206,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get phaseReconnectTitle => 'Prüfen';
 
   @override
-  String get phaseReconnectDescription => 'Display-Arbeiten prüfen';
+  String get phaseReconnectDescription => 'Dashboard-Installation prüfen';
 
   @override
   String get phaseBluetoothPairingTitle => 'Bluetooth';
@@ -627,7 +627,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get connectFailedTimeoutBody =>
-      'Das MDB ist über USB verbunden, aber innerhalb des Zeitlimits wurde keine Antwort empfangen. Möglicherweise startet das Hauptboard noch oder die Verbindung besteht nur auf dieser Seite.\n• Versuche es erneut. Ein noch startendes Hauptboard antwortet oft beim zweiten oder dritten Versuch\n• Prüfe das USB-Kabel an beiden Enden und verbinde es direkt mit dem Laptop, nicht über einen Hub\n• Der Roller muss aktiv und der AUX-Akku angeschlossen sein\nAm Roller wurde nichts verändert.';
+      'Das MDB ist über USB verbunden, aber innerhalb des Zeitlimits wurde keine Antwort empfangen. Möglicherweise startet der Hauptcomputer noch oder die Verbindung besteht nur auf dieser Seite.\n• Versuche es erneut. Ein noch startender Hauptcomputer antwortet oft beim zweiten oder dritten Versuch\n• Prüfe das USB-Kabel an beiden Enden und verbinde es direkt mit dem Laptop, nicht über einen Hub\n• Der Roller muss aktiv und der AUX-Akku angeschlossen sein\nAm Roller wurde nichts verändert.';
 
   @override
   String get connectFailedDroppedHeading =>
@@ -635,7 +635,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get connectFailedDroppedBody =>
-      'Die Verbindung wurde vor dem Abschluss getrennt. Das kann beim Neustart des Hauptboards oder beim Wechsel in den Ruhezustand passieren.\n• Entsperre den Roller oder setze einen Fahrakku in den vorderen Schacht. Ohne eines von beidem wechselt er automatisch in den Ruhezustand\n• Prüfe das USB-Kabel an beiden Enden\n• Warte, bis das Hauptboard vollständig gestartet ist, und versuche es erneut\nAm Roller wurde nichts verändert.';
+      'Die Verbindung wurde vor dem Abschluss getrennt. Das kann beim Neustart des Hauptcomputers oder beim Wechsel in den Ruhezustand passieren.\n• Entsperre den Roller oder setze einen Fahrakku in den vorderen Schacht. Ohne eines von beidem wechselt er automatisch in den Ruhezustand\n• Prüfe das USB-Kabel an beiden Enden\n• Warte, bis der Hauptcomputer vollständig gestartet ist, und versuche es erneut\nAm Roller wurde nichts verändert.';
 
   @override
   String get connectFailedAuthHeading => 'Anmeldung am Roller fehlgeschlagen';
@@ -1330,7 +1330,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get finishTransferSkippedConfirmed =>
-      'Der Roller wurde wiederhergestellt und entsperrt. Die gewünschte Display- oder Kartenübertragung wurde nicht installiert.';
+      'Der Roller wurde wiederhergestellt und entsperrt. Die gewünschte Dashboard-Software oder die ausgewählten Karten wurden nicht installiert.';
 
   @override
   String get dbcReadyButton => 'DBC-Installation starten';
@@ -1378,10 +1378,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get blinkerStepPrep => 'DBC vorbereiten';
 
   @override
-  String get blinkerStepFlash => 'Display vorbereiten';
+  String get blinkerStepFlash => 'Dashboard vorbereiten';
 
   @override
-  String get blinkerStepRestart => 'Display neu starten';
+  String get blinkerStepRestart => 'Dashboard neu starten';
 
   @override
   String get blinkerStepMaps => 'Offline-Karten kopieren';
@@ -1410,7 +1410,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get dbcFlashSuccessful => 'Display-Arbeiten abgeschlossen';
+  String get dbcFlashSuccessful => 'Dashboard-Installation abgeschlossen';
 
   @override
   String dbcInstallSuccessfulVersion(String version) {
@@ -1467,7 +1467,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get trampolineStatusUnknown =>
-      'Der Installer konnte nicht feststellen, ob die Display-Arbeiten abgeschlossen wurden. Einzelheiten stehen im Installationsprotokoll.';
+      'Der Installer konnte nicht feststellen, ob die Dashboard-Installation abgeschlossen wurde. Einzelheiten stehen im Installationsprotokoll.';
 
   @override
   String get welcomeToLibrescoot => 'Willkommen bei Librescoot';
@@ -1507,7 +1507,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get finishCompleteHeading => 'Installation abgeschlossen';
 
   @override
-  String get finishSkippedHeading => 'Display-Übertragung übersprungen';
+  String get finishSkippedHeading => 'Dashboard-Übertragung übersprungen';
 
   @override
   String get finalSteps => 'Letzte Schritte:';
@@ -1571,7 +1571,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get finishPendingNotDoneBody =>
-      'Während der Installation gehen Display und Beleuchtung des Rollers an, und die Blinker zeigen kurz einen Fortschritt. Das gehört zur Installation und heißt nicht, dass sie beendet ist.';
+      'Während der Installation gehen Dashboard und Beleuchtung des Rollers an, und die Blinker zeigen kurz einen Fortschritt. Das gehört zur Installation und heißt nicht, dass sie beendet ist.';
 
   @override
   String get finishPendingDontTitle => 'Solange bitte nicht';
@@ -2241,7 +2241,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get planTilesNeedKnownDbc =>
-      'Das Display wurde nicht als vollständige Librescoot-Installation erkannt. Installiere das Display neu, um Offline-Karten hinzuzufügen.';
+      'Das Dashboard wurde nicht als vollständige Librescoot-Installation erkannt. Installiere die Dashboard-Software neu, um Offline-Karten hinzuzufügen.';
 
   @override
   String get planTilesNotDownloaded =>
@@ -2256,7 +2256,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get actionLeaveBlockedStockMdb =>
-      'Das Serien-Hauptboard muss installiert werden, bevor weitere Aktionen möglich sind';
+      'Auf dem Hauptcomputer (MDB) muss zuerst Librescoot installiert werden';
 
   @override
   String get planDbcNeedsLibrescootMdb =>
@@ -2268,7 +2268,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get planMdbInMassStorage =>
-      'Das Hauptboard ist im Mass-Storage-Modus, es konnte nichts darauf gelesen werden. Es wird neu installiert. Auch das Display war nicht erreichbar; entscheide unten, was damit passiert.';
+      'Der Hauptcomputer (MDB) ist als USB-Laufwerk verbunden. Seine Software konnte nicht erkannt werden; sie wird neu installiert. Auch das Dashboard (DBC) war nicht erreichbar. Wähle unten, was darauf installiert werden soll.';
 
   @override
   String get releaseMissingAssetsTitle =>
@@ -2303,7 +2303,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get artifactVerifying => 'Installierte Version wird geprüft…';
 
   @override
-  String get waitingForDbcUpload => 'Display-Dateien werden noch übertragen';
+  String get waitingForDbcUpload => 'Dashboard-Dateien werden noch übertragen';
 
   @override
   String get artifactStillMinimal =>
@@ -2434,7 +2434,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get mainBatteryHandoffWarning =>
-      'Der Fahrakku konnte vor den Display-Arbeiten nicht bestätigt werden. Ohne gesicherte Stromversorgung kann der DBC-Flash fehlschlagen. Fahre nur fort, wenn du das Risiko bewusst übernimmst und die Stromversorgung gesichert hast.';
+      'Der Fahrakku konnte vor der Dashboard-Installation nicht bestätigt werden. Ohne gesicherte Stromversorgung kann der DBC-Flash fehlschlagen. Fahre nur fort, wenn du das Risiko bewusst übernimmst und die Stromversorgung gesichert hast.';
 
   @override
   String get mainBatteryPreflightAcknowledge =>
@@ -2449,7 +2449,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get mainBatteryUnverifiableHint =>
-      'Das minimale MDB-System meldet keinen Fahrakku. Prüfe vor den Display-Arbeiten selbst, ob der Fahrakku eingesetzt ist, und bestätige das unten.';
+      'Das minimale MDB-System meldet keinen Fahrakku. Prüfe vor der Dashboard-Installation selbst, ob der Fahrakku eingesetzt ist, und bestätige das unten.';
 
   @override
   String get confirmMainBatteryInstalled => 'Fahrakku ist eingesetzt – weiter';
@@ -2485,7 +2485,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcFlashDurationHeadline =>
-      'Die Display-Arbeiten dauern normalerweise 10 bis 20 Minuten.';
+      'Die Dashboard-Installation dauert normalerweise 10 bis 20 Minuten.';
 
   @override
   String get finishHandoverRestoring =>
@@ -2497,7 +2497,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get finishBlockedBody =>
-      'Die Verbindung zum Roller ist vor der abschließenden Statusprüfung abgebrochen. Die Display- oder Kartenübertragung wurde möglicherweise nicht gestartet oder nicht abgeschlossen.\n\nPrüfe das USB-Kabel an beiden Enden und wähle „Erneut versuchen“. Wenn die Verbindung nicht wiederhergestellt werden kann, schließe den Installer und starte ihn erneut. Der aufgezeichnete Installationsstand bleibt erhalten.';
+      'Die Verbindung zum Roller ist vor der abschließenden Statusprüfung abgebrochen. Die Übertragung der Dashboard-Software oder der Karten wurde möglicherweise nicht gestartet oder nicht abgeschlossen.\n\nPrüfe das USB-Kabel an beiden Enden und wähle „Erneut versuchen“. Wenn die Verbindung nicht wiederhergestellt werden kann, schließe den Installer und starte ihn erneut. Der aufgezeichnete Installationsstand bleibt erhalten.';
 
   @override
   String get finishBlockedRetry => 'Nochmal versuchen';
@@ -2517,7 +2517,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcFlashSequence =>
-      'Der Roller führt jetzt die ausgewählten Display-Arbeiten aus. Den tatsächlichen Zustand zeigen das Display und die Blinker. Warte, bis der Vorgang abgeschlossen ist oder ein Fehler angezeigt wird.';
+      'Sobald die LED am Dashboard dauerhaft orange leuchtet, beginnt die ausgewählte Installation. Den tatsächlichen Zustand zeigen das Dashboard und die Blinker. Warte, bis der Vorgang abgeschlossen ist oder ein Fehler angezeigt wird.';
 
   @override
   String get dbcFlashHandsOffHeading => 'Dashboard an heißt noch nicht fertig';
@@ -2730,7 +2730,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String reconnectTimeoutBody(int minutes) {
-    return 'Das MDB ist seit $minutes Minuten nicht als USB-Netzwerkgerät zurückgekehrt. Die erste Display-Einrichtung kann länger dauern, während Speicher und Offline-Karten vorbereitet werden. Du kannst weiter warten, die Prüfung wiederholen, die Display-Arbeiten erneut starten oder zum Abschluss gehen.';
+    return 'Das MDB ist seit $minutes Minuten nicht als USB-Netzwerkgerät zurückgekehrt. Die erste Dashboard-Einrichtung kann länger dauern, während Speicher und Offline-Karten vorbereitet werden. Du kannst weiter warten, die Prüfung wiederholen, die Dashboard-Installation erneut starten oder zum Abschluss gehen.';
   }
 
   @override
@@ -2797,13 +2797,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get substepAlreadyThere => 'liegt schon auf dem Roller';
 
   @override
-  String get substepFileImage => 'Display-Systemabbild';
+  String get substepFileImage => 'Dashboard-Systemabbild';
 
   @override
-  String get substepFileImageMap => 'Prüfdaten zum Display-Systemabbild';
+  String get substepFileImageMap => 'Prüfdaten zum Dashboard-Systemabbild';
 
   @override
-  String get substepFileFirmware => 'Display-Firmware';
+  String get substepFileFirmware => 'Dashboard-Firmware';
 
   @override
   String get substepFileMaps => 'Karten';
@@ -3000,7 +3000,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcSayInstalled =>
-      'Firmware installiert. Display wird neu gestartet';
+      'Firmware installiert. Dashboard wird neu gestartet';
 
   @override
   String dbcSayRunning(String version) {
@@ -3034,7 +3034,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcSayFailDbc =>
-      'Das Display hat sich nach dem Flashen nicht zurückgemeldet.';
+      'Das Dashboard hat sich nach dem Schreiben nicht zurückgemeldet.';
 
   @override
   String dbcSayFailTiles(String count) {
@@ -3050,5 +3050,5 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get waitingForBoardRecovery =>
-      'Das Hauptboard hat nichts Startbares gefunden und befindet sich im Wiederherstellungsmodus. Nach etwa zwei Minuten wird es automatisch neu gestartet. Lass Kabel und Stromversorgung angeschlossen.';
+      'Der Hauptcomputer (MDB) hat kein startfähiges System gefunden und befindet sich im Wiederherstellungsmodus. Nach etwa zwei Minuten wird es automatisch neu gestartet. Lass Kabel und Stromversorgung angeschlossen.';
 }
