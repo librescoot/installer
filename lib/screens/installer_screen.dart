@@ -36,6 +36,7 @@ import '../models/install_gate.dart';
 import '../models/install_time_estimate.dart';
 import '../models/keycard_master.dart';
 import '../models/keycard_preset.dart';
+import '../models/keycard_progress.dart';
 import '../l10n/phase_l10n.dart';
 import '../models/finish_handover.dart';
 import '../models/final_screen_state.dart';
@@ -63,6 +64,7 @@ import '../services/previous_install_failure.dart';
 import '../services/installer_sounds.dart';
 import '../services/journey_log.dart';
 import '../services/serial_polling_loop.dart';
+import '../services/recovering_subscription.dart';
 import '../services/services.dart';
 import '../services/relaunch_target.dart';
 import '../services/update_service.dart';
@@ -411,8 +413,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// first while it was still looking.
   int? _keycardMasterCount;
   int? _keycardAuthorizedCount;
-  Future<void> Function()? _keycardEventsStop;
-  StreamSubscription<String>? _keycardEventsSub;
+  RecoveringSubscription? _keycardEvents;
   String? _keycardToastMessage;
   Color _keycardToastColor = Colors.green;
   Timer? _keycardToastTimer;
@@ -730,14 +731,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     _keycardToastTimer?.cancel();
     _keycardAdvanceTimer?.cancel();
     _noRouteRetry?.cancel();
-    final stop = _keycardEventsStop;
-    if (stop != null) {
-      // Fire-and-forget: dispose can't await, but the SSH session should be
-      // closed even if it briefly outlives the widget.
-      stop();
-      _keycardEventsStop = null;
-    }
-    _keycardEventsSub?.cancel();
+    unawaited(_keycardEvents?.stop());
+    _keycardEvents = null;
     _phaseScrollController.dispose();
     if (_unlockCompleter != null && !_unlockCompleter!.isCompleted) {
       _unlockCompleter!.complete(false);
@@ -10330,15 +10325,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   Future<void> _keycardTearDown() async {
     _keycardToastTimer?.cancel();
     _keycardToastTimer = null;
-    final stop = _keycardEventsStop;
-    _keycardEventsStop = null;
-    if (stop != null) {
-      try {
-        await stop();
-      } catch (_) {}
-    }
-    await _keycardEventsSub?.cancel();
-    _keycardEventsSub = null;
+    final events = _keycardEvents;
+    _keycardEvents = null;
+    await events?.stop();
   }
 
   Future<void> _stopActiveKeycardModes() async {
@@ -10491,7 +10480,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (_isDryRun && sessionDelta == 0) sessionDelta = 1;
     if (!_isDryRun) {
       try {
-        await _sshService.redisLpush('scooter:keycard', 'learn:stop');
+        final answer = await _keycardCommand('learn:stop');
+        if (answer != 'ok') {
+          debugPrint('UI: learn:stop -> ${answer ?? "no answer"}');
+        }
       } catch (e) {
         debugPrint('UI: failed to stop keycard learning: $e');
       }
@@ -10515,14 +10507,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       if (polled != expected) {
         debugPrint(
           'UI: count after learn:stop ($polled) != expected ($expected); '
-          'trusting events (sessionDelta=$sessionDelta)',
+          'reconciling stored total (sessionDelta=$sessionDelta)',
         );
       }
-      _keycardAuthorizedCount = polled >= _keycardAuthorizedCountBefore
-          ? polled
-          : expected;
+      _keycardAuthorizedCount = reconciledKeycardTotal(
+        before: _keycardAuthorizedCountBefore,
+        observed: sessionDelta,
+        stored: polled,
+      );
     }
-    final registered = sessionDelta > 0;
+    final registered = (_keycardAuthorizedCount ?? 0) > 0 || sessionDelta > 0;
     debugPrint(
       'UI: keycard learning stopped (registered=$registered, sessionDelta=$sessionDelta)',
     );
@@ -10632,14 +10626,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Future<void> _keycardSubscribeEvents() async {
-    if (_keycardEventsStop != null) return;
-    final sub = await _sshService.subscribeRedisChannel('keycard:events');
-    _keycardEventsStop = sub.stop;
-    _keycardEventsSub = sub.events.listen(
-      _handleKeycardEvent,
-      onError: (Object e) => debugPrint('UI: keycard event stream error: $e'),
-      onDone: () => debugPrint('UI: keycard event stream closed'),
+    final events = _keycardEvents ??= RecoveringSubscription(
+      connect: () => _sshService.subscribeRedisChannel('keycard:events'),
+      onEvent: _handleKeycardEvent,
+      onConnected: _keycardRefreshCounts,
+      onError: (error) => debugPrint('UI: keycard event stream error: $error'),
     );
+    await events.start();
   }
 
   void _handleKeycardEvent(String payload) {
@@ -11013,7 +11006,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 const Icon(Icons.contactless, size: 28, color: kAccent),
                 const SizedBox(height: 8),
                 Text(
-                  l10n.keycardLearningActive,
+                  _keycardLearning
+                      ? l10n.keycardLearningActive
+                      : l10n.keycardCardsTaught(_keycardAuthorizedCount ?? 0),
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     color: kAccent,
@@ -11027,7 +11022,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  l10n.keycardLearningTapped(_keycardSessionTapCount),
+                  _keycardLearning
+                      ? l10n.keycardLearningTapped(_keycardSessionTapCount)
+                      : l10n.keycardCardsTaught(_keycardAuthorizedCount ?? 0),
                   style: TextStyle(
                     fontSize: 13,
                     color: _keycardSessionTapCount > 0
@@ -11269,7 +11266,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  l10n.keycardLearnedAck(_keycardSessionTapCount),
+                  l10n.keycardLearnedAck(
+                    _keycardAuthorizedCount ?? _keycardSessionTapCount,
+                  ),
                   style: TextStyle(fontSize: 13, color: Colors.grey.shade200),
                 ),
               ),
