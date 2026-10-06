@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/services/install_phase_scripts.dart';
 import 'package:librescoot_installer/services/ssh_service.dart';
 
+import '../helpers/shell_harness.dart';
+
 /// The coordinator is the only installer file outside /data/installer, and the
 /// only one that runs with nobody watching. What it does with the directory it
 /// finds is the whole of the post-reboot contract.
@@ -28,7 +30,7 @@ void main() {
   Future<ProcessResult> boot() async {
     final f = File('${root.path}/onboot.sh');
     await f.writeAsString(rehomed());
-    return Process.run('sh', [f.path]);
+    return runShellFixture(f.path);
   }
 
   setUp(() async {
@@ -39,10 +41,9 @@ void main() {
     // without them, the same as on a device, where both are always staged.
     for (final lib in ['signal.sh', 'device.sh']) {
       await File('${scripts.path}/$lib').writeAsString(
-        File('assets/$lib').readAsStringSync().replaceAll(
-              '/data/',
-              '${root.path}/',
-            ),
+        File(
+          'assets/$lib',
+        ).readAsStringSync().replaceAll('/data/', '${root.path}/'),
       );
     }
   });
@@ -75,26 +76,29 @@ void main() {
       for (final tool in ['ioctl', 'i2cset', 'systemctl', 'systemd-run']) {
         final f = File('${bin.path}/$tool');
         await f.writeAsString(
-            '#!/bin/sh\necho "$tool \$*" >> ${root.path}/calls\n');
+          '#!/bin/sh\necho "$tool \$*" >> ${root.path}/calls\n',
+        );
         await Process.run('chmod', ['+x', f.path]);
       }
       final sleepStub = File('${bin.path}/sleep');
       await sleepStub.writeAsString('#!/bin/sh\nexit 0\n');
       await Process.run('chmod', ['+x', sleepStub.path]);
       final rebootStub = File('${bin.path}/reboot');
-      await rebootStub
-          .writeAsString('#!/bin/sh\necho "reboot \$*" >> ${root.path}/calls\n');
+      await rebootStub.writeAsString(
+        '#!/bin/sh\necho "reboot \$*" >> ${root.path}/calls\n',
+      );
       await Process.run('chmod', ['+x', rebootStub.path]);
       await File('${scripts.path}/signal.sh').writeAsString(
-        File('assets/signal.sh')
-            .readAsStringSync()
-            .replaceAll('/data/', '${root.path}/'),
+        File(
+          'assets/signal.sh',
+        ).readAsStringSync().replaceAll('/data/', '${root.path}/'),
       );
       final f = File('${root.path}/onboot.sh');
       await f.writeAsString(rehomed());
-      return Process.run('sh', [f.path], environment: {
-        'PATH': '${bin.path}:${Platform.environment['PATH']}',
-      });
+      return runShellFixture(
+        f.path,
+        environment: {'PATH': '${bin.path}:${Platform.environment['PATH']}'},
+      );
     }
 
     String calls() => File('${root.path}/calls').readAsStringSync();
@@ -104,7 +108,9 @@ void main() {
       // every light on the vehicle is out. Waiting for a phase to relight
       // leaves the owner watching a dark scooter and wondering whether to
       // pull the cable; the coordinator is what comes back first.
-      await File('${root.path}/installer/trampoline-phase').writeAsString('-##*\n');
+      await File(
+        '${root.path}/installer/trampoline-phase',
+      ).writeAsString('-##*\n');
       await phase('90-finalize.sh', 'rm -f "\$0"');
       final r = await bootWithSignalling();
       expect(r.exitCode, 0, reason: r.stderr.toString());
@@ -128,11 +134,15 @@ void main() {
       // put the whole boot, plus the settings restore and the service-mode
       // clear, on a bar still showing the work that finished before the
       // reboot.
-      await File('${root.path}/installer/trampoline-phase').writeAsString('-##-\n');
+      await File(
+        '${root.path}/installer/trampoline-phase',
+      ).writeAsString('-##-\n');
       await phase('80-reboot.sh', 'rm -f "\$0"; exit 75');
       await bootWithSignalling();
       expect(
-        File('${root.path}/installer/trampoline-phase').readAsStringSync().trim(),
+        File(
+          '${root.path}/installer/trampoline-phase',
+        ).readAsStringSync().trim(),
         '-##*',
       );
       expect(calls(), contains('reboot'));
@@ -148,16 +158,21 @@ void main() {
     await phase('20-dbc.sh', 'rm -f "\$0"');
     await boot();
     expect(File(ran).existsSync(), isFalse);
-    expect(File('${scripts.path}/trampoline.sh').existsSync(), isTrue,
-        reason: 'and it is not deleted either');
+    expect(
+      File('${scripts.path}/trampoline.sh').existsSync(),
+      isTrue,
+      reason: 'and it is not deleted either',
+    );
   });
 
   test('a phase can abandon the run by deleting the ones after it', () async {
     // What an emergency reboot does. The coordinator has no abort case; it
     // just finds fewer phases than the glob captured.
     final order = '${root.path}/order';
-    await phase('00-rescue.sh',
-        'echo rescue >> $order; rm -f ${scripts.path}/30-cleanup.sh "\$0"');
+    await phase(
+      '00-rescue.sh',
+      'echo rescue >> $order; rm -f ${scripts.path}/30-cleanup.sh "\$0"',
+    );
     await phase('30-cleanup.sh', 'echo cleanup >> $order; rm -f "\$0"');
     final result = await boot();
     expect(result.exitCode, 0, reason: result.stderr.toString());
@@ -170,9 +185,13 @@ void main() {
     for (var i = 0; i < 5; i++) {
       await boot();
     }
-    expect((await File(tally).readAsLines()).length, 4,
-        reason: 'three attempts plus the pass that lets the phase run its '
-            'own give-up branch, then it is dropped');
+    expect(
+      (await File(tally).readAsLines()).length,
+      4,
+      reason:
+          'three attempts plus the pass that lets the phase run its '
+          'own give-up branch, then it is dropped',
+    );
     expect(File('${scripts.path}/20-dbc.sh').existsSync(), isFalse);
   });
 
@@ -197,8 +216,11 @@ void main() {
     await phase('20-dbc.sh', 'rm -f "\$0"');
     await phase('30-cleanup.sh', 'exit 0');
     await boot();
-    expect(File('${root.path}/onboot.sh').existsSync(), isTrue,
-        reason: 'the cleanup still has to run on a later boot');
+    expect(
+      File('${root.path}/onboot.sh').existsSync(),
+      isTrue,
+      reason: 'the cleanup still has to run on a later boot',
+    );
   });
 
   test('it gives a displaced onboot.sh back when it retires', () async {
@@ -220,38 +242,43 @@ void main() {
   });
 
   group('declaring the phases for a new run', () {
-    Future<ProcessResult> declare(List<String> names) => Process.run(
-          'sh',
-          [
-            '-c',
-            SshService.expectedPhasesDeclarationCommand(
-              names,
-              scriptsDir: scripts.path,
-            ),
-          ],
-        );
+    Future<ProcessResult> declare(List<String> names) => Process.run('sh', [
+      '-c',
+      SshService.expectedPhasesDeclarationCommand(
+        names,
+        scriptsDir: scripts.path,
+      ),
+    ]);
 
-    test('removes a stale dashboard phase from a dashboard-less plan', () async {
-      await phase('20-dbc.sh', 'exit 0');
-      await File('${scripts.path}/20-dbc.sh.tries').writeAsString('2\n');
+    test(
+      'removes a stale dashboard phase from a dashboard-less plan',
+      () async {
+        await phase('20-dbc.sh', 'exit 0');
+        await File('${scripts.path}/20-dbc.sh.tries').writeAsString('2\n');
 
-      final result = await declare(['10-mdb-artifact.sh', '80-reboot.sh']);
+        final result = await declare(['10-mdb-artifact.sh', '80-reboot.sh']);
 
-      expect(result.exitCode, 0, reason: result.stderr.toString());
-      expect(File('${scripts.path}/20-dbc.sh').existsSync(), isFalse);
-      expect(File('${scripts.path}/20-dbc.sh.tries').existsSync(), isFalse);
-    });
+        expect(result.exitCode, 0, reason: result.stderr.toString());
+        expect(File('${scripts.path}/20-dbc.sh').existsSync(), isFalse);
+        expect(File('${scripts.path}/20-dbc.sh.tries').existsSync(), isFalse);
+      },
+    );
 
     test('leaves this run’s already staged phases alone', () async {
       await phase('10-mdb-artifact.sh', 'exit 0');
       await phase('80-reboot.sh', 'exit 0');
-      await File('${scripts.path}/10-mdb-artifact.sh.tries').writeAsString('1\n');
+      await File(
+        '${scripts.path}/10-mdb-artifact.sh.tries',
+      ).writeAsString('1\n');
 
       final result = await declare(['10-mdb-artifact.sh', '80-reboot.sh']);
 
       expect(result.exitCode, 0, reason: result.stderr.toString());
       expect(File('${scripts.path}/10-mdb-artifact.sh').existsSync(), isTrue);
-      expect(File('${scripts.path}/10-mdb-artifact.sh.tries').existsSync(), isTrue);
+      expect(
+        File('${scripts.path}/10-mdb-artifact.sh.tries').existsSync(),
+        isTrue,
+      );
       expect(File('${scripts.path}/80-reboot.sh').existsSync(), isTrue);
     });
   });
@@ -266,8 +293,8 @@ void main() {
 
     String status() =>
         File('${root.path}/installer/trampoline-status').existsSync()
-            ? File('${root.path}/installer/trampoline-status').readAsStringSync()
-            : '';
+        ? File('${root.path}/installer/trampoline-status').readAsStringSync()
+        : '';
 
     test('a run that produced them all retires quietly', () async {
       await expectPhases(['10-mdb-artifact.sh', '90-finalize.sh']);
@@ -298,27 +325,31 @@ void main() {
       expect(File('${root.path}/onboot.sh').existsSync(), isFalse);
     });
 
-    test('a phase that wedged is reported as abandoned, not as never run',
-        () async {
-      // It ran four times; "never ran" would be a lie. But retiring quietly
-      // would leave the status saying nothing went wrong.
-      await expectPhases(['10-mdb-artifact.sh']);
-      await phase('10-mdb-artifact.sh', 'exit 1');
-      for (var i = 0; i < 5; i++) {
-        await boot();
-      }
-      expect(status(), contains('10-mdb-artifact.sh'));
-      expect(status(), contains('abandoned'));
-      expect(status(), isNot(contains('never ran')));
-    });
+    test(
+      'a phase that wedged is reported as abandoned, not as never run',
+      () async {
+        // It ran four times; "never ran" would be a lie. But retiring quietly
+        // would leave the status saying nothing went wrong.
+        await expectPhases(['10-mdb-artifact.sh']);
+        await phase('10-mdb-artifact.sh', 'exit 1');
+        for (var i = 0; i < 5; i++) {
+          await boot();
+        }
+        expect(status(), contains('10-mdb-artifact.sh'));
+        expect(status(), contains('abandoned'));
+        expect(status(), isNot(contains('never ran')));
+      },
+    );
 
     test('a wedged phase cannot bury the error another phase wrote', () async {
       // The rollback verdict from 90-finalize.sh is more precise than any
       // abandonment message, and it is the one a person needs to read.
       await expectPhases(['90-finalize.sh']);
-      await phase('90-finalize.sh',
-          "echo 'error: the installed image failed to boot and was rolled back'"
-          ' > ${root.path}/installer/trampoline-status; exit 1');
+      await phase(
+        '90-finalize.sh',
+        "echo 'error: the installed image failed to boot and was rolled back'"
+            ' > ${root.path}/installer/trampoline-status; exit 1',
+      );
       for (var i = 0; i < 5; i++) {
         await boot();
       }
@@ -342,36 +373,44 @@ void main() {
       expect(r.exitCode, 0, reason: r.stderr.toString());
     });
 
-    test('the signalling lives there too, and is never run as a phase',
-        () async {
-      // It has to survive the dashboard phase's sweep to light anything after
-      // it, which is why it is in here and not in /data/installer. Counted as
-      // a phase it would get an attempt file, be expected to remove itself,
-      // and hold the coordinator open forever when it did not.
-      expect(SignalHelpers.remotePath,
-          startsWith('${SshService.installerScriptsDir}/'));
-      await expectPhases(['20-dbc.sh']);
-      await File('${scripts.path}/${SignalHelpers.fileName}')
-          .writeAsString('# helpers\n');
-      await phase('20-dbc.sh', 'rm -f "\$0"');
-      final r = await boot();
-      expect(r.exitCode, 0, reason: r.stderr.toString());
-      expect(
+    test(
+      'the signalling lives there too, and is never run as a phase',
+      () async {
+        // It has to survive the dashboard phase's sweep to light anything after
+        // it, which is why it is in here and not in /data/installer. Counted as
+        // a phase it would get an attempt file, be expected to remove itself,
+        // and hold the coordinator open forever when it did not.
+        expect(
+          SignalHelpers.remotePath,
+          startsWith('${SshService.installerScriptsDir}/'),
+        );
+        await expectPhases(['20-dbc.sh']);
+        await File(
+          '${scripts.path}/${SignalHelpers.fileName}',
+        ).writeAsString('# helpers\n');
+        await phase('20-dbc.sh', 'rm -f "\$0"');
+        final r = await boot();
+        expect(r.exitCode, 0, reason: r.stderr.toString());
+        expect(
           File('${scripts.path}/${SignalHelpers.fileName}.tries').existsSync(),
           isFalse,
-          reason: 'it was run as a phase and given an attempt counter');
-    });
+          reason: 'it was run as a phase and given an attempt counter',
+        );
+      },
+    );
 
     test('retiring takes the signalling with it', () async {
       // It is staged per run and the vehicle has nothing to signal once the
       // run is over. Left behind, the next installer meets a helpers file it
       // did not write and cannot tell how old it is.
-      await File('${scripts.path}/${SignalHelpers.fileName}')
-          .writeAsString('# helpers\n');
+      await File(
+        '${scripts.path}/${SignalHelpers.fileName}',
+      ).writeAsString('# helpers\n');
       await boot();
       expect(
-          File('${scripts.path}/${SignalHelpers.fileName}').existsSync(),
-          isFalse);
+        File('${scripts.path}/${SignalHelpers.fileName}').existsSync(),
+        isFalse,
+      );
     });
   });
 }
@@ -390,7 +429,7 @@ void retirementTests() {
   Future<ProcessResult> retire() async {
     final f = File('${root.path}/retire.sh');
     await f.writeAsString(rehomed(SshService.onbootRetireCommand));
-    return Process.run('sh', [f.path]);
+    return runShellFixture(f.path);
   }
 
   Future<void> installShim() async {
@@ -405,10 +444,9 @@ void retirementTests() {
     // without them, the same as on a device, where both are always staged.
     for (final lib in ['signal.sh', 'device.sh']) {
       await File('${scripts.path}/$lib').writeAsString(
-        File('assets/$lib').readAsStringSync().replaceAll(
-              '/data/',
-              '${root.path}/',
-            ),
+        File(
+          'assets/$lib',
+        ).readAsStringSync().replaceAll('/data/', '${root.path}/'),
       );
     }
   });
@@ -420,8 +458,10 @@ void retirementTests() {
     await backup.writeAsString('#!/bin/sh\n# the user had their own\n');
     final result = await retire();
     expect(result.exitCode, 0, reason: result.stderr.toString());
-    expect(await File('${root.path}/onboot.sh').readAsString(),
-        contains('the user had their own'));
+    expect(
+      await File('${root.path}/onboot.sh').readAsString(),
+      contains('the user had their own'),
+    );
     expect(backup.existsSync(), isFalse);
   });
 
@@ -430,8 +470,11 @@ void retirementTests() {
     await File('${scripts.path}/30-cleanup.sh').writeAsString('#!/bin/sh\n');
     final result = await retire();
     expect(result.exitCode, 0);
-    expect(File('${root.path}/onboot.sh').existsSync(), isTrue,
-        reason: 'the queued phase still needs the coordinator to run it');
+    expect(
+      File('${root.path}/onboot.sh').existsSync(),
+      isTrue,
+      reason: 'the queued phase still needs the coordinator to run it',
+    );
   });
 
   test('it leaves a script that is not ours alone', () async {
@@ -450,8 +493,9 @@ void installTests() {
   Future<ProcessResult> install() async {
     final f = File('${root.path}/install.sh');
     await f.writeAsString(
-        SshService.onbootInstallCommand.replaceAll('/data/', '${root.path}/'));
-    return Process.run('sh', [f.path]);
+      SshService.onbootInstallCommand.replaceAll('/data/', '${root.path}/'),
+    );
+    return runShellFixture(f.path);
   }
 
   setUp(() async {
@@ -461,14 +505,19 @@ void installTests() {
   tearDown(() => root.delete(recursive: true));
 
   test('it saves a script that belongs to somebody else', () async {
-    await File('${root.path}/onboot.sh')
-        .writeAsString('#!/bin/sh\n# the user had their own\n');
+    await File(
+      '${root.path}/onboot.sh',
+    ).writeAsString('#!/bin/sh\n# the user had their own\n');
     final result = await install();
     expect(result.exitCode, 0, reason: result.stderr.toString());
-    expect(await File('${root.path}/installer/onboot.sh.bak').readAsString(),
-        contains('the user had their own'));
-    expect(await File('${root.path}/onboot.sh').readAsString(),
-        contains('Installed by the Librescoot installer'));
+    expect(
+      await File('${root.path}/installer/onboot.sh.bak').readAsString(),
+      contains('the user had their own'),
+    );
+    expect(
+      await File('${root.path}/onboot.sh').readAsString(),
+      contains('Installed by the Librescoot installer'),
+    );
   });
 
   test('it does not save its own shim over the saved script', () async {
@@ -477,8 +526,11 @@ void installTests() {
     await File('${root.path}/onboot.sh').writeAsString(SshService.onbootShim);
     final result = await install();
     expect(result.exitCode, 0, reason: result.stderr.toString());
-    expect(await backup.readAsString(), contains('the user had their own'),
-        reason: 'a second install would otherwise bury what it displaced');
+    expect(
+      await backup.readAsString(),
+      contains('the user had their own'),
+      reason: 'a second install would otherwise bury what it displaced',
+    );
   });
 
   test('it does not mistake an older installer for the user', () async {
@@ -487,60 +539,74 @@ void installTests() {
     // it back on retirement, which re-arms a dead run against a staging
     // directory that has since been swept.
     await File('${root.path}/onboot.sh').writeAsString(
-        '#!/bin/sh\n# Auto-generated by installer trampoline\nexit 0\n');
+      '#!/bin/sh\n# Auto-generated by installer trampoline\nexit 0\n',
+    );
     final result = await install();
     expect(result.exitCode, 0, reason: result.stderr.toString());
-    expect(File('${root.path}/installer/onboot.sh.bak').existsSync(), isFalse,
-        reason: 'a dead trampoline must not come back as the user\'s script');
+    expect(
+      File('${root.path}/installer/onboot.sh.bak').existsSync(),
+      isFalse,
+      reason: 'a dead trampoline must not come back as the user\'s script',
+    );
   });
 }
 
 /// A successful install used to delete its own account of itself. What it
 /// leaves behind now, and what stops that growing without bound.
 void historyTests() {
-  test('the sweep keeps the record, the phases and a displaced onboot', () async {
-    final root = await Directory.systemTemp.createTemp('sweep-');
-    addTearDown(() => root.delete(recursive: true));
-    final installer = Directory('${root.path}/installer');
-    for (final d in ['history/run-1', 'scripts', 'fwtools']) {
-      await Directory('${installer.path}/$d').create(recursive: true);
-    }
-    for (final f in [
-      'history/run-1/record',
-      'history/run-1/installer.log',
-      'scripts/90-finalize.sh',
-      'onboot.sh.bak',
-      'last-install',
-      'run-state',
-      'trampoline.log',
-      'librescoot-unu-dbc.sdimg.gz',
-    ]) {
-      await File('${installer.path}/$f').writeAsString('x');
-    }
+  test(
+    'the sweep keeps the record, the phases and a displaced onboot',
+    () async {
+      final root = await Directory.systemTemp.createTemp('sweep-');
+      addTearDown(() => root.delete(recursive: true));
+      final installer = Directory('${root.path}/installer');
+      for (final d in ['history/run-1', 'scripts', 'fwtools']) {
+        await Directory('${installer.path}/$d').create(recursive: true);
+      }
+      for (final f in [
+        'history/run-1/record',
+        'history/run-1/installer.log',
+        'scripts/90-finalize.sh',
+        'onboot.sh.bak',
+        'last-install',
+        'run-state',
+        'trampoline.log',
+        'librescoot-unu-dbc.sdimg.gz',
+      ]) {
+        await File('${installer.path}/$f').writeAsString('x');
+      }
 
-    final script = File('${root.path}/sweep.sh');
-    await script.writeAsString(
-        SshService.installerSweepCommand.replaceAll('/data/', '${root.path}/'));
-    final result = await Process.run('sh', [script.path]);
-    expect(result.exitCode, 0, reason: result.stderr.toString());
+      final script = File('${root.path}/sweep.sh');
+      await script.writeAsString(
+        SshService.installerSweepCommand.replaceAll('/data/', '${root.path}/'),
+      );
+      final result = await runShellFixture(script.path);
+      expect(result.exitCode, 0, reason: result.stderr.toString());
 
-    for (final kept in [
-      'history/run-1/record',
-      'history/run-1/installer.log',
-      'scripts/90-finalize.sh',
-      'onboot.sh.bak',
-      'last-install',
-      'run-state',
-    ]) {
-      expect(File('${installer.path}/$kept').existsSync(), isTrue,
-          reason: '$kept should survive the sweep');
-    }
-    for (final gone in ['trampoline.log', 'librescoot-unu-dbc.sdimg.gz']) {
-      expect(File('${installer.path}/$gone').existsSync(), isFalse,
-          reason: '$gone is staging and should go');
-    }
-    expect(Directory('${installer.path}/fwtools').existsSync(), isFalse);
-  });
+      for (final kept in [
+        'history/run-1/record',
+        'history/run-1/installer.log',
+        'scripts/90-finalize.sh',
+        'onboot.sh.bak',
+        'last-install',
+        'run-state',
+      ]) {
+        expect(
+          File('${installer.path}/$kept').existsSync(),
+          isTrue,
+          reason: '$kept should survive the sweep',
+        );
+      }
+      for (final gone in ['trampoline.log', 'librescoot-unu-dbc.sdimg.gz']) {
+        expect(
+          File('${installer.path}/$gone').existsSync(),
+          isFalse,
+          reason: '$gone is staging and should go',
+        );
+      }
+      expect(Directory('${installer.path}/fwtools').existsSync(), isFalse);
+    },
+  );
 
   test('the record says what the run was asked to do', () {
     // "success" alone cannot answer why a scooter is on the channel it is on,
@@ -558,8 +624,11 @@ void historyTests() {
       'mdb:',
       'dbc:',
     ]) {
-      expect(finalize, contains('echo "$field'),
-          reason: 'the record should carry $field');
+      expect(
+        finalize,
+        contains('echo "$field'),
+        reason: 'the record should carry $field',
+      );
     }
   });
 
@@ -568,33 +637,43 @@ void historyTests() {
     // coordinator at boot there. The rescue phase an aborted run stages would
     // never run, and neither would a queued phase after an unexpected reboot.
     test('it writes one only when no unit is known', () {
-      expect(SshService.onbootUnitCommand,
-          contains('systemctl cat librescoot-onboot.service'));
-      expect(SshService.onbootUnitCommand, startsWith('if ! systemctl cat'),
-          reason: 'the full image ships its own; do not shadow it');
+      expect(
+        SshService.onbootUnitCommand,
+        contains('systemctl cat librescoot-onboot.service'),
+      );
+      expect(
+        SshService.onbootUnitCommand,
+        startsWith('if ! systemctl cat'),
+        reason: 'the full image ships its own; do not shadow it',
+      );
     });
 
     test('the unit it writes runs the coordinator', () {
-      expect(SshService.onbootUnitCommand,
-          contains('ExecStart=${SshService.onbootPath}'));
-      expect(SshService.onbootUnitCommand,
-          contains('ConditionPathExists=${SshService.onbootPath}'));
-      expect(SshService.onbootUnitCommand, contains('WantedBy=multi-user.target'));
+      expect(
+        SshService.onbootUnitCommand,
+        contains('ExecStart=${SshService.onbootPath}'),
+      );
+      expect(
+        SshService.onbootUnitCommand,
+        contains('ConditionPathExists=${SshService.onbootPath}'),
+      );
+      expect(
+        SshService.onbootUnitCommand,
+        contains('WantedBy=multi-user.target'),
+      );
       expect(SshService.onbootUnitCommand, contains('systemctl enable'));
     });
 
     test('it is a complete unit, with nothing left uninterpolated', () {
       final cmd = SshService.onbootUnitCommand;
-      for (final line in [
-        '[Unit]',
-        '[Service]',
-        '[Install]',
-        'Type=oneshot',
-      ]) {
+      for (final line in ['[Unit]', '[Service]', '[Install]', 'Type=oneshot']) {
         expect(cmd, contains(line));
       }
-      expect(cmd, isNot(contains(r'$onbootPath')),
-          reason: 'the path must be interpolated before it ships');
+      expect(
+        cmd,
+        isNot(contains(r'$onbootPath')),
+        reason: 'the path must be interpolated before it ships',
+      );
       expect(cmd, contains('/data/onboot.sh'));
     });
   });

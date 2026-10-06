@@ -109,6 +109,7 @@ echo "systemctl \$*" >> "\$CALLS"
 case "\$1" in is-active) echo active ;; esac
 ''',
         'sleep': '#!/bin/sh\nexit 0\n',
+        'sync': '#!/bin/sh\necho "sync" >> "\$CALLS"\n',
         // The signalling reaches the vehicle through these three and nothing
         // else, so they are what says what the finish lit.
         'ioctl': '#!/bin/sh\necho "ioctl \$*" >> "\$CALLS"\n',

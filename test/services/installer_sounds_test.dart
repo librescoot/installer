@@ -89,13 +89,15 @@ void main() {
     AudioplayersPlatformInterface.instance = audio;
     GlobalAudioplayersPlatformInterface.instance = _TestGlobalAudioPlatform();
     InstallerSounds.muted.value = false;
-    final sounds = InstallerSounds();
+    final sounds = InstallerSounds(
+      retryDelay: const Duration(milliseconds: 100),
+    );
     try {
       await _waitForCalls(audio, 'dispose', InstallerCue.values.length);
       sounds.play(InstallerCue.critical);
       expect(audio.calls.where((call) => call == 'resume'), isEmpty);
       audio.failSources = false;
-      await Future<void>.delayed(const Duration(seconds: 10));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
       await _waitForCalls(audio, 'source', InstallerCue.values.length * 2);
       await Future<void>.delayed(const Duration(milliseconds: 20));
       expect(audio.calls.where((call) => call == 'resume'), isEmpty);

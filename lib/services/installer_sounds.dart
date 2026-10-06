@@ -36,13 +36,15 @@ InstallerCue? cueForPhase(InstallerPhase phase) => switch (phase) {
 
 /// Best-effort local playback: audio must never interrupt an installation.
 class InstallerSounds {
-  InstallerSounds() {
+  InstallerSounds({Duration retryDelay = const Duration(seconds: 10)})
+    : _retryDelay = retryDelay {
     muted.addListener(_onMuteChanged);
     if (!muted.value) _prepareCues();
   }
 
   static final ValueNotifier<bool> muted = ValueNotifier<bool>(false);
 
+  final Duration _retryDelay;
   final Map<InstallerCue, AudioPlayer> _players = {};
   final Set<InstallerCue> _preparedCues = {};
   final Map<InstallerCue, Timer> _retries = {};
@@ -101,7 +103,7 @@ class InstallerSounds {
 
   void _scheduleRetry(InstallerCue cue) {
     if (_disposed || muted.value || _retries.containsKey(cue)) return;
-    _retries[cue] = Timer(const Duration(seconds: 10), () {
+    _retries[cue] = Timer(_retryDelay, () {
       _retries.remove(cue);
       unawaited(_prepareCue(cue));
     });
