@@ -1,6 +1,6 @@
 # Librescoot Installer
 
-> **Stable software.** Tested on all three platforms against real hardware. Flashing firmware carries inherent risk; use at your own risk, with no warranty expressed or implied.
+> **Beta development.** The automatic dashboard handoff and its LED/front-ring signals require physical hardware validation. Automated tests and simulated recordings do not establish hardware safety. Flashing firmware carries inherent risk; use at your own risk, with no warranty expressed or implied.
 
 Part of the [Librescoot](https://librescoot.org/) open-source platform.
 
@@ -78,6 +78,8 @@ before each build; for local development run `scripts/update-flasher.sh`.
 [flasher-repo]: https://github.com/librescoot/librescoot-flasher
 
 ## Development
+
+Installer sounds are prepared in the background when the screen starts. Playback uses prepared sources; unavailable cues are skipped and preparation retries without blocking installation. `--recording-demo` implies `--dry-run`: it hides simulation controls and simulates card taps, but never enables physical device operations. `--dry-run` retains interactive simulation controls. Both modes preserve simulation isolation when starting another installer run.
 
 Linux builds need `libgstreamer1.0-dev` and `libgstreamer-plugins-base1.0-dev`; local audio playback also needs `gstreamer1.0-plugins-good`. Desktop release packaging includes these playback plugins in the AppImage.
 
