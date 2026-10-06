@@ -38,19 +38,19 @@ InstallerCue? cueForPhase(InstallerPhase phase) => switch (phase) {
 class InstallerSounds {
   InstallerSounds() {
     muted.addListener(_onMuteChanged);
-    if (!muted.value) _prepareBrakeCues();
+    if (!muted.value) _prepareCues();
   }
 
   static final ValueNotifier<bool> muted = ValueNotifier<bool>(false);
 
   final Map<InstallerCue, AudioPlayer> _players = {};
-  final Set<InstallerCue> _preparedBrakeCues = {};
-  final Map<InstallerCue, Timer> _brakeRetries = {};
+  final Set<InstallerCue> _preparedCues = {};
+  final Map<InstallerCue, Timer> _retries = {};
   bool _disposed = false;
 
-  void _prepareBrakeCues() {
-    for (final cue in [InstallerCue.pull, InstallerCue.release]) {
-      if (!_players.containsKey(cue)) unawaited(_prepareBrakeCue(cue));
+  void _prepareCues() {
+    for (final cue in InstallerCue.values) {
+      if (!_players.containsKey(cue)) unawaited(_prepareCue(cue));
     }
   }
 
@@ -61,7 +61,7 @@ class InstallerSounds {
         unawaited(_stopPlayer(player));
       }
     } else {
-      _prepareBrakeCues();
+      _prepareCues();
     }
   }
 
@@ -75,38 +75,35 @@ class InstallerSounds {
 
   void play(InstallerCue cue) {
     if (_disposed || muted.value) return;
-    if (cue == InstallerCue.pull || cue == InstallerCue.release) {
-      if (!_preparedBrakeCues.contains(cue)) {
-        debugPrint('Installer brake audio not ready: ${cue.name}');
-        return;
-      }
-      unawaited(_resumeBrakeCue(cue));
+    if (!_preparedCues.contains(cue)) {
+      debugPrint('Installer audio not ready: ${cue.name}');
       return;
     }
-    unawaited(_play(cue));
+    unawaited(_resumeCue(cue));
   }
 
-  Future<void> _prepareBrakeCue(InstallerCue cue) async {
+  Future<void> _prepareCue(InstallerCue cue) async {
     if (_disposed || muted.value) return;
     final player = AudioPlayer();
     _players[cue] = player;
     try {
       await player.setReleaseMode(ReleaseMode.stop);
+      if (_disposed || _players[cue] != player) return;
       await player.setSource(AssetSource('sounds/${cue.assetName}'));
-      if (!_disposed) _preparedBrakeCues.add(cue);
+      if (!_disposed && _players[cue] == player) _preparedCues.add(cue);
     } catch (error) {
-      debugPrint('Installer brake audio ${cue.name} unavailable: $error');
-      _players.remove(cue);
+      debugPrint('Installer audio ${cue.name} unavailable: $error');
+      if (_players[cue] == player) _players.remove(cue);
       unawaited(_disposePlayer(player));
-      _scheduleBrakeRetry(cue);
+      _scheduleRetry(cue);
     }
   }
 
-  void _scheduleBrakeRetry(InstallerCue cue) {
-    if (_disposed || muted.value || _brakeRetries.containsKey(cue)) return;
-    _brakeRetries[cue] = Timer(const Duration(seconds: 10), () {
-      _brakeRetries.remove(cue);
-      unawaited(_prepareBrakeCue(cue));
+  void _scheduleRetry(InstallerCue cue) {
+    if (_disposed || muted.value || _retries.containsKey(cue)) return;
+    _retries[cue] = Timer(const Duration(seconds: 10), () {
+      _retries.remove(cue);
+      unawaited(_prepareCue(cue));
     });
   }
 
@@ -118,45 +115,34 @@ class InstallerSounds {
     }
   }
 
-  Future<void> _resumeBrakeCue(InstallerCue cue) async {
+  Future<void> _resumeCue(InstallerCue cue) async {
     final player = _players[cue]!;
     try {
       if (_disposed || muted.value) return;
       await player.resume();
       if (muted.value) await _stopPlayer(player);
     } catch (error) {
-      debugPrint('Installer brake audio ${cue.name} unavailable: $error');
-      _preparedBrakeCues.remove(cue);
-      _players.remove(cue);
+      debugPrint('Installer audio ${cue.name} unavailable: $error');
+      if (_players[cue] == player) {
+        _preparedCues.remove(cue);
+        _players.remove(cue);
+      }
       unawaited(_disposePlayer(player));
-      _scheduleBrakeRetry(cue);
-    }
-  }
-
-  Future<void> _play(InstallerCue cue) async {
-    try {
-      if (_disposed || muted.value) return;
-      final player = _players.putIfAbsent(cue, AudioPlayer.new);
-      await player.setReleaseMode(ReleaseMode.stop);
-      if (_disposed || muted.value) return;
-      await player.play(AssetSource('sounds/${cue.assetName}'));
-      if (muted.value) await _stopPlayer(player);
-    } catch (error) {
-      debugPrint('Installer audio unavailable: $error');
+      _scheduleRetry(cue);
     }
   }
 
   void dispose() {
     _disposed = true;
     muted.removeListener(_onMuteChanged);
-    for (final retry in _brakeRetries.values) {
+    for (final retry in _retries.values) {
       retry.cancel();
     }
-    _brakeRetries.clear();
+    _retries.clear();
     for (final player in _players.values) {
       unawaited(_disposePlayer(player));
     }
     _players.clear();
-    _preparedBrakeCues.clear();
+    _preparedCues.clear();
   }
 }
