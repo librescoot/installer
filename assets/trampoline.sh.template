@@ -516,7 +516,7 @@ dbc_ping_or_ums_wait() {
   while [ "$PING_ELAPSED" -lt "$budget" ]; do
     stretch=0
     while [ "$stretch" -lt 24 ] && [ "$PING_ELAPSED" -lt "$budget" ]; do
-      if ping -c 1 -W 2 "$DBC_IP" >/dev/null 2>&1; then
+      if ping -I usb0 -c 1 -W 2 "$DBC_IP" >/dev/null 2>&1; then
         DBC_PINGED="yes"
         return 0
       fi
@@ -839,13 +839,43 @@ exec 2>>"$LOG_FILE"
 # then this run's own signals from a known state.
 signal_all_off
 
-# Front light pulsing FIRST, before the slower service stops below, so the
-# vehicle shows something within a second or two of the run starting instead
-# of going dark for the ~15s the stops below take (librescoot-bluetooth in
-# particular, which is mid BLE/UART work). Same ordering used at the resume
-# point after the MDB reboot. Safe this early: the front-ring channel is not
-# one keycard/bluetooth/ums/pm touch, so there is nothing to race here.
-front_pulse_start
+HANDOFF_DIR="$INSTALLER_DIR/handoff-$RUN_ID"
+[ -d "$HANDOFF_DIR" ] || fail "Missing handoff session"
+case "$MODE" in flash|upgrade) ;; *) fail "unrecognised install mode: $MODE" ;; esac
+if [ "$MODE" = flash ]; then
+  [ -f "$DBC_IMAGE" ] || fail "DBC image not found: $DBC_IMAGE"
+fi
+if [ -n "$DBC_MENDER" ]; then
+  [ -f "$DBC_MENDER" ] || fail "DBC artifact not found: $DBC_MENDER"
+fi
+WAIT_KEYCARD_UNITS=""
+for unit in librescoot-keycard keycard-service; do
+  if systemctl is-active --quiet "$unit"; then
+    WAIT_KEYCARD_UNITS="$WAIT_KEYCARD_UNITS $unit"
+    systemctl stop "$unit" || fail "Could not claim dashboard LED"
+  fi
+done
+signal_waiting_for_dashboard
+dbc_power_set 1 || fail "Could not power dashboard for handoff"
+write_run_state "waiting-for-dashboard"
+wait_for_dashboard_connection
+HANDOFF_RESULT=$?
+if [ "$HANDOFF_RESULT" -eq 2 ]; then
+  signal_all_off
+  dbc_update_complete || fail "Could not release dashboard control after cancellation"
+  for unit in $WAIT_KEYCARD_UNITS; do
+    systemctl start "$unit" || fail "Could not restore $unit after cancellation"
+  done
+  rm -f "$SCRIPTS_DIR/.expected"
+  write_status "cancelled" "Dashboard handoff cancelled before installation"
+  printf 'cancelled\n' > "$HANDOFF_DIR/result"
+  exit 0
+fi
+[ "$HANDOFF_RESULT" -ne 3 ] || fail "Dashboard is in USB recovery; a clean installation is required"
+[ "$HANDOFF_RESULT" -ne 4 ] || fail "Dashboard is in BootROM recovery; manual recovery is required"
+[ "$HANDOFF_RESULT" -eq 0 ] || fail "Dashboard handoff failed"
+front_pulse_stop
+signal_install_start
 
 # Stop services that interfere. Persistent mask survives the MDB reboot
 # we do after writing onboot.sh; onboot.sh unmasks at the end of its
@@ -875,12 +905,8 @@ systemctl stop librescoot-ums 2>/dev/null || true
 systemctl mask librescoot-ums 2>/dev/null || true
 systemctl stop librescoot-pm 2>/dev/null || true
 
-# Amber, and a guard loop that re-asserts it every 2s: vehicle-service also
-# drives the LP5562 (for blinker brightness) and cannot be masked, because
-# `lsc dbc on-wait` needs it. Deliberately kept after the stops above, not
-# moved alongside the front light: keycard-service is still live until the
-# mask above lands, and starting the guard loop before that would just mean
-# a few seconds of the guard fighting keycard for the LP5562 instead of zero.
+# vehicle-service also drives the LP5562; keep the amber guard active through
+# service transitions and the installation.
 signal_install_start
 
 # Reject a MODE we do not recognise before anything else runs. The value comes
@@ -925,21 +951,7 @@ if [ -n "$DBC_MENDER" ]; then
   log "Artifact: $(ls -lh "$DBC_MENDER" | awk '{print $5}')"
 fi
 
-# Step 1: Wait for laptop disconnect. The helper also handles a rapid swap
-# whose new DBC host keeps UDC=configured continuously.
-step_begin "Step 1: wait for laptop disconnect"
-wait_for_laptop_disconnect
-step_end
-
-# Step 2: Re-init g_ether for DBC
-step_begin "Step 2: re-init g_ether"
-rmmod g_ether 2>/dev/null || true
-sleep 1
-modprobe g_ether 2>/dev/null || true
-sleep 2
-usb0_up
-log "  usb0 ready"
-step_end
+log "Dashboard connection confirmed; starting installation"
 
 # Steps 3-7 are stage 0: power the DBC into u-boot mass storage, flip the MDB
 # to USB host and write the disk image to the DBC's eMMC. An upgrade already
@@ -949,7 +961,6 @@ if [ "$MODE" = "flash" ]; then
 
 # Step 3: Power on DBC
 step_begin "Step 3: power on DBC"
-DBC_ALREADY_UMS=""
 
 # Power on without waiting: the wait below owns the whole window, and a DBC
 # already in UMS never answers the ping that on-wait would sit 90s on.

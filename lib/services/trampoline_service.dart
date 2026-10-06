@@ -321,7 +321,12 @@ class TrampolineService {
 
   static const Duration _uploadConnectTimeout = Duration(seconds: 10);
 
-  TrampolineService(this._ssh);
+  TrampolineService(
+    this._ssh, {
+    this.handoffPollDelay = const Duration(milliseconds: 500),
+  });
+
+  final Duration handoffPollDelay;
 
   /// Pure substitution, split out of [generateScript] so it can be tested
   /// without the asset bundle.
@@ -1219,6 +1224,19 @@ http.server.HTTPServer(
     if (!RegExp(r'^[a-zA-Z0-9._-]+$').hasMatch(runId)) {
       throw ArgumentError.value(runId, 'runId', 'contains unsafe characters');
     }
+    if (await isRunning()) {
+      final waiting = await _ssh.runCommand(
+        'test "\$(cat /data/installer/run-id 2>/dev/null)" = "$runId" && '
+        '[ ! -d /data/installer/handoff-$runId/decision ] && echo waiting; true',
+      );
+      if (waiting.trim() != 'waiting') {
+        throw StateError(
+          'An installation is already active; refusing to replace it',
+        );
+      }
+      await _waitForHandoffReady(runId);
+      return;
+    }
     await _ensureNoActiveDbcRun();
     await _ssh.runCommand(archiveTrampolineAttemptCommand);
     await _ssh.runCommand(
@@ -1227,6 +1245,12 @@ http.server.HTTPServer(
       "printf '%s\\n' '$runId' > /data/installer/.run-id.tmp; "
       'mv -f /data/installer/.run-id.tmp /data/installer/run-id',
     );
+    await _ssh.runCommand(
+      'rm -rf /data/installer/handoff-$runId; mkdir -p /data/installer/handoff-$runId',
+    );
+    if (!await heartbeat(runId: runId)) {
+      throw StateError('Installer connection is not routed over USB');
+    }
     await _ssh.writeInstallRunState(
       runId: runId,
       content: serializeInstallRunState(
@@ -1244,16 +1268,66 @@ http.server.HTTPServer(
       '> /data/installer/trampoline-stdout.log 2>&1 &',
     );
 
-    // nohup backgrounds the process, so the launching shell reports success
-    // whether or not it survived. Without this check a trampoline that never
-    // started is indistinguishable from one still working, and the user has
-    // already swapped the cable by the time anyone could tell.
-    for (var attempt = 0; attempt < 5; attempt++) {
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (await isRunning()) return;
+    await _waitForHandoffReady(runId);
+  }
+
+  // Process presence alone does not acknowledge that it is safe to unplug.
+  Future<void> _waitForHandoffReady(String runId) async {
+    for (var attempt = 0; attempt < 60; attempt++) {
+      await Future.delayed(handoffPollDelay);
+      if (!await heartbeat(runId: runId)) break;
+      final ready = await _ssh.runCommand(
+        'cat /data/installer/handoff-$runId/ready 2>/dev/null; true',
+      );
+      if (ready.trim() == runId && await isRunning()) return;
     }
     final diagnostics = await _whyNoTrampoline();
     throw TrampolineStartException(diagnostics);
+  }
+
+  Future<bool> heartbeat({required String runId}) async {
+    _validateHandoffId(runId);
+    final result = await _ssh.runCommand(
+      'peer="\${SSH_CONNECTION%% *}"; '
+      r'if [ -n "$peer" ] && ip route get "$peer" | grep -Eq "(^| )dev usb0( |$)"; then '
+      'cut -d. -f1 /proc/uptime > /data/installer/handoff-$runId/heartbeat.tmp && '
+      'mv /data/installer/handoff-$runId/heartbeat.tmp /data/installer/handoff-$runId/heartbeat && echo present; fi',
+      timeout: const Duration(seconds: 5),
+    );
+    return result.trim() == 'present';
+  }
+
+  Future<bool> resumeWaiting({required String runId}) async {
+    _validateHandoffId(runId);
+    if (!await isRunning()) return false;
+    final waiting = await _ssh.runCommand(
+      'test "\$(cat /data/installer/run-id 2>/dev/null)" = "$runId" && '
+      'test "\$(cat /data/installer/handoff-$runId/ready 2>/dev/null)" = "$runId" && '
+      '[ ! -d /data/installer/handoff-$runId/decision ] && echo waiting; true',
+    );
+    return waiting.trim() == 'waiting' && await heartbeat(runId: runId);
+  }
+
+  Future<bool> cancelWaiting({required String runId}) async {
+    _validateHandoffId(runId);
+    if (!await isRunning()) return true;
+    final dir = '/data/installer/handoff-$runId';
+    final claim = await _ssh.runCommand(
+      'mkdir $dir/decision 2>/dev/null && echo cancelled > $dir/decision/state && echo claimed',
+    );
+    if (claim.trim() != 'claimed') return false;
+    for (var i = 0; i < 30; i++) {
+      await Future.delayed(const Duration(seconds: 1));
+      final result = await _ssh.runCommand('cat $dir/result 2>/dev/null; true');
+      if (result.trim() == 'cancelled' && !await isRunning()) return true;
+    }
+    return false;
+  }
+
+  void _validateHandoffId(String runId) {
+    if (!RegExp(r'^[a-zA-Z0-9._-]+$').hasMatch(runId)) {
+      throw ArgumentError.value(runId, 'runId');
+    }
   }
 
   /// Collects launch evidence before cleanup removes the staging directory.

@@ -98,6 +98,192 @@ abstract class AppLocalizations {
     Locale('en'),
   ];
 
+  /// No description provided for @laptopCableLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Laptop cable'**
+  String get laptopCableLabel;
+
+  /// No description provided for @dashboardCableLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Dashboard cable'**
+  String get dashboardCableLabel;
+
+  /// No description provided for @verifyingMapsInstallation.
+  ///
+  /// In en, this message translates to:
+  /// **'Check map installation'**
+  String get verifyingMapsInstallation;
+
+  /// No description provided for @connectionPurpose.
+  ///
+  /// In en, this message translates to:
+  /// **'The installer automatically detects the main computer and sets up the USB connection. Keep the cable connected.'**
+  String get connectionPurpose;
+
+  /// No description provided for @checkAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Check again'**
+  String get checkAgain;
+
+  /// No description provided for @handoffLedSignals.
+  ///
+  /// In en, this message translates to:
+  /// **'The dashboard LED blinks amber while waiting for the connection. When it glows steadily amber, the dashboard has been recognized and installation is running. The front light ring also pulses while waiting. Keep the internal USB cable connected after swapping.'**
+  String get handoffLedSignals;
+
+  /// No description provided for @handoffDisconnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Laptop disconnected. Check the signals on the scooter for further status.'**
+  String get handoffDisconnected;
+
+  /// No description provided for @handoffHandsOffBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Even if the dashboard already shows something, installation may still be running. Keep the internal USB cable and power connected until the scooter signals completion.'**
+  String get handoffHandsOffBody;
+
+  /// No description provided for @handoffCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel transfer'**
+  String get handoffCancel;
+
+  /// No description provided for @handoffCancelFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not safely cancel the wait. Keep the connection in place and check the installation status before changing anything.'**
+  String get handoffCancelFailed;
+
+  /// No description provided for @mapsIncompleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Not all selected offline maps could be confirmed as installed. You can retry the map installation later.'**
+  String get mapsIncompleteBody;
+
+  /// No description provided for @retryMaps.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry map installation'**
+  String get retryMaps;
+
+  /// No description provided for @recoveryCableInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep the scooter powered. Undo both screws on the internal dashboard USB connector at the main computer (MDB) and unplug it. Plug the laptop USB cable into the same socket. The installer reconnects and reads the installation status and error log.'**
+  String get recoveryCableInstructions;
+
+  /// No description provided for @reassemblyHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Reassemble the scooter'**
+  String get reassemblyHeading;
+
+  /// No description provided for @checkDashboardCable.
+  ///
+  /// In en, this message translates to:
+  /// **'Check the dashboard cable'**
+  String get checkDashboardCable;
+
+  /// No description provided for @checkDashboardCableDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Check that the internal USB cable is firmly seated at the main computer (MDB) and both connector screws are tightened.'**
+  String get checkDashboardCableDesc;
+
+  /// No description provided for @replaceBraces.
+  ///
+  /// In en, this message translates to:
+  /// **'Refit the crossbars'**
+  String get replaceBraces;
+
+  /// No description provided for @replaceBracesDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Refit both crossbars in their holders, taking care not to pinch any cables.'**
+  String get replaceBracesDesc;
+
+  /// No description provided for @mdbSoftwareFresh.
+  ///
+  /// In en, this message translates to:
+  /// **'The base system is already running. The full Librescoot software will now be installed.'**
+  String get mdbSoftwareFresh;
+
+  /// No description provided for @mdbSoftwareUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'The selected Librescoot version will be installed on the main computer.'**
+  String get mdbSoftwareUpdate;
+
+  /// No description provided for @downloadsBeforeScooter.
+  ///
+  /// In en, this message translates to:
+  /// **'Wait for all downloads to finish before taking the laptop to the scooter. You can then continue without an internet connection.'**
+  String get downloadsBeforeScooter;
+
+  /// No description provided for @downloadsReadyOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Everything is downloaded. You can now take the laptop to the scooter and continue offline.'**
+  String get downloadsReadyOffline;
+
+  /// No description provided for @removeBraces.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove the crossbars'**
+  String get removeBraces;
+
+  /// No description provided for @removeBracesDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Pull both clipped-in crossbars upwards. No further screws need removing.'**
+  String get removeBracesDesc;
+
+  /// No description provided for @continueToUsb.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue to the USB connection'**
+  String get continueToUsb;
+
+  /// No description provided for @laptopPrepHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect the laptop'**
+  String get laptopPrepHeading;
+
+  /// No description provided for @healthCheckPurpose.
+  ///
+  /// In en, this message translates to:
+  /// **'The installer checks the batteries to ensure enough power is available for installation.'**
+  String get healthCheckPurpose;
+
+  /// No description provided for @usbPreparationHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The main computer restarts as a USB drive, briefly interrupting the connection. Keep USB and power connected.'**
+  String get usbPreparationHint;
+
+  /// No description provided for @selectedSettingsRestore.
+  ///
+  /// In en, this message translates to:
+  /// **'The selected settings will be restored after reinstallation.'**
+  String get selectedSettingsRestore;
+
+  /// No description provided for @flashAuthorisationHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Permission to write required'**
+  String get flashAuthorisationHeading;
+
+  /// No description provided for @originalKeycardsNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Your existing keycards need to be enrolled again. Card permissions stored in the original firmware cannot be transferred.'**
+  String get originalKeycardsNotice;
+
   /// No description provided for @phaseWelcomeTitle.
   ///
   /// In en, this message translates to:
@@ -197,13 +383,13 @@ abstract class AppLocalizations {
   /// No description provided for @phaseScooterPrepTitle.
   ///
   /// In en, this message translates to:
-  /// **'Disconnect power'**
+  /// **'Restart'**
   String get phaseScooterPrepTitle;
 
   /// No description provided for @phaseScooterPrepDescription.
   ///
   /// In en, this message translates to:
-  /// **'Disconnect the CBB and AUX'**
+  /// **'Restart the scooter as instructed'**
   String get phaseScooterPrepDescription;
 
   /// No description provided for @phaseMdbBootTitle.
@@ -347,7 +533,7 @@ abstract class AppLocalizations {
   /// No description provided for @welcomeSubheading.
   ///
   /// In en, this message translates to:
-  /// **'Install Librescoot firmware on your scooter.'**
+  /// **'This wizard guides you through installing Librescoot on your scooter, step by step. Allow about 20 minutes.'**
   String get welcomeSubheading;
 
   /// No description provided for @updateAvailableTitle.
@@ -389,13 +575,13 @@ abstract class AppLocalizations {
   /// No description provided for @requirementsIntro.
   ///
   /// In en, this message translates to:
-  /// **'You need administrator rights on your computer to access the MDB, '**
+  /// **'Laptop with administrator access'**
   String get requirementsIntro;
 
   /// No description provided for @prerequisiteScrewdriverPH2.
   ///
   /// In en, this message translates to:
-  /// **'a PH2/H4 screwdriver'**
+  /// **'Phillips screwdriver (PH2) or 4 mm hex key (H4) for the footboard'**
   String get prerequisiteScrewdriverPH2;
 
   /// No description provided for @requirementsFootwell.
@@ -407,7 +593,7 @@ abstract class AppLocalizations {
   /// No description provided for @prerequisiteScrewdriverFlat.
   ///
   /// In en, this message translates to:
-  /// **'a flat-head/PH1 screwdriver'**
+  /// **'Small Phillips screwdriver (PH1) or flat-head screwdriver for the internal USB cable'**
   String get prerequisiteScrewdriverFlat;
 
   /// No description provided for @requirementsDbcCable.
@@ -419,7 +605,7 @@ abstract class AppLocalizations {
   /// No description provided for @prerequisiteUsbCable.
   ///
   /// In en, this message translates to:
-  /// **'a USB Mini-B cable'**
+  /// **'USB Mini-B data cable'**
   String get prerequisiteUsbCable;
 
   /// No description provided for @requirementsAnd.
@@ -437,7 +623,7 @@ abstract class AppLocalizations {
   /// No description provided for @requirementsOutro.
   ///
   /// In en, this message translates to:
-  /// **'. Allow about 20 minutes.'**
+  /// **'Charge the laptop or connect its power supply; disable automatic sleep.'**
   String get requirementsOutro;
 
   /// No description provided for @requirementsVideoLink.
@@ -491,7 +677,7 @@ abstract class AppLocalizations {
   /// No description provided for @noticesHeading.
   ///
   /// In en, this message translates to:
-  /// **'Read this before continuing'**
+  /// **'Before preparing your scooter'**
   String get noticesHeading;
 
   /// No description provided for @noticesSubheading.
@@ -539,7 +725,7 @@ abstract class AppLocalizations {
   /// No description provided for @elevationNoticeWelcome.
   ///
   /// In en, this message translates to:
-  /// **'Starting requires administrator access for MDB storage and networking.'**
+  /// **'The installer requests administrator access to set up USB networking and write software to the scooter.'**
   String get elevationNoticeWelcome;
 
   /// No description provided for @arm64EmulationNoticeWelcome.
@@ -815,25 +1001,25 @@ abstract class AppLocalizations {
   /// No description provided for @physicalPrepHeading.
   ///
   /// In en, this message translates to:
-  /// **'Physical preparation'**
+  /// **'Open the footwell'**
   String get physicalPrepHeading;
 
   /// No description provided for @physicalPrepSubheading.
   ///
   /// In en, this message translates to:
-  /// **'Prepare your scooter for USB connection.'**
+  /// **'Open the footwell to reach the USB connection.'**
   String get physicalPrepSubheading;
 
   /// No description provided for @keepScooterAwake.
   ///
   /// In en, this message translates to:
-  /// **'Keep the scooter awake'**
+  /// **'Unlock the scooter'**
   String get keepScooterAwake;
 
   /// No description provided for @keepScooterAwakeDesc.
   ///
   /// In en, this message translates to:
-  /// **'Unlock the scooter, or put a main battery in the front slot. Without one or the other it suspends partway through the install and takes the USB connection with it.'**
+  /// **'Unlock the scooter using your keycard or paired phone. Keep the kickstand down.'**
   String get keepScooterAwakeDesc;
 
   /// No description provided for @removeFootwellCover.
@@ -845,7 +1031,7 @@ abstract class AppLocalizations {
   /// No description provided for @removeFootwellCoverDesc.
   ///
   /// In en, this message translates to:
-  /// **'Remove the four screws. Factory scooters use PH2 Phillips; scooters previously serviced may use H4 hex or Torx.'**
+  /// **'Remove the four screws and lift off the cover. Use a Phillips screwdriver (PH2) or 4 mm hex key (H4), depending on the screws. Previously serviced scooters may have Torx screws.'**
   String get removeFootwellCoverDesc;
 
   /// No description provided for @unscrewUsbCable.
@@ -857,7 +1043,7 @@ abstract class AppLocalizations {
   /// No description provided for @unscrewUsbCableDesc.
   ///
   /// In en, this message translates to:
-  /// **'Disconnect the internal DBC USB cable from the MDB. Use a flat head or PH1 screwdriver.'**
+  /// **'Undo both screws securing the internal dashboard USB connector to the main computer (MDB), then unplug it. Use a small Phillips screwdriver (PH1) or flat-head screwdriver.'**
   String get unscrewUsbCableDesc;
 
   /// No description provided for @connectLaptopUsb.
@@ -869,7 +1055,7 @@ abstract class AppLocalizations {
   /// No description provided for @connectLaptopUsbDesc.
   ///
   /// In en, this message translates to:
-  /// **'Plug your USB cable into the MDB port and connect the other end to your laptop.'**
+  /// **'Plug your USB Mini-B data cable into the same socket on the main computer (MDB). Connect the other end to your laptop.'**
   String get connectLaptopUsbDesc;
 
   /// No description provided for @doneDetectDevice.
@@ -1523,13 +1709,13 @@ abstract class AppLocalizations {
   /// No description provided for @readyToFlash.
   ///
   /// In en, this message translates to:
-  /// **'Ready to begin flashing'**
+  /// **'Reinstall main computer (MDB)'**
   String get readyToFlash;
 
   /// No description provided for @readyToFlashHint.
   ///
   /// In en, this message translates to:
-  /// **'The device is in flashing mode. You can mount the device to create manual backups before proceeding.'**
+  /// **'The main computer (MDB) is connected as a USB drive. Check the target before writing.'**
   String get readyToFlashHint;
 
   /// No description provided for @readyToFlashTargetLabel.
@@ -1553,7 +1739,7 @@ abstract class AppLocalizations {
   /// No description provided for @readyToFlashDuration.
   ///
   /// In en, this message translates to:
-  /// **'The write takes about a minute. Do not disconnect USB or power while it runs.'**
+  /// **'Writing takes about 2 minutes. Keep USB and power connected. Avoid moving the cable or laptop.'**
   String get readyToFlashDuration;
 
   /// No description provided for @readyToFlashNoTarget.
@@ -1571,7 +1757,7 @@ abstract class AppLocalizations {
   /// No description provided for @macosDiskNotReadable.
   ///
   /// In en, this message translates to:
-  /// **'If macOS says the disk is unreadable, select Ignore. Selecting Eject disconnects the board during installation.'**
+  /// **'If macOS says the disk is unreadable, select Ignore, not Initialize or Eject.'**
   String get macosDiskNotReadable;
 
   /// No description provided for @macosNoRouteHeading.
@@ -1595,13 +1781,13 @@ abstract class AppLocalizations {
   /// No description provided for @beginFlashing.
   ///
   /// In en, this message translates to:
-  /// **'Begin flashing'**
+  /// **'Start installation'**
   String get beginFlashing;
 
   /// No description provided for @flashingMdb.
   ///
   /// In en, this message translates to:
-  /// **'Flashing MDB'**
+  /// **'Writing software to the main computer (MDB)'**
   String get flashingMdb;
 
   /// No description provided for @flashingMdbSubheading.
@@ -1661,13 +1847,13 @@ abstract class AppLocalizations {
   /// No description provided for @scooterPrepHeading.
   ///
   /// In en, this message translates to:
-  /// **'Scooter preparation'**
+  /// **'Restart the scooter'**
   String get scooterPrepHeading;
 
   /// No description provided for @scooterPrepSubheading.
   ///
   /// In en, this message translates to:
-  /// **'MDB firmware has been written. Now prepare for reboot.'**
+  /// **'The software has been written. Restart the scooter using the brake levers. Keep USB and power connected.'**
   String get scooterPrepSubheading;
 
   /// No description provided for @disconnectCbb.
@@ -1715,7 +1901,7 @@ abstract class AppLocalizations {
   /// No description provided for @brakeResetIntro.
   ///
   /// In en, this message translates to:
-  /// **'Squeeze and hold both brake levers. Every ten seconds, let go of the right one for about a second, then squeeze it again. After the fourth hold, just let go. The scooter restarts.'**
+  /// **'Squeeze and hold both brake levers. At 10, 20 and 30 seconds, release only the right lever for about one second, then squeeze it again. Keep the left lever held throughout. At 40 seconds, release both levers.'**
   String get brakeResetIntro;
 
   /// No description provided for @brakeResetAfterNote.
@@ -1847,7 +2033,7 @@ abstract class AppLocalizations {
   /// No description provided for @mdbBootRestartingNote.
   ///
   /// In en, this message translates to:
-  /// **'The scooter is restarting on its own. This takes a minute or two.'**
+  /// **'USB briefly disconnects during startup, which can take a few minutes. The installer continues automatically. Keep USB and power connected.'**
   String get mdbBootRestartingNote;
 
   /// No description provided for @reconnectAuxPole.
@@ -1985,19 +2171,19 @@ abstract class AppLocalizations {
   /// No description provided for @preparingDbcFlash.
   ///
   /// In en, this message translates to:
-  /// **'Preparing DBC installation'**
+  /// **'Prepare dashboard (DBC)'**
   String get preparingDbcFlash;
 
   /// No description provided for @preparingDbcFlashSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Upload the required dashboard files to the MDB first.'**
+  /// **'Keep the laptop USB cable connected for now.'**
   String get preparingDbcFlashSubtitle;
 
   /// No description provided for @preparingDbcFlashExplainer.
   ///
   /// In en, this message translates to:
-  /// **'The installer first uploads the dashboard image, firmware, and offline maps to the MDB. When the files are ready, start the on-device installation and replace the laptop cable with the DBC cable. The MDB completes the dashboard work autonomously.'**
+  /// **'The installer transfers the dashboard software and selected offline maps to the main computer (MDB), which then installs them on the dashboard.'**
   String get preparingDbcFlashExplainer;
 
   /// No description provided for @preparingMapTransfer.
@@ -2009,13 +2195,13 @@ abstract class AppLocalizations {
   /// No description provided for @preparingMapTransferSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'The offline maps go to the main board first.'**
+  /// **'Keep the laptop USB cable connected for now.'**
   String get preparingMapTransferSubtitle;
 
   /// No description provided for @preparingMapTransferExplainer.
   ///
   /// In en, this message translates to:
-  /// **'The installer first uploads the offline maps to the MDB. No dashboard firmware is changed. When the files are ready, start the transfer and replace the laptop cable with the DBC cable. The scooter then copies the maps autonomously.'**
+  /// **'The installer transfers the selected offline maps to the main computer (MDB), which then copies them to the dashboard (DBC). The dashboard software stays unchanged.'**
   String get preparingMapTransferExplainer;
 
   /// No description provided for @skipMapTransfer.
@@ -2069,13 +2255,13 @@ abstract class AppLocalizations {
   /// No description provided for @filesStagedWaitingForHandoff.
   ///
   /// In en, this message translates to:
-  /// **'Files are ready. Start the dashboard work when you are ready.'**
+  /// **'All files are transferred. The main computer is preparing to wait for the dashboard automatically. Keep the laptop USB cable connected for now.'**
   String get filesStagedWaitingForHandoff;
 
   /// No description provided for @handoffEstimateBriefDisclaimer.
   ///
   /// In en, this message translates to:
-  /// **'The bar estimates progress from the transfer size and typical timings. It is normal if the installation takes a little longer.'**
+  /// **'Duration depends on the selected installation and map data. The laptop cannot read live progress after the cable swap.'**
   String get handoffEstimateBriefDisclaimer;
 
   /// No description provided for @handoffEstimateExplanation.
@@ -2105,7 +2291,7 @@ abstract class AppLocalizations {
   /// No description provided for @handoffEstimateTotalRange.
   ///
   /// In en, this message translates to:
-  /// **'Expected total: about {from}–{to}'**
+  /// **'Expected duration from steady amber LED: {from}–{to}'**
   String handoffEstimateTotalRange(String from, String to);
 
   /// No description provided for @handoffEstimateTakingLonger.
@@ -2171,19 +2357,19 @@ abstract class AppLocalizations {
   /// No description provided for @dbcFlashInProgress.
   ///
   /// In en, this message translates to:
-  /// **'DBC installation in progress'**
+  /// **'Dashboard (DBC) installation'**
   String get dbcFlashInProgress;
 
   /// No description provided for @dbcFlashSwapCablesTitle.
   ///
   /// In en, this message translates to:
-  /// **'Connect the DBC cable to the MDB'**
+  /// **'Swap USB cables'**
   String get dbcFlashSwapCablesTitle;
 
   /// No description provided for @dbcFlashSwapCablesDeadline.
   ///
   /// In en, this message translates to:
-  /// **'The scooter is ready for the dashboard connection. Complete this step within a few minutes. You can secure the screws after the connection is confirmed.'**
+  /// **'All required files are on the main computer (MDB). You can now swap the cables. The scooter waits for the dashboard.'**
   String get dbcFlashSwapCablesDeadline;
 
   /// No description provided for @disconnectUsbFromLaptop.
@@ -2207,7 +2393,7 @@ abstract class AppLocalizations {
   /// No description provided for @reconnectDbcUsbToMdbDesc.
   ///
   /// In en, this message translates to:
-  /// **'Plug the internal DBC USB cable into the MDB port. Don\'t screw it in yet.'**
+  /// **'Plug the internal dashboard cable into the same socket on the main computer (MDB). Tighten both screws on the connector.'**
   String get reconnectDbcUsbToMdbDesc;
 
   /// No description provided for @ledBlinkerProgress.
@@ -2357,19 +2543,19 @@ abstract class AppLocalizations {
   /// No description provided for @finishWithoutDbc.
   ///
   /// In en, this message translates to:
-  /// **'Finish without completed DBC'**
+  /// **'Finish as incomplete'**
   String get finishWithoutDbc;
 
   /// No description provided for @finishWithoutDbcConfirmTitle.
   ///
   /// In en, this message translates to:
-  /// **'Finish without a completed DBC?'**
+  /// **'Finish with an incomplete installation?'**
   String get finishWithoutDbcConfirmTitle;
 
   /// No description provided for @finishWithoutDbcConfirmBody.
   ///
   /// In en, this message translates to:
-  /// **'The MDB work can be kept, but the requested DBC firmware is not verified as installed. The final result will remain incomplete until the DBC installation is retried successfully.'**
+  /// **'The dashboard (DBC) installation has not been confirmed successful. Completed work on the main computer (MDB) is retained, but the overall installation remains incomplete. You can retry the dashboard installation later.'**
   String get finishWithoutDbcConfirmBody;
 
   /// No description provided for @dbcFinishedWithoutCompletionReason.
@@ -2381,13 +2567,13 @@ abstract class AppLocalizations {
   /// No description provided for @finishWithoutDbcHeading.
   ///
   /// In en, this message translates to:
-  /// **'Installation incomplete: DBC not completed'**
+  /// **'Installation incomplete'**
   String get finishWithoutDbcHeading;
 
   /// No description provided for @finishWithoutDbcBody.
   ///
   /// In en, this message translates to:
-  /// **'The MDB may be usable, but the requested DBC installation did not complete. Do not treat this as a successful full installation. {reason}'**
+  /// **'The dashboard (DBC) installation has not been confirmed successful. Completed work on the main computer (MDB) is retained. {reason}'**
   String finishWithoutDbcBody(String reason);
 
   /// No description provided for @trampolineStatusUnknown.
@@ -2627,7 +2813,7 @@ abstract class AppLocalizations {
   /// No description provided for @closeSeatboxAndFootwellDesc.
   ///
   /// In en, this message translates to:
-  /// **'Clip the metal bars back in first, then fit the footwell cover and screw it down.'**
+  /// **'Fit the footwell cover and secure it with the four screws.'**
   String get closeSeatboxAndFootwellDesc;
 
   /// No description provided for @unlockScooter.
@@ -2867,13 +3053,13 @@ abstract class AppLocalizations {
   /// No description provided for @configurationRestoreHeading.
   ///
   /// In en, this message translates to:
-  /// **'Which device configurations should be restored?'**
+  /// **'Which settings would you like to keep?'**
   String get configurationRestoreHeading;
 
   /// No description provided for @configurationRestoreDetail.
   ///
   /// In en, this message translates to:
-  /// **'Choose which detected settings should be restored after the clean install. All are selected by default.'**
+  /// **'The following settings were found on your scooter. Choose which ones to restore after reinstallation.'**
   String get configurationRestoreDetail;
 
   /// No description provided for @configurationIdentity.
@@ -3443,7 +3629,7 @@ abstract class AppLocalizations {
   /// No description provided for @phaseMdbArtifactTitle.
   ///
   /// In en, this message translates to:
-  /// **'Update MDB'**
+  /// **'Install software on the main computer (MDB)'**
   String get phaseMdbArtifactTitle;
 
   /// No description provided for @phaseMdbArtifactDescription.
@@ -3479,13 +3665,13 @@ abstract class AppLocalizations {
   /// No description provided for @boardMdb.
   ///
   /// In en, this message translates to:
-  /// **'MDB (main board)'**
+  /// **'Main computer (MDB)'**
   String get boardMdb;
 
   /// No description provided for @boardDbc.
   ///
   /// In en, this message translates to:
-  /// **'DBC (dashboard)'**
+  /// **'Dashboard (DBC)'**
   String get boardDbc;
 
   /// No description provided for @bootstrapImageLabel.
@@ -3551,7 +3737,7 @@ abstract class AppLocalizations {
   /// No description provided for @actionCleanInstallDetail.
   ///
   /// In en, this message translates to:
-  /// **'Erases main-board data. Detected device configurations can be selected in the next step'**
+  /// **'Data on the main computer will be overwritten. Some settings can be preserved in the next step.'**
   String get actionCleanInstallDetail;
 
   /// No description provided for @actionUpgradeDetailDbc.
@@ -3611,7 +3797,7 @@ abstract class AppLocalizations {
   /// No description provided for @planTilesNeedDbcHandoff.
   ///
   /// In en, this message translates to:
-  /// **'Refreshing map tiles needs the DBC cable swap, even with the DBC left alone'**
+  /// **'The internal dashboard cable must be reconnected later to install maps, even if the dashboard software stays unchanged. The installer will tell you when.'**
   String get planTilesNeedDbcHandoff;
 
   /// No description provided for @planInstallTiles.
@@ -3863,7 +4049,7 @@ abstract class AppLocalizations {
   /// No description provided for @dbcCleanInstallBody.
   ///
   /// In en, this message translates to:
-  /// **'The dashboard version shown here was last reported to the main board and may be out of date. A dashboard selected for update may not have an update client. Installing from scratch writes the bootstrap image first, reformats the DBC data partition, and removes offline maps. Settings and registered keycards on the main board are unaffected.\n\nThis requires another cable swap. The installer uploads the files, then you reconnect and secure the dashboard cable to the main board. The scooter completes the remaining work.'**
+  /// **'If a normal update is not possible, a clean installation may help.\n\nData on the dashboard will be deleted. The dashboard software and selected offline maps will then be reinstalled. Existing maps are only reinstalled if selected for this installation.\n\nData on the main computer (MDB), including settings and enrolled keycards, is retained.\n\nThe installer prepares the required files and then tells you when to swap the USB cable.'**
   String get dbcCleanInstallBody;
 
   /// No description provided for @dbcCleanInstallConfirm.
@@ -4715,7 +4901,7 @@ abstract class AppLocalizations {
   /// No description provided for @keycardWhy.
   ///
   /// In en, this message translates to:
-  /// **'A registered keycard can unlock the scooter without Bluetooth. You can register several cards and add more later. A clean install removes previously registered cards.'**
+  /// **'An enrolled keycard unlocks the scooter without a phone. You can enroll several cards and add more later.'**
   String get keycardWhy;
 
   /// No description provided for @keycardStep1.
@@ -4739,7 +4925,7 @@ abstract class AppLocalizations {
   /// No description provided for @keycardStep2Desc.
   ///
   /// In en, this message translates to:
-  /// **'The reader sits at the front of the dashboard. Hold it there until the installer counts the card.'**
+  /// **'Hold each card individually at the reader on the front left of the dashboard until it is registered.'**
   String get keycardStep2Desc;
 
   /// No description provided for @keycardStep3.
@@ -4865,7 +5051,7 @@ abstract class AppLocalizations {
   /// No description provided for @blePairingStep3DescOverlay.
   ///
   /// In en, this message translates to:
-  /// **'The installer displays it in large type when your device requests it.'**
+  /// **'Compare the PIN shown here with the PIN on your phone. Confirm on the phone only if they match.'**
   String get blePairingStep3DescOverlay;
 
   /// No description provided for @dbcSayInstalling.

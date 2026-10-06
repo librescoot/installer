@@ -71,8 +71,10 @@ void main() {
     final start = source.indexOf('Widget _buildDbcFlash(');
     final end = source.indexOf('\n  Future<void> _watchDbcFlash()', start);
     final autonomous = source.substring(start, end);
-    expect(autonomous, contains('EstimatedHandoffProgress('));
-    expect(autonomous, contains('_autonomousHandoffStartedAt'));
+    expect(autonomous, contains('HandoffDuration('));
+    expect(autonomous, isNot(contains('_autonomousHandoffStartedAt')));
+    expect(autonomous, contains('l10n.handoffDisconnected'));
+    expect(autonomous, contains('l10n.handoffLedSignals'));
     expect(autonomous, contains('DbcFlashOutcomes('));
     expect(autonomous, contains('_dbcFlashSimulateError = true'));
     expect(autonomous, contains('_setPhase(InstallerPhase.reconnect)'));

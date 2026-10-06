@@ -18,44 +18,54 @@ void main() {
     expect(success, contains('_setPhase(InstallerPhase.finish)'));
   });
 
-  test('an observed unlock shows quick start before the pending screen', () {
-    final start = source.indexOf('Widget _buildFinish(');
-    final end = source.indexOf(
-      '\n  Widget _buildConfigurationVerificationPending(',
-      start,
-    );
-    final finish = source.substring(start, end);
-    final quickStart = finish.indexOf(
-      'if (unlockObserved || (confirmed && mdbOnly)) {',
-    );
-    final pending = finish.indexOf('if (!confirmed) {');
+  test(
+    'an observed unlock shows reassembly then quick start, never pending',
+    () {
+      final start = source.indexOf('Widget _buildFinish(');
+      final end = source.indexOf(
+        '\n  Widget _buildConfigurationVerificationPending(',
+        start,
+      );
+      final finish = source.substring(start, end);
+      final quickStart = finish.indexOf('if (unlockObserved || confirmed) {');
+      final pending = finish.indexOf('if (!confirmed) {');
 
-    expect(quickStart, greaterThan(-1));
-    expect(quickStart, lessThan(pending));
-    expect(
-      finish.substring(quickStart, pending),
-      contains('_buildGettingStarted(l10n)'),
-    );
-    expect(
-      finish.substring(quickStart, pending),
-      isNot(contains('_finishStatus(')),
-    );
-    expect(
-      finish.substring(quickStart, pending),
-      isNot(contains('_finalSteps(')),
-    );
-    expect(finish, contains('_unlockObserved && !_dbcOutcome.isIncomplete'));
-    expect(
-      finish,
-      contains(
-        '(deviceConfirmed || unlockObserved) && !configurationConfirmed',
-      ),
-    );
-  });
+      expect(quickStart, greaterThan(-1));
+      expect(quickStart, lessThan(pending));
+      final ready = finish.substring(quickStart, pending);
+      expect(
+        ready,
+        contains('if (!_reassemblyDone) return _buildReassembly(l10n, state)'),
+      );
+      expect(
+        ready.indexOf('_buildReassembly('),
+        lessThan(ready.indexOf('_buildGettingStarted(')),
+      );
+      expect(
+        finish.substring(quickStart, pending),
+        contains('_buildGettingStarted(l10n)'),
+      );
+      expect(
+        finish.substring(quickStart, pending),
+        isNot(contains('_finishStatus(')),
+      );
+      expect(
+        finish.substring(quickStart, pending),
+        isNot(contains('_finalSteps(')),
+      );
+      expect(finish, contains('_unlockObserved && !_dbcOutcome.isIncomplete'));
+      expect(
+        finish,
+        contains(
+          '(deviceConfirmed || unlockObserved) && !configurationConfirmed',
+        ),
+      );
+    },
+  );
 
   test('unverified completion keeps downloaded artifacts on close', () {
     final start = source.indexOf(
-      'if (unlockObserved || (confirmed && mdbOnly)) {',
+      'if (unlockObserved || confirmed) {',
       source.indexOf('Widget _buildFinish('),
     );
     final end = source.indexOf('if (!confirmed) {', start);

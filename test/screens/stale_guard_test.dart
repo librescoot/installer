@@ -75,7 +75,7 @@ void main() {
         source.indexOf('  void _setPhase('),
       );
       final fields = RegExp(r'  Timer\? (_[A-Za-z]+);').allMatches(source);
-      expect(fields.length, 3, reason: 'a new timer field needs a dispose too');
+      expect(fields.length, 4, reason: 'every timer field needs a dispose too');
       for (final t in fields) {
         expect(
           dispose,

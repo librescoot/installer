@@ -11,7 +11,7 @@ void main() {
     expect(de.installPlanHeading, 'Installation planen');
     expect(
       de.installPlanIntro,
-      'Wähle die gewünschte Aktion für Hauptboard und Display.',
+      'Wähle die gewünschte Aktion für Hauptcomputer (MDB) und Dashboard (DBC).',
     );
     expect(
       de.actionUpgradeToVersion('v1.3.1'),

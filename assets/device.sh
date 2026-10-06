@@ -65,6 +65,98 @@ wait_for_laptop_disconnect() {
   log "Laptop disconnected (debounced)"
 }
 
+# Presence leases use device uptime, not wall time, and are scoped to one run.
+handoff_now() { cut -d. -f1 /proc/uptime; }
+
+handoff_laptop_present() {
+  local stamp now
+  stamp=$(cat "$HANDOFF_DIR/heartbeat" 2>/dev/null)
+  case "$stamp" in ''|*[!0-9]*) return 1 ;; esac
+  now=$(handoff_now)
+  [ "$now" -ge "$stamp" ] && [ $((now - stamp)) -lt 15 ]
+}
+
+dbc_usb_identified() {
+  ip route get "$DBC_IP" 2>/dev/null | grep -Eq '(^| )dev usb0( |$)' || return 1
+  ping -I usb0 -c 1 -W 1 "$DBC_IP" >/dev/null 2>&1 || return 1
+  timeout 5 ssh -y -y root@$DBC_IP \
+    "tr '\\000' '\\n' < /proc/device-tree/compatible | grep -qx 'fsl,imx6dl'" >/dev/null 2>&1
+}
+
+# Only positive dashboard identification grants the installation claim.
+# A dead installer, suspended host, or absent cable never grants it.
+# The decision directory arbitrates cancellation against recognition atomically.
+wait_for_dashboard_connection() {
+  local next_probe=0 now state
+  DBC_ALREADY_UMS=""
+  printf '%s\n' "$RUN_ID" > "$HANDOFF_DIR/ready" || return 1
+  while :; do
+    if [ -d "$HANDOFF_DIR/decision" ]; then
+      return 2
+    fi
+    if [ "$DBC_CONTROL_ACQUIRED" = yes ]; then
+      dbc_control_check || return 1
+    fi
+    if handoff_laptop_present; then
+      sleep 2
+      continue
+    fi
+    if dbc_usb_identified; then
+      handoff_laptop_present && continue
+      mkdir "$HANDOFF_DIR/decision" 2>/dev/null || return 2
+      printf 'active\n' > "$HANDOFF_DIR/decision/state" || return 1
+      log "Dashboard identified over USB"
+      return 0
+    fi
+    now=$(handoff_now)
+    if [ "$now" -ge "$next_probe" ]; then
+      next_probe=$((now + 30))
+      state=$(cat "$USB_HANDOFF_UDC_STATE" 2>/dev/null)
+      # Host-mode probing is only appropriate with no enumerated host. Never
+      # treat a missing sysfs file or a suspended laptop as an unplug event.
+      case "$state" in
+        'not attached'|'powered'|'attached')
+          if [ "$MODE" = flash ] || [ "$MODE" = upgrade ]; then
+            rmmod g_ether 2>/dev/null || true
+            sleep 1
+            role_write host || return 1
+            sleep 3
+            local devices
+            devices=$(lsusb 2>/dev/null)
+            if echo "$devices" | grep -q '0525:a4a5'; then
+              if [ "$MODE" != flash ]; then
+                restore_gadget || return 1
+                return 3
+              fi
+              mkdir "$HANDOFF_DIR/decision" 2>/dev/null || {
+                restore_gadget || return 1
+                return 2
+              }
+              printf 'active\n' > "$HANDOFF_DIR/decision/state" || return 1
+              DBC_ALREADY_UMS=yes
+              log "Dashboard USB recovery device identified"
+              return 0
+            fi
+            restore_gadget || return 1
+            if echo "$devices" | grep -qi '15a2:'; then
+              return 4
+            fi
+          fi
+          ;;
+        configured)
+          # A rapid swap can keep configured continuously. The fresh installer
+          # lease above prevents rebinding a healthy laptop connection.
+          rmmod g_ether 2>/dev/null || true
+          sleep 1
+          modprobe g_ether 2>/dev/null || true
+          usb0_up
+          ;;
+      esac
+    fi
+    sleep 2
+  done
+}
+
 # SSH/SCP to DBC with retries. -y -y makes dropbear skip host-key checking
 # entirely. A flash gives the DBC a brand-new host key; the MDB still has the
 # previous one in known_hosts, so a single -y (accept unknown, but ABORT on

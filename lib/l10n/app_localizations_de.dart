@@ -9,6 +9,117 @@ class AppLocalizationsDe extends AppLocalizations {
   AppLocalizationsDe([String locale = 'de']) : super(locale);
 
   @override
+  String get laptopCableLabel => 'Laptop-Kabel';
+
+  @override
+  String get dashboardCableLabel => 'Dashboard-Kabel';
+
+  @override
+  String get verifyingMapsInstallation => 'Karteninstallation prüfen';
+
+  @override
+  String get connectionPurpose =>
+      'Der Installer erkennt den Hauptcomputer automatisch und richtet die USB-Verbindung ein. Lass das Kabel angeschlossen.';
+
+  @override
+  String get checkAgain => 'Erneut prüfen';
+
+  @override
+  String get handoffLedSignals =>
+      'Die LED am Dashboard blinkt orange, solange auf die Verbindung gewartet wird. Sobald sie dauerhaft orange leuchtet, wurde das Dashboard erkannt und die Installation läuft. Der vordere Leuchtring pulsiert ebenfalls während der Wartezeit. Lass das interne USB-Kabel nach dem Umstecken angeschlossen.';
+
+  @override
+  String get handoffDisconnected =>
+      'Laptop-Verbindung getrennt. Den weiteren Status erkennst du an den Signalen am Roller.';
+
+  @override
+  String get handoffHandsOffBody =>
+      'Auch wenn das Dashboard bereits etwas anzeigt, kann die Installation noch laufen. Lass das interne USB-Kabel und die Stromversorgung angeschlossen, bis der Roller den Abschluss signalisiert.';
+
+  @override
+  String get handoffCancel => 'Übertragung abbrechen';
+
+  @override
+  String get handoffCancelFailed =>
+      'Das Warten konnte nicht sicher beendet werden. Lass die Verbindung bestehen und prüfe den Installationsstatus, bevor du etwas veränderst.';
+
+  @override
+  String get mapsIncompleteBody =>
+      'Es konnte nicht bestätigt werden, dass alle ausgewählten Offline-Karten installiert sind. Du kannst die Karteninstallation später erneut versuchen.';
+
+  @override
+  String get retryMaps => 'Karteninstallation wiederholen';
+
+  @override
+  String get recoveryCableInstructions =>
+      'Lass den Roller eingeschaltet. Löse die beiden Schrauben am internen Dashboard-USB-Stecker am Hauptcomputer (MDB) und ziehe ihn ab. Stecke das Laptop-USB-Kabel in denselben Anschluss. Der Installer stellt die Verbindung wieder her und liest den Installationsstatus und das Fehlerprotokoll aus.';
+
+  @override
+  String get reassemblyHeading => 'Roller wieder zusammenbauen';
+
+  @override
+  String get checkDashboardCable => 'Dashboard-Kabel prüfen';
+
+  @override
+  String get checkDashboardCableDesc =>
+      'Prüfe, ob das interne USB-Kabel am Hauptcomputer (MDB) fest sitzt und die beiden Schrauben am Stecker angezogen sind.';
+
+  @override
+  String get replaceBraces => 'Querstreben wieder einsetzen';
+
+  @override
+  String get replaceBracesDesc =>
+      'Setze die beiden Querstreben wieder in ihre Halterungen ein. Achte darauf, keine Kabel einzuklemmen.';
+
+  @override
+  String get mdbSoftwareFresh =>
+      'Das Grundsystem läuft bereits. Jetzt wird die vollständige Librescoot-Software installiert.';
+
+  @override
+  String get mdbSoftwareUpdate =>
+      'Die ausgewählte Librescoot-Version wird auf dem Hauptcomputer installiert.';
+
+  @override
+  String get downloadsBeforeScooter =>
+      'Warte, bis alle Downloads abgeschlossen sind, bevor du zum Roller gehst. Danach kannst du die Installation ohne Internetverbindung fortsetzen.';
+
+  @override
+  String get downloadsReadyOffline =>
+      'Alles heruntergeladen. Du kannst jetzt mit dem Laptop zum Roller gehen und offline weitermachen.';
+
+  @override
+  String get removeBraces => 'Querstreben herausnehmen';
+
+  @override
+  String get removeBracesDesc =>
+      'Ziehe die beiden eingeklipsten Querstreben nach oben heraus. Dafür musst du keine weiteren Schrauben lösen.';
+
+  @override
+  String get continueToUsb => 'Weiter zum USB-Anschluss';
+
+  @override
+  String get laptopPrepHeading => 'Laptop anschließen';
+
+  @override
+  String get healthCheckPurpose =>
+      'Der Installer prüft die Akkus, damit für die Installation ausreichend Strom verfügbar ist.';
+
+  @override
+  String get usbPreparationHint =>
+      'Der Hauptcomputer startet neu und meldet sich als USB-Laufwerk. Dabei wird die Verbindung kurz unterbrochen. Lass USB-Kabel und Stromversorgung angeschlossen.';
+
+  @override
+  String get selectedSettingsRestore =>
+      'Die ausgewählten Einstellungen werden nach der Neuinstallation wiederhergestellt.';
+
+  @override
+  String get flashAuthorisationHeading => 'Freigabe zum Schreiben erforderlich';
+
+  @override
+  String get originalKeycardsNotice =>
+      'Deine bisherigen Schlüsselkarten müssen neu angelernt werden. Die im Roller gespeicherten Kartenberechtigungen können nicht aus der Original-Firmware übernommen werden.';
+
+  @override
   String get phaseWelcomeTitle => 'Willkommen';
 
   @override
@@ -59,10 +170,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get phaseMdbFlashDescription => 'Firmware auf MDB schreiben';
 
   @override
-  String get phaseScooterPrepTitle => 'Strom trennen';
+  String get phaseScooterPrepTitle => 'Neustart';
 
   @override
-  String get phaseScooterPrepDescription => 'CBB und AUX trennen';
+  String get phaseScooterPrepDescription => 'Roller nach Anleitung neu starten';
 
   @override
   String get phaseMdbBootTitle => 'MDB starten';
@@ -139,7 +250,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get welcomeSubheading =>
-      'Dieser Assistent führt dich durch die Installation der Librescoot-Firmware auf deinem Roller.';
+      'Dieser Assistent führt dich Schritt für Schritt durch die Installation auf deinem Roller. Plane dafür etwa 20 Minuten ein.';
 
   @override
   String get updateAvailableTitle => 'Installer-Update verfügbar';
@@ -164,23 +275,24 @@ class AppLocalizationsDe extends AppLocalizations {
   String get updateOpenDownloads => 'Downloadseite öffnen';
 
   @override
-  String get requirementsIntro =>
-      'Du brauchst Admin-Rechte auf dem Computer, um den Zugriff zum MDB zu ermöglichen, ';
+  String get requirementsIntro => 'Laptop mit Administratorrechten';
 
   @override
-  String get prerequisiteScrewdriverPH2 => 'einen PH2/H4-Schraubendreher';
+  String get prerequisiteScrewdriverPH2 =>
+      'Kreuzschraubendreher (PH2) oder 4-mm-Innensechskantschlüssel (H4) fürs Fußbrett';
 
   @override
   String get requirementsFootwell => ' für das Fußbrett, ';
 
   @override
-  String get prerequisiteScrewdriverFlat => 'einen Schlitz/PH1-Schraubendreher';
+  String get prerequisiteScrewdriverFlat =>
+      'Kleiner Kreuzschraubendreher (PH1) oder Schlitzschraubendreher fürs interne USB-Kabel';
 
   @override
   String get requirementsDbcCable => ' für die Verschraubung des DBC-Kabels';
 
   @override
-  String get prerequisiteUsbCable => 'ein USB-Mini-B-Kabel';
+  String get prerequisiteUsbCable => 'USB-Mini-B-Datenkabel';
 
   @override
   String get requirementsAnd => ' und ';
@@ -189,25 +301,26 @@ class AppLocalizationsDe extends AppLocalizations {
   String get requirementsShopLink => 'Shop';
 
   @override
-  String get requirementsOutro => '. Plane etwa 20 Minuten ein.';
+  String get requirementsOutro =>
+      'Laptop ausreichend laden oder Netzteil anschließen; automatischen Ruhezustand deaktivieren.';
 
   @override
   String get requirementsVideoLink => 'Videoanleitung ansehen ↗';
 
   @override
-  String get reliabilityWarningTitle => 'Bevor du startest';
+  String get reliabilityWarningTitle => 'Verbindung und Laptop vorbereiten';
 
   @override
   String get reliabilityWarningBody =>
-      'Das Flashen dauert mehrere Minuten. Eine instabile USB-Verbindung oder der Ruhemodus des Laptops kann das MDB in einen inkonsistenten Zustand bringen. Prüfe:\n• Ein zuverlässiges USB-Kabel, an beiden Enden fest eingesteckt\n• Laptop am Netzteil oder vollständig geladen. Energiesparmodus und Ruhemodus können den Vorgang unterbrechen\n• Möglichst einen direkten USB-Port, keinen USB-Hub\n• Während des Flashens nichts umstecken oder bewegen';
+      'Prüfe vor dem Start:\n• Verwende ein zuverlässiges Datenkabel und stecke es an beiden Enden fest ein.\n• Verbinde den Laptop möglichst direkt, ohne Hub oder Dockingstation.\n• Sorge dafür, dass der Laptop ausreichend geladen ist, oder schließe das Netzteil an. Deaktiviere den automatischen Ruhezustand.\n• Bewege während des Schreibens möglichst weder Kabel noch Laptop.';
 
   @override
   String get noPowerCycleWarningTitle =>
-      'Stromversorgung nur nach Anweisung trennen';
+      'Strom und USB nur nach Anweisung trennen';
 
   @override
   String get noPowerCycleWarningBody =>
-      'Wenn der Vorgang scheinbar hängt oder keine Rückmeldung gibt, halte an und frage im Librescoot-Discord nach, bevor du etwas veränderst. Solange der Installer dich nicht ausdrücklich zu etwas anderem auffordert:\n• AUX-Akku und CBB angeschlossen lassen\n• USB-Kabel angeschlossen lassen\n• Roller und Laptop eingeschaltet lassen\n\nEine Unterbrechung während eines Schreibvorgangs kann dazu führen, dass ein Board nicht mehr startet.';
+      'Wenn der Vorgang scheinbar hängt oder keine Rückmeldung gibt, halte an und frage im Librescoot-Discord nach, bevor du etwas veränderst. Solange der Installer dich nicht ausdrücklich zu etwas anderem auffordert:\n• AUX-Akku und CBB angeschlossen lassen\n• USB-Kabel angeschlossen lassen\n• Roller und Laptop eingeschaltet lassen\n\nEine Unterbrechung während des Schreibens kann dazu führen, dass ein Board nicht mehr startet und wiederhergestellt werden muss.';
 
   @override
   String get downloadsFailedHeading =>
@@ -221,7 +334,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get downloadsRetry => 'Erneut versuchen';
 
   @override
-  String get noticesHeading => 'Vor dem Weitermachen lesen';
+  String get noticesHeading => 'Bevor du deinen Roller vorbereitest';
 
   @override
   String get noticesSubheading =>
@@ -249,7 +362,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get elevationNoticeWelcome =>
-      'Beim Start werden Admin-Rechte für MDB-Zugriff und Netzwerk benötigt.';
+      'Der Installer fragt nach Administratorrechten, um die USB-Verbindung einzurichten und die Software auf den Roller zu schreiben.';
 
   @override
   String get arm64EmulationNoticeWelcome =>
@@ -400,45 +513,45 @@ class AppLocalizationsDe extends AppLocalizations {
   String get preparingDownloads => 'Herunterladen wird vorbereitet…';
 
   @override
-  String get physicalPrepHeading => 'Physische Vorbereitung';
+  String get physicalPrepHeading => 'Fußraum öffnen';
 
   @override
   String get physicalPrepSubheading =>
-      'Bereite deinen Roller für die USB-Verbindung vor.';
+      'Öffne zuerst den Fußraum, um den USB-Anschluss zu erreichen.';
 
   @override
-  String get keepScooterAwake => 'Roller wach halten';
+  String get keepScooterAwake => 'Roller entsperren';
 
   @override
   String get keepScooterAwakeDesc =>
-      'Entsperre den Roller oder setze einen Fahrakku in den vorderen Schacht. Ohne eines von beidem wechselt der Roller während der Installation in den Ruhezustand und trennt die USB-Verbindung.';
+      'Entsperre den Roller mit deiner Schlüsselkarte oder deinem gekoppelten Handy. Lass den Seitenständer ausgeklappt.';
 
   @override
   String get removeFootwellCover => 'Fußraumabdeckung entfernen';
 
   @override
   String get removeFootwellCoverDesc =>
-      'Löse die vier Schrauben. Ab Werk sind es PH2-Kreuzschrauben, bei Reparaturen können es H4-Innensechskant- oder Torxschrauben sein.';
+      'Löse die vier Schrauben und nimm die Abdeckung ab. Verwende einen Kreuzschraubendreher (PH2) oder 4-mm-Innensechskantschlüssel (H4), je nach Schrauben. Bei reparierten Rollern können auch Torxschrauben verbaut sein.';
 
   @override
-  String get unscrewUsbCable => 'USB-Kabel vom MDB lösen';
+  String get unscrewUsbCable => 'Internes Dashboard-Kabel lösen';
 
   @override
   String get unscrewUsbCableDesc =>
-      'Trenne das interne DBC-USB-Kabel vom MDB. Verwende einen Schlitz- oder PH1-Schraubendreher.';
+      'Löse die beiden Schrauben am internen Dashboard-USB-Stecker am Hauptcomputer (MDB) und ziehe ihn ab. Verwende einen kleinen Kreuzschraubendreher (PH1) oder Schlitzschraubendreher.';
 
   @override
   String get connectLaptopUsb => 'Laptop-USB-Kabel anschließen';
 
   @override
   String get connectLaptopUsbDesc =>
-      'Stecke dein USB-Kabel in den MDB-Port und verbinde das andere Ende mit deinem Laptop.';
+      'Stecke dein USB-Mini-B-Datenkabel in denselben Anschluss am Hauptcomputer (MDB). Verbinde das andere Ende mit deinem Laptop.';
 
   @override
   String get doneDetectDevice => 'Fertig. Gerät erkennen';
 
   @override
-  String get connectingToMdb => 'Verbindung zum MDB wird hergestellt';
+  String get connectingToMdb => 'Verbindung zum Roller wird hergestellt';
 
   @override
   String get waitingForUsbDevice => 'Warte auf USB-Gerät…';
@@ -766,16 +879,16 @@ class AppLocalizationsDe extends AppLocalizations {
   String get proceedAtOwnRisk => 'Auf eigenes Risiko fortfahren';
 
   @override
-  String get auxBatteryCharge => 'AUX-Akku-Ladung';
+  String get auxBatteryCharge => 'AUX-Akku: Ladestand';
 
   @override
-  String get cbbStateOfHealth => 'CBB-Zustand';
+  String get cbbStateOfHealth => 'CBB: Akkuzustand';
 
   @override
-  String get cbbCharge => 'CBB-Ladung';
+  String get cbbCharge => 'CBB: Ladestand';
 
   @override
-  String get mainBattery => 'Fahrakku';
+  String get mainBattery => 'Fahrakku: Ladestand';
 
   @override
   String get present => 'vorhanden';
@@ -806,7 +919,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get openSeatbox => 'Sitzbank öffnen';
 
   @override
-  String get configuringMdbBootloader => 'MDB-Bootloader wird konfiguriert';
+  String get configuringMdbBootloader => 'Hauptcomputer vorbereiten';
 
   @override
   String get preparing => 'Vorbereitung…';
@@ -816,18 +929,17 @@ class AppLocalizationsDe extends AppLocalizations {
       'Bootloader-Werkzeuge werden übertragen…';
 
   @override
-  String get rebootingMdbUms =>
-      'MDB wird im Massenspeichermodus neu gestartet…';
+  String get rebootingMdbUms => 'Hauptcomputer wird neu gestartet…';
 
   @override
-  String get waitingForUmsDevice => 'Warte auf UMS-Gerät…';
+  String get waitingForUmsDevice => 'Warte auf das USB-Laufwerk…';
 
   @override
-  String get readyToFlash => 'Bereit zum Flashen';
+  String get readyToFlash => 'Hauptcomputer (MDB) neu installieren';
 
   @override
   String get readyToFlashHint =>
-      'Das Gerät befindet sich im Flash-Modus. Du kannst es einbinden, um vor dem Fortfahren eine manuelle Sicherung zu erstellen.';
+      'Der Hauptcomputer (MDB) ist jetzt als USB-Laufwerk verbunden. Prüfe das Zielgerät vor dem Schreiben.';
 
   @override
   String get readyToFlashTargetLabel => 'Ziel';
@@ -837,11 +949,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get readyToFlashErases =>
-      'Dabei wird der Speicher des Hauptboards überschrieben. Alle vorhandenen Daten werden ersetzt.';
+      'Dabei werden die Daten auf dem Hauptcomputer überschrieben.';
 
   @override
   String get readyToFlashDuration =>
-      'Das Schreiben dauert etwa eine Minute. Trenne währenddessen weder USB noch Strom.';
+      'Das Schreiben dauert etwa 2 Minuten. Trenne währenddessen weder das USB-Kabel noch die Stromversorgung. Bewege möglichst weder Kabel noch Laptop.';
 
   @override
   String get readyToFlashNoTarget => 'Noch kein Zielgerät gefunden.';
@@ -852,7 +964,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get macosDiskNotReadable =>
-      'macOS meldet möglicherweise, dass das Medium nicht gelesen werden kann. Klicke auf „Ignorieren“. Klicke nicht auf „Auswerfen“, da dadurch das MDB während der Installation getrennt wird.';
+      'macOS meldet möglicherweise, dass das Medium nicht gelesen werden kann. Klicke auf „Ignorieren“, nicht auf „Initialisieren“ oder „Auswerfen“.';
 
   @override
   String get macosNoRouteHeading =>
@@ -867,10 +979,11 @@ class AppLocalizationsDe extends AppLocalizations {
       'Einstellungen „Lokales Netzwerk“ öffnen';
 
   @override
-  String get beginFlashing => 'Flashen starten';
+  String get beginFlashing => 'Installation starten';
 
   @override
-  String get flashingMdb => 'MDB wird geflasht';
+  String get flashingMdb =>
+      'Software wird auf den Hauptcomputer (MDB) geschrieben';
 
   @override
   String get flashingMdbSubheading =>
@@ -888,8 +1001,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get mdbFlashComplete => 'MDB-Flash abgeschlossen';
 
   @override
-  String get flashVerifyingReadback =>
-      'Bootkritische Daten auf dem Gerät werden geprüft…';
+  String get flashVerifyingReadback => 'Geschriebene Daten werden geprüft…';
 
   @override
   String flashProgressMb(String mb) {
@@ -912,11 +1024,11 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get scooterPrepHeading => 'Roller vorbereiten';
+  String get scooterPrepHeading => 'Roller neu starten';
 
   @override
   String get scooterPrepSubheading =>
-      'MDB-Firmware wurde geschrieben. Jetzt für den Neustart vorbereiten.';
+      'Die Software wurde geschrieben. Starte den Roller mit den Bremshebeln neu. Lass USB-Kabel und Stromversorgung angeschlossen.';
 
   @override
   String get disconnectCbb => 'CBB trennen';
@@ -944,11 +1056,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get brakeResetIntro =>
-      'Ziehe beide Bremshebel und halte sie fest. Lass alle zehn Sekunden den rechten Hebel etwa eine Sekunde los und ziehe ihn wieder. Lass nach dem vierten Halten einfach beide los. Der Neustart wird ausgelöst.';
+      'Ziehe beide Bremshebel und halte sie fest. Lass nach 10, 20 und 30 Sekunden nur den rechten Hebel jeweils etwa eine Sekunde los und ziehe ihn wieder. Halte den linken Hebel durchgehend gezogen. Lass nach 40 Sekunden beide Hebel los.';
 
   @override
   String get brakeResetAfterNote =>
-      'Die USB-Verbindung verschwindet während des Neustarts. Das ist normal, der Installer wartet auf das MDB.';
+      'Die USB-Verbindung wird während des Neustarts unterbrochen. Das ist normal; der Installer wartet auf den Hauptcomputer.';
 
   @override
   String get brakePacerStart => 'Timer starten';
@@ -996,7 +1108,8 @@ class AppLocalizationsDe extends AppLocalizations {
   String get brakeReleaseNow => 'Beide Bremsen loslassen';
 
   @override
-  String get scooterPrepManualFallback => 'Oder den Strom von Hand trennen';
+  String get scooterPrepManualFallback =>
+      'Alternative: Stromversorgung nach Anleitung trennen';
 
   @override
   String get confirmManualPowerCut => 'Ich habe CBB und AUX getrennt';
@@ -1005,10 +1118,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get deactivatingMainBattery => 'Fahrakku wird abgeschaltet…';
 
   @override
-  String get waitingForMdbBoot => 'Warte auf den MDB-Start';
+  String get waitingForMdbBoot => 'Warte auf den Hauptcomputer';
 
   @override
-  String get manualRestartFallbackAction => 'AUX-Anleitung öffnen';
+  String get manualRestartFallbackAction => 'Alternative Neustartanleitung';
 
   @override
   String get manualRestartFallbackTitle => 'Andere Neustartmethode verwenden?';
@@ -1019,14 +1132,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get mdbBootRestartingNote =>
-      'Der Neustart des Rollers dauert ein bis zwei Minuten.';
+      'Die USB-Verbindung wird kurz unterbrochen. Der Start kann einige Minuten dauern; der Installer fährt automatisch fort. Lass USB-Kabel und Stromversorgung angeschlossen.';
 
   @override
-  String get reconnectAuxPole => 'Nur den AUX-Pol wieder anschließen';
+  String get reconnectAuxPole => 'AUX-Pluspol wieder anschließen';
 
   @override
   String get reconnectAuxPoleDesc =>
-      'Schließe den positiven AUX-Pol wieder an. Die CBB bleibt vorerst getrennt und wird erst vor dem DBC-Flash wieder angeschlossen. Danach startet das MDB mit Librescoot.';
+      'Schließe den AUX-Pluspol wieder an. Die CBB bleibt getrennt, bis der Installer dich zum Anschließen auffordert. Der Hauptcomputer startet jetzt mit Librescoot.';
 
   @override
   String get dbcLedHint =>
@@ -1103,26 +1216,26 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Erkennung kann mehrere Minuten dauern.';
 
   @override
-  String get preparingDbcFlash => 'DBC-Flash wird vorbereitet';
+  String get preparingDbcFlash => 'Dashboard (DBC) vorbereiten';
 
   @override
   String get preparingDbcFlashSubtitle =>
-      'Die Dateien für das Display werden zuerst auf das MDB übertragen.';
+      'Lass das Laptop-USB-Kabel noch angeschlossen.';
 
   @override
   String get preparingDbcFlashExplainer =>
-      'Der Installer überträgt zuerst Systemabbild, Firmware und Offline-Karten auf das MDB. Sobald die Dateien bereit sind, startest du die Installation auf dem Roller und ersetzt das Laptop-Kabel durch das DBC-Kabel. Das MDB erledigt die Display-Arbeiten anschließend selbstständig.';
+      'Der Installer überträgt die Dashboard-Software und die ausgewählten Offline-Karten auf den Hauptcomputer (MDB). Dieser übernimmt anschließend die Installation auf dem Dashboard.';
 
   @override
   String get preparingMapTransfer => 'Karten werden übertragen';
 
   @override
   String get preparingMapTransferSubtitle =>
-      'Die Offline-Karten werden zuerst auf das MDB übertragen.';
+      'Lass das Laptop-USB-Kabel noch angeschlossen.';
 
   @override
   String get preparingMapTransferExplainer =>
-      'Der Installer überträgt zuerst die Offline-Karten auf das MDB. Die Display-Firmware bleibt unverändert. Sobald die Dateien bereit sind, startest du die Übertragung und ersetzt das Laptop-Kabel durch das DBC-Kabel. Der Roller kopiert die Karten anschließend selbstständig.';
+      'Der Installer überträgt die ausgewählten Offline-Karten auf den Hauptcomputer (MDB). Dieser kopiert sie anschließend auf das Dashboard (DBC). Die Dashboard-Software bleibt unverändert.';
 
   @override
   String get skipMapTransfer => 'Karten überspringen';
@@ -1151,15 +1264,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get filesStagedWaitingForHandoff =>
-      'Alle Dateien sind bereit. Starte die Display-Arbeiten, wenn du bereit bist.';
+      'Alle Dateien sind übertragen. Der Hauptcomputer wird für das automatische Warten auf das Dashboard vorbereitet. Lass das Laptop-USB-Kabel noch angeschlossen.';
 
   @override
   String get handoffEstimateBriefDisclaimer =>
-      'Der Balken schätzt den Fortschritt anhand der Datenmenge und üblicher Laufzeiten. Es ist normal, wenn die Installation etwas länger dauert.';
+      'Die Dauer hängt von der ausgewählten Installation und den Kartendaten ab. Der Laptop kann den aktuellen Fortschritt nach dem Umstecken nicht auslesen.';
 
   @override
   String get handoffEstimateExplanation =>
-      'Solange das MDB mit dem DBC verbunden ist, kann der Laptop den aktuellen Fortschritt nicht auslesen. Die Schätzung wird aus den Dateigrößen und gemessenen Laufzeiten echter Installationen berechnet. Schließe den Laptop nicht aufgrund der Schätzung wieder an, sondern warte auf den tatsächlichen Zustand an Display und Blinkern.';
+      'Die Zeitspanne wird aus den Dateigrößen und üblichen Laufzeiten geschätzt. Schließe den Laptop nicht aufgrund der Schätzung wieder an. Warte auf die tatsächlichen Signale am Roller.';
 
   @override
   String handoffEstimateMinutes(int minutes) {
@@ -1178,7 +1291,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String handoffEstimateTotalRange(String from, String to) {
-    return 'Voraussichtliche Gesamtdauer: etwa $from–$to';
+    return 'Voraussichtliche Dauer ab dauerhaft orange leuchtender LED: $from–$to';
   }
 
   @override
@@ -1223,28 +1336,28 @@ class AppLocalizationsDe extends AppLocalizations {
   String get dbcReadyButton => 'DBC-Installation starten';
 
   @override
-  String get dbcFlashInProgress => 'DBC wird geflasht';
+  String get dbcFlashInProgress => 'Installation auf dem Dashboard (DBC)';
 
   @override
-  String get dbcFlashSwapCablesTitle => 'DBC-Kabel am MDB anschließen';
+  String get dbcFlashSwapCablesTitle => 'USB-Kabel umstecken';
 
   @override
   String get dbcFlashSwapCablesDeadline =>
-      'Der Vorgang wartet bereits auf das Display. Nach einigen Minuten läuft die Wartezeit ab. Stecke das Kabel jetzt um; die Schrauben kannst du danach festziehen.';
+      'Alle benötigten Dateien sind auf dem Hauptcomputer (MDB). Du kannst jetzt das Kabel umstecken. Der Roller wartet auf das Dashboard.';
 
   @override
-  String get disconnectUsbFromLaptop => 'Laptop-USB-Kabel vom MDB abziehen';
+  String get disconnectUsbFromLaptop => 'Laptop-USB-Kabel abziehen';
 
   @override
   String get disconnectUsbFromLaptopDesc =>
-      'Ziehe das Laptop-USB-Kabel vom MDB ab, damit der Anschluss für das DBC-Kabel frei ist.';
+      'Ziehe das Laptop-USB-Kabel am Hauptcomputer (MDB) ab.';
 
   @override
-  String get reconnectDbcUsbToMdb => 'DBC-USB-Kabel mit MDB verbinden';
+  String get reconnectDbcUsbToMdb => 'Internes Dashboard-Kabel anschließen';
 
   @override
   String get reconnectDbcUsbToMdbDesc =>
-      'Stecke das interne DBC-USB-Kabel in den MDB-Port. Ziehe die Schrauben noch nicht fest.';
+      'Stecke das interne Dashboard-Kabel in denselben Anschluss. Ziehe die beiden Schrauben am Stecker wieder fest.';
 
   @override
   String get ledBlinkerProgress => 'Blinker leuchten reihum auf';
@@ -1274,7 +1387,8 @@ class AppLocalizationsDe extends AppLocalizations {
   String get blinkerStepMaps => 'Offline-Karten kopieren';
 
   @override
-  String get verifyingDbcInstallation => 'Display-Arbeiten werden geprüft';
+  String get verifyingDbcInstallation =>
+      'Installation auf dem Dashboard (DBC) prüfen';
 
   @override
   String get reconnectUsbToLaptop =>
@@ -1318,38 +1432,37 @@ class AppLocalizationsDe extends AppLocalizations {
   String get showDetails => 'Details anzeigen';
 
   @override
-  String get dbcIncompleteHeading => 'DBC-Installation unvollständig';
+  String get dbcIncompleteHeading => 'Dashboard-Installation unvollständig';
 
   @override
-  String get dbcMapsIncompleteHeading =>
-      'Display-Karten nicht vollständig installiert';
+  String get dbcMapsIncompleteHeading => 'Karteninstallation unvollständig';
 
   @override
   String dbcIncompleteBody(String reason) {
-    return 'Die angeforderten Display-Arbeiten wurden nicht als abgeschlossen bestätigt. $reason';
+    return 'Die angeforderten Arbeiten auf dem Dashboard wurden nicht als abgeschlossen bestätigt. $reason';
   }
 
   @override
-  String get finishWithoutDbc => 'Ohne fertiges DBC abschließen';
+  String get finishWithoutDbc => 'Unvollständig abschließen';
 
   @override
-  String get finishWithoutDbcConfirmTitle => 'Ohne fertiges DBC abschließen?';
+  String get finishWithoutDbcConfirmTitle =>
+      'Installation unvollständig abschließen?';
 
   @override
   String get finishWithoutDbcConfirmBody =>
-      'Die MDB-Arbeiten können beibehalten werden, aber die angeforderte DBC-Firmware wurde nicht als installiert bestätigt. Das Endergebnis bleibt unvollständig, bis die DBC-Installation erfolgreich wiederholt wurde.';
+      'Die Installation auf dem Dashboard (DBC) wurde nicht als erfolgreich abgeschlossen bestätigt. Bereits abgeschlossene Arbeiten auf dem Hauptcomputer (MDB) bleiben erhalten. Die Gesamtinstallation bleibt jedoch unvollständig. Du kannst die Dashboard-Installation später erneut versuchen.';
 
   @override
   String get dbcFinishedWithoutCompletionReason =>
       'Du hast den Vorgang ohne bestätigte DBC-Installation abgeschlossen.';
 
   @override
-  String get finishWithoutDbcHeading =>
-      'Installation unvollständig: DBC nicht abgeschlossen';
+  String get finishWithoutDbcHeading => 'Installation unvollständig';
 
   @override
   String finishWithoutDbcBody(String reason) {
-    return 'Das MDB ist möglicherweise nutzbar, aber die angeforderte DBC-Installation wurde nicht abgeschlossen. Behandle dies nicht als erfolgreiche vollständige Installation. $reason';
+    return 'Die Installation auf dem Dashboard (DBC) ist nicht als erfolgreich abgeschlossen bestätigt. Bereits abgeschlossene Arbeiten auf dem Hauptcomputer (MDB) bleiben erhalten. $reason';
   }
 
   @override
@@ -1483,18 +1596,18 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get reconnectDbcUsbCable =>
-      'DBC-USB-Kabel anschließen und festschrauben';
+      'Internes Dashboard-Kabel anschließen und festschrauben';
 
   @override
   String get reconnectDbcUsbCableDesc =>
-      'Stecke das interne DBC-USB-Kabel wieder in den MDB-Port und schraube es jetzt vorsichtig fest.';
+      'Stecke das interne Dashboard-USB-Kabel wieder in denselben Anschluss am Hauptcomputer (MDB) und ziehe die beiden Schrauben am Stecker fest.';
 
   @override
   String get closeSeatboxAndFootwell => 'Fußraumabdeckung wieder anbringen';
 
   @override
   String get closeSeatboxAndFootwellDesc =>
-      'Setze zuerst die Metallbügel wieder ein. Bringe dann die Fußraumabdeckung an und schraube sie fest.';
+      'Setze die Abdeckung auf und befestige sie mit den vier Schrauben.';
 
   @override
   String get unlockScooter => 'Roller entsperren';
@@ -1631,11 +1744,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get configurationRestoreHeading =>
-      'Welche Gerätekonfigurationen wiederherstellen?';
+      'Welche Einstellungen möchtest du übernehmen?';
 
   @override
   String get configurationRestoreDetail =>
-      'Wähle aus, welche gefundenen Einstellungen nach der Neuinstallation wiederhergestellt werden sollen. Alle sind vorausgewählt.';
+      'Die folgenden Einstellungen wurden auf deinem Roller gefunden. Wähle aus, welche nach der Neuinstallation wiederhergestellt werden sollen.';
 
   @override
   String get configurationIdentity => 'Geräteidentität und VIN-Datenbank';
@@ -1702,7 +1815,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get bluetoothPairingHint =>
-      'Koppele dein Handy oder andere Bluetooth-Geräte mit dem Roller.';
+      'Koppele dein Handy, um den Roller zu entsperren und seinen Status abzurufen. Du kannst das auch später einrichten.';
 
   @override
   String get bleMacLabel => 'BLE-Adresse';
@@ -1889,10 +2002,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get keycardMasterStageWarningBody =>
-      'Mit der Anlernkarte verwaltest du weitere Schlüsselkarten. Sie kann den Roller nicht entsperren. Verwende eine separate Karte, die noch nicht als Schlüsselkarte angelernt ist.';
+      'Mit der Anlernkarte kannst du später weitere Schlüsselkarten direkt am Roller anlernen. Sie kann den Roller nicht entsperren und ist für die normale Nutzung nicht nötig. Verwende eine separate Karte, die noch nicht als Schlüsselkarte angelernt ist.';
 
   @override
-  String get keycardMasterStageHint => 'Halte die Anlernkarte an den Leser.';
+  String get keycardMasterStageHint =>
+      'Sobald der Leser bereit ist, halte die Anlernkarte vorne links an das Dashboard.';
 
   @override
   String get keycardCardDuplicateToast =>
@@ -1976,7 +2090,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get retryVerification => 'Überprüfung wiederholen';
 
   @override
-  String get retryDbcFlash => 'DBC-Flash wiederholen';
+  String get retryDbcFlash => 'Dashboard-Installation wiederholen';
 
   @override
   String get skipToFinish => 'Zum Abschluss springen';
@@ -2004,7 +2118,8 @@ class AppLocalizationsDe extends AppLocalizations {
       'Festlegen, was mit jedem Board geschieht';
 
   @override
-  String get phaseMdbArtifactTitle => 'MDB-Update';
+  String get phaseMdbArtifactTitle =>
+      'Software auf dem Hauptcomputer (MDB) installieren';
 
   @override
   String get phaseMdbArtifactDescription => 'Firmware installieren';
@@ -2020,13 +2135,13 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get installPlanIntro =>
-      'Wähle die gewünschte Aktion für Hauptboard und Display.';
+      'Wähle die gewünschte Aktion für Hauptcomputer (MDB) und Dashboard (DBC).';
 
   @override
-  String get boardMdb => 'MDB (Hauptboard)';
+  String get boardMdb => 'Hauptcomputer (MDB)';
 
   @override
-  String get boardDbc => 'DBC (Display)';
+  String get boardDbc => 'Dashboard (DBC)';
 
   @override
   String bootstrapImageLabel(String board) {
@@ -2040,7 +2155,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String boardVersionLastSeen(String version) {
-    return 'Zuletzt gesehen mit $version';
+    return 'Zuletzt erkannte Version: $version';
   }
 
   @override
@@ -2073,7 +2188,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get actionCleanInstallDetail =>
-      'Löscht die Daten des Hauptboards. Erkannte Gerätekonfigurationen können im nächsten Schritt ausgewählt werden';
+      'Die Daten auf dem Hauptcomputer werden überschrieben. Bestimmte Einstellungen können im nächsten Schritt übernommen werden.';
 
   @override
   String get actionUpgradeDetailDbc =>
@@ -2111,7 +2226,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get planTilesNeedDbcHandoff =>
-      'Für neue Kartendaten muss das DBC-Kabel umgesteckt werden, auch wenn das DBC unverändert bleibt';
+      'Für neue Kartendaten muss später das interne Dashboard-Kabel wieder angeschlossen werden, auch wenn die Dashboard-Software unverändert bleibt. Der Installer zeigt dir, wann.';
 
   @override
   String get planInstallTiles => 'Offline-Karten und Navigation installieren';
@@ -2263,17 +2378,18 @@ class AppLocalizationsDe extends AppLocalizations {
   String get fallBackWipeConfirm => 'Prüfen und Systemabbild installieren';
 
   @override
-  String get dbcCleanInstallButton => 'DBC löschen und neu installieren';
+  String get dbcCleanInstallButton => 'Dashboard löschen und neu installieren';
 
   @override
-  String get dbcCleanInstallTitle => 'Dabei wird das DBC gelöscht';
+  String get dbcCleanInstallTitle =>
+      'Dashboard (DBC) löschen und neu installieren?';
 
   @override
   String get dbcCleanInstallBody =>
-      'Die zuletzt bekannte DBC-Version basiert auf dem letzten gemeinsamen Betrieb mit dem MDB. Ein als aktualisierbar eingestuftes Board hat daher möglicherweise keinen Update-Client. Bei einer Neuinstallation wird zuerst das Grundsystem installiert. Dabei wird die Datenpartition des DBC formatiert und die Offline-Karten gehen verloren. Die Daten auf dem MDB, einschließlich Einstellungen und angelernter Schlüsselkarten, bleiben erhalten.\n\nStecke dafür das Kabel erneut um: Der Installer überträgt die Dateien, du schließt das DBC-Kabel wieder am MDB an, danach läuft der Vorgang automatisch.';
+      'Wenn die normale Aktualisierung nicht möglich ist, kann eine vollständige Neuinstallation helfen.\n\nDabei werden die Daten auf dem Dashboard gelöscht. Anschließend werden die Dashboard-Software und die ausgewählten Offline-Karten neu installiert. Bereits vorhandene Karten werden nur wieder installiert, wenn sie für diese Installation ausgewählt sind.\n\nDie Daten auf dem Hauptcomputer (MDB), einschließlich Einstellungen und angelernter Schlüsselkarten, bleiben erhalten.\n\nDer Installer bereitet die benötigten Dateien vor und zeigt dir anschließend, wann du das USB-Kabel wieder umstecken sollst.';
 
   @override
-  String get dbcCleanInstallConfirm => 'DBC löschen und installieren';
+  String get dbcCleanInstallConfirm => 'Dashboard löschen und installieren';
 
   @override
   String firmwareVersionDisplay(String version) {
@@ -2362,7 +2478,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get proceedWithoutMainBattery => 'Ohne Fahrakku fortfahren';
 
   @override
-  String get checkingCbbAndBattery => 'CBB und Akku werden geprüft…';
+  String get checkingCbbAndBattery => 'CBB und Fahrakku prüfen';
 
   @override
   String get waitingForUsbDisconnect => 'Warte auf USB-Trennung…';
@@ -2404,8 +2520,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Der Roller führt jetzt die ausgewählten Display-Arbeiten aus. Den tatsächlichen Zustand zeigen das Display und die Blinker. Warte, bis der Vorgang abgeschlossen ist oder ein Fehler angezeigt wird.';
 
   @override
-  String get dbcFlashHandsOffHeading =>
-      'TACHO AN HEISST NICHT FERTIG – FINGER WEG';
+  String get dbcFlashHandsOffHeading => 'Dashboard an heißt noch nicht fertig';
 
   @override
   String get dbcFlashObservedSuccess => 'Der Roller hat sich entsperrt';
@@ -2414,7 +2529,8 @@ class AppLocalizationsDe extends AppLocalizations {
   String get dbcFlashErrorLabel => 'FEHLER';
 
   @override
-  String get dbcFlashErrorPrompt => 'Warnblinker geht an, DBC-LED blinkt rot';
+  String get dbcFlashErrorPrompt =>
+      'Warnblinker geht an, die LED am Dashboard blinkt rot';
 
   @override
   String get dbcFlashSuccessLabel => 'ERFOLG';
@@ -2429,7 +2545,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcFlashDoNotDisconnect =>
-      'USB und Strom nicht trennen, solange das läuft.';
+      'Lass USB-Kabel und Stromversorgung angeschlossen. Bewege während des Schreibens möglichst weder Kabel noch Laptop.';
 
   @override
   String get dbcFlashDoneSignal =>
@@ -2776,21 +2892,21 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get keycardWhy =>
-      'Mit einer angelernten Schlüsselkarte entsperrst du den Roller ohne Handy. Du kannst mehrere Schlüsselkarten anlernen und das später jederzeit wiederholen. Eine Neuinstallation löscht zuvor angelernte Schlüsselkarten.';
+      'Mit einer angelernten Schlüsselkarte entsperrst du den Roller ohne Handy. Du kannst mehrere Karten anlernen und später weitere hinzufügen.';
 
   @override
   String get keycardStep1 => 'Anlernen starten';
 
   @override
   String get keycardStep1Desc =>
-      'Danach wartet der Roller auf eine Schlüsselkarte.';
+      'Klicke auf Anlernen starten und warte, bis der Kartenleser bereit ist.';
 
   @override
   String get keycardStep2 => 'Schlüsselkarte an den Leser halten';
 
   @override
   String get keycardStep2Desc =>
-      'Der Leser befindet sich vorne am Display. Halte die Schlüsselkarte dort, bis der Installer sie zählt.';
+      'Halte jede Karte einzeln an den Leser vorne links am Dashboard, bis sie registriert wurde.';
 
   @override
   String get keycardStep3 => 'Fertig drücken';
@@ -2876,7 +2992,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get blePairingStep3DescOverlay =>
-      'Der Installer zeigt sie groß an, sobald dein Handy danach fragt.';
+      'Vergleiche die hier angezeigte PIN mit der PIN am Handy. Bestätige am Handy nur, wenn beide übereinstimmen.';
 
   @override
   String get dbcSayInstalling =>

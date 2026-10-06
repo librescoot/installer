@@ -14,18 +14,21 @@ void main() {
     expect(screen, isNot(contains('l10n.dbcFlashHandsOffBody')));
     expect(
       screen.indexOf('l10n.dbcFlashHandsOffHeading'),
-      greaterThan(screen.indexOf('if (!_dbcUsbDisconnected)')),
+      greaterThan(screen.indexOf('if (_dbcUsbDisconnected)')),
     );
-    // The estimate leads; the hands-off notice sits between it and the
-    // outcome pictures.
+    expect(screen, contains('HandoffDuration('));
+    expect(screen, isNot(contains('EstimatedHandoffProgress(')));
+    expect(screen, contains('l10n.handoffLedSignals'));
+    expect(screen, contains('l10n.handoffDisconnected'));
+    expect(screen, contains('l10n.handoffHandsOffBody'));
     expect(
       screen.indexOf('l10n.dbcFlashHandsOffHeading'),
-      greaterThan(screen.indexOf('EstimatedHandoffProgress(')),
+      greaterThan(screen.indexOf('HandoffDuration(')),
     );
     expect(screen, contains('DbcFlashOutcomes('));
     expect(
       screen.indexOf('l10n.dbcFlashChooseOutcomeHint'),
-      greaterThan(screen.indexOf('EstimatedHandoffProgress(')),
+      greaterThan(screen.indexOf('HandoffDuration(')),
     );
     expect(
       screen.indexOf('l10n.dbcFlashChooseOutcomeHint'),
@@ -40,9 +43,9 @@ void main() {
     final en = AppLocalizationsEn();
     expect(
       de.dbcFlashHandsOffHeading,
-      contains('TACHO AN HEISST NICHT FERTIG'),
+      contains('Dashboard an heißt noch nicht fertig'),
     );
-    expect(de.dbcFlashHandsOffHeading, contains('FINGER WEG'));
+    expect(de.handoffHandsOffBody, contains('Stromversorgung angeschlossen'));
     expect(
       en.dbcFlashHandsOffHeading,
       contains('DASHBOARD ON DOES NOT MEAN DONE'),
@@ -56,7 +59,10 @@ void main() {
       en.dbcFlashChooseOutcomeHint,
       'When either of these happens, click the matching picture.',
     );
-    expect(de.dbcFlashErrorPrompt, 'Warnblinker geht an, DBC-LED blinkt rot');
+    expect(
+      de.dbcFlashErrorPrompt,
+      'Warnblinker geht an, die LED am Dashboard blinkt rot',
+    );
     expect(en.dbcFlashErrorPrompt, 'Hazard lights turn on, DBC LED blinks red');
   });
 }

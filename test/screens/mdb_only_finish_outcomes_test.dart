@@ -29,7 +29,7 @@ void main() {
       finish,
       contains('onSuccess: () => setState(() => _unlockObserved = true)'),
     );
-    expect(finish, contains('unlockObserved || (confirmed && mdbOnly)'));
+    expect(finish, contains('unlockObserved || confirmed'));
     expect(finish, contains('child: _buildGettingStarted(l10n)'));
     expect(finish, contains('confirmed: deviceConfirmed'));
   });

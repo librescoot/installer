@@ -375,9 +375,8 @@ progress_fade_off() {
 }
 
 # --- the dashboard LED (LP5562, i2c-2 @ 0x30) ------------------------------
-# Amber for as long as an install is in progress, red blinking when one failed,
-# dark when one worked. Not green on success: the vehicle unlocks itself at the
-# end, and that is the signal the owner is waiting for.
+# Blinking amber while awaiting USB, steady amber during installation, blinking
+# red on failure, dark on completion. The vehicle unlock signals success.
 bootled_init() {
   [ -n "$SIGNAL_I2CSET" ] || return 0
   i2cset -f -y 2 0x30 0x0D 0xFF
@@ -421,7 +420,24 @@ bootled_guard_stop() {
 }
 
 BOOTLED_BLINK_UNIT="librescoot-bootled-blink"
+bootled_blink_amber() {
+  bootled_guard_stop
+  bootled_blink_stop
+  [ -n "$SIGNAL_I2CSET" ] || return 0
+  systemd-run --unit="$BOOTLED_BLINK_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
+    while :; do
+      i2cset -f -y 2 0x30 0x03 0x00 2>/dev/null
+      i2cset -f -y 2 0x30 0x04 0x00 2>/dev/null
+      i2cset -f -y 2 0x30 0x02 0xFF 2>/dev/null
+      sleep 1
+      i2cset -f -y 2 0x30 0x02 0x00 2>/dev/null
+      sleep 1
+    done
+  ' 2>/dev/null
+}
+
 bootled_blink_red() {
+  bootled_guard_stop
   bootled_blink_stop
   [ -n "$SIGNAL_I2CSET" ] || return 0
   systemd-run --unit="$BOOTLED_BLINK_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
@@ -512,7 +528,14 @@ signal_all_off() {
 
 # An install is running on this vehicle. Idempotent, so every script that takes
 # over mid-run can open with it.
+signal_waiting_for_dashboard() {
+  bootled_init
+  bootled_blink_amber
+  front_pulse_start
+}
+
 signal_install_start() {
+  bootled_blink_stop
   bootled_init
   bootled amber
   bootled_guard_start

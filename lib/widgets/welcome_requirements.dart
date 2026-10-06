@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:optimal_wrap_text/optimal_wrap_text.dart';
 
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
@@ -47,33 +46,26 @@ class WelcomeRequirements extends StatelessWidget {
       ),
     );
 
-    final paragraph = OptimalWrapRichText(
-      TextSpan(
-        style: style,
-        children: [
-          TextSpan(text: l10n.requirementsIntro),
+    final paragraph = Column(
+      key: const ValueKey('requirements-list'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('• ${l10n.requirementsIntro}', style: style),
+        Text.rich(
           TextSpan(
-            text: l10n.prerequisiteScrewdriverPH2,
-            style: const TextStyle(decoration: TextDecoration.underline),
+            style: style,
+            children: [
+              TextSpan(text: '• ${l10n.prerequisiteUsbCable} ('),
+              shopLink,
+              const TextSpan(text: ')'),
+            ],
           ),
-          TextSpan(text: l10n.requirementsFootwell),
-          TextSpan(
-            text: l10n.prerequisiteScrewdriverFlat,
-            style: const TextStyle(decoration: TextDecoration.underline),
-          ),
-          TextSpan(text: l10n.requirementsDbcCable),
-          TextSpan(text: l10n.requirementsAnd),
-          TextSpan(
-            text: l10n.prerequisiteUsbCable,
-            style: const TextStyle(decoration: TextDecoration.underline),
-          ),
-          const TextSpan(text: ' ('),
-          shopLink,
-          const TextSpan(text: ')'),
-          TextSpan(text: l10n.requirementsOutro),
-        ],
-      ),
-      shrinkWrap: true,
+        ),
+        Text('• ${l10n.prerequisiteScrewdriverPH2}', style: style),
+        Text('• ${l10n.prerequisiteScrewdriverFlat}', style: style),
+        Text('• ${l10n.requirementsOutro}', style: style),
+      ],
     );
 
     final videoCard = SizedBox(
@@ -129,6 +121,7 @@ class WelcomeRequirements extends StatelessWidget {
       builder: (context, constraints) {
         if (constraints.maxWidth < 620) {
           return Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               paragraph,

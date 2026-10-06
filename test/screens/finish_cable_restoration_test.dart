@@ -44,6 +44,6 @@ void main() {
     final en = File('lib/l10n/app_en.arb').readAsStringSync();
     final de = File('lib/l10n/app_de.arb').readAsStringSync();
     expect(en, contains('Reconnect and secure DBC USB cable'));
-    expect(de, contains('DBC-USB-Kabel anschließen und festschrauben'));
+    expect(de, contains('Internes Dashboard-Kabel anschließen und festschrauben'));
   });
 }

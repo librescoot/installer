@@ -189,7 +189,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.textContaining('DBC-LED blinkt rot'), findsOneWidget);
+    expect(find.textContaining('LED am Dashboard blinkt rot'), findsOneWidget);
     final button = tester.widget<OutlinedButton>(
       find.ancestor(
         of: find.text('ERFOLG'),

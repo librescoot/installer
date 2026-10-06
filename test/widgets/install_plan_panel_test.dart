@@ -54,8 +54,8 @@ void main() {
       ),
     );
 
-    expect(find.text('MDB (main board)'), findsOneWidget);
-    expect(find.text('DBC (dashboard)'), findsOneWidget);
+    expect(find.text('Main computer (MDB)'), findsOneWidget);
+    expect(find.text('Dashboard (DBC)'), findsOneWidget);
     // The distribution is named alongside the version: the two use
     // overlapping numbering, so a bare number says nothing about which one it
     // belongs to.
@@ -282,7 +282,7 @@ void main() {
 
     expect(find.text('Install offline maps and navigation'), findsOneWidget);
     expect(find.textContaining('Adds a dashboard step'), findsNothing);
-    final header = tester.getRect(find.text('DBC (dashboard)'));
+    final header = tester.getRect(find.text('Dashboard (DBC)'));
     final checkbox = tester.getRect(find.byType(Checkbox));
     expect((header.center.dy - checkbox.center.dy).abs(), lessThan(26));
     expect(checkbox.left - header.right, lessThan(24));
@@ -508,8 +508,8 @@ void main() {
     // offered as a separate choice rather than silently discarded.
     expect(
       find.text(
-        'Erases main-board data. Detected device configurations can be '
-        'selected in the next step',
+        'Data on the main computer will be overwritten. Some settings can '
+        'be preserved in the next step.',
       ),
       findsOneWidget,
     );

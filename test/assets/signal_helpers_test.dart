@@ -58,17 +58,16 @@ void main() {
     bin = Directory('${root.path}/bin');
     await bin.create(recursive: true);
     await Directory('${root.path}/installer/scripts').create(recursive: true);
-    await File('${root.path}/installer/scripts/signal.sh')
-        .writeAsString(helpers.replaceAll('/data/', '${root.path}/'));
+    await File(
+      '${root.path}/installer/scripts/signal.sh',
+    ).writeAsString(helpers.replaceAll('/data/', '${root.path}/'));
     for (final tool in ['ioctl', 'i2cset', 'systemctl']) {
       await stub(tool, 'echo "$tool \$*" >> "\$CALLS"');
     }
     // systemd-run's payload is a whole script, and `sh` after it is only the
     // $0 the inner shell is given. The unit and the arguments after that are
     // what identify which loop was started and on which channels.
-    await stub(
-      'systemd-run',
-      r'''unit=""
+    await stub('systemd-run', r'''unit=""
 args=""
 for a in "$@"; do
   case "$a" in
@@ -80,11 +79,62 @@ for a in "$@"; do
        esac ;;
   esac
 done
-echo "systemd-run $unit$args" >> "$CALLS"''',
-    );
+echo "systemd-run $unit$args" >> "$CALLS"''');
     await stub('sleep', 'exit 0');
   });
   tearDown(() => root.delete(recursive: true));
+
+  test(
+    'waiting uses amber blink and front ring without a steady guard',
+    () async {
+      final result = await run('signal_waiting_for_dashboard');
+      expect(result.exitCode, 0);
+      expect(calls(), contains('systemd-run librescoot-bootled-blink'));
+      expect(calls(), contains('systemd-run librescoot-front-pulse'));
+      expect(calls(), isNot(contains('systemd-run librescoot-bootled-guard')));
+    },
+  );
+
+  test(
+    'recognition stops amber blinking before the steady guard starts',
+    () async {
+      await run(
+        'signal_waiting_for_dashboard\nfront_pulse_stop\nsignal_install_start',
+      );
+      final all = calls();
+      final guard = all.indexOf('systemd-run librescoot-bootled-guard');
+      expect(guard, greaterThan(0));
+      expect(
+        all.lastIndexOf('systemctl stop librescoot-bootled-blink.service'),
+        lessThan(guard),
+      );
+      expect(
+        all.lastIndexOf('systemctl stop librescoot-front-pulse.service'),
+        lessThan(guard),
+      );
+      expect(all, contains('i2cset -f -y 2 0x30 0x02 0xFF'));
+    },
+  );
+
+  test(
+    'error replaces the waiting blink and never starts a steady guard',
+    () async {
+      await run('signal_waiting_for_dashboard\nsignal_error');
+      expect(calls(), isNot(contains('systemd-run librescoot-bootled-guard')));
+      expect(
+        callLines().where(
+          (s) => s.startsWith('systemd-run librescoot-bootled-blink'),
+        ),
+        hasLength(2),
+      );
+      expect(
+        callLines().where(
+          (s) => s == 'systemctl stop librescoot-bootled-blink.service',
+        ),
+        hasLength(2),
+      );
+    },
+  );
 
   group('the bar', () {
     test('two segments can be lit at once', () async {
@@ -96,24 +146,33 @@ echo "systemd-run $unit$args" >> "$CALLS"''',
       expect(state(), '-**-');
       // Segments 2 and 3 are channels 4 and 7, and both go to the same loop so
       // they breathe in step.
-      expect(callLines().last, 'systemd-run librescoot-progress-breathe'
-          ' ${bin.path}/ioctl 4 7');
+      expect(
+        callLines().last,
+        'systemd-run librescoot-progress-breathe'
+        ' ${bin.path}/ioctl 4 7',
+      );
     });
 
-    test('a half that finishes first fills while the other keeps breathing',
-        () async {
-      // Either half can win. Holding the finished one active until its
-      // neighbour catches up would report work as still running for minutes
-      // after it was done.
-      await run('progress_set 2 active\nprogress_set 3 active\n'
-          'progress_set 2 done');
-      expect(state(), '-#*-');
-      // Channel 4 filled at the static glow, channel 7 still the only one in
-      // the breathing loop.
-      expect(calls(), contains('ioctl /dev/pwm_led4 0x0000754A -v 150'));
-      expect(callLines().last,
-          'systemd-run librescoot-progress-breathe ${bin.path}/ioctl 7');
-    });
+    test(
+      'a half that finishes first fills while the other keeps breathing',
+      () async {
+        // Either half can win. Holding the finished one active until its
+        // neighbour catches up would report work as still running for minutes
+        // after it was done.
+        await run(
+          'progress_set 2 active\nprogress_set 3 active\n'
+          'progress_set 2 done',
+        );
+        expect(state(), '-#*-');
+        // Channel 4 filled at the static glow, channel 7 still the only one in
+        // the breathing loop.
+        expect(calls(), contains('ioctl /dev/pwm_led4 0x0000754A -v 150'));
+        expect(
+          callLines().last,
+          'systemd-run librescoot-progress-breathe ${bin.path}/ioctl 7',
+        );
+      },
+    );
 
     test('stopping the ring pulse hands the channel back active', () async {
       // The finalize stops the pulse with vehicle-service already running on
@@ -125,23 +184,34 @@ echo "systemd-run $unit$args" >> "$CALLS"''',
       expect(calls(), isNot(contains('0x00007549 -v 0')));
     });
 
-  test('with the curve files present the loops play the vehicle fades', () async {
-      // fade4/fade9 for the bar and fade0/fade1 for the ring, the way the
-      // earlier installer breathed; the duty loops are only the fallback for
-      // an image without the curves.
-      final fades = Directory('${root.path}/fades');
-      await fades.create();
-      await File('${fades.path}/fade4-brake-dim-on').writeAsString('x');
-      await File('${fades.path}/fade9-brake-dim-off').writeAsString('x');
-      final withFades = 'SIGNAL_FADES_DIR=${fades.path}\n';
-      await run('${withFades}progress_set 3 active\nfront_pulse_start');
-      expect(calls(), contains(
-          'systemd-run librescoot-progress-breathe ${bin.path}/ioctl 4 9 7'));
-      expect(calls(), contains(
-          'systemd-run librescoot-front-pulse ${bin.path}/ioctl 1 0 1'));
-    });
+    test(
+      'with the curve files present the loops play the vehicle fades',
+      () async {
+        // fade4/fade9 for the bar and fade0/fade1 for the ring, the way the
+        // earlier installer breathed; the duty loops are only the fallback for
+        // an image without the curves.
+        final fades = Directory('${root.path}/fades');
+        await fades.create();
+        await File('${fades.path}/fade4-brake-dim-on').writeAsString('x');
+        await File('${fades.path}/fade9-brake-dim-off').writeAsString('x');
+        final withFades = 'SIGNAL_FADES_DIR=${fades.path}\n';
+        await run('${withFades}progress_set 3 active\nfront_pulse_start');
+        expect(
+          calls(),
+          contains(
+            'systemd-run librescoot-progress-breathe ${bin.path}/ioctl 4 9 7',
+          ),
+        );
+        expect(
+          calls(),
+          contains(
+            'systemd-run librescoot-front-pulse ${bin.path}/ioctl 1 0 1',
+          ),
+        );
+      },
+    );
 
-  test('the bar fills left to right past stages the plan skipped', () async {
+    test('the bar fills left to right past stages the plan skipped', () async {
       // An upgrade writes no stage-0 image and a plan that leaves the main
       // board alone installs no artifact. The state file records that, but
       // the bar is drawn filled up to the furthest lit segment: a dark gap
@@ -149,62 +219,85 @@ echo "systemd-run $unit$args" >> "$CALLS"''',
       await run('progress_set 3 active');
       expect(state(), '--*-');
       for (final ch in ['3', '4']) {
-        expect(calls(), contains('ioctl /dev/pwm_led$ch 0x0000754A -v 150'),
-            reason: 'channel $ch should be filled behind the active segment');
+        expect(
+          calls(),
+          contains('ioctl /dev/pwm_led$ch 0x0000754A -v 150'),
+          reason: 'channel $ch should be filled behind the active segment',
+        );
       }
       // Nothing after the furthest lit segment is touched.
       expect(calls(), isNot(contains('ioctl /dev/pwm_led6 0x0000754A -v 150')));
-      expect(callLines().last,
-          'systemd-run librescoot-progress-breathe ${bin.path}/ioctl 7');
+      expect(
+        callLines().last,
+        'systemd-run librescoot-progress-breathe ${bin.path}/ioctl 7',
+      );
     });
 
     test('the state survives a fresh source, which is the reboot', () async {
       // 80-reboot.sh asks the coordinator for the one reboot in the middle of
       // the run. Everything in memory goes with it, so the bar the vehicle
       // comes back up with can only come from the file.
-      await run('progress_set 2 done\nprogress_set 3 done\n'
-          'progress_set 4 active');
+      await run(
+        'progress_set 2 done\nprogress_set 3 done\n'
+        'progress_set 4 active',
+      );
       final after = await run('progress_render');
       expect(after.exitCode, 0, reason: after.stderr.toString());
       expect(state(), '-##*');
       expect(calls(), contains('ioctl /dev/pwm_led4 0x0000754A -v 150'));
       expect(calls(), contains('ioctl /dev/pwm_led7 0x0000754A -v 150'));
-      expect(callLines().last,
-          'systemd-run librescoot-progress-breathe ${bin.path}/ioctl 6');
+      expect(
+        callLines().last,
+        'systemd-run librescoot-progress-breathe ${bin.path}/ioctl 6',
+      );
     });
 
     test('a state file from another installer lights nothing', () async {
       // Before this the file held a phase number, and a resumed board can
       // still be carrying one. Reading a 2 as a bar would light two segments
       // for a run that has not started.
-      await File('${root.path}/installer/trampoline-phase').writeAsString('2\n');
+      await File(
+        '${root.path}/installer/trampoline-phase',
+      ).writeAsString('2\n');
       await run('progress_render');
       expect(calls(), isNot(contains('-v 150')));
       expect(
-          callLines().where((l) => l.startsWith('systemd-run librescoot-progress')),
-          isEmpty);
+        callLines().where(
+          (l) => l.startsWith('systemd-run librescoot-progress'),
+        ),
+        isEmpty,
+      );
     });
 
-    test('the breathing runs as a transient unit, not a child of the phase',
-        () async {
-      // The coordinator runs phases with sh under librescoot-onboot.service,
-      // which is Type=oneshot with the default KillMode=control-group: every
-      // descendant dies when the phase returns. A background subshell would
-      // take the animation with it and leave a frozen blinker behind.
-      await run('progress_set 1 active');
-      expect(callLines(),
-          contains('systemd-run librescoot-progress-breathe ${bin.path}/ioctl 3'));
-      expect(callLines(),
+    test(
+      'the breathing runs as a transient unit, not a child of the phase',
+      () async {
+        // The coordinator runs phases with sh under librescoot-onboot.service,
+        // which is Type=oneshot with the default KillMode=control-group: every
+        // descendant dies when the phase returns. A background subshell would
+        // take the animation with it and leave a frozen blinker behind.
+        await run('progress_set 1 active');
+        expect(
+          callLines(),
+          contains(
+            'systemd-run librescoot-progress-breathe ${bin.path}/ioctl 3',
+          ),
+        );
+        expect(
+          callLines(),
           contains('systemctl stop librescoot-progress-breathe.service'),
-          reason: 'one loop at a time, or two fight over the same channel');
-    });
+          reason: 'one loop at a time, or two fight over the same channel',
+        );
+      },
+    );
 
     test('a lock nobody released does not wedge the bar', () async {
       // Two halves of the run write this file, so the read-modify-write is
       // locked. A phase killed mid-write leaves the lock behind, and a bar
       // that waited on it forever would strand every later stage dark.
-      await Directory('${root.path}/installer/trampoline-phase.lock')
-          .create(recursive: true);
+      await Directory(
+        '${root.path}/installer/trampoline-phase.lock',
+      ).create(recursive: true);
       final r = await run('progress_set 2 done');
       expect(r.exitCode, 0, reason: r.stderr.toString());
       expect(state(), '-#--');
@@ -223,20 +316,27 @@ echo "systemd-run $unit$args" >> "$CALLS"''',
   });
 
   group('the front light', () {
-    test('pulses on its own channel, and only while the dashboard is awaited',
-        () async {
-      // It is the one signal that asks the owner for something: the cable has
-      // to move onto the dashboard before anything else can happen. Sharing a
-      // blinker channel with the bar would make that instruction unreadable.
-      await run('front_pulse_start');
-      expect(callLines().last,
-          'systemd-run librescoot-front-pulse ${bin.path}/ioctl 1');
+    test(
+      'pulses on its own channel, and only while the dashboard is awaited',
+      () async {
+        // It is the one signal that asks the owner for something: the cable has
+        // to move onto the dashboard before anything else can happen. Sharing a
+        // blinker channel with the bar would make that instruction unreadable.
+        await run('front_pulse_start');
+        expect(
+          callLines().last,
+          'systemd-run librescoot-front-pulse ${bin.path}/ioctl 1',
+        );
 
-      await File('${root.path}/calls').delete();
-      await run('front_pulse_stop');
-      expect(callLines(), contains('systemctl stop librescoot-front-pulse.service'));
-      expect(calls(), contains('ioctl /dev/pwm_led1 0x0000754A -v 0'));
-    });
+        await File('${root.path}/calls').delete();
+        await run('front_pulse_stop');
+        expect(
+          callLines(),
+          contains('systemctl stop librescoot-front-pulse.service'),
+        );
+        expect(calls(), contains('ioctl /dev/pwm_led1 0x0000754A -v 0'));
+      },
+    );
   });
 
   group('the dashboard LED', () {
@@ -245,8 +345,7 @@ echo "systemd-run $unit$args" >> "$CALLS"''',
       // cannot be masked, so a single write is stomped by the next blinker.
       await run('signal_install_start');
       expect(calls(), contains('i2cset -f -y 2 0x30 0x02 0xFF'));
-      expect(callLines(),
-          contains('systemd-run librescoot-bootled-guard'));
+      expect(callLines(), contains('systemd-run librescoot-bootled-guard'));
     });
 
     test('a run that worked ends dark, not green', () async {
@@ -255,10 +354,16 @@ echo "systemd-run $unit$args" >> "$CALLS"''',
       // claim that somebody has to find and interpret.
       final r = await run('signal_install_done');
       expect(r.exitCode, 0, reason: r.stderr.toString());
-      expect(calls(), contains('systemctl stop librescoot-bootled-guard.service'));
+      expect(
+        calls(),
+        contains('systemctl stop librescoot-bootled-guard.service'),
+      );
       expect(calls().trim().split('\n').last, 'i2cset -f -y 2 0x30 0x04 0x00');
-      expect(helpers, isNot(contains('bootled_blink_green')),
-          reason: 'green is not a state this signalling has any more');
+      expect(
+        helpers,
+        isNot(contains('bootled_blink_green')),
+        reason: 'green is not a state this signalling has any more',
+      );
     });
 
     test('a run that failed goes red and flashes the hazards', () async {
@@ -267,12 +372,16 @@ echo "systemd-run $unit$args" >> "$CALLS"''',
       // from across a courtyard.
       await run('progress_set 3 active\nsignal_error');
       expect(state(), '', reason: 'the bar was describing a run that stopped');
-      expect(callLines(),
-          contains('systemd-run librescoot-bootled-blink'));
-      expect(callLines(),
-          contains('systemd-run librescoot-bootled-hazards ${bin.path}/ioctl'));
-      expect(calls(), contains('systemctl stop librescoot-bootled-guard.service'),
-          reason: 'the guard would re-assert amber over the red every 2s');
+      expect(callLines(), contains('systemd-run librescoot-bootled-blink'));
+      expect(
+        callLines(),
+        contains('systemd-run librescoot-bootled-hazards ${bin.path}/ioctl'),
+      );
+      expect(
+        calls(),
+        contains('systemctl stop librescoot-bootled-guard.service'),
+        reason: 'the guard would re-assert amber over the red every 2s',
+      );
     });
   });
 
@@ -309,8 +418,11 @@ echo "systemd-run $unit$args" >> "$CALLS"''',
         'assets/finalize.sh.template',
       ];
       for (final path in sources) {
-        expect(File(path).readAsStringSync(), contains('signal.sh'),
-            reason: '$path signals without sourcing the helpers');
+        expect(
+          File(path).readAsStringSync(),
+          contains('signal.sh'),
+          reason: '$path signals without sourcing the helpers',
+        );
       }
     });
 
@@ -318,10 +430,10 @@ echo "systemd-run $unit$args" >> "$CALLS"''',
       // A second definition anywhere is the drift this replaced. It also wins
       // over the sourced one, so the copy that gets fixed is not the copy that
       // runs.
-      final owned = RegExp(r'^([a-z_][a-z0-9_]*)\(\)', multiLine: true)
-          .allMatches(helpers)
-          .map((m) => m.group(1)!)
-          .toSet();
+      final owned = RegExp(
+        r'^([a-z_][a-z0-9_]*)\(\)',
+        multiLine: true,
+      ).allMatches(helpers).map((m) => m.group(1)!).toSet();
       expect(owned, contains('progress_set'));
       expect(owned, contains('bootled_guard_start'));
 
@@ -333,8 +445,11 @@ echo "systemd-run $unit$args" >> "$CALLS"''',
       ]) {
         final body = File(path).readAsStringSync();
         for (final name in owned) {
-          expect(body, isNot(contains(RegExp('^ *$name\\(\\)', multiLine: true))),
-              reason: '$path redefines $name');
+          expect(
+            body,
+            isNot(contains(RegExp('^ *$name\\(\\)', multiLine: true))),
+            reason: '$path redefines $name',
+          );
         }
       }
     });
