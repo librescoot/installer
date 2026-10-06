@@ -110,18 +110,70 @@ void main() {
 
   test('brake release and pull sounds fit inside a one-second blip', () {
     for (final cue in [InstallerCue.release, InstallerCue.pull]) {
-      final wav = File('assets/sounds/${cue.assetName}').readAsBytesSync();
-      // Both cues are 48 kHz stereo 16-bit PCM.
-      expect(wav.length, lessThan(48000 * 2 * 2 + 1024));
-      final samples = ByteData.sublistView(wav, 44);
-      var peak = 0;
-      for (var i = 0; i < samples.lengthInBytes; i += 2) {
-        final amplitude = samples.getInt16(i, Endian.little).abs();
-        if (amplitude > peak) peak = amplitude;
-      }
-      expect(peak, greaterThan(20000));
+      final samples = _waveSamples(cue);
+      expect(samples.length, lessThan(48000));
+      expect(
+        samples.map((sample) => sample.abs()).reduce(_max),
+        greaterThan(3276),
+      );
     }
   });
+
+  test('cue waveforms have no clicks or clipping', () {
+    for (final cue in InstallerCue.values) {
+      final samples = _waveSamples(cue);
+      expect(samples.first, 0, reason: cue.name);
+      expect(samples.last, 0, reason: cue.name);
+      expect(
+        samples.map((sample) => sample.abs()).reduce(_max),
+        lessThanOrEqualTo(27572),
+        reason: cue.name,
+      );
+      var curvature = 0;
+      for (var i = 2; i < samples.length; i++) {
+        curvature = _max(
+          curvature,
+          (samples[i] - 2 * samples[i - 1] + samples[i - 2]).abs(),
+        );
+      }
+      expect(curvature, lessThan(394), reason: cue.name);
+    }
+  });
+}
+
+int _max(int a, int b) => a > b ? a : b;
+
+List<int> _waveSamples(InstallerCue cue) {
+  final wav = File('assets/sounds/${cue.assetName}').readAsBytesSync();
+  final bytes = ByteData.sublistView(wav);
+  expect(String.fromCharCodes(wav.sublist(0, 4)), 'RIFF');
+  expect(String.fromCharCodes(wav.sublist(8, 12)), 'WAVE');
+  List<int>? samples;
+  var validFormat = false;
+  for (var offset = 12; offset + 8 <= wav.length;) {
+    final type = String.fromCharCodes(wav.sublist(offset, offset + 4));
+    final size = bytes.getUint32(offset + 4, Endian.little);
+    final start = offset + 8;
+    expect(start + size, lessThanOrEqualTo(wav.length));
+    if (type == 'fmt ') {
+      expect(bytes.getUint16(start, Endian.little), 1);
+      expect(bytes.getUint16(start + 2, Endian.little), 1);
+      expect(bytes.getUint32(start + 4, Endian.little), 48000);
+      expect(bytes.getUint16(start + 14, Endian.little), 16);
+      validFormat = true;
+    } else if (type == 'data') {
+      expect(size % 2, 0);
+      samples = [
+        for (var i = start; i < start + size; i += 2)
+          bytes.getInt16(i, Endian.little),
+      ];
+    }
+    offset = start + size + (size % 2);
+  }
+  expect(validFormat, isTrue);
+  expect(samples, isNotNull);
+  expect(samples, isNotEmpty);
+  return samples!;
 }
 
 Future<void> _waitForCalls(
