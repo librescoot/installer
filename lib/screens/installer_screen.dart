@@ -9675,6 +9675,30 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         !_windowClosing &&
         _currentPhase == InstallerPhase.bluetoothPairing &&
         generation == _bluetoothPairingGeneration;
+    if (_isDryRun) {
+      setState(() {
+        _bluetoothPairingStarting = false;
+        _btAdvertisingSettling = true;
+        _bleConnected = false;
+        _blePairedCount = 0;
+        _blePinCode = null;
+      });
+      await Future.delayed(const Duration(seconds: 2));
+      if (!isCurrent()) return;
+      setState(() {
+        _btAdvertisingSettling = false;
+        _blePinCode = '123456';
+      });
+      await Future.delayed(const Duration(seconds: 8));
+      if (!isCurrent()) return;
+      setState(() {
+        _bleConnected = true;
+        _blePairedCount = 1;
+        _blePinCode = null;
+      });
+      _sounds.play(InstallerCue.confirmed);
+      return;
+    }
     Future<void> stopStaleStart() async {
       if (isCurrent()) return;
       await _stopBluetoothPairing(advance: false);
@@ -9933,6 +9957,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // Pretend the new service is present so the master flow is testable.
       setState(() {
         _keycardServiceCanMaster = true;
+        _keycardAuthorizedCount = 0;
+        _keycardMasterCount = 0;
         _keycardStage = _KeycardStage.cards;
       });
       return;
