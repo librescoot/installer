@@ -9563,8 +9563,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// window fails, and the user is left retrying a pair that cannot work.
   static const _bleAdvertisingSettle = Duration(seconds: 15);
 
-  /// Vehicle state as it stood before the pairing window forced `parked`,
-  /// restored when the window closes.
+  /// Vehicle state before pairing, restored when the window closes.
+  /// A bootstrap with no published state returns to `stand-by`.
   String? _stateBeforePairing;
   bool _pairingVehicleStateChanged = false;
   bool _bleWhitelistDisabled = false;
@@ -9599,10 +9599,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             'advertising-start-with-whitelisting',
           );
           _bleWhitelistDisabled = false;
-          if (claimedVehicleStateChange &&
-              claimedVehicleState != null &&
-              claimedVehicleState != 'parked') {
-            await _sshService.forceVehicleState(claimedVehicleState);
+          if (claimedVehicleStateChange && claimedVehicleState != 'parked') {
+            await _sshService.forceVehicleState(
+              claimedVehicleState ?? 'stand-by',
+            );
             _pairingVehicleStateChanged = false;
             _stateBeforePairing = null;
           }
@@ -9768,8 +9768,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   Future<void> _restorePairingVehicleState() async {
     if (!_pairingVehicleStateChanged || _isDryRun) return;
-    final before = _stateBeforePairing;
-    if (before == null || before == 'parked') {
+    final before = _stateBeforePairing ?? 'stand-by';
+    if (before == 'parked') {
       _pairingVehicleStateChanged = false;
       _stateBeforePairing = null;
       return;
