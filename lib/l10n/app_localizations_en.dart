@@ -117,7 +117,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get originalKeycardsNotice =>
-      'Your existing keycards need to be enrolled again. Card permissions stored in the original firmware cannot be transferred.';
+      'Keycards from the original firmware must be enrolled again; their permissions cannot be transferred.';
+
+  @override
+  String get continueToBraces => 'Continue to the crossbars';
+
+  @override
+  String get handoffShowStatus => 'Continue to status and signals';
+
+  @override
+  String get handoffCableInstructions => 'Show USB instructions';
+
+  @override
+  String handoffElapsed(String elapsed) {
+    return 'Since disconnection: $elapsed';
+  }
 
   @override
   String get phaseWelcomeTitle => 'Welcome';
@@ -1250,11 +1264,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get handoffEstimateBriefDisclaimer =>
-      'Duration depends on the selected installation and map data. The laptop cannot read live progress after the cable swap.';
+      'Time-based estimate from unplugging the laptop cable — not live dashboard progress.';
 
   @override
   String get handoffEstimateExplanation =>
-      'The laptop cannot read live progress while the MDB is connected to the DBC. The estimate is calculated from the selected file sizes and timings measured on real installs. Do not reconnect the laptop based on the estimate; wait for the dashboard and indicators to show the actual state.';
+      'The estimate starts at cable disconnection and includes waiting for the dashboard connection. A steady amber LED indicates the actual start. Do not reconnect based on the estimate; follow the scooter’s signals.';
 
   @override
   String handoffEstimateMinutes(int minutes) {
@@ -1263,22 +1277,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String handoffEstimateRemaining(String left) {
-    return 'About $left remaining';
+    return 'Estimated remaining: $left';
   }
 
   @override
   String handoffEstimateRemainingUpper(String to) {
-    return 'Up to about $to remaining';
+    return 'Estimated remaining: up to $to';
   }
 
   @override
   String handoffEstimateTotalRange(String from, String to) {
-    return 'Expected duration from steady amber LED: $from–$to';
+    return 'Estimated duration from disconnection: $from–$to';
   }
 
   @override
   String get handoffEstimateTakingLonger =>
-      'Taking a little longer is normal. Keep the scooter powered and leave the cables connected.';
+      'The estimate has been exceeded. Check the scooter’s signals; disconnect power or cables only as instructed.';
 
   @override
   String get startingTrampoline => 'Starting on-device installation...';
@@ -2006,14 +2020,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Wait for the keycard reader to finish entering master-card mode before closing the installer.';
 
   @override
-  String get keycardSimulateTapButton => '[DRY RUN] Simulate tap';
+  String get keycardSimulateTapButton => 'Simulate tap';
 
   @override
-  String get keycardSimulateMasterTapButton => '[DRY RUN] Simulate master tap';
+  String get keycardSimulateMasterTapButton => 'Simulate master tap';
 
   @override
   String get keycardSimulateRejectedTapButton =>
-      '[DRY RUN] Simulate already-authorized rejection';
+      'Simulate already-authorized rejection';
 
   @override
   String get installationContinuesInNewWindow =>
@@ -2831,11 +2845,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get blePairingStep2Desc => 'It shows up under the address given here.';
 
   @override
-  String get blePairingStep3 => 'Confirm the PIN';
+  String get blePairingStep3 => 'Enter the PIN on your phone';
 
   @override
   String get blePairingStep3Desc =>
-      'The PIN appears on this screen when your device requests it.';
+      'Enter the PIN shown here into the input field on your phone.';
 
   @override
   String get blePairingOneAtATime =>
@@ -2929,11 +2943,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get blePairingStateVisible => 'Visible, waiting for a device';
 
   @override
-  String get blePinConfirmTitle => 'Confirm this PIN on your device';
+  String get blePinConfirmTitle => 'Enter this PIN on your phone';
 
   @override
   String get blePinConfirmHint =>
-      'Your device shows the same number. If they match, confirm it there.';
+      'Enter this PIN in the Bluetooth pairing input field on your phone and confirm it.';
 
   @override
   String get blePairingStep2DescCompare =>
@@ -2941,7 +2955,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get blePairingStep3DescOverlay =>
-      'Compare the PIN shown here with the PIN on your phone. Confirm on the phone only if they match.';
+      'Enter the PIN shown here in the Bluetooth pairing input field on your phone and confirm it.';
 
   @override
   String get dbcSayInstalling =>

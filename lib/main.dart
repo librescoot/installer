@@ -110,6 +110,7 @@ class LaunchArgs {
   /// region selection).
   final bool noOfflineMaps;
   final bool dryRun;
+  final bool recordingDemo;
   final bool sshTrace;
 
   /// Log file the unelevated process already opened. The elevated relaunch
@@ -131,11 +132,12 @@ class LaunchArgs {
     this.valhallaTiles,
     this.autoStart = false,
     this.noOfflineMaps = false,
-    this.dryRun = false,
+    bool dryRun = false,
+    this.recordingDemo = false,
     this.sshTrace = false,
     this.logFile,
     this.keycards = const [],
-  });
+  }) : dryRun = dryRun || recordingDemo;
 
   factory LaunchArgs.fromArgs(List<String> args) {
     String? channel,
@@ -149,6 +151,7 @@ class LaunchArgs {
     var autoStart = false;
     var noOfflineMaps = false;
     var dryRun = false;
+    var recordingDemo = false;
     var sshTrace = false;
     final keycards = <String>[];
     for (final arg in args) {
@@ -177,6 +180,7 @@ class LaunchArgs {
       if (arg == '--auto-start') autoStart = true;
       if (arg == '--no-offline-maps') noOfflineMaps = true;
       if (arg == '--dry-run') dryRun = true;
+      if (arg == '--recording-demo') recordingDemo = true;
       if (arg == '--ssh-trace') sshTrace = true;
     }
     return LaunchArgs(
@@ -190,6 +194,7 @@ class LaunchArgs {
       autoStart: autoStart,
       noOfflineMaps: noOfflineMaps,
       dryRun: dryRun,
+      recordingDemo: recordingDemo,
       sshTrace: sshTrace,
       logFile: logFile,
       keycards: normalizeKeycardUids(keycards),
@@ -222,6 +227,7 @@ class LaunchArgs {
     if (localTiles != null) '--valhalla-tiles=${localTiles.routingPath}',
     if (!wantsOfflineMaps) '--no-offline-maps',
     if (dryRun) '--dry-run',
+    if (recordingDemo) '--recording-demo',
     if (sshTrace) '--ssh-trace',
     if (keycards.isNotEmpty) '--keycards=${keycards.join(',')}',
     if (LogService.filePath != null) '--log-file=${LogService.filePath}',

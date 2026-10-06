@@ -3,6 +3,27 @@ import 'package:librescoot_installer/main.dart';
 import 'package:librescoot_installer/models/local_tile_selection.dart';
 
 void main() {
+  test(
+    'recording presentation always implies simulation, including relaunch',
+    () {
+      expect(LaunchArgs().recordingDemo, isFalse);
+      expect(LaunchArgs().dryRun, isFalse);
+      expect(LaunchArgs(recordingDemo: true, dryRun: false).dryRun, isTrue);
+      final args = LaunchArgs.fromArgs(['--recording-demo']);
+      expect(args.recordingDemo, isTrue);
+      expect(args.dryRun, isTrue);
+      final relaunched = LaunchArgs.fromArgs(
+        args.relaunchArgs(
+          channelName: 'stable',
+          regionSlug: null,
+          wantsOfflineMaps: true,
+        ),
+      );
+      expect(relaunched.recordingDemo, isTrue);
+      expect(relaunched.dryRun, isTrue);
+    },
+  );
+
   test('keycards come from --keycard, repeated, and --keycards, listed', () {
     final args = LaunchArgs.fromArgs([
       '--keycard=46dcc300',

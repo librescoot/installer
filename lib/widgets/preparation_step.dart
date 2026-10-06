@@ -20,60 +20,59 @@ class PreparationStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$number. $title',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        Text(description, style: const TextStyle(fontSize: 14, height: 1.4)),
-      ],
-    );
-    final photos = Row(
-      children: [
-        for (var i = 0; i < images.length; i++) ...[
-          if (i > 0)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 6),
-              child: Icon(Icons.arrow_forward, size: 18, color: kAccent),
-            ),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Image.asset(images[i], height: 165, fit: BoxFit.contain),
-                  if (i < imageLabels.length)
-                    Text(imageLabels[i], style: const TextStyle(fontSize: 12)),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
     return Padding(
       padding: const EdgeInsets.only(bottom: 18),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          if (images.isEmpty) return text;
-          if (constraints.maxWidth < 600) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [text, const SizedBox(height: 10), photos],
-            );
-          }
-          return Row(
-            children: [
-              Expanded(flex: 5, child: text),
-              const SizedBox(width: 18),
-              Expanded(flex: 6, child: photos),
-            ],
-          );
-        },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$number. $title',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(description, style: const TextStyle(fontSize: 14, height: 1.4)),
+          if (images.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                for (var i = 0; i < images.length; i++) ...[
+                  if (i > 0)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: Icon(
+                        Icons.arrow_forward,
+                        size: 24,
+                        color: kAccent,
+                      ),
+                    ),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: Image.asset(
+                            images[i],
+                            height: 260,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                        if (i < imageLabels.length) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            imageLabels[i],
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }

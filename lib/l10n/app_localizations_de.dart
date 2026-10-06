@@ -117,7 +117,21 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get originalKeycardsNotice =>
-      'Deine bisherigen Schlüsselkarten müssen neu angelernt werden. Die im Roller gespeicherten Kartenberechtigungen können nicht aus der Original-Firmware übernommen werden.';
+      'Schlüsselkarten aus der Original-Firmware müssen neu angelernt werden; ihre Berechtigungen können nicht übernommen werden.';
+
+  @override
+  String get continueToBraces => 'Weiter zu den Querstreben';
+
+  @override
+  String get handoffShowStatus => 'Weiter zu Status und Signalen';
+
+  @override
+  String get handoffCableInstructions => 'USB-Anleitung anzeigen';
+
+  @override
+  String handoffElapsed(String elapsed) {
+    return 'Seit Kabeltrennung: $elapsed';
+  }
 
   @override
   String get phaseWelcomeTitle => 'Willkommen';
@@ -1268,11 +1282,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get handoffEstimateBriefDisclaimer =>
-      'Die Dauer hängt von der ausgewählten Installation und den Kartendaten ab. Der Laptop kann den aktuellen Fortschritt nach dem Umstecken nicht auslesen.';
+      'Zeitbasierte Schätzung ab Abziehen des Laptop-Kabels – keine Live-Daten vom Dashboard.';
 
   @override
   String get handoffEstimateExplanation =>
-      'Die Zeitspanne wird aus den Dateigrößen und üblichen Laufzeiten geschätzt. Schließe den Laptop nicht aufgrund der Schätzung wieder an. Warte auf die tatsächlichen Signale am Roller.';
+      'Die Schätzung läuft ab Kabeltrennung und umfasst auch das Warten auf die Dashboard-Verbindung. Der tatsächliche Start wird durch die dauerhaft orange leuchtende LED angezeigt. Schließe den Laptop nicht aufgrund der Schätzung wieder an; beachte die Signale am Roller.';
 
   @override
   String handoffEstimateMinutes(int minutes) {
@@ -1281,22 +1295,22 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String handoffEstimateRemaining(String left) {
-    return 'Noch etwa $left';
+    return 'Geschätzt noch $left';
   }
 
   @override
   String handoffEstimateRemainingUpper(String to) {
-    return 'Noch bis zu etwa $to';
+    return 'Geschätzt noch bis zu $to';
   }
 
   @override
   String handoffEstimateTotalRange(String from, String to) {
-    return 'Voraussichtliche Dauer ab dauerhaft orange leuchtender LED: $from–$to';
+    return 'Geschätzte Dauer ab Kabeltrennung: $from–$to';
   }
 
   @override
   String get handoffEstimateTakingLonger =>
-      'Dauert etwas länger – kein Grund zur Sorge. Lass den Roller eingeschaltet und die Kabel verbunden.';
+      'Die Schätzung ist überschritten. Beachte die Signale am Roller; trenne Kabel und Strom nur nach Anweisung.';
 
   @override
   String get startingTrampoline =>
@@ -2038,15 +2052,14 @@ class AppLocalizationsDe extends AppLocalizations {
       'Warte, bis der Kartenleser den Anlernkartenmodus vollständig gestartet hat, bevor du den Installer schließt.';
 
   @override
-  String get keycardSimulateTapButton => '[DRY RUN] Kartenkontakt simulieren';
+  String get keycardSimulateTapButton => 'Kartenkontakt simulieren';
 
   @override
-  String get keycardSimulateMasterTapButton =>
-      '[DRY RUN] Anlernkarte simulieren';
+  String get keycardSimulateMasterTapButton => 'Anlernkarte simulieren';
 
   @override
   String get keycardSimulateRejectedTapButton =>
-      '[DRY RUN] Ablehnung einer angelernten Karte simulieren';
+      'Ablehnung einer angelernten Karte simulieren';
 
   @override
   String get installationContinuesInNewWindow =>
@@ -2880,11 +2893,11 @@ class AppLocalizationsDe extends AppLocalizations {
       'Er erscheint unter der Adresse, die hier steht.';
 
   @override
-  String get blePairingStep3 => 'PIN bestätigen';
+  String get blePairingStep3 => 'PIN am Handy eingeben';
 
   @override
   String get blePairingStep3Desc =>
-      'Die PIN erscheint hier auf dem Bildschirm, sobald dein Handy fragt.';
+      'Gib die hier angezeigte PIN im Eingabefeld auf deinem Handy ein.';
 
   @override
   String get blePairingOneAtATime =>
@@ -2980,11 +2993,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get blePairingStateVisible => 'Sichtbar, wartet auf ein Gerät';
 
   @override
-  String get blePinConfirmTitle => 'Diese PIN am Handy bestätigen';
+  String get blePinConfirmTitle => 'Diese PIN am Handy eingeben';
 
   @override
   String get blePinConfirmHint =>
-      'Dein Handy zeigt dieselbe Zahl. Wenn beide übereinstimmen, bestätige die PIN dort.';
+      'Gib diese PIN im Eingabefeld der Bluetooth-Kopplung auf deinem Handy ein und bestätige sie.';
 
   @override
   String get blePairingStep2DescCompare =>
@@ -2992,7 +3005,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get blePairingStep3DescOverlay =>
-      'Vergleiche die hier angezeigte PIN mit der PIN am Handy. Bestätige am Handy nur, wenn beide übereinstimmen.';
+      'Gib die hier angezeigte PIN im Eingabefeld der Bluetooth-Kopplung auf deinem Handy ein und bestätige sie.';
 
   @override
   String get dbcSayInstalling =>

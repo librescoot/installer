@@ -3,6 +3,21 @@ import 'package:librescoot_installer/services/relaunch_target.dart';
 
 void main() {
   group('InstallAnotherRelaunch', () {
+    test('a fresh demonstration remains isolated from hardware', () {
+      final relaunch = InstallAnotherRelaunch.forPlatform(
+        isWindows: false,
+        resolvedExecutable: '/opt/librescoot-installer',
+        environment: const {},
+        languageCode: 'de',
+        recordingDemo: true,
+      );
+      expect(relaunch.arguments, [
+        '--lang=de',
+        '--dry-run',
+        '--recording-demo',
+      ]);
+    });
+
     test('uses the persistent NSIS wrapper on Windows', () {
       final relaunch = InstallAnotherRelaunch.forPlatform(
         isWindows: true,

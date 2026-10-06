@@ -18,13 +18,19 @@ class InstallAnotherRelaunch {
     required String resolvedExecutable,
     required Map<String, String> environment,
     required String languageCode,
+    bool dryRun = false,
+    bool recordingDemo = false,
   }) {
     final wrapperPath = environment[outerWrapperPathEnvironment];
     return InstallAnotherRelaunch(
       executable: isWindows && wrapperPath != null && wrapperPath.isNotEmpty
           ? wrapperPath
           : resolvedExecutable,
-      arguments: ['--lang=$languageCode'],
+      arguments: [
+        '--lang=$languageCode',
+        if (dryRun || recordingDemo) '--dry-run',
+        if (recordingDemo) '--recording-demo',
+      ],
     );
   }
 }

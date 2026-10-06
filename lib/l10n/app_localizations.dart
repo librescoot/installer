@@ -281,8 +281,32 @@ abstract class AppLocalizations {
   /// No description provided for @originalKeycardsNotice.
   ///
   /// In en, this message translates to:
-  /// **'Your existing keycards need to be enrolled again. Card permissions stored in the original firmware cannot be transferred.'**
+  /// **'Keycards from the original firmware must be enrolled again; their permissions cannot be transferred.'**
   String get originalKeycardsNotice;
+
+  /// No description provided for @continueToBraces.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue to the crossbars'**
+  String get continueToBraces;
+
+  /// No description provided for @handoffShowStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue to status and signals'**
+  String get handoffShowStatus;
+
+  /// No description provided for @handoffCableInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Show USB instructions'**
+  String get handoffCableInstructions;
+
+  /// No description provided for @handoffElapsed.
+  ///
+  /// In en, this message translates to:
+  /// **'Since disconnection: {elapsed}'**
+  String handoffElapsed(String elapsed);
 
   /// No description provided for @phaseWelcomeTitle.
   ///
@@ -2261,13 +2285,13 @@ abstract class AppLocalizations {
   /// No description provided for @handoffEstimateBriefDisclaimer.
   ///
   /// In en, this message translates to:
-  /// **'Duration depends on the selected installation and map data. The laptop cannot read live progress after the cable swap.'**
+  /// **'Time-based estimate from unplugging the laptop cable — not live dashboard progress.'**
   String get handoffEstimateBriefDisclaimer;
 
   /// No description provided for @handoffEstimateExplanation.
   ///
   /// In en, this message translates to:
-  /// **'The laptop cannot read live progress while the MDB is connected to the DBC. The estimate is calculated from the selected file sizes and timings measured on real installs. Do not reconnect the laptop based on the estimate; wait for the dashboard and indicators to show the actual state.'**
+  /// **'The estimate starts at cable disconnection and includes waiting for the dashboard connection. A steady amber LED indicates the actual start. Do not reconnect based on the estimate; follow the scooter’s signals.'**
   String get handoffEstimateExplanation;
 
   /// No description provided for @handoffEstimateMinutes.
@@ -2279,25 +2303,25 @@ abstract class AppLocalizations {
   /// No description provided for @handoffEstimateRemaining.
   ///
   /// In en, this message translates to:
-  /// **'About {left} remaining'**
+  /// **'Estimated remaining: {left}'**
   String handoffEstimateRemaining(String left);
 
   /// No description provided for @handoffEstimateRemainingUpper.
   ///
   /// In en, this message translates to:
-  /// **'Up to about {to} remaining'**
+  /// **'Estimated remaining: up to {to}'**
   String handoffEstimateRemainingUpper(String to);
 
   /// No description provided for @handoffEstimateTotalRange.
   ///
   /// In en, this message translates to:
-  /// **'Expected duration from steady amber LED: {from}–{to}'**
+  /// **'Estimated duration from disconnection: {from}–{to}'**
   String handoffEstimateTotalRange(String from, String to);
 
   /// No description provided for @handoffEstimateTakingLonger.
   ///
   /// In en, this message translates to:
-  /// **'Taking a little longer is normal. Keep the scooter powered and leave the cables connected.'**
+  /// **'The estimate has been exceeded. Check the scooter’s signals; disconnect power or cables only as instructed.'**
   String get handoffEstimateTakingLonger;
 
   /// No description provided for @startingTrampoline.
@@ -3479,19 +3503,19 @@ abstract class AppLocalizations {
   /// No description provided for @keycardSimulateTapButton.
   ///
   /// In en, this message translates to:
-  /// **'[DRY RUN] Simulate tap'**
+  /// **'Simulate tap'**
   String get keycardSimulateTapButton;
 
   /// No description provided for @keycardSimulateMasterTapButton.
   ///
   /// In en, this message translates to:
-  /// **'[DRY RUN] Simulate master tap'**
+  /// **'Simulate master tap'**
   String get keycardSimulateMasterTapButton;
 
   /// No description provided for @keycardSimulateRejectedTapButton.
   ///
   /// In en, this message translates to:
-  /// **'[DRY RUN] Simulate already-authorized rejection'**
+  /// **'Simulate already-authorized rejection'**
   String get keycardSimulateRejectedTapButton;
 
   /// No description provided for @installationContinuesInNewWindow.
@@ -4883,13 +4907,13 @@ abstract class AppLocalizations {
   /// No description provided for @blePairingStep3.
   ///
   /// In en, this message translates to:
-  /// **'Confirm the PIN'**
+  /// **'Enter the PIN on your phone'**
   String get blePairingStep3;
 
   /// No description provided for @blePairingStep3Desc.
   ///
   /// In en, this message translates to:
-  /// **'The PIN appears on this screen when your device requests it.'**
+  /// **'Enter the PIN shown here into the input field on your phone.'**
   String get blePairingStep3Desc;
 
   /// No description provided for @blePairingOneAtATime.
@@ -5033,13 +5057,13 @@ abstract class AppLocalizations {
   /// No description provided for @blePinConfirmTitle.
   ///
   /// In en, this message translates to:
-  /// **'Confirm this PIN on your device'**
+  /// **'Enter this PIN on your phone'**
   String get blePinConfirmTitle;
 
   /// No description provided for @blePinConfirmHint.
   ///
   /// In en, this message translates to:
-  /// **'Your device shows the same number. If they match, confirm it there.'**
+  /// **'Enter this PIN in the Bluetooth pairing input field on your phone and confirm it.'**
   String get blePinConfirmHint;
 
   /// No description provided for @blePairingStep2DescCompare.
@@ -5051,7 +5075,7 @@ abstract class AppLocalizations {
   /// No description provided for @blePairingStep3DescOverlay.
   ///
   /// In en, this message translates to:
-  /// **'Compare the PIN shown here with the PIN on your phone. Confirm on the phone only if they match.'**
+  /// **'Enter the PIN shown here in the Bluetooth pairing input field on your phone and confirm it.'**
   String get blePairingStep3DescOverlay;
 
   /// No description provided for @dbcSayInstalling.

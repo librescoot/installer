@@ -58,7 +58,11 @@ void main() {
       expect(watch, contains('_setStatus(l10n.handoffDisconnected)'));
       expect(watch, isNot(contains('mdbDisconnectedFlashingDbc')));
       expect(watch, isNot(contains('_unlockObserved = true')));
-      expect(watch, isNot(contains('DateTime.now()')));
+      expect(watch, contains('_dbcDisconnectedAt = DateTime.now()'));
+      expect(
+        watch.indexOf('_dbcDisconnectedAt = DateTime.now()'),
+        greaterThan(watch.indexOf('_dbcUsbDisconnected = true')),
+      );
       expect(watch, contains('_currentPhase != InstallerPhase.dbcFlash'));
     },
   );

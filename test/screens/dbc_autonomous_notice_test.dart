@@ -10,29 +10,26 @@ void main() {
     final start = source.indexOf('Widget _buildDbcFlash(');
     final end = source.indexOf('Future<void> _watchDbcFlash()', start);
     final screen = source.substring(start, end);
-    expect(screen, contains('l10n.dbcFlashHandsOffHeading'));
+    final status = File(
+      'lib/widgets/dashboard_handoff_status.dart',
+    ).readAsStringSync();
+    expect(screen, contains('_dbcShowingStatus && _dbcDisconnectedAt != null'));
+    expect(screen, contains('l10n.handoffShowStatus'));
+    expect(status, contains('l10n.dbcFlashHandsOffHeading'));
     expect(screen, isNot(contains('l10n.dbcFlashHandsOffBody')));
-    expect(
-      screen.indexOf('l10n.dbcFlashHandsOffHeading'),
-      greaterThan(screen.indexOf('if (_dbcUsbDisconnected)')),
-    );
-    expect(screen, contains('HandoffDuration('));
-    expect(screen, isNot(contains('EstimatedHandoffProgress(')));
+    expect(status, contains('EstimatedHandoffProgress('));
+    expect(status, contains('startedAt: disconnectedAt'));
     expect(screen, contains('l10n.handoffLedSignals'));
     expect(screen, contains('l10n.handoffDisconnected'));
-    expect(screen, contains('l10n.handoffHandsOffBody'));
+    expect(status, contains('l10n.handoffHandsOffBody'));
+    expect(status, contains('DbcFlashOutcomes('));
     expect(
-      screen.indexOf('l10n.dbcFlashHandsOffHeading'),
-      greaterThan(screen.indexOf('HandoffDuration(')),
-    );
-    expect(screen, contains('DbcFlashOutcomes('));
-    expect(
-      screen.indexOf('l10n.dbcFlashChooseOutcomeHint'),
-      greaterThan(screen.indexOf('HandoffDuration(')),
+      status.indexOf('l10n.dbcFlashHandsOffHeading'),
+      lessThan(status.indexOf('EstimatedHandoffProgress(')),
     );
     expect(
-      screen.indexOf('l10n.dbcFlashChooseOutcomeHint'),
-      lessThan(screen.indexOf('DbcFlashOutcomes(')),
+      status.indexOf('l10n.dbcFlashChooseOutcomeHint'),
+      lessThan(status.indexOf('DbcFlashOutcomes(')),
     );
     expect(screen, isNot(contains('_blinkerPhases(')));
     expect(screen, isNot(contains('l10n.dbcFlashSequence')));
