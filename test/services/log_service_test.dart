@@ -30,13 +30,19 @@ void main() {
         handoff,
       ).writeAsStringSync('2026-01-01 00:00:00.000 [user] parent line\n');
 
+      LogService.write('BLE before init: AA:BB:CC:DD:EE:FF');
       await LogService.init(
         handoffPath: handoff,
         version: 'test',
         locale: 'en',
-        args: ['--auto-start', '--log-file=$handoff'],
+        args: [
+          '--auto-start',
+          '--log-file=$handoff',
+          '--keycards=044573C27C6780',
+        ],
       );
       LogService.write('child line');
+      LogService.write('UI: keycard event: card-learned:DEADBEEF');
 
       expect(LogService.filePath, handoff);
       final contents = File(handoff).readAsStringSync();
@@ -45,6 +51,11 @@ void main() {
       expect(contents, contains('[admin] child line'));
       expect(contents, contains('elevated process'));
       expect(contents, contains('log file: $handoff'));
+      expect(contents, isNot(contains('AA:BB:CC:DD:EE:FF')));
+      expect(contents, isNot(contains('044573C27C6780')));
+      expect(contents, isNot(contains('DEADBEEF')));
+      expect(contents, contains('[Bluetooth MAC]'));
+      expect(contents, contains('[keycard UID]'));
     });
   });
 }

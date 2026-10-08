@@ -177,14 +177,16 @@ void main() {
         runId: 'run-test-1',
         target: target,
         launch: const TrampolineLaunchDiagnostics(
-          stdout: 'shell failed',
-          logTail: 'last line',
+          stdout: 'shell failed: keycard UID=044573C27C6780',
+          logTail: 'last line: BLE MAC AA:BB:CC:DD:EE:FF',
           staging: '/data 100%',
         ),
         downloadFile: (remotePath) async {
           requested.add(remotePath);
           if (remotePath.endsWith('trampoline.log')) {
-            return Uint8List.fromList(utf8.encode('last line'));
+            return Uint8List.fromList(
+              utf8.encode('keycard event: card-learned:DEADBEEF'),
+            );
           }
           if (remotePath.endsWith('run-state')) {
             throw StateError('unreadable');
@@ -202,6 +204,16 @@ void main() {
       expect(
         File(p.join(target.path, 'launch-diagnostics.txt')).readAsStringSync(),
         allOf(contains('run-test-1'), contains('/data 100%')),
+      );
+      for (final file in saved) {
+        final content = File(file).readAsStringSync();
+        expect(content, isNot(contains('044573C27C6780')));
+        expect(content, isNot(contains('DEADBEEF')));
+        expect(content, isNot(contains('AA:BB:CC:DD:EE:FF')));
+      }
+      expect(
+        File(p.join(target.path, 'trampoline.log')).readAsStringSync(),
+        contains('[keycard UID]'),
       );
     });
 

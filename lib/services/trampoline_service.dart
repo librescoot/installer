@@ -13,6 +13,7 @@ import '../models/substep.dart';
 import '../models/trampoline_status.dart';
 import 'finalize_script.dart';
 import 'install_phase_scripts.dart';
+import 'log_redaction.dart';
 import 'ssh_service.dart';
 
 typedef ToolAssetLoader = Future<ByteData> Function(String path);
@@ -145,19 +146,21 @@ Future<List<String>> saveTrampolineDiagnostics({
   final saved = <String>[];
   final summary = File(path.join(target.path, 'launch-diagnostics.txt'));
   await summary.writeAsString(
-    [
-      'run-id: $runId',
-      '',
-      '[stdout]',
-      launch.stdout,
-      '',
-      '[trampoline log tail]',
-      launch.logTail,
-      '',
-      '[staging and disk space]',
-      launch.staging,
-      '',
-    ].join('\n'),
+    redactLogMessage(
+      [
+        'run-id: $runId',
+        '',
+        '[stdout]',
+        launch.stdout,
+        '',
+        '[trampoline log tail]',
+        launch.logTail,
+        '',
+        '[staging and disk space]',
+        launch.staging,
+        '',
+      ].join('\n'),
+    ),
   );
   saved.add(summary.path);
 
@@ -170,7 +173,10 @@ Future<List<String>> saveTrampolineDiagnostics({
           final bytes = await downloadFile(entry.value);
           if (bytes == null) return;
           final file = File(path.join(target.path, entry.key));
-          await file.writeAsBytes(bytes, flush: true);
+          await file.writeAsString(
+            redactLogMessage(utf8.decode(bytes, allowMalformed: true)),
+            flush: true,
+          );
           saved.add(file.path);
         } catch (_) {}
       }),

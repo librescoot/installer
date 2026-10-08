@@ -16,8 +16,9 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 import 'package:win32/win32.dart';
 
-class LogService {
+import 'log_redaction.dart';
 
+class LogService {
   /// How to reach the logged-in user's clipboard on macOS, with the locale
   /// pbcopy needs.
   ///
@@ -29,12 +30,13 @@ class LogService {
   ///
   /// The launchctl hop is for the elevated case, where the process is root
   /// and root's pasteboard is not the one the user pastes from.
-  static (String, List<String>, Map<String, String>) pbcopyCommand(String uid) =>
-      (
-        'launchctl',
-        ['asuser', uid, 'pbcopy'],
-        const {'LC_CTYPE': 'UTF-8', 'LANG': 'en_US.UTF-8'},
-      );
+  static (String, List<String>, Map<String, String>) pbcopyCommand(
+    String uid,
+  ) => (
+    'launchctl',
+    ['asuser', uid, 'pbcopy'],
+    const {'LC_CTYPE': 'UTF-8', 'LANG': 'en_US.UTF-8'},
+  );
 
   /// Subfolder the log files live in, so nothing is dumped loose into the
   /// user's documents.
@@ -122,7 +124,9 @@ class LogService {
   static void write(String message) {
     if (_disabled) return;
     if (_handle == null) {
-      if (_pending.length < _pendingLimit) _pending.add(message);
+      if (_pending.length < _pendingLimit) {
+        _pending.add(redactLogMessage(message));
+      }
       return;
     }
     _writeLine(message);
@@ -142,7 +146,13 @@ class LogService {
         // session from this process when we run elevated.
         final uid = await _macConsoleUid();
         if (uid != null) {
-          await _spawnViewer('launchctl', ['asuser', uid, 'open', '-R', target]);
+          await _spawnViewer('launchctl', [
+            'asuser',
+            uid,
+            'open',
+            '-R',
+            target,
+          ]);
         } else {
           await _spawnViewer('open', ['-R', target]);
         }
@@ -161,13 +171,20 @@ class LogService {
   }
 
   static Future<void> _spawnViewer(String exe, List<String> args) async {
-    final proc = await Process.start(exe, args, mode: ProcessStartMode.detached);
+    final proc = await Process.start(
+      exe,
+      args,
+      mode: ProcessStartMode.detached,
+    );
     debugPrint('Log: opened the log folder with $exe (pid ${proc.pid})');
   }
 
   /// Explorer treats a quoted `/select,<path>` as an invalid switch. Keep
   /// the switch and path separate so Dart quotes only a path that needs it.
-  static List<String> windowsExplorerArgs(String target) => ['/select,', target];
+  static List<String> windowsExplorerArgs(String target) => [
+    '/select,',
+    target,
+  ];
 
   static void _writeHeader({
     required String version,
@@ -175,8 +192,12 @@ class LogService {
     required List<String> args,
   }) {
     final role = _tag == 'admin' ? 'elevated' : 'unelevated';
-    _writeLine('=== Librescoot Installer $version ($role process, pid $pid) ===');
-    _writeLine('platform: ${Platform.operatingSystem} ${Platform.operatingSystemVersion}');
+    _writeLine(
+      '=== Librescoot Installer $version ($role process, pid $pid) ===',
+    );
+    _writeLine(
+      'platform: ${Platform.operatingSystem} ${Platform.operatingSystemVersion}',
+    );
     _writeLine('locale: $locale');
     _writeLine('arguments: ${args.isEmpty ? '(none)' : args.join(' ')}');
     _writeLine('log file: $_filePath');
@@ -186,7 +207,9 @@ class LogService {
     final handle = _handle;
     if (handle == null) return;
     try {
-      handle.writeStringSync('${_lineStamp(DateTime.now())} [$_tag] $message\n');
+      handle.writeStringSync(
+        '${_lineStamp(DateTime.now())} [$_tag] ${redactLogMessage(message)}\n',
+      );
     } catch (e) {
       // Removable media pulled, permissions changed: stop writing rather than
       // throwing on every log line for the rest of the run.
@@ -211,13 +234,19 @@ class LogService {
   static Future<File> _newLogFile(Directory dir) async {
     await dir.create(recursive: true);
     await _prune(dir);
-    return File(path.join(dir.path, '$_filePrefix${_fileStamp(DateTime.now())}$_fileSuffix'));
+    return File(
+      path.join(
+        dir.path,
+        '$_filePrefix${_fileStamp(DateTime.now())}$_fileSuffix',
+      ),
+    );
   }
 
   /// Where this run's log file goes.
   static Future<Directory> _resolveLogDir() async {
     if (Platform.isWindows) {
-      final documents = _windowsDocuments() ??
+      final documents =
+          _windowsDocuments() ??
           path.join(Platform.environment['USERPROFILE'] ?? '', 'Documents');
       return Directory(path.join(documents, _folderName));
     }
@@ -232,7 +261,10 @@ class LogService {
     // logs belong. Only trust XDG_STATE_HOME when it agrees with the home
     // we resolved, since an elevated relaunch inherits root's environment.
     final xdgState = Platform.environment['XDG_STATE_HOME'];
-    final base = (xdgState != null && xdgState.isNotEmpty && path.isWithin(home, xdgState))
+    final base =
+        (xdgState != null &&
+            xdgState.isNotEmpty &&
+            path.isWithin(home, xdgState))
         ? xdgState
         : path.join(home, '.local', 'state');
     return Directory(path.join(base, _xdgFolderName));
@@ -243,7 +275,8 @@ class LogService {
   /// per-platform log locations, always writable by the owning user.
   static Future<Directory> _resolveFallbackLogDir() async {
     if (Platform.isWindows) {
-      final base = Platform.environment['LOCALAPPDATA'] ?? Directory.systemTemp.path;
+      final base =
+          Platform.environment['LOCALAPPDATA'] ?? Directory.systemTemp.path;
       return Directory(path.join(base, 'Librescoot', 'Installer', 'logs'));
     }
     final home = await _userHome();
@@ -290,7 +323,8 @@ class LogService {
     return envHome ?? Directory.systemTemp.path;
   }
 
-  static bool _isRootHome(String home) => home == '/var/root' || home == '/root';
+  static bool _isRootHome(String home) =>
+      home == '/var/root' || home == '/root';
 
   static bool _looksLikeRoot() {
     if (Platform.isWindows) return false;
@@ -303,10 +337,12 @@ class LogService {
   static Future<String?> _homeOf(String user) async {
     try {
       if (Platform.isMacOS) {
-        final result = await Process.run(
-          'dscl',
-          ['.', '-read', '/Users/$user', 'NFSHomeDirectory'],
-        );
+        final result = await Process.run('dscl', [
+          '.',
+          '-read',
+          '/Users/$user',
+          'NFSHomeDirectory',
+        ]);
         final out = result.stdout.toString().trim();
         final colon = out.indexOf(':');
         if (result.exitCode == 0 && colon >= 0) {
@@ -316,7 +352,9 @@ class LogService {
       } else {
         final result = await Process.run('getent', ['passwd', user]);
         final fields = result.stdout.toString().trim().split(':');
-        if (result.exitCode == 0 && fields.length >= 6 && fields[5].isNotEmpty) {
+        if (result.exitCode == 0 &&
+            fields.length >= 6 &&
+            fields[5].isNotEmpty) {
           return fields[5];
         }
       }
@@ -328,7 +366,9 @@ class LogService {
     try {
       final result = await Process.run('stat', ['-f', '%Su', '/dev/console']);
       final user = result.stdout.toString().trim();
-      if (result.exitCode == 0 && user.isNotEmpty && user != 'root') return user;
+      if (result.exitCode == 0 && user.isNotEmpty && user != 'root') {
+        return user;
+      }
     } catch (_) {}
     return null;
   }
@@ -354,7 +394,9 @@ class LogService {
           : ['-c', '%u:%g', home];
       final result = await Process.run('stat', statArgs);
       final owner = result.stdout.toString().trim();
-      if (result.exitCode != 0 || owner.isEmpty || owner.startsWith('0:')) return;
+      if (result.exitCode != 0 || owner.isEmpty || owner.startsWith('0:')) {
+        return;
+      }
 
       // The containing folder may have been created by this process too.
       await Process.run('chown', [owner, file.parent.path]);
@@ -400,7 +442,9 @@ class LogService {
       }
       if (logs.length < _keepRuns) return;
       // The timestamp in the name is zero-padded, so name order is age order.
-      logs.sort((a, b) => path.basename(a.path).compareTo(path.basename(b.path)));
+      logs.sort(
+        (a, b) => path.basename(a.path).compareTo(path.basename(b.path)),
+      );
       // Leave room for the file this run is about to create.
       for (final old in logs.take(logs.length - _keepRuns + 1)) {
         try {

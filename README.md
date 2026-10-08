@@ -77,6 +77,10 @@ before each build; for local development run `scripts/update-flasher.sh`.
 
 [flasher-repo]: https://github.com/librescoot/librescoot-flasher
 
+## Diagnostic logs
+
+The in-app log, copied log text, saved run log and exported dashboard diagnostics mask keycard UIDs and Bluetooth MAC addresses. Pairing and enrollment still use the actual identifiers. Review logs for personal information before sharing.
+
 ## Development
 
 Installer sounds are prepared in the background when the screen starts. Playback uses prepared sources; unavailable cues are skipped and preparation retries without blocking installation. `--recording-demo` implies `--dry-run`: it hides simulation controls and simulates card taps, but never enables physical device operations. `--dry-run` retains interactive simulation controls. Both modes preserve simulation isolation when starting another installer run.

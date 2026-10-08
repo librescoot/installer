@@ -10,6 +10,7 @@ import 'models/local_tile_selection.dart';
 import 'screens/installer_screen.dart';
 import 'services/ssh_service.dart';
 import 'services/log_service.dart';
+import 'services/log_redaction.dart';
 import 'services/installer_sounds.dart';
 import 'theme.dart';
 import 'widgets/dialog_prose.dart';
@@ -21,15 +22,17 @@ final List<String> installerLog = [];
 /// view gets a short time prefix; the file adds its own full timestamp.
 void appendLog(String message) {
   final ts = DateTime.now().toIso8601String().substring(11, 19);
-  installerLog.add('$ts $message');
-  LogService.write(message);
+  final redacted = redactLogMessage(message);
+  installerLog.add('$ts $redacted');
+  LogService.write(redacted);
 }
 
 /// Same, for continuation lines (stack frames, command output) that carry no
 /// time of their own.
 void appendLogRaw(String line) {
-  installerLog.add(line);
-  LogService.write(line);
+  final redacted = redactLogMessage(line);
+  installerLog.add(redacted);
+  LogService.write(redacted);
 }
 
 /// Used by the global error handlers to surface a SnackBar from anywhere.
@@ -281,8 +284,9 @@ void main(List<String> args) async {
       // Capture all debugPrint output into the global log
       final originalDebugPrint = debugPrint;
       debugPrint = (String? message, {int? wrapWidth}) {
-        if (message != null) appendLog(message);
-        originalDebugPrint(message, wrapWidth: wrapWidth);
+        final redacted = message == null ? null : redactLogMessage(message);
+        if (redacted != null) appendLog(redacted);
+        originalDebugPrint(redacted, wrapWidth: wrapWidth);
       };
 
       // Open the on-disk log early: anything logged before this is buffered by
