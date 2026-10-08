@@ -1284,6 +1284,15 @@ class AppLocalizationsDe extends AppLocalizations {
       'Alle Dateien sind übertragen. Der Hauptcomputer wird für das automatische Warten auf das Dashboard vorbereitet. Lass das Laptop-USB-Kabel noch angeschlossen.';
 
   @override
+  String get handoffPreparationFailed =>
+      'Alle Dateien sind übertragen, aber die Vorbereitung für das automatische Warten auf das Dashboard ist fehlgeschlagen. Lass das Laptop-USB-Kabel angeschlossen. Du kannst die Vorbereitung erneut versuchen oder den Roller ohne Dashboard-Übertragung wiederherstellen.';
+
+  @override
+  String handoffPreparationError(String error) {
+    return 'Die Übergabe an das Dashboard konnte nicht vorbereitet werden: $error';
+  }
+
+  @override
   String get handoffEstimateBriefDisclaimer =>
       'Zeitbasierte Schätzung ab Abziehen des Laptop-Kabels – keine Live-Daten vom Dashboard.';
 

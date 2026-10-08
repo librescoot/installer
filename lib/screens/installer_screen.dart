@@ -81,6 +81,7 @@ import '../widgets/phase_layout.dart';
 import '../widgets/notice_card.dart';
 import '../widgets/driver_blocked_panel.dart';
 import '../widgets/dashboard_handoff_status.dart';
+import '../widgets/dashboard_preparation_notice.dart';
 import '../widgets/firmware_channel_selector.dart';
 import '../widgets/dbc_flash_outcomes.dart';
 import '../widgets/overlay_card.dart';
@@ -8070,10 +8071,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           ),
           if (_dbcUploadReady) ...[
             const SizedBox(height: 16),
-            Text(
-              l10n.filesStagedWaitingForHandoff,
-              style: const TextStyle(color: kAccent, fontSize: 13),
-              textAlign: TextAlign.center,
+            DashboardPreparationNotice(
+              error: _trampolineStartFailed ? _statusMessage : null,
             ),
           ],
           const SizedBox(height: 20),
@@ -8431,8 +8430,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     try {
       _setStatus(l10n.startingTrampoline);
       await _installStateWriteQueue;
+      final trampoline = TrampolineService(_sshService);
+      await trampoline.verifyUsbRoute();
       await _armInstallPhases(expectDbcPhase: _plan?.needsHandoff ?? false);
-      await TrampolineService(_sshService).start(runId: _installRunId);
+      await trampoline.start(runId: _installRunId);
       _startHandoffHeartbeat();
       _deviceFinishArmed = true;
       _dashboardTransferSkipped = false;
@@ -8450,7 +8451,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             ? (diagnosticsPath == null
                   ? l10n.trampolineStartFailedNoPath
                   : l10n.trampolineStartFailed(diagnosticsPath))
-            : l10n.uploadError(e.toString()),
+            : l10n.handoffPreparationError(e.toString()),
+        cue: InstallerCue.error,
       );
       debugPrint('Trampoline start error: $e');
       // The upload is still intact; re-offer the begin button instead of

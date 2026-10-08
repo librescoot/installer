@@ -313,8 +313,30 @@ class SubstepLabels {
       '${mins}m ${secs}s remaining';
 }
 
+// Both variables describe the server-observed peer of this SSH connection.
+// A subnet or destination address alone does not establish a USB route.
+const handoffUsbRouteCheck = r'''
+handoff_usb_route() {
+  peer="${SSH_CONNECTION%% *}"
+  [ -n "$peer" ] || peer="${SSH_CLIENT%% *}"
+  if [ -z "$peer" ]; then
+    printf 'SSH server did not provide the connection peer\n'
+    return 1
+  fi
+  if ! route=$(ip route get "$peer" 2>&1); then
+    printf 'USB route lookup failed: %s\n' "$route"
+    return 1
+  fi
+  if ! printf '%s\n' "$route" | grep -Eq '(^|[[:space:]])dev usb0([[:space:]]|$)'; then
+    printf 'SSH peer is not routed through usb0: %s\n' "$route"
+    return 1
+  fi
+}
+''';
+
 class TrampolineService {
   final SshService _ssh;
+  String? _lastHeartbeatFailure;
   bool _pythonServerStarted = false;
 
   static const Duration _uploadStallTimeout = Duration(seconds: 60);
@@ -1249,7 +1271,10 @@ http.server.HTTPServer(
       'rm -rf /data/installer/handoff-$runId; mkdir -p /data/installer/handoff-$runId',
     );
     if (!await heartbeat(runId: runId)) {
-      throw StateError('Installer connection is not routed over USB');
+      throw StateError(
+        'Installer connection is not routed over USB: '
+        '${_lastHeartbeatFailure ?? "presence lease was not acknowledged"}',
+      );
     }
     await _ssh.writeInstallRunState(
       runId: runId,
@@ -1285,16 +1310,34 @@ http.server.HTTPServer(
     throw TrampolineStartException(diagnostics);
   }
 
+  Future<void> verifyUsbRoute() async {
+    final result = (await _ssh.runCommand(
+      '${handoffUsbRouteCheck}if handoff_usb_route; then echo usb-route; fi',
+      timeout: const Duration(seconds: 5),
+    )).trim();
+    if (result != 'usb-route') {
+      throw StateError('Installer connection is not routed over USB: $result');
+    }
+  }
+
   Future<bool> heartbeat({required String runId}) async {
     _validateHandoffId(runId);
-    final result = await _ssh.runCommand(
-      'peer="\${SSH_CONNECTION%% *}"; '
-      r'if [ -n "$peer" ] && ip route get "$peer" | grep -Eq "(^| )dev usb0( |$)"; then '
-      'cut -d. -f1 /proc/uptime > /data/installer/handoff-$runId/heartbeat.tmp && '
-      'mv /data/installer/handoff-$runId/heartbeat.tmp /data/installer/handoff-$runId/heartbeat && echo present; fi',
+    final result = (await _ssh.runCommand(
+      '${handoffUsbRouteCheck}if handoff_usb_route; then '
+      'if cut -d. -f1 /proc/uptime > /data/installer/handoff-$runId/heartbeat.tmp && '
+      'mv /data/installer/handoff-$runId/heartbeat.tmp /data/installer/handoff-$runId/heartbeat; '
+      'then echo present; else echo "Could not write the USB presence lease"; fi; fi',
       timeout: const Duration(seconds: 5),
-    );
-    return result.trim() == 'present';
+    )).trim();
+    if (result == 'present') {
+      _lastHeartbeatFailure = null;
+      return true;
+    }
+    if (_lastHeartbeatFailure != result) {
+      debugPrint('Handoff USB presence check failed: $result');
+    }
+    _lastHeartbeatFailure = result;
+    return false;
   }
 
   Future<bool> resumeWaiting({required String runId}) async {

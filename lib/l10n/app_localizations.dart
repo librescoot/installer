@@ -2288,6 +2288,18 @@ abstract class AppLocalizations {
   /// **'All files are transferred. The main computer is preparing to wait for the dashboard automatically. Keep the laptop USB cable connected for now.'**
   String get filesStagedWaitingForHandoff;
 
+  /// No description provided for @handoffPreparationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'All files are transferred, but preparation for automatically waiting for the dashboard failed. Keep the laptop USB cable connected. You can retry preparation or restore the scooter without transferring to the dashboard.'**
+  String get handoffPreparationFailed;
+
+  /// No description provided for @handoffPreparationError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not prepare the dashboard handoff: {error}'**
+  String handoffPreparationError(String error);
+
   /// No description provided for @handoffEstimateBriefDisclaimer.
   ///
   /// In en, this message translates to:

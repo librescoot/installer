@@ -1266,6 +1266,15 @@ class AppLocalizationsEn extends AppLocalizations {
       'All files are transferred. The main computer is preparing to wait for the dashboard automatically. Keep the laptop USB cable connected for now.';
 
   @override
+  String get handoffPreparationFailed =>
+      'All files are transferred, but preparation for automatically waiting for the dashboard failed. Keep the laptop USB cable connected. You can retry preparation or restore the scooter without transferring to the dashboard.';
+
+  @override
+  String handoffPreparationError(String error) {
+    return 'Could not prepare the dashboard handoff: $error';
+  }
+
+  @override
   String get handoffEstimateBriefDisclaimer =>
       'Time-based estimate from unplugging the laptop cable — not live dashboard progress.';
 
