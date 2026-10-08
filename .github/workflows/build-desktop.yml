@@ -342,10 +342,23 @@ jobs:
         run: |
           $version = "${{ steps.version.outputs.describe }}"
           $numeric = "${{ steps.version.outputs.name }}.${{ steps.version.outputs.build }}"
-          $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
-          if (-not (Test-Path $makensis)) {
-            choco install nsis -y --no-progress
+          function Find-Makensis {
+            $command = Get-Command makensis -CommandType Application -ErrorAction SilentlyContinue
+            if ($command) { return $command.Source }
+            foreach ($candidate in @(
+              "${env:ProgramFiles}\NSIS\makensis.exe",
+              "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
+            )) {
+              if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+            }
           }
+          $makensis = Find-Makensis
+          if (-not $makensis) {
+            choco install nsis -y --no-progress
+            if ($LASTEXITCODE -ne 0) { throw "NSIS installation failed (exit $LASTEXITCODE)" }
+            $makensis = Find-Makensis
+          }
+          if (-not $makensis) { throw "NSIS installed but makensis.exe could not be found" }
           $buildDir = "$PWD\build\windows\x64\runner\librescoot-installer"
           $outFile  = "$PWD\build\windows\x64\runner\librescoot-installer-windows-x64-$version.exe"
           $script = "windows\installer.nsi"
