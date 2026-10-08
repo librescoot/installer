@@ -1172,6 +1172,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Connection still unstable. USB ethernet may have lost its IP. On Linux, your NetworkManager may be fighting for the interface (try disabling IPv6). See log for details.';
 
   @override
+  String get dashboardRetryIdentityFailed =>
+      'The connected main computer (MDB) does not match this installation. Reconnect the original scooter to the laptop by USB.';
+
+  @override
   String get reconnectingSsh => 'Reconnecting SSH...';
 
   @override

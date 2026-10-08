@@ -2120,6 +2120,12 @@ abstract class AppLocalizations {
   /// **'Connection still unstable. USB ethernet may have lost its IP. On Linux, your NetworkManager may be fighting for the interface (try disabling IPv6). See log for details.'**
   String get stableConnectionStallHint;
 
+  /// No description provided for @dashboardRetryIdentityFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The connected main computer (MDB) does not match this installation. Reconnect the original scooter to the laptop by USB.'**
+  String get dashboardRetryIdentityFailed;
+
   /// No description provided for @reconnectingSsh.
   ///
   /// In en, this message translates to:

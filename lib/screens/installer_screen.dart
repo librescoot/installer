@@ -56,6 +56,7 @@ import '../services/connect_diagnosis.dart';
 import '../services/configuration_preservation_service.dart';
 import '../services/critical_operation_coordinator.dart';
 import '../services/data_partition_service.dart';
+import '../services/dashboard_upload_preflight.dart';
 import '../services/debug_shell.dart';
 import '../services/dry_run_operation.dart';
 import '../services/finalize_script.dart';
@@ -1482,14 +1483,17 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         _finishCompletionExhausted) {
       return;
     }
+    final generation = _dbcUploadGeneration;
     setState(() => _finishCompletionChecking = true);
     try {
       const attempts = 80;
       for (var attempt = 1; attempt <= attempts; attempt++) {
-        if (!mounted || _finishCompletionConfirmed) return;
+        if (!_ownsDbcUpload(generation) || _finishCompletionConfirmed) return;
         try {
           await _prepareMdbStatusConnection();
+          if (!_ownsDbcUpload(generation)) return;
           final completed = await _deviceReportedFinished();
+          if (!_ownsDbcUpload(generation)) return;
           if (completed != null &&
               completed != InstallCompletionOutcome.notComplete) {
             _recordDeviceCompletion(completed, verifyDashboard: true);
@@ -1508,19 +1512,21 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       debugPrint('UI: autonomous finish was not confirmed before timeout');
       if (mounted) setState(() => _finishCompletionExhausted = true);
     } finally {
-      if (mounted) setState(() => _finishCompletionChecking = false);
+      if (_ownsDbcUpload(generation)) {
+        setState(() => _finishCompletionChecking = false);
+      }
     }
   }
 
-  Future<void> _prepareMdbStatusConnection({
+  Future<DeviceInfo?> _prepareMdbStatusConnection({
     bool forceReconnect = false,
   }) async {
     if (forceReconnect) _sshService.disconnect();
-    if (_sshService.isConnected) return;
+    if (_sshService.isConnected) return _mdbInfo;
     await _ensureDriverBinding();
     final iface = await NetworkService().findLibrescootInterface();
     if (iface != null) await NetworkService().configureInterface(iface);
-    await _sshService.connectToMdbForStatus();
+    return await _sshService.connectToMdbForStatus();
   }
 
   Future<void> _retryFinishCompletion() async {
@@ -8007,6 +8013,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   bool _trampolineStartFailed = false;
   bool _trampolineStartInFlight = false;
   bool _dashboardTransferSkipped = false;
+  bool _dashboardRetryPending = false;
 
   Widget _buildDbcPrep(AppLocalizations l10n) {
     final busy = _isProcessing || _dbcStageInFlight;
@@ -8151,6 +8158,52 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     remaining: l10n.substepRemaining,
   );
 
+  Future<bool> _prepareDashboardUploadConnection(int generation) async {
+    final l10n = AppLocalizations.of(context)!;
+    final retry = _dashboardRetryPending;
+    final reconnect = retry || !_sshService.isConnected;
+    return prepareDashboardUpload(
+      owns: () => _ownsDbcUpload(generation),
+      connectForStatus: () async {
+        if (!reconnect) return;
+        _setStatus(l10n.reconnectUsbToLaptop);
+        if (!await _waitForDevice(DeviceMode.ethernet)) {
+          throw TimeoutException(l10n.waitingForRndis);
+        }
+        if (!_ownsDbcUpload(generation)) return;
+        final expectedSerial = _mdbInfo?.serialNumber;
+        _setStatus(l10n.connectingSsh);
+        final info = await _prepareMdbStatusConnection(forceReconnect: retry);
+        if (retry &&
+            expectedSerial != null &&
+            info?.serialNumber != expectedSerial) {
+          throw StateError(l10n.dashboardRetryIdentityFailed);
+        }
+        if (_ownsDbcUpload(generation) && info != null) {
+          setState(() => _mdbInfo = info);
+        }
+      },
+      verifyUsbRoute: () => TrampolineService(_sshService).verifyUsbRoute(),
+      installerActive: _sshService.installerExecutionActive,
+      observeActive: () async {
+        setState(() {
+          _dbcStageInFlight = false;
+          _isProcessing = false;
+        });
+        await _observeExistingInstall();
+      },
+      connectForWork: () async {
+        if (!reconnect) return;
+        final expectedSerial = _mdbInfo?.serialNumber;
+        _sshService.disconnect();
+        final info = await _connectToMdbRetryingRoute(l10n);
+        if (expectedSerial != null && info.serialNumber != expectedSerial) {
+          throw StateError(l10n.dashboardRetryIdentityFailed);
+        }
+      },
+    );
+  }
+
   /// [background] when this runs behind another phase's screen: its progress
   /// then belongs on the overlay's second line, not in the status the phase
   /// is reporting for itself.
@@ -8247,12 +8300,23 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       return;
     }
 
-    final criticalOperation = _acquireCriticalOperation();
+    CriticalOperationLease? criticalOperation;
     try {
       setState(() {
         _dbcUploadReady = false;
         _dbcPrepBlocked = false;
       });
+      if (!await _prepareDashboardUploadConnection(uploadGeneration)) return;
+      if (_dashboardRetryPending) {
+        setState(() {
+          _dashboardRetryPending = false;
+          _deviceFinishArmed = false;
+          _dashboardTransferSkipped = false;
+          _finishCompletionConfirmed = false;
+          _finishCompletionExhausted = false;
+        });
+      }
+      criticalOperation = _acquireCriticalOperation();
 
       if (!_dbcDownloadsReady) {
         if (!background) _setStatus(l10n.waitingForDownloads);
@@ -8375,7 +8439,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       });
       // Don't reset _dbcPrepStarted: retry button handles that
     } finally {
-      criticalOperation.release();
+      criticalOperation?.release();
     }
   }
 
@@ -8953,9 +9017,16 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     _reconnectAttempt.reset();
     _dbcUploadGeneration++;
     setState(() {
+      _dashboardRetryPending = true;
+      _finishCompletionChecking = false;
       _dbcPrepStarted = false;
+      _dbcStageInFlight = false;
+      _dbcStageError = null;
+      _dbcPrepSubsteps = const [];
       _dbcPrepBlocked = false;
       _dbcUploadReady = false;
+      _trampolineStartFailed = false;
+      _trampolineStartInFlight = false;
       _reconnectStarted = false;
       _reconnectShowDiagnostics = false;
       _reconnectDiagnostics = null;

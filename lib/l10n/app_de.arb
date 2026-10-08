@@ -391,6 +391,7 @@
   "pingStable": "Ping stabil: {count}/10",
   "waitingStableConnection": "Warte auf eine stabile Verbindung…",
   "stableConnectionStallHint": "Verbindung weiterhin instabil. Die USB-Netzwerkschnittstelle hat möglicherweise ihre IP-Adresse verloren. Unter Linux kann NetworkManager die Schnittstelle blockieren; das Deaktivieren von IPv6 kann helfen. Details stehen im Protokoll.",
+  "dashboardRetryIdentityFailed": "Der verbundene Hauptcomputer (MDB) passt nicht zu dieser Installation. Verbinde den ursprünglichen Roller wieder per USB mit dem Laptop.",
   "reconnectingSsh": "SSH-Verbindung wird wiederhergestellt…",
   "sshReconnectionFailed": "SSH-Neuverbindung fehlgeschlagen: {error}",
   "reconnectCbbHeading": "CBB wieder anschließen",

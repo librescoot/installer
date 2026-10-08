@@ -1188,6 +1188,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Verbindung weiterhin instabil. Die USB-Netzwerkschnittstelle hat möglicherweise ihre IP-Adresse verloren. Unter Linux kann NetworkManager die Schnittstelle blockieren; das Deaktivieren von IPv6 kann helfen. Details stehen im Protokoll.';
 
   @override
+  String get dashboardRetryIdentityFailed =>
+      'Der verbundene Hauptcomputer (MDB) passt nicht zu dieser Installation. Verbinde den ursprünglichen Roller wieder per USB mit dem Laptop.';
+
+  @override
   String get reconnectingSsh => 'SSH-Verbindung wird wiederhergestellt…';
 
   @override
