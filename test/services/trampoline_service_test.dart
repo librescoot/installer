@@ -85,8 +85,17 @@ void main() {
   test('fallback server rejects truncated request bodies', () async {
     final root = await Directory.systemTemp.createTemp('upload-server-');
     addTearDown(() => root.delete(recursive: true));
+    final source = TrampolineService.uploadServerScriptForTest
+        .replaceFirst(
+          'http.server.HTTPServer(',
+          'server = http.server.HTTPServer(',
+        )
+        .replaceFirst(
+          ').serve_forever()',
+          ")\nprint('ready', flush=True)\nserver.serve_forever()",
+        );
     final script = File(p.join(root.path, 'server.py'))
-      ..writeAsStringSync(TrampolineService.uploadServerScriptForTest);
+      ..writeAsStringSync(source);
     final portProbe = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
     final port = portProbe.port;
     await portProbe.close();
@@ -99,21 +108,19 @@ void main() {
         'LIBRESCOOT_UPLOAD_PORT': '$port',
       },
     );
-    process.stdout.listen((_) {});
-    process.stderr.listen((_) {});
-    addTearDown(() => process.kill());
-
-    Socket? socket;
-    for (var attempt = 0; attempt < 20; attempt++) {
-      try {
-        socket = await Socket.connect(InternetAddress.loopbackIPv4, port);
-        break;
-      } on SocketException {
-        await Future<void>.delayed(const Duration(milliseconds: 25));
-      }
-    }
-    expect(socket, isNotNull);
-    final request = socket!;
+    final stderr = StringBuffer();
+    process.stderr.transform(utf8.decoder).listen(stderr.write);
+    addTearDown(() async {
+      process.kill();
+      await process.exitCode;
+    });
+    final ready = await process.stdout
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .first
+        .timeout(const Duration(seconds: 5));
+    expect(ready, 'ready', reason: stderr.toString());
+    final request = await Socket.connect(InternetAddress.loopbackIPv4, port);
     request.add(
       utf8.encode(
         'PUT /truncated.bin HTTP/1.1\r\n'
