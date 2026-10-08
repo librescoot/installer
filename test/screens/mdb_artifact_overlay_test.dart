@@ -46,7 +46,7 @@ void main() {
     final trampolineStart = handoff.indexOf('Future<void> _startTrampoline()');
     final startFlow = handoff.substring(trampolineStart);
     final launch = startFlow.indexOf(
-      'await TrampolineService(_sshService).start',
+      'await trampoline.start',
     );
     final phaseAdvance = startFlow.indexOf(
       '_setPhase(InstallerPhase.dbcFlash)',

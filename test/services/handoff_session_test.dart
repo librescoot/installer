@@ -29,10 +29,12 @@ class _Ssh extends SshService {
     if (command.contains('echo waiting')) {
       return sameWaitingRun ? 'waiting' : '';
     }
-    if (command.contains('echo usb-route'))
+    if (command.contains('echo usb-route')) {
       return usbRoute ? 'usb-route' : 'not usb0';
-    if (command.contains('echo present'))
+    }
+    if (command.contains('echo present')) {
       return usbRoute ? 'present' : 'not usb0';
+    }
     if (command.contains('nohup sh')) {
       running = true;
       return '';
