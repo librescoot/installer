@@ -36,6 +36,25 @@ void main() {
     );
   });
 
+  test(
+    'release runs after successful builds even with a skipped test ancestor',
+    () {
+      final releaseJob = workflow.substring(workflow.indexOf('  release:\n'));
+      final condition = releaseJob.substring(
+        releaseJob.indexOf('    if: >-'),
+        releaseJob.indexOf('    runs-on:'),
+      );
+      expect(releaseJob, contains('needs: build'));
+      // An explicit status function suppresses GitHub's implicit success(),
+      // which also considers skipped jobs earlier in the dependency chain.
+      expect(condition, contains('!cancelled()'));
+      expect(condition, contains("needs.build.result == 'success'"));
+      expect(condition, contains("startsWith(github.ref, 'refs/tags/v')"));
+      expect(condition, contains("inputs.release_tag != ''"));
+      expect(condition, isNot(contains('success()')));
+    },
+  );
+
   test('fallback refresh validates a temporary file before replacement', () {
     final start = workflow.indexOf(
       '- name: Refresh bundled latest.json fallback',
