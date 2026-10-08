@@ -30,6 +30,16 @@ void main() {
     },
   );
 
+  test('phone credential IDs in keycard events are masked', () {
+    const credential = '0123456789ABCDEF0123456789ABCDEF';
+    for (final event in ['phone-learned', 'phone-duplicate', 'phone-added']) {
+      final redacted = redactLogMessage(
+        'UI: keycard event: $event:$credential',
+      );
+      expect(redacted, 'UI: keycard event: $event:[keycard UID]');
+    }
+  });
+
   test(
     'MAC addresses are masked in network output and Bluetooth device paths',
     () {

@@ -6,7 +6,7 @@ final _cardContext = RegExp(
   caseSensitive: false,
 );
 final _hexToken = RegExp(
-  r'(?<![a-z0-9])[0-9a-f]{8,20}(?![a-z0-9])',
+  r'(?<![a-z0-9])[0-9a-f]{8,64}(?![a-z0-9])',
   caseSensitive: false,
 );
 final _formattedUid = RegExp(
