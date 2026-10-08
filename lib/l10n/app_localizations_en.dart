@@ -400,9 +400,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get channelRecommended => 'RECOMMENDED';
 
   @override
-  String get channelSelected => 'SELECTED';
-
-  @override
   String get channelTestingDesc =>
       'Test builds for the next release, with no stability guarantee; recommended only for technically experienced testers';
 

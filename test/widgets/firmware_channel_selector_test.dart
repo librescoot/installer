@@ -79,17 +79,12 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(host(selected: DownloadChannel.nightly));
-    expect(find.text('AUSGEWÄHLT'), findsOneWidget);
-    expect(find.byIcon(Icons.check_circle), findsOneWidget);
-    final nightly = find.byKey(const ValueKey('channel-nightly'));
+    expect(find.text('AUSGEWÄHLT'), findsNothing);
+    expect(find.byIcon(Icons.check_circle), findsNothing);
     final stable = find.byKey(const ValueKey('channel-stable'));
     expect(
-      find.descendant(of: nightly, matching: find.text('AUSGEWÄHLT')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: stable, matching: find.text('AUSGEWÄHLT')),
-      findsNothing,
+      tester.getSize(find.byKey(const ValueKey('channel-nightly'))).height,
+      lessThan(170),
     );
     expect(
       find.descendant(of: stable, matching: find.text('EMPFOHLEN')),
@@ -196,7 +191,7 @@ void main() {
   ) async {
     await tester.pumpWidget(host(locale: const Locale('en')));
     expect(find.text('RECOMMENDED'), findsOneWidget);
-    expect(find.text('SELECTED'), findsOneWidget);
+    expect(find.text('SELECTED'), findsNothing);
     expect(
       find.text(
         'Test builds for the next release, with no stability guarantee; recommended only for technically experienced testers',

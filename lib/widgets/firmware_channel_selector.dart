@@ -214,29 +214,7 @@ class _FirmwareChannelSelectorState extends State<FirmwareChannelSelector> {
                   width: descriptionWidth,
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
                 ),
-                SizedBox(
-                  height: 32,
-                  child: selected
-                      ? Row(
-                          children: [
-                            const Icon(
-                              Icons.check_circle,
-                              size: 16,
-                              color: kAccent,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              l10n.channelSelected,
-                              style: const TextStyle(
-                                color: kAccent,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        )
-                      : null,
-                ),
+
                 const Spacer(),
                 if (release case final info?) ...[
                   Text(

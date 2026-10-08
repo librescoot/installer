@@ -129,7 +129,6 @@
   "channelNightly": "Nightly",
   "channelStableDesc": "Tested and reliable",
   "channelRecommended": "RECOMMENDED",
-  "channelSelected": "SELECTED",
   "channelTestingDesc": "Test builds for the next release, with no stability guarantee; recommended only for technically experienced testers",
   "channelNightlyDesc": "Updated daily, recommended only for developers",
   "nightlyWarningTitle": "Select Nightly anyway?",
