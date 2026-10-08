@@ -156,6 +156,125 @@ $body
     },
   );
 
+  test(
+    'artifact upgrade accepts a positively identified PPP dashboard',
+    () async {
+      final result = await run(r'''
+    MODE=upgrade
+    DBC_MENDER=/data/test.mender
+    ip() { echo '192.168.7.2 via 192.168.8.2 dev ppp0'; }
+    ping() { [ "$2" = ppp0 ]; }
+    ssh() { return 0; }
+    wait_for_dashboard_connection
+    ''');
+      expect(result.exitCode, 0, reason: result.stderr.toString());
+      expect(result.stdout, contains('Dashboard identified over PPP'));
+      expect(result.stdout, isNot(contains('rebind')));
+      expect(
+        File('${root.path}/session/decision/state').readAsStringSync().trim(),
+        'active',
+      );
+    },
+  );
+
+  test('PPP does not grant a maps-only handoff', () async {
+    final result = await run(r'''
+    MODE=upgrade
+    DBC_MENDER=""
+    ip() { echo '192.168.7.2 dev ppp0'; }
+    ping() { return 0; }
+    ssh() { return 0; }
+    wait_for_dashboard_connection
+    ''');
+    expect(result.exitCode, 2);
+    expect(File('${root.path}/session/decision/state').existsSync(), isFalse);
+  });
+
+  test(
+    'PPP reachability without dashboard identity never grants upgrade',
+    () async {
+      final result = await run(r'''
+    MODE=upgrade
+    DBC_MENDER=/data/test.mender
+    ip() { echo '192.168.7.2 dev ppp0'; }
+    ping() { return 0; }
+    wait_for_dashboard_connection
+    ''');
+      expect(result.exitCode, 2);
+      expect(File('${root.path}/session/decision/state').existsSync(), isFalse);
+    },
+  );
+
+  for (final interface in ['ppp01', 'wwan0']) {
+    test('upgrade rejects $interface as a PPP fallback route', () async {
+      final result = await run('''
+      MODE=upgrade
+      DBC_MENDER=/data/test.mender
+      ip() { echo '192.168.7.2 dev $interface'; }
+      ping() { return 0; }
+      ssh() { return 0; }
+      wait_for_dashboard_connection
+      ''');
+      expect(result.exitCode, 2);
+      expect(File('${root.path}/session/decision/state').existsSync(), isFalse);
+    });
+  }
+
+  test(
+    'fresh laptop lease blocks even a recognized PPP upgrade peer',
+    () async {
+      final result = await run(r'''
+    MODE=upgrade
+    DBC_MENDER=/data/test.mender
+    ip() { echo '192.168.7.2 dev ppp0'; }
+    ping() { return 0; }
+    ssh() { return 0; }
+    echo "$ticks" > "$HANDOFF_DIR/heartbeat"
+    sleep() {
+      ticks=$((ticks + 60))
+      echo "$ticks" > "$HANDOFF_DIR/heartbeat"
+      [ "$ticks" -lt 3700 ] || mkdir -p "$HANDOFF_DIR/decision"
+    }
+    wait_for_dashboard_connection
+    ''');
+      expect(result.exitCode, 2);
+      expect(result.stdout, isNot(contains('rebind')));
+      expect(File('${root.path}/session/decision/state').existsSync(), isFalse);
+    },
+  );
+
+  test(
+    'renewed laptop lease during PPP recognition prevents upgrade',
+    () async {
+      final result = await run(r'''
+    MODE=upgrade
+    DBC_MENDER=/data/test.mender
+    ip() { echo '192.168.7.2 dev ppp0'; }
+    ping() { return 0; }
+    ssh() { echo "$ticks" > "$HANDOFF_DIR/heartbeat"; return 0; }
+    wait_for_dashboard_connection
+    ''');
+      expect(result.exitCode, 2);
+      expect(File('${root.path}/session/decision/state').existsSync(), isFalse);
+    },
+  );
+
+  test('cancellation wins against PPP recognition', () async {
+    final result = await run(r'''
+    MODE=upgrade
+    DBC_MENDER=/data/test.mender
+    ip() { echo '192.168.7.2 dev ppp0'; }
+    ping() { return 0; }
+    ssh() { mkdir "$HANDOFF_DIR/decision"; echo cancelled > "$HANDOFF_DIR/decision/state"; return 0; }
+    wait_for_dashboard_connection
+    ''');
+    expect(result.exitCode, 2);
+    expect(
+      File('${root.path}/session/decision/state').readAsStringSync().trim(),
+      'cancelled',
+    );
+  });
+
   test('identified recovery USB device grants flash handoff', () async {
     final result = await run(r'''
     echo 'not attached' > "$USB_HANDOFF_UDC_STATE"

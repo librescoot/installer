@@ -83,11 +83,21 @@ dbc_usb_identified() {
     "tr '\\000' '\\n' < /proc/device-tree/compatible | grep -qx 'fsl,imx6dl'" >/dev/null 2>&1
 }
 
+# ppp-link routes the dashboard's service address over UART. Artifact updates
+# can use that path; stage-0 image writes require USB mass storage.
+dbc_ppp_upgrade_identified() {
+  [ "${MODE:-}" = upgrade ] && [ -n "${DBC_MENDER:-}" ] || return 1
+  ip route get "$DBC_IP" 2>/dev/null | grep -Eq '(^|[[:space:]])dev ppp0([[:space:]]|$)' || return 1
+  ping -I ppp0 -c 1 -W 1 "$DBC_IP" >/dev/null 2>&1 || return 1
+  timeout 5 ssh -y -y root@$DBC_IP \
+    "tr '\\000' '\\n' < /proc/device-tree/compatible | grep -qx 'fsl,imx6dl'" >/dev/null 2>&1
+}
+
 # Only positive dashboard identification grants the installation claim.
-# A dead installer, suspended host, or absent cable never grants it.
+# Lease expiration or cable absence alone never grants it.
 # The decision directory arbitrates cancellation against recognition atomically.
 wait_for_dashboard_connection() {
-  local next_probe=0 now state
+  local next_probe=0 now state dashboard_link
   DBC_ALREADY_UMS=""
   printf '%s\n' "$RUN_ID" > "$HANDOFF_DIR/ready" || return 1
   while :; do
@@ -101,11 +111,17 @@ wait_for_dashboard_connection() {
       sleep 2
       continue
     fi
+    dashboard_link=""
     if dbc_usb_identified; then
+      dashboard_link=USB
+    elif dbc_ppp_upgrade_identified; then
+      dashboard_link=PPP
+    fi
+    if [ -n "$dashboard_link" ]; then
       handoff_laptop_present && continue
       mkdir "$HANDOFF_DIR/decision" 2>/dev/null || return 2
       printf 'active\n' > "$HANDOFF_DIR/decision/state" || return 1
-      log "Dashboard identified over USB"
+      log "Dashboard identified over $dashboard_link"
       return 0
     fi
     now=$(handoff_now)
