@@ -1480,6 +1480,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Installation auf dem Dashboard (DBC) wurde nicht als erfolgreich abgeschlossen bestätigt. Bereits abgeschlossene Arbeiten auf dem Hauptcomputer (MDB) bleiben erhalten. Die Gesamtinstallation bleibt jedoch unvollständig. Du kannst die Dashboard-Installation später erneut versuchen.';
 
   @override
+  String get finishWithoutDbcPendingMdbBody =>
+      'Die ausgewählte Software für den Hauptcomputer (MDB) ist übertragen, aber noch nicht installiert. Wenn du fortfährst, wird sie installiert und der Hauptcomputer neu gestartet. Anschließend werden Einstellungen und Dienste wiederhergestellt. Die Dashboard-Installation wird übersprungen; die Gesamtinstallation bleibt unvollständig.';
+
+  @override
   String get dbcFinishedWithoutCompletionReason =>
       'Du hast den Vorgang ohne bestätigte DBC-Installation abgeschlossen.';
 

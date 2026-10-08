@@ -77,6 +77,12 @@ before each build; for local development run `scripts/update-flasher.sh`.
 
 [flasher-repo]: https://github.com/librescoot/librescoot-flasher
 
+## Device-owned installation
+
+A running dashboard handoff, MDB update or finalization owns the installation. Reconnecting observes that work without changing services, replacing its run state or cleaning up its files. The installer waits across the MDB activation reboot.
+
+Finishing without the dashboard can still install the selected MDB update and reboot the MDB. The confirmation states this when the MDB update is pending. A finalized incomplete dashboard outcome is reported as incomplete, not treated as an interrupted run.
+
 ## Diagnostic logs
 
 The in-app log, copied log text, saved run log and exported dashboard diagnostics mask keycard UIDs and Bluetooth MAC addresses. Pairing and enrollment still use the actual identifiers. Review logs for personal information before sharing.

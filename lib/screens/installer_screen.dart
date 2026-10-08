@@ -971,7 +971,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   void _queueInstallPhaseRecord(InstallerPhase phase) {
-    if (_isDryRun || _deviceFinishArmed || !_sshService.isConnected) return;
+    if (_isDryRun ||
+        _deviceFinishArmed ||
+        _resumeStillRunning ||
+        phase == InstallerPhase.mdbConnect ||
+        phase == InstallerPhase.resumeDetected ||
+        !_sshService.isConnected) {
+      return;
+    }
     final sequence = ++_installStateSequence;
     final content = serializeInstallRunState(
       runId: _installRunId,
@@ -3427,6 +3434,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         'SSH: firmware=${info.firmwareVersion}, serial=${info.serialNumber ?? "unknown"}',
       );
 
+      if (await _sshService.installerExecutionActive()) {
+        await _observeExistingInstall();
+        return;
+      }
+      _resumeStillRunning = false;
+
       // A scooter accidentally flashed with a minimal/bootstrap image answers
       // SSH but has no redis: the resume screen's Continue, the parked-state
       // gate, and the pre-flash lock all die with `redis-cli: not found`,
@@ -3507,8 +3520,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         final verdict = resumeVerdict(
           leftoversPresent: leftoversPresent,
           result: written,
-          trampolineAlive:
-              leftoversPresent && await _sshService.trampolineAlive(),
+          trampolineAlive: await _sshService.installerExecutionActive(),
         );
         resumingUnfinished = verdict == ResumeVerdict.unfinished;
         stillRunning = verdict == ResumeVerdict.running;
@@ -3532,22 +3544,20 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           );
         }
       } catch (e) {
-        debugPrint('SSH: unfinished-install check failed (ok): $e');
+        debugPrint('SSH: could not establish previous-install ownership: $e');
+        _setStatus(
+          l10n.sshConnectionFailed(e.toString()),
+          cue: InstallerCue.error,
+        );
+        if (mounted) setState(() => _isProcessing = false);
+        return;
       }
       if (mounted && previousRun != null) {
         setState(() => _previousRunRecord = previousRun);
       }
 
       if (stillRunning) {
-        debugPrint('SSH: a trampoline is running, leaving the board alone');
-        await _loadResumeEvidence();
-        if (!mounted) return;
-        setState(() {
-          _resumeStillRunning = true;
-          _isProcessing = false;
-        });
-        _setPhase(InstallerPhase.resumeDetected);
-        _watchRunningTrampoline();
+        await _observeExistingInstall();
         return;
       }
 
@@ -3814,6 +3824,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // an abandoned trampoline is still armed for the next MDB reboot, and
       // the services it masked are still masked.
       _setStatus(l10n.resumeClearingLeftovers);
+      await _sshService.ensureConnected('previous installation ownership');
+      if (await _sshService.installerExecutionActive()) {
+        await _observeExistingInstall();
+        return;
+      }
       await _sshService.disarmTrampolineOnboot();
       await _sshService.reviveInstallerServices();
       debugPrint('UI: disarmed the previous trampoline and revived services');
@@ -3861,17 +3876,35 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     });
   }
 
-  /// Follow a run that is still going, and re-read the board once it stops
-  /// rather than acting on what it said minutes ago.
+  Future<void> _observeExistingInstall() async {
+    debugPrint('SSH: an installer is executing; observing without changing it');
+    if (!mounted) return;
+    setState(() {
+      _resumeStillRunning = true;
+      _resumeCleanupError = null;
+      _isProcessing = false;
+    });
+    await _loadResumeEvidence();
+    if (!mounted) return;
+    _setPhase(InstallerPhase.resumeDetected);
+    unawaited(_watchRunningTrampoline());
+  }
+
+  /// Observe the device-owned run across its activation reboot.
   Future<void> _watchRunningTrampoline() async {
     while (mounted &&
         _resumeStillRunning &&
         _currentPhase == InstallerPhase.resumeDetected) {
       await Future.delayed(const Duration(seconds: 5));
       if (!mounted || _currentPhase != InstallerPhase.resumeDetected) return;
-      if (!_sshService.isConnected) return;
-      if (await _sshService.trampolineAlive()) {
-        await _loadResumeEvidence();
+      try {
+        await _sshService.ensureConnected('previous installation status');
+        if (await _sshService.installerExecutionActive()) {
+          await _loadResumeEvidence();
+          continue;
+        }
+      } catch (e) {
+        debugPrint('SSH: previous installation status unavailable: $e');
         continue;
       }
       if (!mounted) return;
@@ -8358,7 +8391,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         barrierDismissible: false,
         builder: (dialogContext) => AlertDialog(
           title: Text(l10n.finishWithoutDbcConfirmTitle),
-          content: DialogProse(l10n.finishWithoutDbcConfirmBody),
+          content: DialogProse(
+            !_deviceFinishArmed && (_plan?.needsMdbArtifact ?? false)
+                ? l10n.finishWithoutDbcPendingMdbBody
+                : l10n.finishWithoutDbcConfirmBody,
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),

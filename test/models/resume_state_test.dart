@@ -11,30 +11,56 @@ void main() {
     bool leftovers = true,
     TrampolineResult result = TrampolineResult.error,
     bool alive = false,
-  }) =>
-      resumeVerdict(
-        leftoversPresent: leftovers,
-        result: result,
-        trampolineAlive: alive,
-      );
+  }) => resumeVerdict(
+    leftoversPresent: leftovers,
+    result: result,
+    trampolineAlive: alive,
+  );
 
   test('a live trampoline outranks whatever the files say', () {
     // The status file still holds the previous verdict while the next run is
     // in its first seconds. Acting on it would clear a running install.
     for (final r in TrampolineResult.values) {
-      expect(verdict(result: r, alive: true), ResumeVerdict.running,
-          reason: '$r');
+      expect(
+        verdict(result: r, alive: true),
+        ResumeVerdict.running,
+        reason: '$r',
+      );
     }
   });
 
   test('a clean board is a first run', () {
-    expect(verdict(leftovers: false, result: TrampolineResult.unknown),
-        ResumeVerdict.none);
+    expect(
+      verdict(leftovers: false, result: TrampolineResult.unknown),
+      ResumeVerdict.none,
+    );
   });
 
   test('leftovers from a run that succeeded are only reported', () {
     expect(verdict(result: TrampolineResult.success), ResumeVerdict.completed);
   });
+
+  test(
+    'an explicit incomplete dashboard finish is terminal after finalization',
+    () {
+      final record = TrampolineStatus.parseCompletionRecord('''
+result: success
+run-id: run-1
+finish: complete
+stage: complete
+dashboard-result: incomplete
+''');
+      expect(
+        record.completionFor('run-1'),
+        InstallCompletionOutcome.incomplete,
+      );
+      expect(verdict(result: record.result), ResumeVerdict.completed);
+      expect(
+        verdict(result: record.result, alive: true),
+        ResumeVerdict.running,
+      );
+    },
+  );
 
   test('anything else counts as unfinished', () {
     expect(verdict(result: TrampolineResult.error), ResumeVerdict.unfinished);

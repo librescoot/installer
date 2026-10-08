@@ -2600,6 +2600,12 @@ abstract class AppLocalizations {
   /// **'The dashboard (DBC) installation has not been confirmed successful. Completed work on the main computer (MDB) is retained, but the overall installation remains incomplete. You can retry the dashboard installation later.'**
   String get finishWithoutDbcConfirmBody;
 
+  /// No description provided for @finishWithoutDbcPendingMdbBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The selected software for the main computer (MDB) is transferred but not installed yet. Continuing installs it and restarts the main computer. Settings and services are restored afterwards. Dashboard installation is skipped; the overall installation remains incomplete.'**
+  String get finishWithoutDbcPendingMdbBody;
+
   /// No description provided for @dbcFinishedWithoutCompletionReason.
   ///
   /// In en, this message translates to:

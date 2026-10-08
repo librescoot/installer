@@ -75,8 +75,28 @@ class SshService {
   static const int maxManualPasswordAttempts = 3;
 
   @visibleForTesting
+  static const installerExecutionProbeCommand = r'''
+command -v pgrep >/dev/null || { echo 'installer process probe unavailable' >&2; exit 1; }
+if pgrep -f '/data/[o]nboot\.sh( |$)|/data/(installer/(scripts/)?)?[t]rampoline\.sh( |$)|/data/installer/scripts/[0-9][0-9]-[^ ]*\.sh( |$)' >/dev/null 2>&1; then
+  echo active
+else
+  rc=$?
+  [ "$rc" -eq 1 ] || exit "$rc"
+  echo idle
+fi
+''';
+
+  @visibleForTesting
   static const interruptedInstallDisarmCommand = r'''
 set -eu
+command -v pgrep >/dev/null
+if pgrep -f '/data/[o]nboot\.sh( |$)|/data/(installer/(scripts/)?)?[t]rampoline\.sh( |$)|/data/installer/scripts/[0-9][0-9]-[^ ]*\.sh( |$)' >/dev/null 2>&1; then
+  echo 'an installer is still executing; cleanup is not permitted' >&2
+  exit 1
+else
+  rc=$?
+  [ "$rc" -eq 1 ] || exit "$rc"
+fi
 scripts=/data/installer/scripts
 backup=/data/installer/onboot.sh.bak
 onboot=/data/onboot.sh
@@ -388,7 +408,7 @@ done
     // The MDB has no reliable RTC, so its clock (and every log timestamp)
     // drifts to nonsense across power cycles. Push the host's wall-clock time
     // and timezone in now that we have a shell. Best-effort, never fatal.
-    await syncDeviceTime();
+    if (!await installerExecutionActive()) await syncDeviceTime();
     return info;
   }
 
@@ -661,7 +681,8 @@ done
     // Normal installer work must prevent suspend during flashing. A
     // status-only reconnect after autonomous finalization must not change the
     // service state that finalization just restored.
-    if (stopPowerManager) {
+    final installerActive = await installerExecutionActive();
+    if (stopPowerManager && !installerActive) {
       try {
         await runCommand(
           'systemctl stop librescoot-pm 2>/dev/null; '
@@ -699,7 +720,9 @@ done
     }
 
     final osId = detected.osId ?? '';
-    if (osId.isNotEmpty && !osId.startsWith('librescoot')) {
+    if (installerActive ||
+        !stopPowerManager ||
+        (osId.isNotEmpty && !osId.startsWith('librescoot'))) {
       _sftpAvailable = false;
       debugPrint('SSH: os-release ID "$osId", uploads will use cat');
     } else {
@@ -2491,6 +2514,12 @@ echo timeout
   /// same retirement the trampoline performs on its own completion, including
   /// putting back a pre-existing onboot.sh if one was displaced.
   Future<void> disarmTrampolineOnboot() async {
+    await ensureConnected('interrupted-install cleanup');
+    if (await installerExecutionActive()) {
+      throw StateError(
+        'An installer is still executing; cleanup is not permitted',
+      );
+    }
     await runCommand(interruptedInstallDisarmCommand);
   }
 
@@ -3091,6 +3120,18 @@ echo timeout
     } catch (_) {
       return false;
     }
+  }
+
+  Future<bool> installerExecutionActive() async {
+    final result = (await runCommand(
+      installerExecutionProbeCommand,
+      timeout: const Duration(seconds: 10),
+      replayOnDisconnect: true,
+    )).trim();
+    if (result != 'active' && result != 'idle') {
+      throw StateError('Could not determine whether an installer is executing');
+    }
+    return result == 'active';
   }
 
   /// Whether a trampoline is running on the board right now.

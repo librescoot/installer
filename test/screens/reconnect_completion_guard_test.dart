@@ -110,9 +110,13 @@ void main() {
       connectStart,
     );
     final connect = source.substring(connectStart, connectEnd);
-    expect(connect, contains('if (stopPowerManager)'));
+    expect(connect, contains('if (stopPowerManager && !installerActive)'));
     expect(
-      connect.indexOf('if (stopPowerManager)'),
+      connect,
+      contains('final installerActive = await installerExecutionActive()'),
+    );
+    expect(
+      connect.indexOf('if (stopPowerManager && !installerActive)'),
       lessThan(connect.indexOf('systemctl stop librescoot-pm')),
     );
   });
