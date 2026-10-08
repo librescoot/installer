@@ -50,12 +50,20 @@ void main() {
     String client = '',
     String route = '192.168.7.50 dev usb0 src 192.168.7.1',
     int routeExit = 0,
+    String? expectedPeer,
   }) => Process.run('sh', [
     '-c',
     '''
 SSH_CONNECTION='$connection'
 SSH_CLIENT='$client'
-ip() { printf '%s\\n' '$route'; return $routeExit; }
+ip() {
+  if [ -n '${expectedPeer ?? ''}' ] && [ "\$3" != '${expectedPeer ?? ''}' ]; then
+    printf 'RTNETLINK answers: Network is unreachable\\n'
+    return 1
+  fi
+  printf '%s\\n' '$route'
+  return $routeExit
+}
 $handoffUsbRouteCheck
 if handoff_usb_route; then echo usb-route; fi
 ''',
@@ -74,6 +82,41 @@ if handoff_usb_route; then echo usb-route; fi
       );
     },
   );
+
+  test('mapped IPv4 SSH peers are looked up as IPv4, not IPv6', () async {
+    for (final prefix in ['::ffff:', '::FFFF:']) {
+      final result = await probe(
+        connection: '${prefix}192.168.7.50 39400 ${prefix}192.168.7.1 22',
+        expectedPeer: '192.168.7.50',
+      );
+      expect(result.stdout.toString().trim(), 'usb-route');
+    }
+    final fallback = await probe(
+      connection: '',
+      client: '::ffff:192.168.7.50 39400 22',
+      expectedPeer: '192.168.7.50',
+    );
+    expect(fallback.stdout.toString().trim(), 'usb-route');
+  });
+
+  test('mapped IPv4 peers still require the usb0 route', () async {
+    final result = await probe(
+      connection: '::ffff:10.0.0.20 39400 ::ffff:10.0.0.1 22',
+      expectedPeer: '10.0.0.20',
+      route: '10.0.0.20 dev wlan0 src 10.0.0.1',
+    );
+    expect(result.stdout, contains('not routed through usb0'));
+    expect(result.stdout, isNot(contains('usb-route')));
+  });
+
+  test('native IPv6 peers are not rewritten', () async {
+    final result = await probe(
+      connection: '2001:db8::50 39400 2001:db8::1 22',
+      expectedPeer: '2001:db8::50',
+      route: '2001:db8::50 dev usb0 src 2001:db8::1',
+    );
+    expect(result.stdout.toString().trim(), 'usb-route');
+  });
 
   test(
     'authoritative connection peer never falls back to a USB-looking client',

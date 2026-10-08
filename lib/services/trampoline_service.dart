@@ -329,8 +329,12 @@ handoff_usb_route() {
     printf 'SSH server did not provide the connection peer\n'
     return 1
   fi
+  # IPv4-mapped SSH peers use the IPv4 routing table.
+  case "$peer" in
+    ::[fF][fF][fF][fF]:*.*.*.*) peer="${peer##*:}" ;;
+  esac
   if ! route=$(ip route get "$peer" 2>&1); then
-    printf 'USB route lookup failed: %s\n' "$route"
+    printf 'USB route lookup failed for SSH peer %s: %s\n' "$peer" "$route"
     return 1
   fi
   if ! printf '%s\n' "$route" | grep -Eq '(^|[[:space:]])dev usb0([[:space:]]|$)'; then
