@@ -353,7 +353,7 @@ abstract class AppLocalizations {
   /// No description provided for @phaseMdbConnectDescription.
   ///
   /// In en, this message translates to:
-  /// **'Detect the device and connect with SSH'**
+  /// **'Detect the device and connect'**
   String get phaseMdbConnectDescription;
 
   /// No description provided for @phaseResumeDetectedTitle.
@@ -1265,7 +1265,7 @@ abstract class AppLocalizations {
   /// No description provided for @connectingSsh.
   ///
   /// In en, this message translates to:
-  /// **'Connecting via SSH...'**
+  /// **'Connecting...'**
   String get connectingSsh;
 
   /// No description provided for @waitingForUnlock.
@@ -1487,7 +1487,7 @@ abstract class AppLocalizations {
   /// No description provided for @sshConnectionFailed.
   ///
   /// In en, this message translates to:
-  /// **'SSH connection failed: {error}. Check cable and retry.'**
+  /// **'Connection failed: {error}. Check cable and retry.'**
   String sshConnectionFailed(String error);
 
   /// No description provided for @manualPasswordTitle.
@@ -2129,13 +2129,13 @@ abstract class AppLocalizations {
   /// No description provided for @reconnectingSsh.
   ///
   /// In en, this message translates to:
-  /// **'Reconnecting SSH...'**
+  /// **'Reconnecting...'**
   String get reconnectingSsh;
 
   /// No description provided for @sshReconnectionFailed.
   ///
   /// In en, this message translates to:
-  /// **'SSH reconnection failed: {error}'**
+  /// **'Reconnection failed: {error}'**
   String sshReconnectionFailed(String error);
 
   /// No description provided for @reconnectCbbHeading.
@@ -4343,7 +4343,7 @@ abstract class AppLocalizations {
   /// No description provided for @dbcFlashErrorPrompt.
   ///
   /// In en, this message translates to:
-  /// **'Hazard lights turn on, DBC LED blinks red'**
+  /// **'Hazard lights turn on, dashboard LED blinks red'**
   String get dbcFlashErrorPrompt;
 
   /// No description provided for @dbcFlashSuccessLabel.
@@ -4655,7 +4655,7 @@ abstract class AppLocalizations {
   /// No description provided for @substepConnectSsh.
   ///
   /// In en, this message translates to:
-  /// **'Connect SSH'**
+  /// **'Connect'**
   String get substepConnectSsh;
 
   /// No description provided for @substepCheckCompletionRecord.

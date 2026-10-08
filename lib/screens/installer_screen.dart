@@ -64,6 +64,7 @@ import '../services/install_phase_scripts.dart';
 import '../services/previous_install_failure.dart';
 import '../services/installer_sounds.dart';
 import '../services/journey_log.dart';
+import '../services/keycard_feedback.dart';
 import '../services/serial_polling_loop.dart';
 import '../services/recovering_subscription.dart';
 import '../services/services.dart';
@@ -4689,6 +4690,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         children: [
           Text(l10n.healthCheckPurpose, style: const TextStyle(fontSize: 13)),
           const SizedBox(height: 12),
+          if (health != null) ...[
+            HealthCheckPanel(health: health),
+            const SizedBox(height: 16),
+          ],
           if (_mdbInfo != null)
             Text(
               _downloadState.releaseTag == null
@@ -4803,10 +4808,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                 ],
               ),
             ),
-          if (health != null) ...[
-            const SizedBox(height: 16),
-            HealthCheckPanel(health: health),
-          ],
           if (actions.isNotEmpty) ...[
             const SizedBox(height: 18),
             Wrap(
@@ -10741,8 +10742,28 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   void _handleKeycardEvent(String payload) {
     debugPrint('UI: keycard event: $payload');
-    if (!mounted) return;
+    if (!mounted ||
+        _windowClosing ||
+        _currentPhase != InstallerPhase.keycardSetup) {
+      return;
+    }
     final l10n = AppLocalizations.of(context)!;
+    final errorCue = keycardLearningErrorCue(
+      payload,
+      learningCards: _keycardLearning,
+      learningMaster:
+          _keycardMasterLearning &&
+          ownsKeycardMasterEvent(
+            eventGeneration: _keycardLearningGeneration,
+            currentGeneration: _keycardLearningGeneration,
+            ownerGeneration: _keycardMasterOwnerGeneration,
+            mounted: mounted,
+            windowClosing: _windowClosing,
+            inKeycardPhase: _currentPhase == InstallerPhase.keycardSetup,
+            masterStage: _keycardStage == _KeycardStage.master,
+          ),
+    );
+    if (errorCue != null) _sounds.play(errorCue);
     if (payload.startsWith('card-learned:')) {
       // Per-tap event during regular learn mode. The count hash isn't
       // updated until learn:stop fsyncs, so events are the only live signal.

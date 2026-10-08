@@ -58,8 +58,11 @@ void main() {
     );
     expect(
       de.dbcFlashErrorPrompt,
-      'Warnblinker geht an, die LED am Dashboard blinkt rot',
+      'Warnblinker geht an, Dashboard-LED blinkt rot',
     );
-    expect(en.dbcFlashErrorPrompt, 'Hazard lights turn on, DBC LED blinks red');
+    expect(
+      en.dbcFlashErrorPrompt,
+      'Hazard lights turn on, dashboard LED blinks red',
+    );
   });
 }

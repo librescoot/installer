@@ -139,7 +139,7 @@ void main() {
       tester.getTopLeft(find.text('SUCCESS')).dy,
     );
     final errorCaption = tester.getRect(
-      find.textContaining('DBC LED blinks red'),
+      find.textContaining('dashboard LED blinks red'),
     );
     final successCaption = tester.getRect(
       find.textContaining('The scooter has unlocked'),
@@ -189,7 +189,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.textContaining('LED am Dashboard blinkt rot'), findsOneWidget);
+    expect(find.textContaining('Dashboard-LED blinkt rot'), findsOneWidget);
     final button = tester.widget<OutlinedButton>(
       find.ancestor(
         of: find.text('ERFOLG'),

@@ -43,7 +43,7 @@
   "phasePhysicalPrepTitle": "Prepare the scooter",
   "phasePhysicalPrepDescription": "Open the footwell and connect USB",
   "phaseMdbConnectTitle": "Connect to MDB",
-  "phaseMdbConnectDescription": "Detect the device and connect with SSH",
+  "phaseMdbConnectDescription": "Detect the device and connect",
   "phaseResumeDetectedTitle": "Previous attempt",
   "phaseResumeDetectedDescription": "Interrupted installation found",
   "phaseHealthCheckTitle": "Health check",
@@ -213,7 +213,7 @@
   "connectFailedUnknownHeading": "The installer could not reach the scooter",
   "connectFailedUnknownBody": "The connection failed without a specific diagnosis.\n• Check the USB cable at both ends and connect it directly to the laptop\n• Make sure the scooter is awake and the AUX battery is connected\n• Try again in case the failure was temporary\n\nThe technical details below can be included in a bug report. Nothing on the scooter has been changed, and it is safe to close the installer.",
   "configuringNetwork": "Configuring network...",
-  "connectingSsh": "Connecting via SSH...",
+  "connectingSsh": "Connecting...",
   "waitingForUnlock": "Unlock the scooter to continue...",
   "unfinishedInstallDetected": "Unfinished installation detected, continuing without unlock...",
   "waitingForBatteryData": "Waiting for AUX/CBB battery data...",
@@ -264,7 +264,7 @@
   "awaitingParkContinueAnyway": "Continue anyway",
   "lockingScooter": "Locking the scooter for flashing...",
   "connected": "Connected",
-  "sshConnectionFailed": "SSH connection failed: {error}. Check cable and retry.",
+  "sshConnectionFailed": "Connection failed: {error}. Check cable and retry.",
   "@sshConnectionFailed": {
     "placeholders": {
       "error": {
@@ -454,8 +454,8 @@
   "waitingStableConnection": "Waiting for stable connection...",
   "stableConnectionStallHint": "Connection still unstable. USB ethernet may have lost its IP. On Linux, your NetworkManager may be fighting for the interface (try disabling IPv6). See log for details.",
   "dashboardRetryIdentityFailed": "The connected main computer (MDB) does not match this installation. Reconnect the original scooter to the laptop by USB.",
-  "reconnectingSsh": "Reconnecting SSH...",
-  "sshReconnectionFailed": "SSH reconnection failed: {error}",
+  "reconnectingSsh": "Reconnecting...",
+  "sshReconnectionFailed": "Reconnection failed: {error}",
   "@sshReconnectionFailed": {
     "placeholders": {
       "error": {
@@ -1080,7 +1080,7 @@
   "dbcFlashHandsOffHeading": "DASHBOARD ON DOES NOT MEAN DONE – HANDS OFF",
   "dbcFlashObservedSuccess": "I see the completion signal",
   "dbcFlashErrorLabel": "ERROR",
-  "dbcFlashErrorPrompt": "Hazard lights turn on, DBC LED blinks red",
+  "dbcFlashErrorPrompt": "Hazard lights turn on, dashboard LED blinks red",
   "dbcFlashSuccessLabel": "SUCCESS",
   "dbcFlashSuccessPrompt": "The scooter has unlocked: its front position light and rear light are on",
   "dbcFlashChooseOutcomeHint": "When either of these happens, click the matching picture.",
@@ -1153,7 +1153,7 @@
   "gettingStartedLinkHandbook": "Handbook",
   "substepWaitRndis": "Wait for MDB (RNDIS) on USB",
   "substepConfigureNetwork": "Configure network",
-  "substepConnectSsh": "Connect SSH",
+  "substepConnectSsh": "Connect",
   "substepCheckCompletionRecord": "Check completion record",
   "substepReadStatus": "Check pending installation status",
   "elapsedSeconds": "{seconds}s elapsed",

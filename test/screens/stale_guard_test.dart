@@ -11,7 +11,7 @@ void main() {
     );
     final poll = source.substring(
       start,
-      source.indexOf('Future<void> _prepareMdbStatusConnection', start),
+      source.indexOf('Future<DeviceInfo?> _prepareMdbStatusConnection', start),
     );
 
     test('a spent run is remembered', () {

@@ -157,8 +157,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get phaseMdbConnectTitle => 'Connect to MDB';
 
   @override
-  String get phaseMdbConnectDescription =>
-      'Detect the device and connect with SSH';
+  String get phaseMdbConnectDescription => 'Detect the device and connect';
 
   @override
   String get phaseResumeDetectedTitle => 'Previous attempt';
@@ -662,7 +661,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get configuringNetwork => 'Configuring network...';
 
   @override
-  String get connectingSsh => 'Connecting via SSH...';
+  String get connectingSsh => 'Connecting...';
 
   @override
   String get waitingForUnlock => 'Unlock the scooter to continue...';
@@ -797,7 +796,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String sshConnectionFailed(String error) {
-    return 'SSH connection failed: $error. Check cable and retry.';
+    return 'Connection failed: $error. Check cable and retry.';
   }
 
   @override
@@ -1176,11 +1175,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'The connected main computer (MDB) does not match this installation. Reconnect the original scooter to the laptop by USB.';
 
   @override
-  String get reconnectingSsh => 'Reconnecting SSH...';
+  String get reconnectingSsh => 'Reconnecting...';
 
   @override
   String sshReconnectionFailed(String error) {
-    return 'SSH reconnection failed: $error';
+    return 'Reconnection failed: $error';
   }
 
   @override
@@ -2518,7 +2517,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dbcFlashErrorLabel => 'ERROR';
 
   @override
-  String get dbcFlashErrorPrompt => 'Hazard lights turn on, DBC LED blinks red';
+  String get dbcFlashErrorPrompt =>
+      'Hazard lights turn on, dashboard LED blinks red';
 
   @override
   String get dbcFlashSuccessLabel => 'SUCCESS';
@@ -2697,7 +2697,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get substepConfigureNetwork => 'Configure network';
 
   @override
-  String get substepConnectSsh => 'Connect SSH';
+  String get substepConnectSsh => 'Connect';
 
   @override
   String get substepCheckCompletionRecord => 'Check completion record';

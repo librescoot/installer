@@ -155,7 +155,8 @@ class AppLocalizationsDe extends AppLocalizations {
   String get phaseMdbConnectTitle => 'MDB verbinden';
 
   @override
-  String get phaseMdbConnectDescription => 'Gerät erkennen und SSH aufbauen';
+  String get phaseMdbConnectDescription =>
+      'Gerät erkennen und Verbindung herstellen';
 
   @override
   String get phaseResumeDetectedTitle => 'Vorheriger Versuch';
@@ -670,7 +671,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get configuringNetwork => 'Netzwerk wird konfiguriert…';
 
   @override
-  String get connectingSsh => 'SSH-Verbindung wird aufgebaut…';
+  String get connectingSsh => 'Verbindung wird hergestellt…';
 
   @override
   String get waitingForUnlock => 'Roller entsperren, um fortzufahren…';
@@ -806,7 +807,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String sshConnectionFailed(String error) {
-    return 'SSH-Verbindung fehlgeschlagen: $error. Prüfe das Kabel und versuche es erneut.';
+    return 'Verbindung fehlgeschlagen: $error. Prüfe das Kabel und versuche es erneut.';
   }
 
   @override
@@ -1192,11 +1193,11 @@ class AppLocalizationsDe extends AppLocalizations {
       'Der verbundene Hauptcomputer (MDB) passt nicht zu dieser Installation. Verbinde den ursprünglichen Roller wieder per USB mit dem Laptop.';
 
   @override
-  String get reconnectingSsh => 'SSH-Verbindung wird wiederhergestellt…';
+  String get reconnectingSsh => 'Verbindung wird wiederhergestellt…';
 
   @override
   String sshReconnectionFailed(String error) {
-    return 'SSH-Neuverbindung fehlgeschlagen: $error';
+    return 'Erneute Verbindung fehlgeschlagen: $error';
   }
 
   @override
@@ -2560,7 +2561,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcFlashErrorPrompt =>
-      'Warnblinker geht an, die LED am Dashboard blinkt rot';
+      'Warnblinker geht an, Dashboard-LED blinkt rot';
 
   @override
   String get dbcFlashSuccessLabel => 'ERFOLG';
@@ -2742,7 +2743,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get substepConfigureNetwork => 'Netzwerk konfigurieren';
 
   @override
-  String get substepConnectSsh => 'SSH-Verbindung herstellen';
+  String get substepConnectSsh => 'Verbindung herstellen';
 
   @override
   String get substepCheckCompletionRecord => 'Abschlussprotokoll prüfen';
