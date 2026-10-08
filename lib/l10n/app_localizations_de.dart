@@ -405,6 +405,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get channelRecommended => 'EMPFOHLEN';
 
   @override
+  String get channelSelected => 'AUSGEWÄHLT';
+
+  @override
   String get channelTestingDesc =>
       'Testversionen für das nächste Release, ohne Stabilitätsgarantie, nur für technisch versierte Tester*innen empfohlen';
 

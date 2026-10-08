@@ -75,6 +75,49 @@ void main() {
     expect(dateTop[1], dateTop[2]);
   });
 
+  testWidgets('nightly selection is distinct from the stable recommendation', (
+    tester,
+  ) async {
+    await tester.pumpWidget(host(selected: DownloadChannel.nightly));
+    expect(find.text('AUSGEWÄHLT'), findsOneWidget);
+    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    final nightly = find.byKey(const ValueKey('channel-nightly'));
+    final stable = find.byKey(const ValueKey('channel-stable'));
+    expect(
+      find.descendant(of: nightly, matching: find.text('AUSGEWÄHLT')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: stable, matching: find.text('AUSGEWÄHLT')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: stable, matching: find.text('EMPFOHLEN')),
+      findsOneWidget,
+    );
+    final selected =
+        tester
+                .widget<AnimatedContainer>(
+                  find.byKey(const ValueKey('channel-nightly-surface')),
+                )
+                .decoration!
+            as BoxDecoration;
+    final recommended =
+        tester
+                .widget<AnimatedContainer>(
+                  find.byKey(const ValueKey('channel-stable-surface')),
+                )
+                .decoration!
+            as BoxDecoration;
+    expect(selected.border, Border.all(color: kAccent, width: 2));
+    expect(selected.color, kAccent.withValues(alpha: 0.12));
+    expect(recommended.border, Border.all(color: kOutline));
+    expect(recommended.color, Colors.transparent);
+    final badge = tester.widget<Text>(find.text('EMPFOHLEN'));
+    expect(badge.style!.color, kTextMuted);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Nightly requires consent once and remembers it', (tester) async {
     SharedPreferences.setMockInitialValues({});
     DownloadChannel? selected;
@@ -153,6 +196,7 @@ void main() {
   ) async {
     await tester.pumpWidget(host(locale: const Locale('en')));
     expect(find.text('RECOMMENDED'), findsOneWidget);
+    expect(find.text('SELECTED'), findsOneWidget);
     expect(
       find.text(
         'Test builds for the next release, with no stability guarantee; recommended only for technically experienced testers',

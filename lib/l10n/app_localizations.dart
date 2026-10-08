@@ -800,6 +800,12 @@ abstract class AppLocalizations {
   /// **'RECOMMENDED'**
   String get channelRecommended;
 
+  /// No description provided for @channelSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'SELECTED'**
+  String get channelSelected;
+
   /// No description provided for @channelTestingDesc.
   ///
   /// In en, this message translates to:

@@ -155,21 +155,17 @@ class _FirmwareChannelSelectorState extends State<FirmwareChannelSelector> {
         onTap: available ? () => _selectChannel(channel) : null,
         borderRadius: BorderRadius.circular(10),
         child: AnimatedContainer(
+          key: ValueKey('channel-${channel.name}-surface'),
           duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(selected ? 15 : 16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: selected
-                  ? kAccent
-                  : recommended && available
-                  ? kAccent.withValues(alpha: 0.6)
-                  : kOutline,
+              color: selected ? kAccent : kOutline,
+              width: selected ? 2 : 1,
             ),
             color: selected
-                ? kAccent.withValues(alpha: 0.08)
-                : recommended && available
-                ? kAccent.withValues(alpha: 0.03)
+                ? kAccent.withValues(alpha: 0.12)
                 : available
                 ? Colors.transparent
                 : kSurfaceLow,
@@ -198,13 +194,13 @@ class _FirmwareChannelSelectorState extends State<FirmwareChannelSelector> {
                           vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          color: kAccent,
+                          color: kSurfaceHigh,
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           l10n.channelRecommended,
                           style: const TextStyle(
-                            color: kOnAccent,
+                            color: kTextMuted,
                             fontSize: 9,
                             fontWeight: FontWeight.bold,
                           ),
@@ -217,6 +213,29 @@ class _FirmwareChannelSelectorState extends State<FirmwareChannelSelector> {
                   description,
                   width: descriptionWidth,
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                ),
+                SizedBox(
+                  height: 32,
+                  child: selected
+                      ? Row(
+                          children: [
+                            const Icon(
+                              Icons.check_circle,
+                              size: 16,
+                              color: kAccent,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              l10n.channelSelected,
+                              style: const TextStyle(
+                                color: kAccent,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        )
+                      : null,
                 ),
                 const Spacer(),
                 if (release case final info?) ...[

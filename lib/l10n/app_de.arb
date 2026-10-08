@@ -129,6 +129,7 @@
   "channelNightly": "Nightly",
   "channelStableDesc": "Getestet und zuverlässig",
   "channelRecommended": "EMPFOHLEN",
+  "channelSelected": "AUSGEWÄHLT",
   "channelTestingDesc": "Testversionen für das nächste Release, ohne Stabilitätsgarantie, nur für technisch versierte Tester*innen empfohlen",
   "channelNightlyDesc": "Täglich neu, nur für Entwickler*innen empfohlen",
   "nightlyWarningTitle": "Nightly wirklich auswählen?",
