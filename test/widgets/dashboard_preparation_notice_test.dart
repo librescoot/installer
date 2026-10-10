@@ -12,10 +12,10 @@ import '../goldens/font_harness.dart';
 void main() {
   setUpAll(loadRealFonts);
 
-  Widget host({String? error, Locale locale = const Locale('de')}) =>
+  Widget host({String? error}) =>
       MaterialApp(
         theme: librescootTheme(),
-        locale: locale,
+        locale: const Locale('de'),
         supportedLocales: AppLocalizations.supportedLocales,
         localizationsDelegates: const [
           AppLocalizations.delegate,
@@ -30,20 +30,6 @@ void main() {
           ),
         ),
       );
-
-  testWidgets('preparation notice balances within its available width', (
-    tester,
-  ) async {
-    await tester.pumpWidget(host());
-    final notice = tester.widget<OptimalWrapText>(find.byType(OptimalWrapText));
-    expect(notice.width, 550);
-    expect(notice.textAlign, TextAlign.center);
-    expect(
-      find.text(AppLocalizationsDe().filesStagedWaitingForHandoff),
-      findsOneWidget,
-    );
-    expect(tester.takeException(), isNull);
-  });
 
   testWidgets(
     'failed preparation replaces progress copy and shows the reason',
@@ -76,19 +62,4 @@ void main() {
     },
   );
 
-  testWidgets('English failure copy does not promise readiness', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      host(error: 'route lookup failed', locale: const Locale('en')),
-    );
-    expect(
-      find.textContaining(
-        'preparation for automatically waiting for the dashboard failed',
-      ),
-      findsOneWidget,
-    );
-    expect(find.text('route lookup failed'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
 }

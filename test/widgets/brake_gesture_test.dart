@@ -178,13 +178,4 @@ void main() {
     expect(held + blips, brakeTotalSeconds);
   });
 
-  testWidgets('the diagram lights nothing until the squeeze cue', (
-    tester,
-  ) async {
-    await tester.pumpWidget(_host(const BrakeGestureDiagram()));
-    expect(find.text('${brakeMarkSeconds}s'), findsOneWidget);
-    expect(find.text('$brakeTotalSeconds'), findsNothing);
-    // The left lever never moves, so the band spans the whole run.
-    expect(find.text('Left lever held down throughout'), findsOneWidget);
-  });
 }

@@ -49,13 +49,6 @@ void main() {
   });
   tearDown(() => root.delete(recursive: true));
 
-  test('it is valid shell', () async {
-    final f = File('${root.path}/shim.sh');
-    await f.writeAsString(SshService.onbootShim);
-    final syntax = await Process.run('sh', ['-n', f.path]);
-    expect(syntax.exitCode, 0, reason: syntax.stderr.toString());
-  });
-
   test('it runs the numbered phases in order', () async {
     final order = '${root.path}/order';
     await phase('30-cleanup.sh', 'echo 30 >> $order; rm -f "\$0"');

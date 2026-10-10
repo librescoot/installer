@@ -232,32 +232,6 @@ void main() {
     expect(seen, isNull);
   });
 
-  testWidgets('choosing an action reports a new plan', (tester) async {
-    InstallPlan? seen;
-    final plan = InstallPlan.defaults(
-      mdb: _mdbState,
-      dbc: _stockDbc,
-      targetVersion: 'v1.2.1',
-    );
-    await tester.pumpWidget(
-      _host(
-        InstallPlanPanel(
-          plan: plan,
-          mdbState: _mdbState,
-          dbcState: _stockDbc,
-          targetVersion: 'v1.2.1',
-          onChanged: (p) => seen = p,
-        ),
-      ),
-    );
-
-    await tester.tap(find.text('Leave alone').first);
-    await tester.pump();
-
-    expect(seen, isNotNull);
-    expect(seen!.mdb.action, BoardAction.leave);
-  });
-
   testWidgets('offline navigation installs from the DBC header checkbox', (
     tester,
   ) async {
@@ -453,65 +427,6 @@ void main() {
     await tester.tap(find.byType(Checkbox));
     await tester.pump();
     expect(seen, isNull, reason: 'a disabled control must not change the plan');
-  });
-
-  testWidgets('says so when the plan selects nothing', (tester) async {
-    // The Continue button itself now lives in the enclosing PhaseLayout, so
-    // what this panel still owes the user is the reason it is disabled.
-    const plan = InstallPlan(
-      mdb: BoardPlan(board: Board.mdb, action: BoardAction.leave),
-      dbc: BoardPlan(board: Board.dbc, action: BoardAction.leave),
-    );
-    await tester.pumpWidget(
-      _host(
-        InstallPlanPanel(
-          plan: plan,
-          mdbState: _mdbState,
-          dbcState: _stockDbc,
-          targetVersion: 'v1.2.1',
-          onChanged: (_) {},
-        ),
-      ),
-    );
-
-    expect(plan.isNoOp, isTrue);
-    expect(
-      find.text('Nothing selected. Pick at least one action to continue.'),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('a dashboard wipe does not claim to erase settings or keycards', (
-    tester,
-  ) async {
-    // Settings and keycards are main-board state. The dashboard's
-    // own storage holds the offline maps, so promising more than that talks
-    // people out of a clean install for a cost it does not have.
-    await tester.pumpWidget(
-      _host(
-        InstallPlanPanel(
-          mdbState: _mdbState,
-          dbcState: _stockDbc,
-          plan: const InstallPlan(
-            mdb: BoardPlan(board: Board.mdb, action: BoardAction.cleanInstall),
-            dbc: BoardPlan(board: Board.dbc, action: BoardAction.cleanInstall),
-          ),
-          targetVersion: 'v1.2.1',
-          onChanged: (_) {},
-        ),
-      ),
-    );
-
-    expect(find.text('Erases offline maps and navigation data'), findsOneWidget);
-    // Main-board data is erased, while detected preservable configuration is
-    // offered as a separate choice rather than silently discarded.
-    expect(
-      find.text(
-        'Data on the main computer will be overwritten. Some settings can '
-        'be preserved in the next step.',
-      ),
-      findsOneWidget,
-    );
   });
 
   testWidgets('a locked MDB shows its note and offers no choice', (

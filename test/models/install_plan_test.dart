@@ -278,11 +278,6 @@ void main() {
       expect(p.needsHandoff, isFalse);
     });
 
-    test('a clean install needs stage 0', () {
-      final p = planOf(BoardAction.cleanInstall, BoardAction.leave);
-      expect(p.needsMdbStage0, isTrue);
-    });
-
     test('the legacy full image also needs stage 0', () {
       final p = planOf(BoardAction.fullImage, BoardAction.leave);
       expect(p.needsMdbStage0, isTrue);

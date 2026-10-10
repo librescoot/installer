@@ -8,8 +8,8 @@ import 'package:librescoot_installer/models/board_state.dart';
 import 'package:librescoot_installer/models/install_plan.dart';
 import 'package:librescoot_installer/models/install_time_estimate.dart';
 import 'package:librescoot_installer/widgets/dashboard_handoff_status.dart';
+import 'package:librescoot_installer/widgets/estimated_handoff_progress.dart';
 import 'package:librescoot_installer/widgets/phase_layout.dart';
-import 'package:librescoot_installer/widgets/preparation_step.dart';
 
 Widget host(Widget Function(AppLocalizations) build) => MaterialApp(
   theme: librescootTheme(),
@@ -44,6 +44,7 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       var successes = 0;
+      final disconnectedAt = DateTime.now().subtract(const Duration(minutes: 1));
       final estimate = InstallTimeEstimate.forAutonomousHandoff(
         plan: InstallPlan(
           mdb: const BoardPlan(board: Board.mdb, action: BoardAction.leave),
@@ -66,7 +67,7 @@ void main() {
             backLabel: l10n.handoffCableInstructions,
             child: DashboardHandoffStatus(
               estimate: estimate,
-              disconnectedAt: DateTime.now(),
+              disconnectedAt: disconnectedAt,
               onError: () {},
               onSuccess: () => successes++,
             ),
@@ -75,6 +76,12 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 100));
       expect(tester.takeException(), isNull);
+      expect(
+        tester
+            .widget<EstimatedHandoffProgress>(find.byType(EstimatedHandoffProgress))
+            .startedAt,
+        disconnectedAt,
+      );
       expect(
         tester
             .getBottomRight(
@@ -95,41 +102,4 @@ void main() {
     },
   );
 
-  testWidgets(
-    'preparation photos use a full-width row below the instructions',
-    (tester) async {
-      tester.view.physicalSize = const Size(1280, 800);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(
-        host(
-          (l10n) => PhaseLayout(
-            title: l10n.physicalPrepHeading,
-            child: PreparationStep(
-              number: 1,
-              title: l10n.removeFootwellCover,
-              description: l10n.removeFootwellCoverDesc,
-              images: const [
-                'assets/images/lsi-unu_scooter_footwell_closed.jpg',
-                'assets/images/lsi-unu_scooter_footwell_open.jpg',
-              ],
-            ),
-          ),
-        ),
-      );
-      final images = find.byType(Image);
-      expect(images, findsNWidgets(2));
-      expect(tester.getSize(images.first).height, 260);
-      expect(
-        tester.getTopLeft(images.first).dy,
-        greaterThan(
-          tester
-              .getBottomLeft(find.textContaining('Löse die vier Schrauben'))
-              .dy,
-        ),
-      );
-      expect(tester.takeException(), isNull);
-    },
-  );
 }

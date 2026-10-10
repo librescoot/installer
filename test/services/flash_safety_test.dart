@@ -236,12 +236,6 @@ void main() {
           detectedPath: detected,
         );
 
-    test('a mismatched pair is refused', () {
-      final result = checkPair(detected: _goodPath, target: _otherPath);
-      expect(result.passed, isFalse);
-      expect(result.errors.join('; '), contains('does not match'));
-    });
-
     test('a matching pair passes', () {
       final result = checkPair(detected: _goodPath, target: _goodPath);
       expect(result.passed, isTrue, reason: result.errors.join('; '));

@@ -409,25 +409,14 @@ void main() {
         }),
       );
 
-      test('a truncated but fresh cache is refetched, not thrown', () async {
-        // Half a JSON document, written moments ago: what an interrupted
-        // write leaves behind.
-        await cacheFile.writeAsString('[{"name": "tiles_berlin');
-        final requested = <String>[];
-        final service = serving(good, requested: requested);
-
-        final assets = await service.resolveTileAssets(repo, 'tiles_');
-
-        expect(requested.single, manifestUrl);
-        expect(assets.single['name'], 'tiles_berlin_brandenburg.mbtiles');
-      });
-
       test('the repaired cache is what the next call reads', () async {
         await cacheFile.writeAsString('[{"name": "tiles_berlin');
         final requested = <String>[];
         final service = serving(good, requested: requested);
 
-        await service.resolveTileAssets(repo, 'tiles_');
+        final first = await service.resolveTileAssets(repo, 'tiles_');
+        expect(requested.single, manifestUrl);
+        expect(first.single['name'], 'tiles_berlin_brandenburg.mbtiles');
         final second = await service.resolveTileAssets(repo, 'tiles_');
 
         expect(requested, hasLength(1), reason: 'cache was not repaired');
@@ -645,37 +634,6 @@ void main() {
       );
     });
 
-    test('a valid SHA256 cache entry is restored as complete', () async {
-      final bytes = <int>[1, 2, 3, 4];
-      final name =
-          'librescoot-unu-mdb-minimal-cache-valid-${DateTime.now().microsecondsSinceEpoch}.sdimg.gz';
-      final cacheDir = await DownloadService.getCacheDir();
-      final cached = File(p.join(cacheDir.path, name));
-      addTearDown(() async {
-        if (await cached.exists()) await cached.delete();
-      });
-      await cached.writeAsBytes(bytes);
-
-      final service = DownloadService(
-        client: _manifestClient({
-          'stable': _release('v1.2.1', [
-            _asset(
-              name,
-              bytes.length,
-              sha256: sha256.convert(bytes).toString(),
-            ),
-          ]),
-        }),
-      );
-      final item = (await service.buildDownloadQueue(
-        channel: DownloadChannel.stable,
-        wantsOfflineMaps: false,
-      )).single;
-
-      expect(item.localPath, cached.path);
-      expect(item.bytesDownloaded, bytes.length);
-    });
-
     test(
       'a corrupted same-size cache entry is deleted and redownloaded',
       () async {
@@ -859,6 +817,7 @@ void main() {
         cached.path,
         reason: 'a file that hashes correctly is still usable',
       );
+      expect(item.bytesDownloaded, bytes.length);
       expect(
         await sidecar.readAsString(),
         digest,

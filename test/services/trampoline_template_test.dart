@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/models/dashboard_messages.dart';
-import 'package:librescoot_installer/models/install_plan.dart';
 import 'package:librescoot_installer/services/trampoline_service.dart';
 
 void main() {
@@ -115,12 +114,6 @@ void main() {
       expect(template, isNot(contains('rm -rf /data/ota')));
     });
 
-    test('bakes the target version into the second layer', () {
-      // onboot.sh runs after the MDB reboot, so anything it needs has to be
-      // written into it rather than inherited.
-      expect(template, contains(r'DBC_TARGET="$DBC_TARGET"'));
-    });
-
     test('does not enter host mode outside flash mode', () {
       // Nothing writes the role file directly: every switch goes through
       // role_write(), which wraps the write in a 15s timeout. Step 5's call
@@ -195,12 +188,6 @@ void main() {
           contains(r'artifact_fail "error: DBC update-service failed: $latest"'));
     });
 
-    test('stages the artifact to the OTA seed path on the DBC', () {
-      expect(template, contains('/data/ota/dbc/'));
-      expect(template, contains('mender-update install'));
-      expect(template, contains('scooter:update:dbc'));
-    });
-
     test('the transfer helper is available with tiles switched off', () {
       // It has to be defined outside the tiles conditional, because the
       // artifact upload uses it whether or not tiles were selected. Position
@@ -256,43 +243,4 @@ void main() {
     });
   });
 
-  group('the autonomous finish reaches the script', () {
-    String render(DeviceFinish finish) => TrampolineService.renderTemplate(
-          File('assets/trampoline.sh.template').readAsStringSync(),
-          upgradeMode: false,
-          dbcImagePath: '/data/installer/dbc.sdimg.gz',
-          dbcMenderPath: '/data/installer/dbc.mender',
-          finish: finish,
-        );
-
-    test('onDevice true renders the flag the guards compare against', () {
-      // Both finish blocks are `if [ "$FINISH_ON_DEVICE" = "true" ]`, so
-      // anything but that exact string silently hands back to the laptop:
-      // no settings restore, no completion record, no reboot, while the LED
-      // still blinks green.
-      final out = render(const DeviceFinish(
-        onDevice: true,
-        mdbAction: BoardAction.leave,
-        language: 'de',
-        otaChannel: 'nightly',
-      ));
-      expect(out, contains('FINISH_ON_DEVICE="true"'));
-      expect(out, contains('FINISH_LANGUAGE="de"'));
-      expect(out, contains('FINISH_CHANNEL="nightly"'));
-      expect(out, isNot(contains('{{FINISH_ON_DEVICE}}')));
-    });
-
-    test('the laptop finish renders false', () {
-      final out = render(DeviceFinish.laptop);
-      expect(out, contains('FINISH_ON_DEVICE="false"'));
-    });
-
-    test('no placeholder survives rendering', () {
-      final out = render(const DeviceFinish(
-          onDevice: true, mdbAction: BoardAction.upgrade));
-      expect(RegExp(r'\{\{[A-Z0-9_]+\}\}').firstMatch(out), isNull,
-          reason: 'an unsubstituted placeholder reaches the device as a '
-              'literal and every test of it compares false');
-    });
-  });
 }

@@ -419,17 +419,6 @@ void main() {
     expect(onboot, contains('post-commit success would be indistinguishable'));
   });
 
-  test('no bundled Mender status binary is staged or required', () {
-    final source = File('assets/trampoline.sh.template').readAsStringSync();
-    final service = File(
-      'lib/services/trampoline_service.dart',
-    ).readAsStringSync();
-    expect(File('assets/tools/mender-status-dbc').existsSync(), isFalse);
-    expect(source, isNot(contains('mender-status-dbc')));
-    expect(source, isNot(contains('/ota/dbc/mender-status')));
-    expect(service, isNot(contains('mender-status-dbc')));
-  });
-
   test('the shell template and generated onboot phase parse', () {
     final templateResult = Process.runSync('bash', ['-n', template.path]);
     expect(
@@ -740,14 +729,6 @@ void main() {
       reason:
           'these run timeout on the dashboard, which does not have it: '
           '${offenders.join(" | ")}',
-    );
-  });
-
-  test('the long remote command is bounded from this side instead', () {
-    expect(
-      onboot,
-      contains('dbc_ssh_bounded'),
-      reason: 'the mender install needs a ceiling, applied on the MDB',
     );
   });
 

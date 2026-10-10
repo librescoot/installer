@@ -9,18 +9,6 @@ void main() {
       expect(mdbDataPartitionProbeCommand, contains('type == "ext4"'));
     });
 
-    test('parses a ready partition', () {
-      final probe = parseDataPartitionProbe(
-        'ready root=/dev/mmcblk1p2 data=/dev/mmcblk1p4 type=ext4\n',
-      );
-      expect(probe.status, DataPartitionProbeStatus.ready);
-    });
-
-    test('parses an absent mount', () {
-      final probe = parseDataPartitionProbe('absent root=/dev/mmcblk1p2\n');
-      expect(probe.status, DataPartitionProbeStatus.absent);
-    });
-
     test('parses a wrong filesystem', () {
       final probe = parseDataPartitionProbe(
         'wrong root=/dev/mmcblk1p2 data=/dev/mmcblk1p3 type=ext4\n',

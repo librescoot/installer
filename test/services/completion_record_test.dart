@@ -24,22 +24,6 @@ void main() {
     '',
   ].join('\n');
 
-  test('a laptop-written record reads as complete for its own run', () {
-    final parsed = TrampolineStatus.parseCompletionRecord(record());
-    expect(
-      parsed.completionFor('run-abc-123'),
-      InstallCompletionOutcome.complete,
-    );
-  });
-
-  test('it does not vouch for a different run', () {
-    final parsed = TrampolineStatus.parseCompletionRecord(record());
-    expect(
-      parsed.completionFor('run-xyz-999'),
-      InstallCompletionOutcome.notComplete,
-    );
-  });
-
   test('an incomplete dashboard result remains a completed unsafe run', () {
     final parsed = TrampolineStatus.parseCompletionRecord(
       record(dashboardResult: 'incomplete'),

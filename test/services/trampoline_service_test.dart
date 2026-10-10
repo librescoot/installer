@@ -538,8 +538,7 @@ VALHALLA="{{VALHALLA_TILES_FILE}}"
 
     test('an on-device finish renders the plan into the script', () {
       final out = TrampolineService.renderTemplate(
-        '$fixture\nF={{FINISH_ON_DEVICE}} A={{MDB_ACTION}} V={{MDB_TARGET_VERSION}} '
-        'L={{FINISH_LANGUAGE}} C={{FINISH_CHANNEL}}',
+        File('assets/trampoline.sh.template').readAsStringSync(),
         upgradeMode: true,
         dbcImagePath: '',
         dbcMenderPath: '/data/installer/a.mender',
@@ -551,11 +550,12 @@ VALHALLA="{{VALHALLA_TILES_FILE}}"
           otaChannel: 'stable',
         ),
       );
-      expect(out, contains('F=true'));
-      expect(out, contains('A=upgrade'));
-      expect(out, contains('V=v1.2.1'));
-      expect(out, contains('L=de'));
-      expect(out, contains('C=stable'));
+      expect(out, contains('FINISH_ON_DEVICE="true"'));
+      expect(out, contains('MDB_ACTION="upgrade"'));
+      expect(out, contains('MDB_TARGET="v1.2.1"'));
+      expect(out, contains('FINISH_LANGUAGE="de"'));
+      expect(out, contains('FINISH_CHANNEL="stable"'));
+      expect(RegExp(r'\{\{[A-Z0-9_]+\}\}').allMatches(out), isEmpty);
     });
 
     test(
@@ -586,15 +586,15 @@ VALHALLA="{{VALHALLA_TILES_FILE}}"
       },
     );
 
-    test('the default is the old behaviour: hand back to the laptop', () {
+    test('the default finish hands back to the laptop', () {
       final out = TrampolineService.renderTemplate(
-        '$fixture\nF={{FINISH_ON_DEVICE}} A={{MDB_ACTION}}',
+        File('assets/trampoline.sh.template').readAsStringSync(),
         upgradeMode: true,
         dbcImagePath: '',
         dbcMenderPath: '/data/installer/a.mender',
       );
-      expect(out, contains('F=false'));
-      expect(out, contains('A=leave'));
+      expect(out, contains('FINISH_ON_DEVICE="false"'));
+      expect(out, contains('MDB_ACTION="leave"'));
     });
 
     test('leaves no placeholder behind', () {

@@ -202,10 +202,14 @@ rm -f "\$0"
     );
   });
 
-  test('a successful run reboots once, after the dashboard phase', () async {
+  test('a successful run retires before the coordinator reboot sequence', () async {
     final artifact = File('${root.path}/a.mender');
     await artifact.writeAsString('x');
-    await stub('mender-update', 'sleep 0.3; exit 0');
+    await stub(
+      'mender-update',
+      'if [ "\$1" = install ]; then printf "%s\\n" "\$2" > '
+          "'${root.path}/installed-artifact'; fi; sleep 0.3; exit 0",
+    );
     await queueAll(artifactPath: artifact.path);
 
     final r = await boot();
@@ -225,9 +229,17 @@ rm -f "\$0"
     );
     // The dashboard phase runs while the MDB write is still going, then the
     // coordinator reboots and this pass ends: the handover is on the far side.
+    expect(
+      (await File('${root.path}/installed-artifact').readAsString()).trim(),
+      artifact.path,
+    );
     final order = await File('${root.path}/order').readAsLines();
     expect(order.first, '20');
-    expect(order.any((l) => l.startsWith('reboot')), isTrue);
+    // Reboot stubs return, so the coordinator's forced fallback also runs.
+    expect(
+      order.where((line) => line.startsWith('reboot')),
+      orderedEquals(['reboot ', 'reboot -f']),
+    );
     expect(
       order,
       isNot(contains('90')),

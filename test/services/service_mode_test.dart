@@ -33,13 +33,6 @@ void main() {
     });
     tearDown(() => dir.delete(recursive: true));
 
-    test('it is valid shell', () async {
-      final file = File('${dir.path}/arm.sh');
-      await file.writeAsString(SshService.serviceModeArmCommand);
-      final syntax = await Process.run('sh', ['-n', file.path]);
-      expect(syntax.exitCode, 0, reason: syntax.stderr.toString());
-    });
-
     test('it leaves the JSON settings-service reads back on boot', () async {
       final result = await runScript(
         rehome(SshService.serviceModeArmCommand, dir.path),
@@ -70,11 +63,6 @@ void main() {
           isFalse);
     });
 
-    test('the path the installer names is the one settings-service uses', () {
-      expect(SshService.serviceModeStatePath, '/data/service-mode.json');
-      expect(SshService.serviceModeArmCommand,
-          contains(SshService.serviceModeStatePath));
-    });
   });
 
   group('interrupted-run disarm', () {

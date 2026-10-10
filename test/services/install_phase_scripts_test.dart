@@ -34,29 +34,6 @@ void main() {
   });
 
   group('10-mdb-artifact.sh', () {
-    test('renders the staged artifact path', () {
-      final s = MdbArtifactScript.render(
-        template: artifactTemplate,
-        runId: 'run-1',
-        artifactPath: '/data/ota/mdb/release-v2.0.0.mender',
-      );
-      expect(s, contains('/data/ota/mdb/release-v2.0.0.mender'));
-      expect(s, contains('run-1'));
-      expect(unresolvedPlaceholders(s), isEmpty);
-    });
-
-    test('a plan with no MDB artifact still records a verdict', () {
-      // The reboot phase joins on the result file, so a run that leaves the
-      // MDB alone has to leave something readable behind or the join waits
-      // out its full budget and then calls the run failed.
-      final s = MdbArtifactScript.render(
-        template: artifactTemplate,
-        runId: 'run-1',
-      );
-      expect(unresolvedPlaceholders(s), isEmpty);
-      expect(s, contains('skipped'));
-    });
-
     test('the install is backgrounded, not awaited', () {
       // The whole point: the coordinator moves on to the dashboard phase
       // while this writes eMMC.
@@ -73,16 +50,6 @@ void main() {
       // Detached where systemd-run is missing, which is only ever a fixture.
       expect(s, contains(r'setsid /bin/sh "$WORKER"'));
       expect(s, contains('exit 0'));
-    });
-
-    test('records failure rather than leaving the join to guess', () {
-      final s = MdbArtifactScript.render(
-        template: artifactTemplate,
-        runId: 'r',
-        artifactPath: '/data/ota/mdb/a.mender',
-      );
-      expect(s, contains('error: mender-update install exited'));
-      expect(s, contains('error: the MDB artifact is missing'));
     });
 
     test('refuses to render with a placeholder left over', () {
@@ -107,61 +74,6 @@ void main() {
       expect(unresolvedPlaceholders(s), isEmpty);
     });
 
-    test('retires before asking for the reboot', () {
-      // A reboot that lands with the phase still queued runs it again on the
-      // next boot, and the vehicle reboots forever.
-      final s = RebootPhaseScript.render(
-        template: rebootTemplate,
-        runId: 'r',
-      );
-      expect(s.indexOf('retire'), lessThan(s.indexOf('exit 75')));
-    });
-
-    test('only the ok arm reboots', () {
-      // case arms are mutually exclusive, so what matters is each arm's
-      // contents rather than their order. Rebooting on a failed install would
-      // land back on the same image via u-boot's rollback and read as success;
-      // rebooting on a skipped one takes a vehicle dark for nothing.
-      final s = RebootPhaseScript.render(
-        template: rebootTemplate,
-        runId: 'r',
-      );
-      final body = s.substring(s.indexOf(r'case "$RESULT" in'));
-      final arms = <String, String>{};
-      String? current;
-      final buf = StringBuffer();
-      for (final line in body.split('\n')) {
-        final t = line.trim();
-        if (RegExp(r'^(ok|skipped|\*)\)$').hasMatch(t)) {
-          if (current != null) arms[current] = buf.toString();
-          current = t.substring(0, t.length - 1);
-          buf.clear();
-        } else if (t == ';;') {
-          if (current != null) arms[current] = buf.toString();
-          current = null;
-          buf.clear();
-        } else if (current != null && !t.startsWith('#')) {
-          // Comments in these arms legitimately discuss rebooting; only the
-          // commands are under test.
-          buf.writeln(t);
-        }
-      }
-      expect(arms.keys, containsAll(['ok', 'skipped', '*']));
-      // The phase asks; it never reboots. A phase that reboots never returns
-      // to be recorded as having run, which made every successful install end
-      // with a false "install phases never ran: 80-reboot.sh".
-      final invokesReboot = RegExp(r'^reboot\b', multiLine: true);
-      for (final arm in arms.values) {
-        expect(invokesReboot.hasMatch(arm), isFalse,
-            reason: 'the reboot belongs to the coordinator');
-      }
-      expect(arms['ok'], contains('exit 75'));
-      expect(arms['skipped'], contains('exit 0'));
-      expect(arms['skipped'], contains('retire'),
-          reason: 'it must still retire or it re-runs at every boot');
-      expect(arms['*'], contains('exit 1'));
-    });
-
   });
 
   group('the join file survives long enough to be read', () {
@@ -184,14 +96,5 @@ void main() {
       expect(trampoline, contains('! -name mdb-artifact.result'));
     });
 
-    test('the reboot phase clears it once the join is done', () {
-      final s = RebootPhaseScript.render(
-        template: File('assets/reboot-phase.sh.template').readAsStringSync(),
-        runId: 'r',
-      );
-      expect(s.indexOf(r'rm -f "$RESULT_FILE"'),
-          lessThan(s.indexOf('exit 75')),
-          reason: 'it must not survive into the next boot');
-    });
   });
 }

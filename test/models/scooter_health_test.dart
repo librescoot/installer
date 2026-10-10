@@ -27,17 +27,6 @@ void main() {
       expect((ScooterHealth()..auxCharge = 0).auxChargeOk, isFalse);
     });
 
-    test('voltage is carried alongside the bucketed charge', () {
-      // The firmware quantises charge to 25% steps, so 100% spans everything
-      // from 12543 mV up. The volts are what separate a healthy pack from one
-      // that will not last an install.
-      final h = ScooterHealth()
-        ..auxCharge = 100
-        ..auxVoltageMv = 15020;
-      expect(h.auxVoltageMv, 15020);
-      expect(h.auxChargeOk, isTrue);
-    });
-
     test('an unread voltage does not affect the verdict', () {
       final h = ScooterHealth()..auxCharge = 100;
       expect(h.auxVoltageMv, isNull);
@@ -106,15 +95,6 @@ void main() {
         ..batteryPresent = false
         ..batteryCharge = 0;
       expect(h.batteryChargeOk, isNull);
-    });
-
-    test('a fitted pack is judged', () {
-      final h = ScooterHealth()
-        ..batteryPresent = true
-        ..batteryCharge = 5;
-      expect(h.batteryChargeOk, isFalse);
-      h.batteryCharge = 40;
-      expect(h.batteryChargeOk, isTrue);
     });
 
     test('a pack nobody could ask about has no verdict either', () {

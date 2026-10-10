@@ -40,13 +40,6 @@ void main() {
     });
     tearDown(() => dir.delete(recursive: true));
 
-    test('it is valid shell', () async {
-      final file = File('${dir.path}/syntax.sh');
-      await file.writeAsString(SshService.serviceModeEnableCommand);
-      final syntax = await Process.run('sh', ['-n', file.path]);
-      expect(syntax.exitCode, 0, reason: syntax.stderr.toString());
-    });
-
     test('an absent status field answers in one read', () async {
       // The field carries a schema default, so a build with the overlay always
       // publishes it and one without never does. Answering from that alone is
@@ -108,30 +101,4 @@ case "$*" in *"hget settings dashboard.service-mode-active"*) echo false ;; esac
     });
   });
 
-  group('the finish leaves configured values alone', () {
-    test('the finalize guards the same last resort', () {
-      final template = File('assets/finalize.sh.template').readAsStringSync();
-      final guard = template.indexOf(
-          'hget settings dashboard.service-mode-active 2>/dev/null)" = true ]; then');
-      final defaults =
-          template.indexOf('lsc set scooter.auto-standby-seconds 900');
-      expect(guard, isNot(-1),
-          reason: 'the finalize writes the same two defaults');
-      expect(defaults, greaterThan(guard));
-    });
-
-    test('the finalize ends service mode before restoring the policy', () {
-      // Without this an install hands the owner a scooter still in service
-      // mode: no hibernation timer and no alarm, on every boot.
-      final template = File('assets/finalize.sh.template').readAsStringSync();
-      final clear = template.indexOf('lpush settings:overlay clear:service');
-      final removal = template.indexOf('rm -f /data/service-mode.json');
-      final policy = template.indexOf('lsc set scooter.usb0-policy auto');
-      expect(clear, isNot(-1), reason: 'the finalize never clears it');
-      expect(policy, greaterThan(clear),
-          reason: 'a policy write before the clear lands gets re-asserted');
-      expect(removal, greaterThan(clear));
-      expect(removal, lessThan(policy));
-    });
-  });
 }

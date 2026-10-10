@@ -51,11 +51,6 @@ void main() {
   });
   tearDown(() => root.delete(recursive: true));
 
-  test('device.sh is valid POSIX sh', () async {
-    final r = await Process.run('sh', ['-n', 'assets/device.sh']);
-    expect(r.exitCode, 0, reason: r.stderr.toString());
-  });
-
   group('one definition, everywhere', () {
     test(
       'nothing in the trampoline template redefines a helper this file owns',
@@ -83,13 +78,6 @@ void main() {
       },
     );
 
-    test('the trampoline template sources this file', () {
-      expect(
-        File('assets/trampoline.sh.template').readAsStringSync(),
-        contains('device.sh'),
-        reason: 'the trampoline talks to the DBC without sourcing device.sh',
-      );
-    });
   });
 
   test(

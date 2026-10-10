@@ -71,6 +71,7 @@ void main() {
     final start = source.indexOf('Widget _buildDbcFlash(');
     final end = source.indexOf('\n  Future<void> _watchDbcFlash()', start);
     final autonomous = source.substring(start, end);
+    expect(autonomous, contains('_dbcShowingStatus && _dbcDisconnectedAt != null'));
     expect(autonomous, contains('DashboardHandoffStatus('));
     expect(autonomous, contains('disconnectedAt: _dbcDisconnectedAt!'));
     expect(autonomous, isNot(contains('_autonomousHandoffStartedAt')));

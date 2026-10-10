@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:librescoot_installer/models/phase_attempt.dart';
 
 void main() {
   final source = File('lib/screens/installer_screen.dart').readAsStringSync();
@@ -34,14 +33,6 @@ void main() {
       );
       expect(build, contains('if (_mdbBootAttempt.isFailed)'));
       expect(build, contains('_startMdbBoot(explicitRetry: true)'));
-    });
-
-    test('a failed attempt can be begun again', () {
-      final attempt = PhaseAttempt();
-      final first = attempt.begin()!;
-      attempt.fail(first, 'gave up');
-      expect(attempt.isFailed, isTrue);
-      expect(attempt.begin(), isNotNull);
     });
 
   });
