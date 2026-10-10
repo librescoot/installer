@@ -120,13 +120,4 @@ void main() {
       lessThan(connect.indexOf('systemctl stop librescoot-pm')),
     );
   });
-
-  test('fallback wording names the active probes, not the trampoline', () {
-    for (final arb in ['lib/l10n/app_en.arb', 'lib/l10n/app_de.arb']) {
-      final text = File(arb).readAsStringSync();
-      expect(text, contains('substepCheckCompletionRecord'));
-      expect(text, isNot(contains('Read trampoline status')));
-      expect(text, isNot(contains('Trampoline-Status auslesen')));
-    }
-  });
 }

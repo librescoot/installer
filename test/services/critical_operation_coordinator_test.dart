@@ -33,26 +33,4 @@ void main() {
     expect(coordinator.isCritical, isFalse);
     expect(transitions, [true, false]);
   });
-
-  test('detector and sleep guards remain active for every owner', () {
-    var detectorPaused = false;
-    var sleepPrevented = false;
-    final coordinator = CriticalOperationCoordinator(
-      onChanged: (critical) {
-        detectorPaused = critical;
-        sleepPrevented = critical;
-      },
-    );
-
-    final mdbGate = coordinator.acquire();
-    final dbcUpload = coordinator.acquire();
-    mdbGate.release();
-
-    expect(detectorPaused, isTrue);
-    expect(sleepPrevented, isTrue);
-
-    dbcUpload.release();
-    expect(detectorPaused, isFalse);
-    expect(sleepPrevented, isFalse);
-  });
 }

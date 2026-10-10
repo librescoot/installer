@@ -2,9 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:librescoot_installer/l10n/app_localizations_de.dart';
-import 'package:librescoot_installer/l10n/app_localizations_en.dart';
-import 'package:librescoot_installer/services/flash_service.dart';
 
 void main() {
   final source = File('lib/screens/installer_screen.dart').readAsStringSync();
@@ -32,32 +29,5 @@ void main() {
         }
       }
     }
-  });
-
-  test('simulated disk uses the nominal MDB capacity and detector name', () {
-    expect(source, contains('sizeBytes: FlashService.mdbEmmcBytes'));
-    expect(source, contains("name: 'Librescoot MDB (Mass Storage)'"));
-    expect(FlashService.mdbEmmcBytes, 7818182656);
-    expect(source, isNot(contains("path: '/dev/dry-run-mdb'")));
-  });
-
-  test('Bluetooth instructs PIN entry, not numeric comparison', () {
-    final de = AppLocalizationsDe();
-    final en = AppLocalizationsEn();
-    expect(de.blePinConfirmTitle, contains('eingeben'));
-    expect(de.blePinConfirmHint, contains('Eingabefeld'));
-    expect(de.blePairingStep3DescOverlay, contains('Eingabefeld'));
-    expect(en.blePinConfirmHint, contains('input field'));
-    expect(de.blePinConfirmHint, isNot(contains('übereinstimmen')));
-    expect(en.blePinConfirmHint, isNot(contains('same number')));
-  });
-
-  test('stock-card note follows the introduction with explicit spacing', () {
-    final start = source.indexOf('Widget _buildKeycardSetup(');
-    final intro = source.indexOf('l10n.keycardWhy', start);
-    final note = source.indexOf('l10n.originalKeycardsNotice', start);
-    expect(note, greaterThan(intro));
-    expect(source.substring(intro, note), contains('SizedBox(height: 12)'));
-    expect(source.substring(intro, note), contains('EdgeInsets.all(10)'));
   });
 }

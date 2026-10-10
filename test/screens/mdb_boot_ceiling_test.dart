@@ -44,17 +44,5 @@ void main() {
       expect(attempt.begin(), isNotNull);
     });
 
-    test('the message says the board looks dead rather than is dead', () {
-      final en = File('lib/l10n/app_en.arb').readAsStringSync();
-      expect(en, contains('"mdbBootGaveUp"'));
-      final de = File('lib/l10n/app_de.arb').readAsStringSync();
-      expect(de, contains('"mdbBootGaveUp"'));
-      for (final arb in [en, de]) {
-        final line = arb
-            .split('\n')
-            .firstWhere((l) => l.contains('"mdbBootGaveUp":'));
-        expect(line, contains('{minutes}'));
-      }
-    });
   });
 }

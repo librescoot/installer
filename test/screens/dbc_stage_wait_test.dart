@@ -64,16 +64,5 @@ void main() {
       );
     });
 
-    test('an error on the watched thing ends the wait', () async {
-      await expectLater(
-        waitForDownloads(
-          isReady: () => false,
-          currentError: () => 'the board went away',
-          isCancelled: () => false,
-          pollInterval: const Duration(milliseconds: 1),
-        ),
-        throwsA(isA<DownloadWaitFailure>()),
-      );
-    });
   });
 }

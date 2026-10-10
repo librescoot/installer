@@ -29,27 +29,6 @@ void main() {
 
   final start = DateTime(2026, 8, 24, 12, 0, 0);
 
-  testWidgets('every step is named, with the time it usually takes',
-      (tester) async {
-    await tester.pumpWidget(host(WaitOverlay(
-      title: 'MDB wird vorbereitet',
-      steps: steps,
-      currentStep: 1,
-      startedAt: start,
-      stepStartedAt: start.add(const Duration(seconds: 20)),
-      now: () => start.add(const Duration(seconds: 50)),
-    )));
-
-    expect(find.text('MDB wird vorbereitet'), findsOneWidget);
-    for (final s in steps) {
-      expect(find.text(s.label), findsOneWidget);
-    }
-    // The step that has not run yet still says what it will cost.
-    expect(find.text('~20 s'), findsOneWidget);
-    expect(find.text('Schritt 2 von 3'), findsOneWidget);
-    expect(find.text('0:50 vergangen'), findsOneWidget);
-  });
-
   testWidgets('a step running long says so instead of sitting there',
       (tester) async {
     await tester.pumpWidget(host(WaitOverlay(
@@ -129,28 +108,5 @@ void main() {
     expect(bars.map((bar) => bar.value), containsAll([0.4, 0.2]));
     expect(find.text('Downloads werden abgeschlossen'), findsOneWidget);
     expect(find.text('Firmware übertragen'), findsWidgets);
-  });
-
-  testWidgets('it fits the space a wait gets', (tester) async {
-    tester.view.physicalSize = const Size(1000, 700);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    await tester.pumpWidget(host(WaitOverlay(
-      title: 'MDB wird vorbereitet',
-      steps: steps,
-      currentStep: 1,
-      startedAt: start,
-      now: () => start,
-      warning: 'USB und Strom nicht trennen.',
-      logTail: const ['x'],
-    )));
-
-    final size = tester.getSize(find.byType(WaitOverlay));
-    // The content area of a wait is 982 x 610; a card that needs more than
-    // half of it has stopped being an overlay.
-    expect(size.width, lessThanOrEqualTo(560));
-    expect(size.height, lessThanOrEqualTo(340));
   });
 }

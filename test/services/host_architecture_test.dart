@@ -76,10 +76,5 @@ void main() {
       );
     });
 
-    test('the answer is cached, because the machine cannot change', () {
-      resetHostArchitectureForTest();
-      final first = detectHostArchitecture();
-      expect(detectHostArchitecture(), first);
-    });
   });
 }

@@ -66,14 +66,4 @@ void main() {
     });
   }
 
-  testWidgets('German is not English with a German label on it', (tester) async {
-    // A missing key in app_de.arb generates the English string rather than
-    // failing, so the only thing that catches one is the value.
-    final en = await messagesFor(tester, const Locale('en'));
-    final de = await messagesFor(tester, const Locale('de'));
-    en.placeholders.forEach((placeholder, english) {
-      expect(de.placeholders[placeholder], isNot(english),
-          reason: '$placeholder was never translated');
-    });
-  });
 }

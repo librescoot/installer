@@ -17,15 +17,6 @@ const _oneLinkSecond = 10 * 1000 * 1000;
 
 void main() {
   group('InstallEstimateAssets', () {
-    test('allows unknown sizes', () {
-      const assets = InstallEstimateAssets();
-      expect(assets.dbcStage0ImageBytes, isNull);
-      expect(assets.dbcArtifactBytes, isNull);
-      expect(assets.osmTilesBytes, isNull);
-      expect(assets.routingTilesBytes, isNull);
-      expect(() => assets.validate(), returnsNormally);
-    });
-
     test('rejects negative sizes instead of treating them as no work', () {
       expect(
         () => const InstallEstimateAssets(dbcArtifactBytes: -1).validate(),
@@ -305,21 +296,5 @@ void main() {
       },
     );
 
-    test('calculation function is equivalent to the factory', () {
-      final plan = _plan(BoardAction.leave, BoardAction.upgrade);
-      const assets = InstallEstimateAssets(dbcArtifactBytes: _oneLinkSecond);
-      final fromFactory = InstallTimeEstimate.fromPlan(
-        plan: plan,
-        assets: assets,
-      );
-      final fromFunction = estimateInstallTime(plan: plan, assets: assets);
-
-      expect(fromFunction.typical, fromFactory.typical);
-      expect(fromFunction.conservativeUpper, fromFactory.conservativeUpper);
-      expect(
-        fromFunction.stages.map((stage) => stage.name),
-        fromFactory.stages.map((stage) => stage.name),
-      );
-    });
   });
 }

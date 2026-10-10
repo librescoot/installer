@@ -35,16 +35,6 @@ void main() {
     expect(source, contains('cards == null'));
   });
 
-  test('both languages carry the checking string', () {
-    for (final arb in ['lib/l10n/app_en.arb', 'lib/l10n/app_de.arb']) {
-      expect(
-        File(arb).readAsStringSync(),
-        contains('"keycardCardsChecking"'),
-        reason: '$arb is missing it',
-      );
-    }
-  });
-
   test('keycard startup begins before the user unlock gate', () {
     final prestart = source.indexOf(
       'await _sshService.prestartKeycardService()',

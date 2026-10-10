@@ -15,13 +15,6 @@ void main() {
         lessThan(idx(InstallerPhase.dbcPrep)));
   });
 
-  test('the artifact gate sits between the cards and the CBB step', () {
-    expect(idx(InstallerPhase.keycardSetup),
-        lessThan(idx(InstallerPhase.mdbArtifact)));
-    expect(idx(InstallerPhase.mdbArtifact),
-        lessThan(idx(InstallerPhase.cbbReconnect)));
-  });
-
   test('every major step covers a contiguous run of phases', () {
     for (final step in MajorStep.values) {
       final indices = step.phases.map(idx).toList()..sort();

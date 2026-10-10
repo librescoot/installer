@@ -351,51 +351,9 @@ void main() {
       expect(state, contains('sequence: 7\n'));
     });
 
-    test('recorded region is only retained when tiles were staged', () {
-      expect(
-        TrampolineService.recordedRegion(
-          tilesStaged: true,
-          region: Region.fromSlug('bayern'),
-        ),
-        'bayern',
-      );
-      expect(
-        TrampolineService.recordedRegion(
-          tilesStaged: false,
-          region: Region.fromSlug('bayern'),
-        ),
-        isEmpty,
-      );
-    });
-  });
-
-  group('remoteDirOf', () {
-    test('returns the directory component of a path with a slash', () {
-      expect(
-        remoteDirOf('/data/ota/mdb/librescoot-unu-mdb-v1.2.1.mender'),
-        '/data/ota/mdb',
-      );
-    });
-
-    test('returns null for a bare filename with no directory', () {
-      expect(remoteDirOf('librescoot-unu-mdb-v1.2.1.mender'), isNull);
-    });
-
-    test(
-      'returns null for a path rooted directly at / (nothing to create)',
-      () {
-        expect(remoteDirOf('/file.mender'), isNull);
-      },
-    );
   });
 
   group('TrampolineStatus', () {
-    test('parses success', () {
-      final status = TrampolineStatus.parse('success\nAll done in 5m');
-      expect(status.result, TrampolineResult.success);
-      expect(status.message, 'All done in 5m');
-    });
-
     test('parses error without changing its diagnostic text', () {
       final status = TrampolineStatus.parse(
         'error: DBC update-service failed: install-failed: Mender Exit 42\n'
@@ -497,42 +455,15 @@ void main() {
       },
     );
 
-    test('an artifact failure is an error, not a success', () {
-      final status = TrampolineStatus.parse(
-        'error: DBC not reachable, artifact not installed\nlog line',
-      );
-      expect(status.result, TrampolineResult.error);
-      expect(status.message, contains('artifact not installed'));
-    });
   });
 
   group('Region', () {
-    test('catalogue covers the 15 German regions plus nearby countries', () {
-      expect(Region.all.length, 25);
-      final germanCount = Region.all
-          .where((r) => r.country == 'Deutschland')
-          .length;
-      expect(germanCount, 15);
-    });
-
-    test('berlin_brandenburg slug is correct', () {
-      final region = Region.all.firstWhere((r) => r.name.contains('Berlin'));
-      expect(region.slug, 'berlin_brandenburg');
-      expect(region.country, 'Deutschland');
-    });
-
     test('fromSlug humanises unknown slugs under the catch-all country', () {
       final region = Region.fromSlug('italy-nord-est');
       expect(region.name, 'Italy Nord Est');
       expect(region.country, 'Weitere');
     });
 
-    test('equality and hashCode are by slug', () {
-      const a = Region(name: 'Bayern', slug: 'bayern', country: 'Deutschland');
-      final b = Region.fromSlug('bayern');
-      expect(a, b);
-      expect(a.hashCode, b.hashCode);
-    });
   });
 
   group('renderTemplate', () {

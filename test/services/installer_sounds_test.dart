@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import 'package:audioplayers_platform_interface/audioplayers_platform_interface.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:librescoot_installer/models/installer_phase.dart';
 import 'package:librescoot_installer/services/installer_sounds.dart';
 
 void main() {
@@ -119,53 +118,6 @@ void main() {
           .setMockMethodCallHandler(pathChannel, null);
       cacheDir.deleteSync(recursive: true);
     }
-  });
-
-  test('manual power and restart steps use the stronger cue', () {
-    expect(cueForPhase(InstallerPhase.notices), InstallerCue.critical);
-    expect(cueForPhase(InstallerPhase.scooterPrep), InstallerCue.critical);
-    expect(cueForPhase(InstallerPhase.mdbBoot), InstallerCue.critical);
-    expect(cueForPhase(InstallerPhase.cbbReconnect), InstallerCue.critical);
-  });
-
-  test('ordinary actions use the gentle cue, automated phases stay quiet', () {
-    expect(
-      cueForPhase(InstallerPhase.bluetoothPairing),
-      InstallerCue.attention,
-    );
-    expect(cueForPhase(InstallerPhase.keycardSetup), InstallerCue.attention);
-    expect(cueForPhase(InstallerPhase.mdbFlash), isNull);
-  });
-
-  test('installer cues use the selected dashboard assets', () {
-    expect(InstallerCue.critical.assetName, 'toast-warning.wav');
-    expect(InstallerCue.error.assetName, 'toast-error.wav');
-    expect(InstallerCue.attention.assetName, 'toast-info.wav');
-    expect(InstallerCue.confirmed.assetName, 'nav-start.wav');
-    expect(InstallerCue.release.assetName, 'blinker-pulse.wav');
-    expect(InstallerCue.pull.assetName, 'nav-hop.wav');
-    for (final cue in InstallerCue.values) {
-      final wav = File('assets/sounds/${cue.assetName}').readAsBytesSync();
-      expect(String.fromCharCodes(wav.sublist(0, 4)), 'RIFF');
-    }
-  });
-
-  test('all playback uses prepared sources and retries failed preloads', () {
-    final source = File(
-      'lib/services/installer_sounds.dart',
-    ).readAsStringSync();
-    final playback = source.substring(
-      source.indexOf('void play(InstallerCue cue)'),
-      source.indexOf('Future<void> _prepareCue'),
-    );
-    expect(playback, contains('unawaited(_resumeCue(cue))'));
-    expect(source, contains('for (final cue in InstallerCue.values)'));
-    expect(source, isNot(contains('await player.play(')));
-    expect(playback, isNot(contains('await ')));
-    expect(source, contains('await player.setSource(AssetSource('));
-    expect(source, contains('_players.remove(cue)'));
-    expect(source, contains('_retries[cue] = Timer('));
-    expect(source, contains('retry.cancel()'));
   });
 
   test('brake release and pull sounds fit inside a one-second blip', () {

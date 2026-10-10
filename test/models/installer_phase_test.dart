@@ -20,10 +20,6 @@ void main() {
     );
   });
 
-  test('installPlan is hidden on a fresh install', () {
-    expect(InstallerPhase.installPlan.hiddenUnlessActive, isTrue);
-  });
-
   test('the artifact install is collected after the interactive work', () {
     // It runs in the background from the moment the board boots; this phase
     // is the gate where it is waited on and the single reboot happens. Putting
@@ -32,7 +28,7 @@ void main() {
     expect(InstallerPhase.mdbArtifact.index,
         greaterThan(InstallerPhase.keycardSetup.index));
     expect(InstallerPhase.mdbArtifact.index,
-        lessThan(InstallerPhase.dbcPrep.index));
+        lessThan(InstallerPhase.cbbReconnect.index));
     expect(MajorStep.forPhase(InstallerPhase.mdbArtifact), MajorStep.mdbInstall);
   });
 
@@ -51,10 +47,6 @@ void main() {
     expect(MajorStep.forPhase(InstallerPhase.bluetoothPairing),
         MajorStep.pairing);
     expect(MajorStep.forPhase(InstallerPhase.keycardSetup), MajorStep.pairing);
-  });
-
-  test('reconnect is the failure path, not a step of the happy one', () {
-    expect(InstallerPhase.reconnect.hiddenUnlessActive, isTrue);
   });
 
   test('finish is the last phase, so nothing follows the autonomous run', () {

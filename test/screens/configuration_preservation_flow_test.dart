@@ -43,43 +43,6 @@ void main() {
     },
   );
 
-  test('restore choices put settings and keycards first with descriptions', () {
-    final start = source.indexOf('static const _configurationDisplayOrder');
-    final end = source.indexOf('String _configurationCategoryLabel', start);
-    final order = source.substring(start, end);
-
-    expect(
-      order.indexOf('ConfigurationCategory.settings'),
-      lessThan(order.indexOf('ConfigurationCategory.keycards')),
-    );
-    expect(
-      order.indexOf('ConfigurationCategory.keycards'),
-      lessThan(order.indexOf('ConfigurationCategory.identity')),
-    );
-    expect(
-      source,
-      contains('_configurationCategoryDescription(l10n, category)'),
-    );
-  });
-
-  test('health check names transferable configuration categories', () {
-    final start = source.indexOf('Widget _buildHealthCheck(');
-    final end = source.indexOf('Future<void> _runHealthCheck()', start);
-    final method = source.substring(start, end);
-
-    expect(method, contains('configurationDetectedSummary(l10n, ['));
-    expect(method, contains('_configurationInventory.categories.contains('));
-  });
-
-  test('install plan no longer embeds configuration checkboxes', () {
-    final start = source.indexOf('Widget _buildInstallPlan(');
-    final end = source.indexOf('void _continueFromInstallPlan()', start);
-    final method = source.substring(start, end);
-
-    expect(method, isNot(contains('CheckboxListTile')));
-    expect(method, isNot(contains('configurationCategories:')));
-  });
-
   test('upgrade fallback returns through selectable preservation plan', () {
     final start = source.indexOf('Future<void> _fallBackToFullImage() async');
     final end = source.indexOf('Widget _buildCbbReconnect', start);

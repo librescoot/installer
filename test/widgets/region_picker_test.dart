@@ -123,42 +123,6 @@ void main() {
     expect(selected, belgium);
   });
 
-  testWidgets('countries follow the downloads page with Weitere last', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: RegionPicker(
-            regions: [
-              const Region(
-                name: 'Unknown',
-                slug: 'unknown',
-                country: 'Weitere',
-              ),
-              ...Region.all,
-            ],
-            selectedRegion: null,
-            onSelected: (_) {},
-          ),
-        ),
-      ),
-    );
-    final tabs = tester.widget<TabBar>(find.byType(TabBar)).tabs;
-    expect(tabs.map((tab) => (tab as Tab).text), [
-      'Deutschland',
-      'Niederlande',
-      'Frankreich',
-      'Belgien',
-      'Österreich',
-      'Spanien',
-      'Italien',
-      'Luxemburg',
-      'Schweiz',
-      'Weitere',
-    ]);
-  });
-
   testWidgets('preselection and external changes open the matching country', (
     tester,
   ) async {

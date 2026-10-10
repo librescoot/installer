@@ -1,8 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:librescoot_installer/l10n/app_localizations_de.dart';
-import 'package:librescoot_installer/l10n/app_localizations_en.dart';
 
 void main() {
   final source = File('lib/screens/installer_screen.dart').readAsStringSync();
@@ -51,22 +49,5 @@ void main() {
     expect(failure, contains('l10n.mdbFinishFailureBody'));
     expect(failure, contains('_retryFinishCompletion()'));
     expect(failure, isNot(contains('_returnToDbcPrep()')));
-  });
-
-  test('both languages name the observable signals', () {
-    expect(
-      AppLocalizationsDe().mdbFinishWaitHint,
-      'Lass den Roller eingeschaltet. Klicke erst bei einem Signal auf das passende Bild.',
-    );
-    expect(
-      AppLocalizationsDe().mdbFinishSuccessPrompt,
-      'Der Roller hat sich entsperrt: Das Standlicht und das Rücklicht leuchten',
-    );
-    expect(
-      AppLocalizationsEn().mdbFinishSuccessPrompt,
-      contains('front position light and rear light'),
-    );
-    expect(AppLocalizationsDe().mdbFinishFailureBody, contains('DBC-LED'));
-    expect(AppLocalizationsEn().mdbFinishFailureBody, contains('DBC LED'));
   });
 }

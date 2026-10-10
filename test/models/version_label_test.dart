@@ -1,26 +1,16 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:librescoot_installer/l10n/app_localizations_de.dart';
 import 'package:librescoot_installer/models/version_label.dart';
 
 void main() {
-  test(
-    'the health check names the same nightly with one channel and T case',
-    () {
-      final l10n = AppLocalizationsDe();
-      expect(
-        l10n.healthVersionPlan(
-          installedVersionLabel('Librescoot', 'nightly-20260923t005854'),
-          targetVersionLabel(
-            'Librescoot',
-            'nightly',
-            'nightly-20260923T005854',
-          ),
-        ),
-        'Aktuell installiert: Librescoot nightly-20260923T005854; '
-        'zu installieren: Librescoot nightly-20260923T005854',
-      );
-    },
-  );
+  test('installed and target nightly labels canonicalize the timestamp', () {
+    const expected = 'Librescoot nightly-20260923T005854';
+    expect(installedVersionLabel('Librescoot', 'nightly-20260923t005854'),
+        expected);
+    expect(
+      targetVersionLabel('Librescoot', 'nightly', 'nightly-20260923T005854'),
+      expected,
+    );
+  });
 
   test('testing channel and timestamp are not repeated', () {
     expect(

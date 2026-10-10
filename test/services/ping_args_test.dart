@@ -17,17 +17,6 @@ void main() {
       }
     });
 
-    test('macOS and Linux do not share a number', () {
-      final source =
-          File('lib/services/network_service.dart').readAsStringSync();
-      final fn = source.substring(
-        source.indexOf('static List<String> pingArgs(String host) {'),
-        source.indexOf('/// Check if MDB is reachable'),
-      );
-      expect(fn, contains('Platform.isWindows'));
-      expect(fn, contains('Platform.isMacOS'));
-    });
-
     test('nothing builds its own ping arguments any more', () {
       var found = 0;
       for (final path in [

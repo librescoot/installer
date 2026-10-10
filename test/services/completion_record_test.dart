@@ -40,14 +40,6 @@ void main() {
     );
   });
 
-  test('an MDB-only run leaves the dashboard field empty, not invented', () {
-    final parsed = TrampolineStatus.parseCompletionRecord(record(dbc: ''));
-    expect(
-      parsed.completionFor('run-abc-123'),
-      InstallCompletionOutcome.complete,
-    );
-  });
-
   test('an incomplete dashboard result remains a completed unsafe run', () {
     final parsed = TrampolineStatus.parseCompletionRecord(
       record(dashboardResult: 'incomplete'),

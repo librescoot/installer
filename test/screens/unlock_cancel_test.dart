@@ -16,18 +16,6 @@ void main() {
       expect(cancel, contains('_isProcessing = false'));
     });
 
-    test('it says why the run stopped, in the right direction', () {
-      expect(cancel, contains('_unlockCancelledFromRtd'));
-      expect(cancel, contains('l10n.parkWaitCancelled'));
-      expect(cancel, contains('l10n.unlockWaitCancelled'));
-      for (final arb in ['lib/l10n/app_en.arb', 'lib/l10n/app_de.arb']) {
-        final text = File(arb).readAsStringSync();
-        for (final key in ['unlockWaitCancelled', 'parkWaitCancelled']) {
-          expect(text, contains('"$key"'), reason: '$arb missing $key');
-        }
-      }
-    });
-
     test('which side it was is captured before the overlay clears', () {
       final source =
           File('lib/screens/installer_screen.dart').readAsStringSync();

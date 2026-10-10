@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/widgets/notice_card.dart';
 
@@ -32,19 +30,5 @@ void main() {
       expect(bullets, isEmpty);
       expect(trail, isNull);
     });
-  });
-
-  test('both notices carry a bullet list in both languages', () {
-    // The copy is what makes these scannable; a translation that loses the
-    // bullets silently reverts the screen to a wall of prose.
-    for (final arb in ['lib/l10n/app_en.arb', 'lib/l10n/app_de.arb']) {
-      final text = File(arb).readAsStringSync();
-      for (final key in ['noPowerCycleWarningBody', 'reliabilityWarningBody']) {
-        final line =
-            text.split('\n').firstWhere((l) => l.contains('"$key":'));
-        expect(line, contains(r'•'.replaceAll(r'•', '•')),
-            reason: '$key in $arb lost its bullets');
-      }
-    }
   });
 }

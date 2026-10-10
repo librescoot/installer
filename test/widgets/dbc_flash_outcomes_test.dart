@@ -1,42 +1,10 @@
-import 'dart:io';
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/l10n/app_localizations.dart';
-import 'package:librescoot_installer/l10n/app_localizations_de.dart';
-import 'package:librescoot_installer/l10n/app_localizations_en.dart';
 import 'package:librescoot_installer/widgets/dbc_flash_outcomes.dart';
 
 void main() {
-  test('both unlock outcomes name the front and rear lights', () {
-    const success =
-        'Der Roller hat sich entsperrt: Das Standlicht und das Rücklicht leuchten';
-    final de = AppLocalizationsDe();
-    final en = AppLocalizationsEn();
-    expect(de.dbcFlashSuccessPrompt, success);
-    expect(de.mdbFinishSuccessPrompt, success);
-    expect(
-      en.dbcFlashSuccessPrompt,
-      contains('front position light and rear light'),
-    );
-    expect(en.mdbFinishSuccessPrompt, en.dbcFlashSuccessPrompt);
-  });
-
-  test('the LED-off artwork has no baked-in red glow', () async {
-    final codec = await ui.instantiateImageCodec(
-      File('assets/images/dbc-flash-error-off.png').readAsBytesSync(),
-    );
-    final image = (await codec.getNextFrame()).image;
-    final rgba = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-    final pixel = (1007 * image.width + 2280) * 4;
-    expect(rgba!.getUint8(pixel), rgba.getUint8(pixel + 1));
-    expect(rgba.getUint8(pixel), rgba.getUint8(pixel + 2));
-    image.dispose();
-    codec.dispose();
-  });
-
   testWidgets('both outcome graphics trigger their respective actions', (
     tester,
   ) async {

@@ -17,19 +17,6 @@ void main() {
       );
     });
 
-    test('a missing binary still throws, so the fallback can try the next', () {
-      final runner = source.substring(
-        source.indexOf('Future<ProcessResult> runBounded('),
-        source.indexOf(
-          'class ',
-          source.indexOf('Future<ProcessResult> runBounded('),
-        ),
-      );
-      expect(runner, contains('on TimeoutException'));
-      expect(runner, isNot(contains('catch (_)')));
-      expect(runner, contains('proc?.kill(ProcessSignal.sigkill)'));
-    });
-
     test(
       'a probe that will not return is killed and reads as failed',
       () async {

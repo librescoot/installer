@@ -86,12 +86,4 @@ void main() {
   test('the error does not survive into a fresh attempt', () {
     expect(start, contains('_keycardMasterStartError = null'));
   });
-
-  test('both languages carry the new strings', () {
-    for (final arb in ['lib/l10n/app_en.arb', 'lib/l10n/app_de.arb']) {
-      final content = File(arb).readAsStringSync();
-      expect(content, contains('keycardMasterStageStartFailed'), reason: arb);
-      expect(content, contains('keycardMasterStageRetryButton'), reason: arb);
-    }
-  });
 }

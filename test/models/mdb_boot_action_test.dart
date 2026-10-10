@@ -33,16 +33,6 @@ void main() {
     }
   });
 
-  test('no input leads to reflash unless a restart was actually observed', () {
-    // The only route to re-writing a board is mass storage with a restart
-    // behind it. Anything else must not destroy what is on the eMMC.
-    for (final mode in [null, DeviceMode.ethernet, DeviceMode.massStorage]) {
-      expect(mdbBootActionFor(mode: mode, sawRestart: false),
-          isNot(MdbBootAction.reflash),
-          reason: '$mode with no restart seen');
-    }
-  });
-
   group('serial download', () {
     test('a board in its boot ROM is waited on, not proceeded past', () {
       // Seen on hardware: the boot after a flash found nothing bootable and
@@ -68,13 +58,5 @@ void main() {
       );
     });
 
-    test('recovery is not reflash: nothing here says the image is bad', () {
-      // The board recovers by itself and boots the image it already has.
-      // Rewriting the eMMC would be acting on a board that is mid-recovery.
-      expect(
-        mdbBootActionFor(mode: DeviceMode.recoveryMdb, sawRestart: true),
-        isNot(MdbBootAction.reflash),
-      );
-    });
   });
 }

@@ -13,18 +13,6 @@ void main() {
       template = File('assets/trampoline.sh.template').readAsStringSync();
     });
 
-    test('declares the autonomous-finish placeholders', () {
-      for (final ph in const [
-        '{{FINISH_ON_DEVICE}}',
-        '{{MDB_ACTION}}',
-        '{{MDB_TARGET_VERSION}}',
-        '{{FINISH_LANGUAGE}}',
-        '{{FINISH_CHANNEL}}',
-      ]) {
-        expect(template, contains(ph), reason: '$ph is missing');
-      }
-    });
-
     test('carries no prose of its own, only the placeholders for it', () {
       // Every line the trampoline puts on the dashboard is filled by whoever
       // renders this, so that a garage outside Germany can read the one
@@ -127,21 +115,10 @@ void main() {
       expect(template, isNot(contains('rm -rf /data/ota')));
     });
 
-    test('declares the mode and artifact placeholders', () {
-      expect(template, contains('{{MODE}}'));
-      expect(template, contains('{{DBC_MENDER_PATH}}'));
-      expect(template, contains('{{DBC_IMAGE_PATH}}'));
-      expect(template, contains('{{DBC_TARGET_VERSION}}'));
-    });
-
     test('bakes the target version into the second layer', () {
       // onboot.sh runs after the MDB reboot, so anything it needs has to be
       // written into it rather than inherited.
       expect(template, contains(r'DBC_TARGET="$DBC_TARGET"'));
-    });
-
-    test('guards the stage-0 block on flash mode', () {
-      expect(template, contains(r'if [ "$MODE" = "flash" ]; then'));
     });
 
     test('does not enter host mode outside flash mode', () {

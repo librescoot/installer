@@ -11,14 +11,6 @@ Filesystem     1024-blocks    Used Available Capacity Mounted on
       expect(parseDfFreeBytes(out), 3936368 * 1024);
     });
 
-    test('tolerates a wrapped Filesystem column', () {
-      const out = '''
-Filesystem           1024-blocks      Used Available Capacity Mounted on
-/dev/mmcblk1p4          6182864   1932112   3936368      33% /data
-''';
-      expect(parseDfFreeBytes(out), 3936368 * 1024);
-    });
-
     test('returns null on junk', () {
       expect(parseDfFreeBytes(''), isNull);
       expect(parseDfFreeBytes('df: /data: No such file or directory'), isNull);

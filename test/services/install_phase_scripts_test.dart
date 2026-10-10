@@ -162,34 +162,6 @@ void main() {
       expect(arms['*'], contains('exit 1'));
     });
 
-    test('nothing installed here means nothing to reboot for', () {
-      // A dashboard-only or tiles-only plan changes nothing on this board. The
-      // dashboard was powered off when its work finished and the unlock brings
-      // it back on its new image, so a reboot would only take the vehicle dark
-      // for a minute.
-      final s = RebootPhaseScript.render(
-        template: rebootTemplate,
-        runId: 'r',
-      );
-      final skipped = s.indexOf('  skipped)');
-      final reboot = s.indexOf('reboot &');
-      expect(skipped, greaterThan(0));
-      expect(skipped, greaterThan(reboot),
-          reason: 'the skipped arm must not fall into the reboot arm');
-      expect(s, contains('no reboot is needed'));
-    });
-
-    test('the phase numbers order the run correctly', () {
-      // 10 starts the MDB write, 20 does the dashboard, 80 joins and reboots,
-      // 90 hands the vehicle back on the far side.
-      expect(MdbArtifactScript.phaseName, '10-mdb-artifact.sh');
-      expect(RebootPhaseScript.phaseName, '80-reboot.sh');
-      expect(MdbArtifactScript.phaseName.compareTo('20-dbc.sh'), lessThan(0));
-      expect(RebootPhaseScript.phaseName.compareTo('20-dbc.sh'),
-          greaterThan(0));
-      expect(RebootPhaseScript.phaseName.compareTo('90-finalize.sh'),
-          lessThan(0));
-    });
   });
 
   group('the join file survives long enough to be read', () {

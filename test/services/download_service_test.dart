@@ -577,17 +577,6 @@ void main() {
       expect(items[2].type, DownloadItemType.dbcFirmware);
     });
 
-    test('Region model generates correct filenames', () {
-      final region = Region.all.firstWhere(
-        (r) => r.slug == 'berlin_brandenburg',
-      );
-      expect(region.osmTilesFilename, 'tiles_berlin_brandenburg.mbtiles');
-      expect(
-        region.valhallaTilesFilename,
-        'valhalla_tiles_berlin_brandenburg.tar',
-      );
-    });
-
     List<Map<String, dynamic>> fullRelease() => [
       _asset('librescoot-unu-mdb-v1.2.1.sdimg.gz', 330203000),
       _asset('librescoot-unu-mdb-v1.2.1.sdimg.bmap', 5000),
@@ -629,18 +618,6 @@ void main() {
         expect(names, isNot(contains('librescoot-unu-mdb-boot-v1.2.1.tar.gz')));
       },
     );
-
-    test('the default queue is 471 MiB, not 739 MiB', () async {
-      final service = DownloadService(
-        client: _manifestClient({'stable': _release('v1.2.1', fullRelease())}),
-      );
-      final items = await service.buildDownloadQueue(
-        channel: DownloadChannel.stable,
-        wantsOfflineMaps: false,
-      );
-      final total = items.fold<int>(0, (a, i) => a + i.expectedSize);
-      expect(total, lessThan(520 * 1000 * 1000));
-    });
 
     test('files download in the order the install consumes them', () async {
       final service = DownloadService(

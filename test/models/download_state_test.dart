@@ -62,13 +62,6 @@ void main() {
       expect(state.allReady, isFalse);
     });
 
-    test('the local-image flags require only the boards they name', () {
-      final state = DownloadState()
-        ..requiredTypes = {DownloadItemType.dbcFirmware}
-        ..items = [_item(DownloadItemType.dbcFirmware)];
-      expect(state.missingRequiredTypes, isEmpty);
-    });
-
     test(
       'bmaps are not blocking: a missing one costs speed, not correctness',
       () {

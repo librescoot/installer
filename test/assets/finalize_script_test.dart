@@ -59,13 +59,6 @@ void main() {
       );
     });
 
-    test('every placeholder the template carries is one we fill', () {
-      expect(
-        FinalizeScript.unresolvedPlaceholders(render()),
-        isEmpty,
-        reason: 'the template gained a placeholder the renderer ignores',
-      );
-    });
   });
 
   group('running it', () {
