@@ -8534,6 +8534,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       await _installStateWriteQueue;
       final trampoline = TrampolineService(_sshService);
       await trampoline.verifyUsbRoute();
+      _setStatus(l10n.lockingScooter);
+      await _sshService.prepareDashboardHandoff();
+      _setStatus(l10n.startingTrampoline);
       await _armInstallPhases(expectDbcPhase: _plan?.needsHandoff ?? false);
       await trampoline.start(runId: _installRunId);
       _startHandoffHeartbeat();

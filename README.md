@@ -79,6 +79,8 @@ before each build; for local development run `scripts/update-flasher.sh`.
 
 ## Device-owned installation
 
+Every authenticated connection, including a silent reconnect, must match the device's chip UID for this installer session. An unreadable or different UID blocks the connection before setup or queued commands can run. Start a new installer session to install another scooter. Dashboard handoff requests a vehicle lock and requires confirmed `stand-by` before arming or launching work.
+
 A running dashboard handoff, MDB update or finalization owns the installation. Reconnecting observes that work without changing services, replacing its run state or cleaning up its files. The installer waits across the MDB activation reboot.
 
 Finishing without the dashboard can still install the selected MDB update and reboot the MDB. The confirmation states this when the MDB update is pending. A finalized incomplete dashboard outcome is reported as incomplete, not treated as an interrupted run.

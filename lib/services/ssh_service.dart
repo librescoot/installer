@@ -5,6 +5,7 @@ import '../models/board_state.dart';
 import '../models/scooter_health.dart';
 import '../models/trampoline_status.dart';
 import 'device_probe.dart';
+import 'device_identity_guard.dart';
 import 'install_phase_scripts.dart';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/foundation.dart';
@@ -77,7 +78,7 @@ class SshService {
   @visibleForTesting
   static const installerExecutionProbeCommand = r'''
 command -v pgrep >/dev/null || { echo 'installer process probe unavailable' >&2; exit 1; }
-if pgrep -f '/data/[o]nboot\.sh( |$)|/data/(installer/(scripts/)?)?[t]rampoline\.sh( |$)|/data/installer/scripts/[0-9][0-9]-[^ ]*\.sh( |$)' >/dev/null 2>&1; then
+if pgrep -f '^([^ ]*/)?(sh|ash|bash|dash)( -[^ ]+)* /data/([o]nboot\.sh|((installer/(scripts/)?)?[t]rampoline\.sh)|installer/scripts/[0-9][0-9]-[^ ]*\.sh)( |$)' >/dev/null 2>&1; then
   echo active
 else
   rc=$?
@@ -90,7 +91,7 @@ fi
   static const interruptedInstallDisarmCommand = r'''
 set -eu
 command -v pgrep >/dev/null
-if pgrep -f '/data/[o]nboot\.sh( |$)|/data/(installer/(scripts/)?)?[t]rampoline\.sh( |$)|/data/installer/scripts/[0-9][0-9]-[^ ]*\.sh( |$)' >/dev/null 2>&1; then
+if pgrep -f '^([^ ]*/)?(sh|ash|bash|dash)( -[^ ]+)* /data/([o]nboot\.sh|((installer/(scripts/)?)?[t]rampoline\.sh)|installer/scripts/[0-9][0-9]-[^ ]*\.sh)( |$)' >/dev/null 2>&1; then
   echo 'an installer is still executing; cleanup is not permitted' >&2
   exit 1
 else
@@ -317,6 +318,7 @@ done
   String? _lastPassword;
   Future<void>? _reconnectInFlight;
   int _connectionGeneration = 0;
+  final _deviceIdentity = DeviceIdentityGuard();
   int _redisQueueSequence = 0;
 
   /// Auth key injected at build time via --dart-define=AUTH_KEY=...
@@ -500,6 +502,7 @@ done
     var manualAttempts = 0;
     var preAuthRetries = 0;
     String? manualPassword;
+    String? serial;
 
     while (true) {
       if (!connectionAttemptIsCurrent(
@@ -590,7 +593,20 @@ done
           client.close();
           throw StateError('SSH connection superseded by a newer attempt');
         }
-        debugPrint('SSH: authentication successful');
+        serial = await _verifyClientIdentity(
+          client,
+          host,
+          connectionGeneration,
+        );
+        if (!connectionAttemptIsCurrent(
+          attemptGeneration: connectionGeneration,
+          currentGeneration: _connectionGeneration,
+        )) {
+          throw StateError(
+            'SSH connection superseded during identity verification',
+          );
+        }
+        debugPrint('SSH: authentication and device identity verified');
         _lastHost = host;
         _lastPassword = attemptedPassword ?? '';
         _client?.close();
@@ -605,6 +621,11 @@ done
           currentGeneration: _connectionGeneration,
         )) {
           throw StateError('SSH connection superseded by a newer attempt');
+        }
+
+        if (e is DeviceIdentityException) {
+          disconnect();
+          rethrow;
         }
 
         // Not a rejected credential: a host that is not answering yet. Hold
@@ -703,20 +724,6 @@ done
       debugPrint(
         'SSH: firmware version detection failed, using Unknown for UI',
       );
-    }
-
-    String? serial;
-    try {
-      final result = await runCommand(
-        'cat /sys/fsl_otp/HW_OCOTP_CFG1 /sys/fsl_otp/HW_OCOTP_CFG0 2>/dev/null'
-        ' || cat /sys/devices/soc0/serial_number 2>/dev/null',
-      );
-      serial = _parseSerial(result);
-      if (serial != null) {
-        debugPrint('SSH: parsed serial $serial');
-      }
-    } catch (e) {
-      debugPrint('SSH: serial read failed: $e');
     }
 
     final osId = detected.osId ?? '';
@@ -1309,8 +1316,10 @@ done
     );
     try {
       await client.authenticated.timeout(connectionTimeout);
+      await _verifyClientIdentity(client, _lastHost, generation);
     } catch (e) {
       client.close();
+      if (e is DeviceIdentityException) disconnect();
       rethrow;
     }
     if (!connectionAttemptIsCurrent(
@@ -2239,6 +2248,50 @@ echo timeout
     throw Exception('Required tool asset not found: $fileName');
   }
 
+  Future<String> _verifyClientIdentity(
+    SSHClient client,
+    String host,
+    int generation,
+  ) async {
+    SSHSession? session;
+    try {
+      session = await client
+          .execute(
+            'cat /sys/fsl_otp/HW_OCOTP_CFG1 /sys/fsl_otp/HW_OCOTP_CFG0 2>/dev/null'
+            ' || cat /sys/devices/soc0/serial_number 2>/dev/null',
+          )
+          .timeout(channelOpenTimeout);
+      final output = session.stdout.fold<List<int>>(
+        <int>[],
+        (bytes, chunk) => bytes..addAll(chunk),
+      );
+      final results = await Future.wait<Object?>([
+        output,
+        session.stderr.drain<void>(),
+        session.done,
+      ]).timeout(channelOpenTimeout);
+      if (generation != _connectionGeneration) {
+        throw StateError(
+          'SSH connection superseded during identity verification',
+        );
+      }
+      final serial = _deviceIdentity.verify(
+        host,
+        _parseSerial(utf8.decode(results.first as List<int>)),
+      );
+      debugPrint('SSH: parsed serial $serial (identity verified)');
+      return serial;
+    } on DeviceIdentityException {
+      rethrow;
+    } on StateError {
+      rethrow;
+    } catch (_) {
+      throw const DeviceIdentityException(unavailable: true);
+    } finally {
+      session?.close();
+    }
+  }
+
   String? _parseSerial(String raw) {
     final matches = RegExp(
       r'0x[0-9a-fA-F]+',
@@ -2246,8 +2299,9 @@ echo timeout
     if (matches.isNotEmpty) {
       return matches
           .map(
-            (part) =>
-                part.replaceFirst(RegExp(r'^0x', caseSensitive: false), ''),
+            (part) => part
+                .replaceFirst(RegExp(r'^0x', caseSensitive: false), '')
+                .padLeft(8, '0'),
           )
           .join()
           .toLowerCase();
@@ -2269,6 +2323,22 @@ echo timeout
   }
 
   bool get isConnected => _client != null;
+
+  Future<void> prepareDashboardHandoff() async {
+    await ensureConnected('dashboard handoff');
+    if (await installerExecutionActive()) {
+      throw StateError('An installer is already executing on this device');
+    }
+    await redisLpush('scooter:state', 'lock');
+    if (!await waitForVehicleState(
+      'stand-by',
+      timeout: const Duration(seconds: 30),
+    )) {
+      throw StateError(
+        'The scooter did not reach stand-by. Lock it and retry dashboard preparation.',
+      );
+    }
+  }
 
   /// Run a Redis HGET command on the MDB and return the value.
   Future<String?> redisHget(String hash, String field) async {

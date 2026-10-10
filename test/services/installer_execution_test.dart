@@ -51,12 +51,41 @@ void main() {
       });
       final result = await Process.run('sh', [
         '-c',
-        SshService.installerExecutionProbeCommand,
+        SshService.installerExecutionProbeCommand.replaceAll(
+          '/data/',
+          '${root.path}/data/',
+        ),
       ]);
       expect(result.exitCode, 0);
       expect(result.stdout.toString().trim(), 'active');
     });
   }
+
+  test(
+    'cleanup does not match paths embedded in its flattened command line',
+    () async {
+      final root = await Directory.systemTemp.createTemp('cleanup-probe-');
+      addTearDown(() => root.delete(recursive: true));
+      final command = SshService.interruptedInstallDisarmCommand.replaceAll(
+        '/data/',
+        '${root.path}/data/',
+      );
+      final result = await Process.run('sh', [
+        '-c',
+        r'''
+pgrep() {
+  line=$(tr '\000\012' '  ' < /proc/$$/cmdline)
+  printf '%s\n' "$line" | grep -Eq -- "$2"
+}
+systemctl() { :; }
+pkill() { :; }
+''' +
+            command,
+      ]);
+      expect(result.exitCode, 0, reason: result.stderr.toString());
+    },
+    skip: !Platform.isLinux,
+  );
 
   test('cleanup refuses to stop or remove an active installer', () async {
     final ssh = _Ssh()..execution = 'active';
