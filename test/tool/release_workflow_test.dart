@@ -55,6 +55,27 @@ void main() {
     },
   );
 
+  test('beta releases refresh downloads but do not promote the main site', () {
+    final token = workflow.substring(
+      workflow.indexOf('- name: Generate app token for site rebuilds'),
+      workflow.indexOf('- name: Trigger downloads site rebuild'),
+    );
+    final downloads = workflow.substring(
+      workflow.indexOf('- name: Trigger downloads site rebuild'),
+      workflow.indexOf('- name: Trigger main site rebuild'),
+    );
+    expect(token, isNot(contains('if:')));
+    expect(downloads, isNot(contains('if:')));
+    expect(downloads, contains('releases-changed'));
+    final main = workflow.substring(
+      workflow.indexOf('- name: Trigger main site rebuild'),
+    );
+    expect(
+      main,
+      contains("!contains(inputs.release_tag || github.ref_name, '-')"),
+    );
+  });
+
   test('fallback refresh validates a temporary file before replacement', () {
     final start = workflow.indexOf(
       '- name: Refresh bundled latest.json fallback',
