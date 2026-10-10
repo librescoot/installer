@@ -2329,6 +2329,14 @@ echo timeout
     if (await installerExecutionActive()) {
       throw StateError('An installer is already executing on this device');
     }
+    final release = await readOsRelease();
+    if (imageIdIsBootstrap(release['IMAGE_ID']) &&
+        await detectServiceStack(attempts: 1) == ServiceStack.none) {
+      debugPrint(
+        'SSH: verified service-free bootstrap; no vehicle lock command',
+      );
+      return;
+    }
     await redisLpush('scooter:state', 'lock');
     if (!await waitForVehicleState(
       'stand-by',

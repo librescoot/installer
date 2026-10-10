@@ -79,7 +79,7 @@ before each build; for local development run `scripts/update-flasher.sh`.
 
 ## Device-owned installation
 
-Every authenticated connection, including a silent reconnect, must match the device's chip UID for this installer session. An unreadable or different UID blocks the connection before setup or queued commands can run. Start a new installer session to install another scooter. Dashboard handoff requests a vehicle lock and requires confirmed `stand-by` before arming or launching work.
+Every authenticated connection, including a silent reconnect, must match the device's chip UID for this installer session. An unreadable or different UID blocks the connection before setup or queued commands can run. Start a new installer session to install another scooter. Dashboard handoff on normal firmware requests a vehicle lock and requires confirmed `stand-by` before arming or launching work. A positively identified bootstrap image with no vehicle service needs no lock command.
 
 A running dashboard handoff, MDB update or finalization owns the installation. Reconnecting observes that work without changing services, replacing its run state or cleaning up its files. The installer waits across the MDB activation reboot.
 
