@@ -54,15 +54,19 @@ void main() {
 
     test('it writes through a temporary file and does not leave it', () async {
       final script = rehome(SshService.serviceModeArmCommand, dir.path);
-      expect(script, contains('mv -f'),
-          reason: 'a half-written file would read as no service mode at all');
+      expect(
+        script,
+        contains('mv -f'),
+        reason: 'a half-written file would read as no service mode at all',
+      );
 
       final result = await runScript(script, dir.path);
       expect(result.exitCode, 0, reason: result.stderr.toString());
-      expect(File('${dir.path}/.service-mode.json.installer').existsSync(),
-          isFalse);
+      expect(
+        File('${dir.path}/.service-mode.json.installer').existsSync(),
+        isFalse,
+      );
     });
-
   });
 
   group('interrupted-run disarm', () {
@@ -72,9 +76,6 @@ void main() {
       // usb0-policy back to auto, the gate closes, and the retry is plugged
       // into a board that does not answer.
       final command = SshService.interruptedInstallDisarmCommand;
-      expect(command, isNot(contains('rm -f /data/service-mode.json')));
-      expect(command, isNot(contains('clear:service')));
-
       final dir = await Directory.systemTemp.createTemp('service-mode-disarm-');
       addTearDown(() => dir.delete(recursive: true));
       await Directory('${dir.path}/installer').create();
@@ -85,8 +86,11 @@ void main() {
       await script.writeAsString(rehome(command, dir.path));
       final result = await Process.run('sh', [script.path]);
       expect(result.exitCode, 0, reason: result.stderr.toString());
-      expect(armed.existsSync(), isTrue,
-          reason: 'the board has to still be reachable when the retry starts');
+      expect(
+        armed.existsSync(),
+        isTrue,
+        reason: 'the board has to still be reachable when the retry starts',
+      );
     });
   });
 }

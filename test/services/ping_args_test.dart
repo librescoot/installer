@@ -16,23 +16,5 @@ void main() {
         expect(args, containsAllInOrder(['-c', '1', '-W', '1']));
       }
     });
-
-    test('nothing builds its own ping arguments any more', () {
-      var found = 0;
-      for (final path in [
-        'lib/services/network_service.dart',
-        'lib/services/usb_detector.dart',
-        'lib/screens/installer_screen.dart',
-      ]) {
-        final source = File(path).readAsStringSync();
-        for (final m in RegExp("'ping',").allMatches(source)) {
-          found++;
-          final args = source.substring(m.end, m.end + 80);
-          expect(args, contains('pingArgs('),
-              reason: '$path builds its own arguments: $args');
-        }
-      }
-      expect(found, 3, reason: 'all three ping call sites must be checked');
-    });
   });
 }

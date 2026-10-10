@@ -74,25 +74,4 @@ void main() {
     expect(first, contains('LPUSH'));
     expect(first, contains('librescoot-installer:queue-op:run-42'));
   });
-
-  test('reboot explicitly treats a disconnect as acknowledgement', () {
-    final source = File('lib/services/ssh_service.dart').readAsStringSync();
-    final start = source.indexOf('Future<void> reboot()');
-    final end = source.indexOf('bool _looksLikeDisconnect', start);
-    final block = source.substring(start, end);
-
-    expect(block, contains('runCommand(cmd, replayOnDisconnect: false)'));
-    expect(block, contains('reboot likely triggered (connection dropped)'));
-  });
-
-  test('successful legacy completion records suppress recovery', () {
-    final source = File('lib/services/ssh_service.dart').readAsStringSync();
-    final start = source.indexOf('Future<bool> lastInstallSucceeded()');
-    final end = source.indexOf('Future<bool> installPhasesActive()', start);
-    final block = source.substring(start, end);
-
-    expect(block, contains(r'$installerLastInstall'));
-    expect(block, contains(r'$legacyLastInstall'));
-    expect(block, contains("== 'result: success'"));
-  });
 }

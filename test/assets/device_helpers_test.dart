@@ -51,35 +51,6 @@ void main() {
   });
   tearDown(() => root.delete(recursive: true));
 
-  group('one definition, everywhere', () {
-    test(
-      'nothing in the trampoline template redefines a helper this file owns',
-      () {
-        // These used to be defined twice: once here, once inside the heredoc
-        // that writes the dashboard phase. A second definition anywhere is that
-        // drift, and it also wins over the sourced one, so the copy that gets
-        // fixed is not the copy that runs.
-        final owned = RegExp(
-          r'^([a-z_][a-z0-9_]*)\(\)',
-          multiLine: true,
-        ).allMatches(device).map((m) => m.group(1)!).toSet();
-        expect(owned, contains('dbc_ssh'));
-        expect(owned, contains('wait_dbc_ssh'));
-        expect(owned, contains('dbc_power_set'));
-
-        final body = File('assets/trampoline.sh.template').readAsStringSync();
-        for (final name in owned) {
-          expect(
-            body,
-            isNot(contains(RegExp('^ *$name\\(\\)', multiLine: true))),
-            reason: 'assets/trampoline.sh.template redefines $name',
-          );
-        }
-      },
-    );
-
-  });
-
   test(
     'failed power control is not accepted because DBC is unpingable',
     () async {

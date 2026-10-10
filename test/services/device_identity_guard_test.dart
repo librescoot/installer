@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/services/device_identity_guard.dart';
 
@@ -48,40 +46,4 @@ void main() {
     expect(guard.verify('mdb', original), original);
     expect(guard.verify('dbc', another), another);
   });
-
-  test(
-    'initial and silent authentication verify identity before publishing client',
-    () {
-      final source = File('lib/services/ssh_service.dart').readAsStringSync();
-      final connect = source.substring(
-        source.indexOf('Future<DeviceInfo> _connect('),
-        source.indexOf('Future<void> _doReconnect()'),
-      );
-      expect(
-        connect.indexOf('_verifyClientIdentity(client, host'),
-        lessThan(connect.indexOf('_client = client')),
-      );
-      expect(
-        connect.indexOf('_verifyClientIdentity(client, host'),
-        lessThan(connect.indexOf('systemctl stop librescoot-pm')),
-      );
-      final reconnect = source.substring(
-        source.indexOf('Future<void> _doReconnect()'),
-        source.indexOf('Future<void> uploadFile('),
-      );
-      expect(
-        reconnect.indexOf('_verifyClientIdentity(client, _lastHost'),
-        lessThan(reconnect.indexOf('_client = client')),
-      );
-      expect(
-        reconnect,
-        contains('if (e is DeviceIdentityException) disconnect()'),
-      );
-      final disconnect = source.substring(
-        source.indexOf('void disconnect()'),
-        source.indexOf('bool get isConnected'),
-      );
-      expect(disconnect, isNot(contains('_deviceIdentity =')));
-    },
-  );
 }

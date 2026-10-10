@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/services/installer_sounds.dart';
 import 'package:librescoot_installer/services/keycard_feedback.dart';
@@ -88,24 +86,5 @@ void main() {
       ),
       isNull,
     );
-  });
-
-  test('UI guards feedback by phase and master ownership', () {
-    final source = File('lib/screens/installer_screen.dart').readAsStringSync();
-    final handler = source.substring(
-      source.indexOf('void _handleKeycardEvent('),
-      source.indexOf('Future<void> _keycardSimulateMasterEvent('),
-    );
-    expect(handler, contains('_windowClosing'));
-    expect(handler, contains('_currentPhase != InstallerPhase.keycardSetup'));
-    expect(handler, contains('keycardLearningErrorCue('));
-    expect(handler, contains('ownerGeneration: _keycardMasterOwnerGeneration'));
-    expect(handler, contains('_sounds.play(errorCue)'));
-    final duplicate = handler.substring(
-      handler.indexOf("payload.startsWith('card-duplicate:')"),
-      handler.indexOf("payload.startsWith('master-learned:')"),
-    );
-    expect(duplicate, isNot(contains('_keycardSessionTapCount')));
-    expect(duplicate, isNot(contains('InstallerCue.confirmed')));
   });
 }

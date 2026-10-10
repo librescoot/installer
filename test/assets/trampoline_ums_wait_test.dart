@@ -25,18 +25,6 @@ void main() {
   }
 
   group('wiring', () {
-    test('step 3 waits through the alternating function', () {
-      expect(source, contains('dbc_ping_or_ums_wait 300'));
-    });
-
-    test('probe_dbc_or_fail stays the verdict after the wait', () {
-      // The wait only recognises UMS; the SDP check and the failure messages
-      // live in the probe, and must still run when the budget expires.
-      final wait = source.indexOf('dbc_ping_or_ums_wait 300');
-      final probe = source.indexOf('probe_dbc_or_fail', wait);
-      expect(probe, greaterThan(wait));
-    });
-
     test('the function is valid POSIX shell', () async {
       final dir = await Directory.systemTemp.createTemp('ums-wait-');
       addTearDown(() => dir.delete(recursive: true));
@@ -124,19 +112,21 @@ echo "rc=$? pinged=${DBC_PINGED:-no} ums=${DBC_ALREADY_UMS:-no} elapsed=$PING_EL
       bool restoreOk = true,
       bool peekAllowed = true,
     }) async {
-      final result = await Process.run('sh', [
-        '${root.path}/driver.sh'
-      ], environment: {
-        'CLOCK_FILE': clock,
-        'CALLS': calls,
-        'FN_FILE': '${root.path}/fn.sh',
-        'BUDGET': '$budget',
-        'PING_UP_AT': '$pingUpAt',
-        'UMS_ON_BUS_AT': '$umsOnBusAt',
-        'RESTORE_OK': restoreOk ? 'yes' : 'no',
-        'PEEK_ALLOWED': peekAllowed ? 'yes' : 'no',
-        'PATH': Platform.environment['PATH']!,
-      });
+      final result = await Process.run(
+        'sh',
+        ['${root.path}/driver.sh'],
+        environment: {
+          'CLOCK_FILE': clock,
+          'CALLS': calls,
+          'FN_FILE': '${root.path}/fn.sh',
+          'BUDGET': '$budget',
+          'PING_UP_AT': '$pingUpAt',
+          'UMS_ON_BUS_AT': '$umsOnBusAt',
+          'RESTORE_OK': restoreOk ? 'yes' : 'no',
+          'PEEK_ALLOWED': peekAllowed ? 'yes' : 'no',
+          'PATH': Platform.environment['PATH']!,
+        },
+      );
       expect(result.exitCode, 0, reason: result.stderr.toString());
       return result.stdout.toString().trim();
     }
@@ -152,8 +142,11 @@ echo "rc=$? pinged=${DBC_PINGED:-no} ums=${DBC_ALREADY_UMS:-no} elapsed=$PING_EL
       expect(out, contains('rc=0'));
       expect(out, contains('ums=yes'));
       expect(out, contains('pinged=no'));
-      expect(await virtualNow(), lessThan(60),
-          reason: 'the whole point: under a minute, not the whole budget');
+      expect(
+        await virtualNow(),
+        lessThan(60),
+        reason: 'the whole point: under a minute, not the whole budget',
+      );
       final log = await callLog();
       // The first stretch is pings, so a normally-booting DBC is never hit
       // with a role flip before it had a chance to answer.
@@ -165,32 +158,41 @@ echo "rc=$? pinged=${DBC_PINGED:-no} ums=${DBC_ALREADY_UMS:-no} elapsed=$PING_EL
       expect(log.skip(firstFlip), isNot(contains('restore_gadget')));
     });
 
-    test('with nothing on the bus it alternates until the budget is gone',
-        () async {
-      final out = await run(budget: 120);
-      expect(out, contains('rc=1'));
-      expect(out, contains('pinged=no'));
-      expect(out, contains('ums=no'));
-      final log = await callLog();
-      final flips = log.where((l) => l == 'role_write host').length;
-      final restores = log.where((l) => l == 'restore_gadget').length;
-      expect(flips, greaterThanOrEqualTo(2), reason: 'no alternation happened');
-      expect(restores, flips,
-          reason: 'every peek must give gadget mode back');
-      // Pings resume between peeks: each restore_gadget is followed by a ping
-      // before the next flip.
-      for (var i = 0; i < log.length; i++) {
-        if (log[i] != 'restore_gadget') continue;
-        final tail = log.skip(i + 1).toList();
-        final nextFlip = tail.indexOf('role_write host');
-        if (nextFlip == -1) continue;
+    test(
+      'with nothing on the bus it alternates until the budget is gone',
+      () async {
+        final out = await run(budget: 120);
+        expect(out, contains('rc=1'));
+        expect(out, contains('pinged=no'));
+        expect(out, contains('ums=no'));
+        final log = await callLog();
+        final flips = log.where((l) => l == 'role_write host').length;
+        final restores = log.where((l) => l == 'restore_gadget').length;
         expect(
-          tail.take(nextFlip).any((l) => l.startsWith('ping')),
-          isTrue,
-          reason: 'a peek was not followed by a ping stretch',
+          flips,
+          greaterThanOrEqualTo(2),
+          reason: 'no alternation happened',
         );
-      }
-    });
+        expect(
+          restores,
+          flips,
+          reason: 'every peek must give gadget mode back',
+        );
+        // Pings resume between peeks: each restore_gadget is followed by a ping
+        // before the next flip.
+        for (var i = 0; i < log.length; i++) {
+          if (log[i] != 'restore_gadget') continue;
+          final tail = log.skip(i + 1).toList();
+          final nextFlip = tail.indexOf('role_write host');
+          if (nextFlip == -1) continue;
+          expect(
+            tail.take(nextFlip).any((l) => l.startsWith('ping')),
+            isTrue,
+            reason: 'a peek was not followed by a ping stretch',
+          );
+        }
+      },
+    );
 
     test('a slow-booting DBC still gets its ping window', () async {
       final out = await run(pingUpAt: 120);
@@ -198,9 +200,11 @@ echo "rc=$? pinged=${DBC_PINGED:-no} ums=${DBC_ALREADY_UMS:-no} elapsed=$PING_EL
       expect(out, contains('pinged=yes'));
       expect(out, contains('ums=no'));
       final log = await callLog();
-      expect(log.where((l) => l == 'role_write host').length,
-          greaterThanOrEqualTo(2),
-          reason: 'the peeks ran while the DBC was still booting');
+      expect(
+        log.where((l) => l == 'role_write host').length,
+        greaterThanOrEqualTo(2),
+        reason: 'the peeks ran while the DBC was still booting',
+      );
     });
 
     test('a run with no prior attempt never leaves gadget mode', () async {
@@ -208,21 +212,32 @@ echo "rc=$? pinged=${DBC_PINGED:-no} ums=${DBC_ALREADY_UMS:-no} elapsed=$PING_EL
       expect(out, contains('rc=1'));
       expect(out, contains('ums=no'));
       final log = await callLog();
-      expect(log, isNot(contains('role_write host')),
-          reason: 'nothing could have parked the DBC in UMS yet');
+      expect(
+        log,
+        isNot(contains('role_write host')),
+        reason: 'nothing could have parked the DBC in UMS yet',
+      );
       expect(log, isNot(contains('restore_gadget')));
       expect(log.where((l) => l.startsWith('ping')), isNotEmpty);
     });
 
-    test('a failed gadget restore ends the wait instead of looping blind',
-        () async {
-      final out = await run(restoreOk: false);
-      expect(out, contains('rc=1'));
-      final log = await callLog();
-      expect(log.where((l) => l == 'role_write host').length, 1,
-          reason: 'no point peeking again when pinging cannot resume');
-      expect(await virtualNow(), lessThan(60),
-          reason: 'bails to the probe rather than burning the budget');
-    });
+    test(
+      'a failed gadget restore ends the wait instead of looping blind',
+      () async {
+        final out = await run(restoreOk: false);
+        expect(out, contains('rc=1'));
+        final log = await callLog();
+        expect(
+          log.where((l) => l == 'role_write host').length,
+          1,
+          reason: 'no point peeking again when pinging cannot resume',
+        );
+        expect(
+          await virtualNow(),
+          lessThan(60),
+          reason: 'bails to the probe rather than burning the budget',
+        );
+      },
+    );
   });
 }

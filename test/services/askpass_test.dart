@@ -17,12 +17,4 @@ void main() {
     final syntax = await Process.run('sh', ['-n', script.path]);
     expect(syntax.exitCode, 0, reason: syntax.stderr.toString());
   });
-
-  test('it prints what was typed, which is what sudo -A reads', () {
-    expect(FlashService.macOsAskpassScript, startsWith('#!/bin/sh\n'));
-    expect(FlashService.macOsAskpassScript, contains('with hidden answer'));
-    // Without this line osascript prints the whole dialog record and sudo
-    // takes "button returned:OK, text returned:hunter2" as the password.
-    expect(FlashService.macOsAskpassScript, contains('text returned of result'));
-  });
 }

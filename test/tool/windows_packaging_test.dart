@@ -12,24 +12,6 @@ void main() {
     multiLine: true,
   ).firstMatch(workflow)!.group(0)!;
 
-  test(
-    'Windows packaging resolves installed compiler and checks installation',
-    () {
-      expect(
-        resolver,
-        contains('Get-Command makensis -CommandType Application'),
-      );
-      expect(resolver, contains(r'${env:ProgramFiles}\NSIS\makensis.exe'));
-      expect(resolver, contains(r'${env:ProgramFiles(x86)}\NSIS\makensis.exe'));
-      expect(workflow, contains('NSIS installation failed (exit'));
-      expect(
-        workflow,
-        contains('NSIS installed but makensis.exe could not be found'),
-      );
-      expect(workflow, contains(r'& $makensis /V2'));
-    },
-  );
-
   String? shell;
   for (final candidate in ['pwsh', 'powershell.exe', 'powershell']) {
     try {

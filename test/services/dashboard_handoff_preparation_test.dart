@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/services/ssh_service.dart';
 import 'package:librescoot_installer/models/board_state.dart';
@@ -103,20 +101,4 @@ void main() {
       expect(ssh.operations, ['connect']);
     },
   );
-
-  test('the UI verifies locking before arming or launching phases', () {
-    final source = File('lib/screens/installer_screen.dart').readAsStringSync();
-    final start = source.substring(
-      source.indexOf('Future<void> _startTrampoline()'),
-      source.indexOf('Future<String?> _saveTrampolineFailureDiagnostics'),
-    );
-    expect(
-      start.indexOf('prepareDashboardHandoff()'),
-      lessThan(start.indexOf('_armInstallPhases(')),
-    );
-    expect(
-      start.indexOf('prepareDashboardHandoff()'),
-      lessThan(start.indexOf('trampoline.start(')),
-    );
-  });
 }

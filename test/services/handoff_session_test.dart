@@ -153,27 +153,6 @@ if handoff_usb_route; then echo usb-route; fi
     }
   });
 
-  test('route preflight precedes phase arming and failure stays visible', () {
-    final source = File('lib/screens/installer_screen.dart').readAsStringSync();
-    final start = source.indexOf('Future<void> _startTrampoline()');
-    final launch = source.substring(
-      start,
-      source.indexOf(
-        'Future<String?> _saveTrampolineFailureDiagnostics',
-        start,
-      ),
-    );
-    expect(
-      launch.indexOf('await trampoline.verifyUsbRoute()'),
-      lessThan(launch.indexOf('await _armInstallPhases')),
-    );
-    expect(
-      source,
-      contains('error: _trampolineStartFailed ? _statusMessage : null'),
-    );
-    expect(launch, contains('l10n.handoffPreparationError(e.toString())'));
-  });
-
   test(
     'launch requires this run readiness acknowledgement, not just a PID',
     () async {

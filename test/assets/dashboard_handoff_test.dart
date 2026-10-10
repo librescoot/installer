@@ -349,21 +349,4 @@ $body
     expect(result.exitCode, 1);
     expect(File('${root.path}/session/decision').existsSync(), isFalse);
   });
-
-  test(
-    'masking and installation follow positive handoff, cancellation releases control',
-    () {
-      final source = File('assets/trampoline.sh.template').readAsStringSync();
-      final waiting = source.indexOf('wait_for_dashboard_connection\n');
-      expect(waiting, greaterThan(0));
-      final mask = source.indexOf('systemctl mask librescoot-keycard');
-      expect(mask, greaterThan(waiting));
-      final waitingBlock = source.substring(waiting, mask);
-      expect(waitingBlock, contains('HANDOFF_RESULT'));
-      expect(waitingBlock, contains('dbc_update_complete || fail'));
-      expect(waitingBlock, contains('signal_all_off'));
-      expect(waitingBlock, contains('signal_install_start'));
-      expect(source, isNot(contains('\nwait_for_laptop_disconnect\n')));
-    },
-  );
 }

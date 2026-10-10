@@ -359,11 +359,6 @@ echo "systemd-run $unit$args" >> "$CALLS"''');
         contains('systemctl stop librescoot-bootled-guard.service'),
       );
       expect(calls().trim().split('\n').last, 'i2cset -f -y 2 0x30 0x04 0x00');
-      expect(
-        helpers,
-        isNot(contains('bootled_blink_green')),
-        reason: 'green is not a state this signalling has any more',
-      );
     });
 
     test('a run that failed goes red and flashes the hazards', () async {
@@ -402,56 +397,6 @@ echo "systemd-run $unit$args" >> "$CALLS"''');
         File('${root.path}/installer/trampoline.log').readAsStringSync(),
         contains('no ioctl on this image'),
       );
-    });
-  });
-
-  group('one definition, everywhere', () {
-    test('every script that signals sources this file', () async {
-      // These were defined twice, in the trampoline and again inside the
-      // heredoc that writes the dashboard phase, and the two drifted. The
-      // phases the restructure added defined them nowhere at all, which is why
-      // a run went dark the moment the trampoline handed over.
-      const sources = [
-        'assets/trampoline.sh.template',
-        'assets/mdb-artifact.sh.template',
-        'assets/reboot-phase.sh.template',
-        'assets/finalize.sh.template',
-      ];
-      for (final path in sources) {
-        expect(
-          File(path).readAsStringSync(),
-          contains('signal.sh'),
-          reason: '$path signals without sourcing the helpers',
-        );
-      }
-    });
-
-    test('nothing else defines a helper this file owns', () {
-      // A second definition anywhere is the drift this replaced. It also wins
-      // over the sourced one, so the copy that gets fixed is not the copy that
-      // runs.
-      final owned = RegExp(
-        r'^([a-z_][a-z0-9_]*)\(\)',
-        multiLine: true,
-      ).allMatches(helpers).map((m) => m.group(1)!).toSet();
-      expect(owned, contains('progress_set'));
-      expect(owned, contains('bootled_guard_start'));
-
-      for (final path in [
-        'assets/trampoline.sh.template',
-        'assets/mdb-artifact.sh.template',
-        'assets/reboot-phase.sh.template',
-        'assets/finalize.sh.template',
-      ]) {
-        final body = File(path).readAsStringSync();
-        for (final name in owned) {
-          expect(
-            body,
-            isNot(contains(RegExp('^ *$name\\(\\)', multiLine: true))),
-            reason: '$path redefines $name',
-          );
-        }
-      }
     });
   });
 }

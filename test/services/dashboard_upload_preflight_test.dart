@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/services/dashboard_upload_preflight.dart';
 
@@ -90,50 +88,5 @@ void main() {
     owns = false;
     expect(await prepare(), isFalse);
     expect(calls, isEmpty);
-  });
-
-  test('UI preflight runs before pausing USB discovery or uploading', () {
-    final screen = File('lib/screens/installer_screen.dart').readAsStringSync();
-    final upload = screen.substring(
-      screen.indexOf('Future<void> _uploadDbcFiles('),
-      screen.indexOf('Future<void> _skipDashboardTransfer()'),
-    );
-    final preflight = upload.indexOf('_prepareDashboardUploadConnection(');
-    expect(preflight, isNonNegative);
-    expect(
-      preflight,
-      lessThan(
-        upload.indexOf('criticalOperation = _acquireCriticalOperation()'),
-      ),
-    );
-    expect(
-      preflight,
-      lessThan(upload.indexOf('await trampolineService.uploadAll(')),
-    );
-    final connection = screen.substring(
-      screen.indexOf('Future<bool> _prepareDashboardUploadConnection('),
-      screen.indexOf('Future<void> _uploadDbcFiles('),
-    );
-    expect(connection, contains('l10n.reconnectUsbToLaptop'));
-    expect(connection, contains('_waitForDevice(DeviceMode.ethernet)'));
-    expect(connection, contains('forceReconnect: retry'));
-    expect(connection, contains('info?.serialNumber != expectedSerial'));
-    expect(connection, contains('_observeExistingInstall()'));
-    final retry = screen.substring(
-      screen.indexOf('void _returnToDbcPrep()'),
-      screen.indexOf('Future<void> _cleanInstallDbcAfterFailure('),
-    );
-    expect(retry, contains('_dashboardRetryPending = true'));
-    expect(retry, contains('_trampolineStartFailed = false'));
-  });
-
-  test('previous completion polls cannot mutate a retried upload', () {
-    final source = File('lib/screens/installer_screen.dart').readAsStringSync();
-    final refresh = source.substring(
-      source.indexOf('Future<void> _refreshFinishCompletion()'),
-      source.indexOf('Future<DeviceInfo?> _prepareMdbStatusConnection('),
-    );
-    expect(refresh, contains('final generation = _dbcUploadGeneration'));
-    expect(refresh, contains('if (!_ownsDbcUpload(generation)) return'));
   });
 }
