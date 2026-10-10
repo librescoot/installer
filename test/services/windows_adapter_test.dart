@@ -18,6 +18,40 @@ void main() {
       expect(iface.isUp, isTrue);
     });
 
+    test('live adapter index survives a connection alias change', () {
+      final iface = NetworkService.parseWindowsAdapter(
+        'USB gadget\tEthernet 12\tTrue\t42\tUSB\\VID_0525&PID_A4A2\n',
+      );
+      expect(iface!.index, 42);
+      expect(iface.name, 'Ethernet 12');
+    });
+
+    test('malformed indices and ambiguous rows are rejected', () {
+      for (final row in [
+        'USB\tEthernet\tTrue\t0',
+        'USB\tEthernet\tTrue\tbad',
+        'USB\tEthernet\tTrue\t42\nUSB\tEthernet 2\tTrue\t43',
+      ]) {
+        expect(NetworkService.parseWindowsAdapter(row), isNull);
+      }
+    });
+
+    test('adapter query uses the live stack and refuses multiple gadgets', () {
+      expect(NetworkService.windowsAdapterQuery, contains('Get-NetAdapter'));
+      expect(
+        NetworkService.windowsAdapterQuery,
+        isNot(contains('Win32_NetworkAdapter')),
+      );
+      expect(
+        NetworkService.windowsAdapterQuery,
+        contains("Status -ne 'Not Present'"),
+      );
+      expect(
+        NetworkService.windowsAdapterQuery,
+        contains(r'$devices.Count -ne 1'),
+      );
+    });
+
     test('an adapter with no connection name yet is not ready', () {
       expect(
         NetworkService.parseWindowsAdapter(
@@ -29,7 +63,9 @@ void main() {
 
     test('a whitespace-only connection name is not ready either', () {
       expect(
-        NetworkService.parseWindowsAdapter('USB Ethernet/RNDIS Gadget\t   \t\n'),
+        NetworkService.parseWindowsAdapter(
+          'USB Ethernet/RNDIS Gadget\t   \t\n',
+        ),
         isNull,
       );
     });

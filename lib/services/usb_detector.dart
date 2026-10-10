@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'windows_adapter_probe.dart';
 import 'package:flutter/foundation.dart';
 
 import 'network_service.dart';
@@ -424,18 +425,13 @@ if ($dev) { $dev.InstanceId }
   }
 
   Future<UsbDevice?> _detectWindowsEthernet() async {
-    // Query WMI for network adapters with our VID:PID.
-    // Use PowerShell instead of wmic to avoid cmd.exe '&' escaping issues
-    // and wmic's UTF-16/HTML-encoded CSV output.
     try {
       final result = await runBounded('powershell', [
         '-NoProfile',
+        '-NonInteractive',
         '-Command',
-        r'''
-$dev = Get-CimInstance Win32_NetworkAdapter | Where-Object { $_.PNPDeviceID -like "*VID_0525&PID_A4A2*" } | Select-Object -First 1 Name,NetConnectionID,PNPDeviceID
-if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.PNPDeviceID)" }
-''',
-      ]);
+        windowsGadgetAdapterQuery,
+      ], timeout: const Duration(seconds: 10));
 
       if (result.exitCode != 0) return null;
 
@@ -445,7 +441,7 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.PNPDeviceID)" }
       final parts = line.split('\t');
       final name = parts.isNotEmpty ? parts[0].trim() : 'Unknown';
       final netConn = parts.length > 1 ? parts[1].trim() : '';
-      final pnpId = parts.length > 2 ? parts[2].trim() : '';
+      final pnpId = parts.length > 4 ? parts[4].trim() : '';
 
       if (pnpId.toUpperCase().contains('VID_0525')) {
         return UsbDevice(

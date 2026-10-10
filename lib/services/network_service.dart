@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:librescoot_installer/services/usb_detector.dart';
 import 'elevation_service.dart';
+import 'windows_adapter_probe.dart';
 
 /// Network interface information
 class NetworkInterface {
@@ -10,12 +11,14 @@ class NetworkInterface {
   final String displayName;
   final String? ipAddress;
   final bool isUp;
+  final int? index;
 
   NetworkInterface({
     required this.name,
     required this.displayName,
     this.ipAddress,
     this.isUp = false,
+    this.index,
   });
 
   @override
@@ -225,18 +228,17 @@ class NetworkService {
     return buf.toString();
   }
 
+  @visibleForTesting
+  static const windowsAdapterQuery = windowsGadgetAdapterQuery;
+
   Future<NetworkInterface?> _findWindowsInterface() async {
     try {
-      // Use PowerShell to find RNDIS network adapter: avoids cmd.exe '&'
-      // escaping issues with wmic.
-      final result = await Process.run('powershell', [
+      final result = await runBounded('powershell', [
         '-NoProfile',
+        '-NonInteractive',
         '-Command',
-        r'''
-$dev = Get-CimInstance Win32_NetworkAdapter | Where-Object { $_.PNPDeviceID -like "*VID_0525&PID_A4A2*" } | Select-Object -First 1 Name,NetConnectionID,NetEnabled
-if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
-''',
-      ]);
+        windowsAdapterQuery,
+      ], timeout: const Duration(seconds: 10));
 
       if (result.exitCode != 0) return null;
 
@@ -256,7 +258,7 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
   @visibleForTesting
   static NetworkInterface? parseWindowsAdapter(String stdout) {
     final line = stdout.trim();
-    if (line.isEmpty) return null;
+    if (line.isEmpty || line.contains('\n') || line.contains('\r')) return null;
 
     final parts = line.split('\t');
     final name = parts.isNotEmpty && parts[0].trim().isNotEmpty
@@ -272,24 +274,34 @@ if ($dev) { "$($dev.Name)`t$($dev.NetConnectionID)`t$($dev.NetEnabled)" }
       return null;
     }
 
-    return NetworkInterface(name: netConn, displayName: name, isUp: isUp);
+    final index = parts.length > 3 ? int.tryParse(parts[3].trim()) : null;
+    if (parts.length > 3 && (index == null || index <= 0)) return null;
+    return NetworkInterface(
+      name: netConn,
+      displayName: name,
+      isUp: isUp,
+      index: index,
+    );
   }
 
   Future<bool> _configureWindows(NetworkInterface iface) async {
     try {
+      final current = await _findWindowsInterface();
+      if (current == null) return false;
+      final name = current.index?.toString() ?? current.name;
       debugPrint(
-        'Network: netsh set address name="${iface.name}" static $targetIp $subnetMask',
+        'Network: netsh set address name="$name" static $targetIp $subnetMask',
       );
-      final result = await Process.run('netsh', [
+      final result = await runBounded('netsh', [
         'interface',
         'ip',
         'set',
         'address',
-        'name=${iface.name}',
+        'name=$name',
         'static',
         targetIp,
         subnetMask,
-      ]);
+      ], timeout: const Duration(seconds: 10));
 
       debugPrint(
         'Network: netsh exit=${result.exitCode} stdout=${result.stdout} stderr=${result.stderr}',
