@@ -21,16 +21,16 @@ void main() {
   );
 
   test('fallback preserves successful output and failure status', () async {
-    final success = await run("dbc_probe_timeout 5 /bin/echo identified");
+    final success = await run("device_timeout 5 /bin/echo identified");
     expect(success.exitCode, 0);
     expect(success.stdout, 'identified\n');
-    final failure = await run("dbc_probe_timeout 5 /bin/sh -c 'exit 7'");
+    final failure = await run("device_timeout 5 /bin/sh -c 'exit 7'");
     expect(failure.exitCode, 7);
   });
 
   test('fallback terminates a stalled command within its deadline', () async {
     final elapsed = Stopwatch()..start();
-    final result = await run('dbc_probe_timeout 0.1 /bin/sleep 30');
+    final result = await run('device_timeout 0.1 /bin/sleep 30');
     expect(result.exitCode, isNot(0));
     expect(elapsed.elapsed, lessThan(const Duration(seconds: 2)));
   });

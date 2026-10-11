@@ -130,16 +130,9 @@ for ROLE_PATH in /sys/kernel/debug/ci_hdrc.0/role \
   [ -f "$ROLE_PATH" ] && break
 done
 
-# Chipidea role writes can also BLOCK (not just EBUSY) if the unbind
-# wedges on a dying USB device. A blocked write would freeze whoever
-# called it, so give every role write a hard 15s ceiling where a timeout
-# binary exists (busybox >= 1.30 and coreutils both take SECS PROG).
+# A role write can block while unbinding a dying USB device.
 role_write() {
-  if command -v timeout >/dev/null 2>&1; then
-    timeout 15 sh -c "echo $1 > $ROLE_PATH" 2>/dev/null
-  else
-    sh -c "echo $1 > $ROLE_PATH" 2>/dev/null
-  fi
+  device_timeout 15 sh -c "echo $1 > $ROLE_PATH" 2>/dev/null
 }
 
 usb0_up() {
@@ -224,6 +217,7 @@ gadget_rescue_start() {
   systemctl stop "${GADGET_RESCUE_UNIT}.service" 2>/dev/null
   systemd-run --unit="$GADGET_RESCUE_UNIT" --collect --quiet --slice=system.slice /bin/sh -c '
     LOG=/data/installer/trampoline.log
+    . /data/installer/scripts/device.sh || exit 1
     DEADLINE=$(( $(date +%s) + 240 ))
     for RP in /sys/kernel/debug/ci_hdrc.0/role \
               /sys/kernel/debug/usb/ci_hdrc.0/role \
@@ -242,11 +236,7 @@ gadget_rescue_start() {
         echo "$(date "+%H:%M:%S") gadget-rescue: role=$ROLE, retrying gadget restore" >> "$LOG"
         rmmod g_ether 2>/dev/null
         sleep 1
-        if command -v timeout >/dev/null 2>&1; then
-          timeout 15 sh -c "echo gadget > $RP" 2>/dev/null
-        else
-          echo gadget > "$RP" 2>/dev/null
-        fi
+        device_timeout 15 sh -c "echo gadget > $RP" 2>/dev/null
         sleep 1
         modprobe g_ether 2>/dev/null
         sleep 1
@@ -727,6 +717,7 @@ usb0_is_up() {
   ip -4 addr show usb0 2>/dev/null | grep -q '192\.168\.7\.1'
 }
 . "$SCRIPTS_DIR/signal.sh" || { echo "missing $SCRIPTS_DIR/signal.sh" >&2; exit 1; }
+. "$SCRIPTS_DIR/device.sh" || { echo "missing $SCRIPTS_DIR/device.sh" >&2; exit 1; }
 
 for ROLE_PATH in /sys/kernel/debug/ci_hdrc.0/role \
                  /sys/kernel/debug/usb/ci_hdrc.0/role \
@@ -765,11 +756,7 @@ while [ $attempt -lt 3 ]; do
   attempt=$((attempt + 1))
   rmmod g_ether 2>/dev/null
   sleep 1
-  if command -v timeout >/dev/null 2>&1; then
-    timeout 15 sh -c "echo gadget > $ROLE_PATH" 2>/dev/null
-  else
-    echo gadget > "$ROLE_PATH" 2>/dev/null
-  fi
+  device_timeout 15 sh -c "echo gadget > $ROLE_PATH" 2>/dev/null
   sleep 1
   modprobe g_ether 2>/dev/null
   sleep 1
@@ -845,6 +832,10 @@ HANDOFF_DIR="$INSTALLER_DIR/handoff-$RUN_ID"
 case "$MODE" in flash|upgrade) ;; *) fail "unrecognised install mode: $MODE" ;; esac
 if [ "$MODE" = flash ]; then
   [ -f "$DBC_IMAGE" ] || fail "DBC image not found: $DBC_IMAGE"
+  if [ ! -x "$INSTALLER_DIR/librescoot-flasher" ]; then
+    { dd --help 2>&1 | grep -q fullblock && dd --help 2>&1 | grep -q direct; } ||
+      fail "Bundled flasher is required: dd lacks the full-block and direct I/O options"
+  fi
 fi
 if [ -n "$DBC_MENDER" ]; then
   [ -f "$DBC_MENDER" ] || fail "DBC artifact not found: $DBC_MENDER"
@@ -1833,7 +1824,7 @@ device_finish() {
     # sparse one made here is accepted and the dd never runs.
     if [ ! -f /data/usb.drive ]; then
       log "  pre-creating the UMS backing store"
-      if truncate -s 1G /data/usb.drive 2>/dev/null &&
+      if dd if=/dev/zero of=/data/usb.drive bs=1 count=0 seek=1073741824 2>/dev/null &&
          mkfs.fat -F 32 /data/usb.drive >/dev/null 2>&1; then
         log "  UMS backing store ready"
       else
