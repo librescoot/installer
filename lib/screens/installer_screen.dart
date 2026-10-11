@@ -429,6 +429,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   String?
   _resumePreviousError; // first error line from a leftover trampoline-status, if any
   String? _resumeCleanupError;
+  String? _resumeWaitingRunId;
   String? _resumeStage; // stage the previous run reached, from the run state
   String? _resumeActor; // who wrote that state last: installer or trampoline
   String _resumeLogTail = ''; // last lines of the previous run's own log
@@ -3866,6 +3867,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// Best-effort: a board that cannot answer still gets a usable screen.
   Future<void> _loadResumeEvidence() async {
     final state = await _sshService.readInstallRunState();
+    String? waitingRunId;
+    if (state?.stage == 'waiting-for-dashboard' && state?.runId != null) {
+      final runId = state!.runId!;
+      if (await TrampolineService(_sshService).resumeWaiting(runId: runId)) {
+        waitingRunId = runId;
+      }
+    }
     final tail = await _sshService.readTrampolineLogTail();
     // The log goes into this session's own log file as well. That file is
     // what the user sends when they ask what went wrong, and the screen it
@@ -3877,10 +3885,36 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
     if (!mounted) return;
     setState(() {
+      _resumeWaitingRunId = waitingRunId;
       _resumeStage = state?.stage;
       _resumeActor = state?.actor;
       _resumeLogTail = tail;
     });
+  }
+
+  Future<void> _cancelResumedHandoff() async {
+    final runId = _resumeWaitingRunId;
+    if (runId == null || _isProcessing) return;
+    setState(() => _isProcessing = true);
+    try {
+      final trampoline = TrampolineService(_sshService);
+      if (!await trampoline.resumeWaiting(runId: runId) ||
+          !await trampoline.cancelWaiting(runId: runId)) {
+        throw StateError('Dashboard handoff could not be safely cancelled');
+      }
+      if (!mounted) return;
+      setState(() {
+        _resumeWaitingRunId = null;
+        _resumeStillRunning = false;
+        _resumeCleanupError = null;
+        _mdbConnectStarted = false;
+      });
+      _setPhase(InstallerPhase.mdbConnect);
+    } catch (e) {
+      if (mounted) setState(() => _resumeCleanupError = e.toString());
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
   }
 
   Future<void> _observeExistingInstall() async {
@@ -4018,8 +4052,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           side: ActionSide.back,
           onPressed: () => _copyResumeReport(l10n),
         ),
-        // A run that is still going has nothing for the user to decide: the
-        // only honest control is none, until it stops.
+        if (running && _resumeWaitingRunId != null)
+          PhaseAction(
+            label: l10n.cancelButton,
+            icon: Icons.cancel_outlined,
+            onPressed: _isProcessing ? null : _cancelResumedHandoff,
+          ),
         if (!running)
           PhaseAction(
             label: _resumeCleanupError == null
