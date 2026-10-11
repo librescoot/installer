@@ -76,10 +76,36 @@ handoff_laptop_present() {
   [ "$now" -ge "$stamp" ] && [ $((now - stamp)) -lt 15 ]
 }
 
+# Minimal bootstrap images may omit the timeout applet. Keep identity probes
+# bounded without requiring any additional runtime package.
+dbc_probe_timeout() (
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$@"
+    exit $?
+  fi
+  limit="$1"
+  shift
+  "$@" &
+  command_pid=$!
+  (
+    sleep "$limit" &
+    sleeper=$!
+    trap 'kill "$sleeper" 2>/dev/null; exit 0' TERM INT
+    wait "$sleeper"
+    kill -KILL "$command_pid" 2>/dev/null
+  ) &
+  watchdog_pid=$!
+  wait "$command_pid"
+  result=$?
+  kill "$watchdog_pid" 2>/dev/null
+  wait "$watchdog_pid" 2>/dev/null
+  exit "$result"
+)
+
 dbc_usb_identified() {
   ip route get "$DBC_IP" 2>/dev/null | grep -Eq '(^| )dev usb0( |$)' || return 1
   ping -I usb0 -c 1 -W 1 "$DBC_IP" >/dev/null 2>&1 || return 1
-  timeout 5 ssh -y -y root@$DBC_IP \
+  dbc_probe_timeout 5 ssh -y -y root@$DBC_IP \
     "tr '\\000' '\\n' < /proc/device-tree/compatible | grep -qx 'fsl,imx6dl'" >/dev/null 2>&1
 }
 
@@ -89,7 +115,7 @@ dbc_ppp_upgrade_identified() {
   [ "${MODE:-}" = upgrade ] && [ -n "${DBC_MENDER:-}" ] || return 1
   ip route get "$DBC_IP" 2>/dev/null | grep -Eq '(^|[[:space:]])dev ppp0([[:space:]]|$)' || return 1
   ping -I ppp0 -c 1 -W 1 "$DBC_IP" >/dev/null 2>&1 || return 1
-  timeout 5 ssh -y -y root@$DBC_IP \
+  dbc_probe_timeout 5 ssh -y -y root@$DBC_IP \
     "tr '\\000' '\\n' < /proc/device-tree/compatible | grep -qx 'fsl,imx6dl'" >/dev/null 2>&1
 }
 
