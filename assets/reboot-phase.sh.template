@@ -17,6 +17,7 @@ INSTALLER_DIR="/data/installer"
 SCRIPTS_DIR="$INSTALLER_DIR/scripts"
 RESULT_FILE="$INSTALLER_DIR/mdb-artifact.result"
 STATUS_FILE="$INSTALLER_DIR/trampoline-status"
+SERVICE_MODE_STATE="/data/service-mode.json"
 RUN_ID="{{RUN_ID}}"
 LOG="$INSTALLER_DIR/history/$RUN_ID/reboot.log"
 WAIT_LIMIT={{MDB_ARTIFACT_WAIT_SECONDS}}
@@ -48,6 +49,18 @@ retire() {
 
 case "$RESULT" in
   ok)
+    # settings-service applies this before vehicle-service starts. The alarm,
+    # sleep timers and USB policy remain in service mode through finalization.
+    SERVICE_MODE_TMP="$SERVICE_MODE_STATE.$RUN_ID.tmp"
+    if ! { printf '%s\n' '{"active":true,"name":"service"}' > "$SERVICE_MODE_TMP" &&
+           mv -f "$SERVICE_MODE_TMP" "$SERVICE_MODE_STATE" && sync; }; then
+      rm -f "$SERVICE_MODE_TMP"
+      log "ERROR: could not persist service mode; refusing activation reboot"
+      printf 'error: could not persist service mode\nrun-id: %s\nfinish: pending\n' "$RUN_ID" > "$STATUS_FILE"
+      signal_error
+      exit 1
+    fi
+    log "service mode armed for activation"
     log "asking the coordinator to reboot into the installed images"
     # The slot being left behind. mender-update install always switches slots,
     # so coming back up on this one means u-boot rolled the new image back,
