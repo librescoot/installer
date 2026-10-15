@@ -1739,7 +1739,7 @@ abstract class AppLocalizations {
   /// No description provided for @readyToFlashHint.
   ///
   /// In en, this message translates to:
-  /// **'The main computer (MDB) is connected as a USB drive. Check the target before writing.'**
+  /// **'The main computer (MDB) is connected as a USB drive.'**
   String get readyToFlashHint;
 
   /// No description provided for @readyToFlashTargetLabel.
