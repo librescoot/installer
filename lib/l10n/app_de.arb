@@ -313,7 +313,7 @@
   "rebootingMdbUms": "Hauptcomputer wird neu gestartet…",
   "waitingForUmsDevice": "Warte auf das USB-Laufwerk…",
   "readyToFlash": "Hauptcomputer (MDB) neu installieren",
-  "readyToFlashHint": "Der Hauptcomputer (MDB) ist jetzt als USB-Laufwerk verbunden. Prüfe das Zielgerät vor dem Schreiben.",
+  "readyToFlashHint": "Der Hauptcomputer (MDB) ist jetzt als USB-Laufwerk verbunden.",
   "readyToFlashTargetLabel": "Ziel",
   "readyToFlashImageLabel": "Zu schreibendes Systemabbild",
   "readyToFlashErases": "Dabei werden die Daten auf dem Hauptcomputer überschrieben.",

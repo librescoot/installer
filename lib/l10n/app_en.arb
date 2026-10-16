@@ -334,7 +334,7 @@
   "rebootingMdbUms": "Rebooting MDB into mass storage mode...",
   "waitingForUmsDevice": "Waiting for UMS device...",
   "readyToFlash": "Reinstall main computer (MDB)",
-  "readyToFlashHint": "The main computer (MDB) is connected as a USB drive. Check the target before writing.",
+  "readyToFlashHint": "The main computer (MDB) is connected as a USB drive.",
   "readyToFlashTargetLabel": "Target",
   "readyToFlashImageLabel": "Image to write",
   "readyToFlashErases": "This overwrites all storage on the main board.",

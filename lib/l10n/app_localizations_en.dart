@@ -940,7 +940,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get readyToFlashHint =>
-      'The main computer (MDB) is connected as a USB drive. Check the target before writing.';
+      'The main computer (MDB) is connected as a USB drive.';
 
   @override
   String get readyToFlashTargetLabel => 'Target';

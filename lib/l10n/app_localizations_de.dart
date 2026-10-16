@@ -954,7 +954,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get readyToFlashHint =>
-      'Der Hauptcomputer (MDB) ist jetzt als USB-Laufwerk verbunden. Prüfe das Zielgerät vor dem Schreiben.';
+      'Der Hauptcomputer (MDB) ist jetzt als USB-Laufwerk verbunden.';
 
   @override
   String get readyToFlashTargetLabel => 'Ziel';
