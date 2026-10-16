@@ -576,7 +576,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Warte auf das USB-Gerät… Stelle sicher, dass der Laptop per USB mit dem MDB verbunden ist.';
 
   @override
-  String get checkingRndisDriver => 'RNDIS-Treiber wird geprüft…';
+  String get checkingRndisDriver => 'Prüfe RNDIS-Treiber…';
 
   @override
   String get driverClaimedHeading =>
@@ -1016,7 +1016,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get mdbFlashComplete => 'MDB-Flash abgeschlossen';
 
   @override
-  String get flashVerifyingReadback => 'Geschriebene Daten werden geprüft…';
+  String get flashVerifyingReadback => 'Prüfe geschriebene Daten…';
 
   @override
   String flashProgressMb(String mb) {
@@ -1216,7 +1216,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get turningMainBatteryOn => 'Fahrakku wird wieder eingeschaltet…';
 
   @override
-  String get checkingCbb => 'CBB wird geprüft…';
+  String get checkingCbb => 'Prüfe CBB…';
 
   @override
   String waitingForCbb(int attempts) {
@@ -1426,15 +1426,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get waitingForRndisDevice => 'Warte auf RNDIS-Gerät…';
 
   @override
-  String get checkingCompletionRecord => 'Abschlussprotokoll wird geprüft…';
+  String get checkingCompletionRecord => 'Prüfe Abschlussprotokoll…';
 
   @override
   String get readingTrampolineStatus =>
-      'Status der laufenden Installation wird geprüft…';
+      'Prüfe Status der laufenden Installation…';
 
   @override
   String readingTrampolineStatusElapsed(int elapsed) {
-    return 'Status der laufenden Installation wird geprüft… (${elapsed}s)';
+    return 'Prüfe Status der laufenden Installation… (${elapsed}s)';
   }
 
   @override
@@ -1737,7 +1737,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get unknown => 'Unbekannt';
 
   @override
-  String get inspectingConfiguration => 'Gerätekonfiguration wird geprüft…';
+  String get inspectingConfiguration => 'Prüfe Gerätekonfiguration…';
 
   @override
   String get backingUpConfig =>
@@ -1751,7 +1751,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get configurationVerifyingHeading =>
-      'Wiederhergestellte Konfiguration wird geprüft';
+      'Prüfe wiederhergestellte Konfiguration';
 
   @override
   String get configurationVerifyingBody =>
@@ -1939,8 +1939,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get keycardCardsChecking =>
-      'Registrierte Schlüsselkarten werden geprüft…';
+  String get keycardCardsChecking => 'Prüfe registrierte Schlüsselkarten…';
 
   @override
   String get keycardStartLearning => 'Anlernen starten';
@@ -2331,7 +2330,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get artifactVerifying => 'Installierte Version wird geprüft…';
+  String get artifactVerifying => 'Prüfe installierte Version…';
 
   @override
   String get waitingForDbcUpload => 'Dashboard-Dateien werden noch übertragen';
@@ -2608,8 +2607,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'MDB im UMS-Modus erkannt. Direkt zum Flashen.';
 
   @override
-  String get verifyingBootloaderConfig =>
-      'Bootloader-Konfiguration wird überprüft…';
+  String get verifyingBootloaderConfig => 'Prüfe Bootloader-Konfiguration…';
 
   @override
   String get umsNotDetectedTimeout =>
@@ -2816,7 +2814,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String substepVerifying(String filename) {
-    return '$filename wird geprüft';
+    return 'Prüfe $filename';
   }
 
   @override

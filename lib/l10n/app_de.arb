@@ -180,7 +180,7 @@
   "connectingToMdb": "Verbindung zum Roller wird hergestellt",
   "waitingForUsbDevice": "Warte auf USB-Gerät…",
   "waitingForRndis": "Warte auf das USB-Gerät… Stelle sicher, dass der Laptop per USB mit dem MDB verbunden ist.",
-  "checkingRndisDriver": "RNDIS-Treiber wird geprüft…",
+  "checkingRndisDriver": "Prüfe RNDIS-Treiber…",
   "driverClaimedHeading": "Ein anderes Programm belegt den USB-Anschluss",
   "driverClaimedBody": "Windows hat die USB-Verbindung des Rollers an {driver} statt an den benötigten Netzwerktreiber gebunden. Der Installer kann die Verbindung deshalb nicht verwenden.\n\nÖffne den Geräte-Manager, suche den Roller unter Anschlüsse (COM & LPT), klicke ihn mit der rechten Maustaste an und wähle Gerät deinstallieren. Aktiviere den Haken bei „Die Treibersoftware für dieses Gerät löschen“, falls er angeboten wird. Ziehe den Roller danach ab und stecke ihn wieder an.\n\nAm Roller wurde nichts verändert. Du kannst den Installer gefahrlos schließen.",
   "@driverClaimedBody": {
@@ -330,7 +330,7 @@
   "flashAwaitingAuthorisation": "macOS fragt vor dem Schreiben nach deinem Passwort oder Touch ID. Suche nach einem Systemdialog, der sich hinter diesem Fenster befinden kann. Solange du nicht bestätigst, wird nichts geschrieben.",
   "waitingForMdbFirmware": "Warte auf den Download der MDB-Firmware…",
   "mdbFlashComplete": "MDB-Flash abgeschlossen",
-  "flashVerifyingReadback": "Geschriebene Daten werden geprüft…",
+  "flashVerifyingReadback": "Prüfe geschriebene Daten…",
   "flashProgressMb": "{mb} MB geschrieben",
   "flashProgressMbOfTotal": "{mb} / {total} MB geschrieben",
   "flashProgressEta": "Noch {minutes} Min. {seconds} Sek.",
@@ -399,7 +399,7 @@
   "verifyBatteryPresence": "Akku prüfen",
   "turningMainBatteryOff": "Fahrakku wird zuerst abgeschaltet…",
   "turningMainBatteryOn": "Fahrakku wird wieder eingeschaltet…",
-  "checkingCbb": "CBB wird geprüft…",
+  "checkingCbb": "Prüfe CBB…",
   "waitingForCbb": "Warte auf CBB… ({attempts})",
   "cbbNotDetected": "CBB nicht erkannt. Prüfe die Verbindung.",
   "mainBatteryNotDetected": "Fahrakku nicht erkannt. Prüfe, ob er richtig eingesetzt ist.",
@@ -479,9 +479,9 @@
   "verifyingDbcInstallation": "Installation auf dem Dashboard (DBC) prüfen",
   "reconnectUsbToLaptop": "Laptop-USB-Kabel wieder am MDB anschließen…",
   "waitingForRndisDevice": "Warte auf RNDIS-Gerät…",
-  "checkingCompletionRecord": "Abschlussprotokoll wird geprüft…",
-  "readingTrampolineStatus": "Status der laufenden Installation wird geprüft…",
-  "readingTrampolineStatusElapsed": "Status der laufenden Installation wird geprüft… ({elapsed}s)",
+  "checkingCompletionRecord": "Prüfe Abschlussprotokoll…",
+  "readingTrampolineStatus": "Prüfe Status der laufenden Installation…",
+  "readingTrampolineStatusElapsed": "Prüfe Status der laufenden Installation… ({elapsed}s)",
   "@readingTrampolineStatusElapsed": {
     "placeholders": {
       "elapsed": {
@@ -574,11 +574,11 @@
   "confirmFlashTargetAccept": "Dieses Laufwerk flashen",
   "flashTargetNotConfirmed": "Flashen abgebrochen: Das Ziellaufwerk wurde nicht bestätigt.",
   "unknown": "Unbekannt",
-  "inspectingConfiguration": "Gerätekonfiguration wird geprüft…",
+  "inspectingConfiguration": "Prüfe Gerätekonfiguration…",
   "backingUpConfig": "Ausgewählte Gerätekonfiguration wird gesichert…",
   "configBackedUp": "Gerätekonfiguration gesichert",
   "restoringConfig": "Gerätekonfiguration wird wiederhergestellt…",
-  "configurationVerifyingHeading": "Wiederhergestellte Konfiguration wird geprüft",
+  "configurationVerifyingHeading": "Prüfe wiederhergestellte Konfiguration",
   "configurationVerifyingBody": "Der Roller hat den Abschluss der Installation gemeldet. Der Installer prüft die wiederhergestellte Konfiguration, bevor er den Erfolg bestätigt.",
   "configurationVerificationFailedHeading": "Wiederhergestellte Konfiguration konnte nicht geprüft werden",
   "configurationVerificationFailedBody": "Verlasse dich noch nicht auf die wiederhergestellte Konfiguration. Wiederhole die Prüfung, solange der Roller verbunden ist. Die Sicherung auf diesem Computer bleibt hier erhalten:\n{backupPath}",
@@ -647,7 +647,7 @@
     }
   },
   "keycardKnownAdded": "{added, plural, =0{Keine der {total} bekannten Schlüsselkarten konnte hinzugefügt werden} one{1 von {total} bekannten Schlüsselkarten hinzugefügt} other{{added} von {total} bekannten Schlüsselkarten hinzugefügt}}",
-  "keycardCardsChecking": "Registrierte Schlüsselkarten werden geprüft…",
+  "keycardCardsChecking": "Prüfe registrierte Schlüsselkarten…",
   "keycardStartLearning": "Anlernen starten",
   "keycardAddMore": "Weitere Karten anlernen",
   "keycardLearningActive": "Anlernmodus aktiv",
@@ -828,7 +828,7 @@
       }
     }
   },
-  "artifactVerifying": "Installierte Version wird geprüft…",
+  "artifactVerifying": "Prüfe installierte Version…",
   "waitingForDbcUpload": "Dashboard-Dateien werden noch übertragen",
   "artifactStillMinimal": "Das MDB ist mit dem Grundsystem gestartet; die Firmware wurde nicht installiert. Versuche es erneut oder installiere stattdessen das vollständige Systemabbild.",
   "artifactVersionMismatch": "Das MDB meldet nach dem Neustart weiterhin {found} statt {expected}. Die Installation wurde zurückgerollt; es wurde nichts geändert. Versuche es erneut oder installiere stattdessen das vollständige Systemabbild.",
@@ -948,7 +948,7 @@
   "phaseKeycardSetupDescription": "Schlüsselkarten anlernen",
   "usingLocalFirmwareImages": "Lokale Firmware-Systemabbilder werden verwendet",
   "mdbDetectedUmsSkipping": "MDB im UMS-Modus erkannt. Direkt zum Flashen.",
-  "verifyingBootloaderConfig": "Bootloader-Konfiguration wird überprüft…",
+  "verifyingBootloaderConfig": "Prüfe Bootloader-Konfiguration…",
   "umsNotDetectedTimeout": "UMS-Gerät nicht innerhalb von 3 Minuten erkannt. MDB ist möglicherweise wieder in Linux gebootet.",
   "waitingForDevicePath": "Warte auf Gerätepfad…",
   "noDevicePathFound": "Kein Gerätepfad gefunden. Prüfe die USB-Verbindung und versuche es erneut.",
@@ -1028,7 +1028,7 @@
   },
   "keycardFinishCards": "Fertig",
   "substepCheckExisting": "Vorhandene Dateien prüfen",
-  "substepVerifying": "{filename} wird geprüft",
+  "substepVerifying": "Prüfe {filename}",
   "@substepVerifying": {
     "placeholders": {
       "filename": {
