@@ -160,7 +160,7 @@ log() { :; }
 . '${scripts.path}/device.sh'
 ${template.substring(start, end)}
 dbc_update_start
-[ "\$DBC_VEHICLE_UPDATE" = bootstrap ]
+[ "\$DBC_VEHICLE_UPDATE" = direct ]
 for i in 1 2 3 4 5 6 7 8 9 10; do
   [ ! -e '${root.path}/mdb-started' ] || break
   sleep 1

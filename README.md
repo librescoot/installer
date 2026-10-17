@@ -81,6 +81,10 @@ before each build; for local development run `scripts/update-flasher.sh`.
 
 Every authenticated connection, including a silent reconnect, must match the device's chip UID for this installer session. An unreadable or different UID blocks the connection before setup or queued commands can run. Start a new installer session to install another scooter. Dashboard handoff on normal firmware requests a vehicle lock and requires confirmed `stand-by` before arming or launching work. A positively identified bootstrap image with no vehicle service needs no lock command.
 
+Direct dashboard re-flashing also works from an existing full Librescoot MDB image. After identifying the connected dashboard, the installer syncs it, stops its updater, and takes exclusive maintenance control on the MDB. Vehicle, update and power-management services are held stopped with run-owned systemd conditions, including across a coordinator reboot. Bluetooth stays running. Normal artifact-only upgrades still use update-service.
+
+Successful completion removes only this run's service conditions and restores the previous service state; power management resumes during finalization. Cancellation before the cable handoff leaves those services unchanged. An interrupted takeover or an uncertain firmware write retains `/data/librescoot-installer/dbc-control` and the service conditions for recovery. Do not delete this record or restart the held services while a write may still be running. Reconnecting preserves the diagnostic evidence rather than silently retrying the write.
+
 A running dashboard handoff, MDB update or finalization owns the installation. Reconnecting observes that work without changing services, replacing its run state or cleaning up its files. The installer waits across the MDB activation reboot.
 
 Finishing without the dashboard can still install the selected MDB update and reboot the MDB. The confirmation states this when the MDB update is pending. A finalized incomplete dashboard outcome is reported as incomplete, not treated as an interrupted run.

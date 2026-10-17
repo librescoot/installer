@@ -270,7 +270,7 @@ echo \$((n + \$1)) > "${clock.path}"
       expect(
         calls(),
         contains(
-          'log:   WARNING: refusing GPIO power control without bootstrap ownership',
+          'log:   WARNING: refusing GPIO power control without exclusive ownership',
         ),
       );
     });

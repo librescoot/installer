@@ -259,6 +259,170 @@ DBC_POWER_GPIO=50
 
 DBC_CONTROL_DIR=/data/librescoot-installer/dbc-control
 DBC_CONTROL_ACQUIRED=no
+DBC_CONTROL_MODE=bootstrap
+DBC_MAINTENANCE_UNITS="librescoot-pm.service librescoot-update.service librescoot-vehicle.service"
+
+# Conditions survive a coordinator reboot and block automatic as well as manual
+# starts. Only this run's drop-ins are removed when the services are restored.
+dbc_maintenance_path() {
+  printf '/etc/systemd/system/%s.d/90-installer-dbc-%s.conf\n' "$1" "$RUN_ID"
+}
+
+dbc_maintenance_unit_config() {
+  printf '[Unit]\nRequiresMountsFor=/data\nConditionPathExists=!%s/owner\n' "$DBC_CONTROL_DIR"
+}
+
+dbc_ota_idle() {
+  local component status
+  for component in mdb dbc; do
+    status=$(redis-cli -h localhost --raw hget ota "status:$component" 2>/dev/null) || return 1
+    case "$status" in ''|idle|error|staged-noop) ;; *) return 1 ;; esac
+  done
+}
+
+dbc_full_image_capable() {
+  local state
+  command -v lsc >/dev/null 2>&1 || return 1
+  state=$(systemctl show -p LoadState --value vehicle-service.service 2>/dev/null) || return 1
+  [ "$state" = not-found ] || return 1
+  state=$(systemctl show -p LoadState --value librescoot-vehicle.service 2>/dev/null) || return 1
+  [ "$state" = loaded ] || return 1
+  state=$(systemctl show -p ActiveState --value librescoot-vehicle.service 2>/dev/null) || return 1
+  [ "$state" = active ] || return 1
+  state=$(redis-cli -h localhost --raw hget vehicle state 2>/dev/null) || return 1
+  [ "$state" = stand-by ] || return 1
+  dbc_ota_idle
+}
+
+dbc_maintenance_check() {
+  local unit state path
+  [ -f "$DBC_CONTROL_DIR/isolated" ] || return 1
+  for unit in $DBC_MAINTENANCE_UNITS; do
+    path=$(dbc_maintenance_path "$unit")
+    [ "$(cat "$path" 2>/dev/null)" = "$(dbc_maintenance_unit_config)" ] || return 1
+    state=$(systemctl show -p ActiveState --value "$unit" 2>/dev/null) || return 1
+    case "$state" in inactive|failed) ;; *) return 1 ;; esac
+  done
+}
+
+# The original DBC's updater must not race its boot-environment change. Runtime
+# masks disappear on its next boot; recovery restores only units this run stopped. A newly flashed DBC has no matching /run record.
+dbc_remote_maintenance() {
+  device_timeout 45 ssh -y -y root@$DBC_IP "sh -s '$RUN_ID' '$1'" <<'DBC_MAINTENANCE'
+set -eu
+run="$1"; action="$2"
+dir=/run/librescoot-installer-dbc
+if [ "$action" = restore ]; then
+  [ -d "$dir" ] || exit 0
+  [ "$(cat "$dir/owner")" = "$run" ] || exit 1
+  for unit in librescoot-update.service update-service.service; do
+    [ -f "$dir/$unit" ] || continue
+    systemctl unmask --runtime "$unit"
+    if [ "$(cat "$dir/$unit")" = active ]; then systemctl start "$unit"; fi
+    rm "$dir/$unit"
+  done
+  rm "$dir/owner"
+  rmdir "$dir"
+  exit 0
+fi
+mkdir "$dir"
+printf '%s\n' "$run" > "$dir/owner"
+for unit in librescoot-update.service update-service.service; do
+  load=$(systemctl show -p LoadState --value "$unit")
+  case "$load" in not-found|masked) continue ;; loaded) ;; *) exit 1 ;; esac
+  state=$(systemctl show -p ActiveState --value "$unit")
+  case "$state" in active|inactive|failed) ;; *) exit 1 ;; esac
+  printf '%s\n' "$state" > "$dir/$unit"
+  systemctl mask --runtime "$unit"
+  systemctl stop "$unit"
+  state=$(systemctl show -p ActiveState --value "$unit")
+  case "$state" in inactive|failed) ;; *) exit 1 ;; esac
+done
+sync
+DBC_MAINTENANCE
+}
+
+dbc_control_prepare() {
+  [ "$DBC_CONTROL_MODE" = maintenance ] || return 0
+  dbc_control_check || return 1
+  [ ! -f "$DBC_CONTROL_DIR/isolated" ] || return 0
+  [ ! -d "/sys/class/gpio/gpio$DBC_POWER_GPIO" ] || return 1
+  dbc_control_record maintenance-preparing || return 1
+  local unit state path
+  # Do this only after the cable handoff. Releasing vehicle-service's GPIO
+  # request may change power, so sync a running DBC first; UMS has no mounted OS.
+  if [ "${DBC_ALREADY_UMS:-}" != yes ]; then
+    touch "$DBC_CONTROL_DIR/remote" || return 1
+    dbc_remote_maintenance prepare || return 1
+  fi
+  dbc_full_image_capable || return 1
+  for unit in $DBC_MAINTENANCE_UNITS; do
+    state=$(systemctl show -p ActiveState --value "$unit" 2>/dev/null) || return 1
+    case "$state" in active|inactive|failed) ;; *) return 1 ;; esac
+    printf '%s\n' "$state" > "$DBC_CONTROL_DIR/$unit" || return 1
+    path=$(dbc_maintenance_path "$unit")
+    mkdir -p "${path%/*}" || return 1
+    [ ! -e "$path" ] || return 1
+    (set -C; dbc_maintenance_unit_config > "$path") || return 1
+  done
+  sync
+  systemctl daemon-reload || return 1
+  for unit in $DBC_MAINTENANCE_UNITS; do
+    if [ "$unit" = librescoot-vehicle.service ]; then
+      state=$(redis-cli -h localhost --raw hget vehicle state 2>/dev/null) || return 1
+      [ "$state" = stand-by ] || return 1
+    fi
+    device_timeout 30 systemctl stop "$unit" || return 1
+  done
+  state=$(redis-cli -h localhost --raw hget vehicle state 2>/dev/null) || state=unknown
+  if [ "$state" != stand-by ]; then
+    # An unlock raced the stop. Give the state machine back immediately rather
+    # than leaving a potentially enabled motor without its controller.
+    rm "$(dbc_maintenance_path librescoot-vehicle.service)" || return 1
+    systemctl daemon-reload && systemctl start librescoot-vehicle.service
+    return 1
+  fi
+  touch "$DBC_CONTROL_DIR/isolated" || return 1
+  dbc_ota_idle || return 1
+  dbc_control_check || return 1
+  dbc_control_record maintenance-ready || return 1
+  log "  Exclusive full-image DBC maintenance control verified"
+}
+
+dbc_maintenance_restore() {
+  local unit path
+  if [ -f "$DBC_CONTROL_DIR/remote" ]; then
+    dbc_remote_maintenance restore || return 1
+    rm "$DBC_CONTROL_DIR/remote" || return 1
+  fi
+  # Return the GPIO to vehicle-service before restarting it.
+  if [ -f "$DBC_CONTROL_DIR/gpio" ]; then
+    echo "$DBC_POWER_GPIO" > /sys/class/gpio/unexport || return 1
+    rm "$DBC_CONTROL_DIR/gpio" || return 1
+  fi
+  for unit in $DBC_MAINTENANCE_UNITS; do
+    [ -f "$DBC_CONTROL_DIR/$unit" ] || continue
+    path=$(dbc_maintenance_path "$unit")
+    if [ -e "$path" ]; then
+      [ "$(cat "$path")" = "$(dbc_maintenance_unit_config)" ] || return 1
+      rm "$path" || return 1
+    fi
+  done
+  systemctl daemon-reload || return 1
+  for unit in librescoot-vehicle.service librescoot-update.service librescoot-pm.service; do
+    [ -f "$DBC_CONTROL_DIR/$unit" ] || continue
+    if [ "$(cat "$DBC_CONTROL_DIR/$unit")" = active ]; then
+      # Finalization owns the post-install PM restart: starting it here could
+      # execute the MDB's queued reboot before the DBC result is recorded.
+      if [ "$unit" != librescoot-pm.service ] || [ "$(cat "$DBC_CONTROL_DIR/state")" = acquired ]; then
+        systemctl start "$unit" || return 1
+        [ "$(systemctl show -p ActiveState --value "$unit")" = active ] || return 1
+      fi
+    fi
+    rm "$DBC_CONTROL_DIR/$unit" || return 1
+  done
+  rm -f "$DBC_CONTROL_DIR/isolated"
+}
 
 dbc_bootstrap_capable() {
   local artifact unit state
@@ -271,14 +435,27 @@ dbc_bootstrap_capable() {
   done
 }
 
-dbc_control_check() {
+dbc_no_foreign_update() {
   local flag owner
-  dbc_bootstrap_capable || return 1
-  [ "$(cat "$DBC_CONTROL_DIR/owner" 2>/dev/null)" = "$RUN_ID" ] || return 1
   flag=$(redis-cli -h localhost --raw hget vehicle dbc-updating 2>/dev/null) || return 1
   case "$flag" in ''|false) ;; *) return 1 ;; esac
   owner=$(redis-cli -h localhost --raw hget ota heartbeat-owner:dbc 2>/dev/null) || return 1
   [ -z "$owner" ]
+}
+
+dbc_control_check() {
+  [ "$(cat "$DBC_CONTROL_DIR/owner" 2>/dev/null)" = "$RUN_ID" ] || return 1
+  case "$DBC_CONTROL_MODE" in
+    bootstrap) dbc_bootstrap_capable || return 1 ;;
+    maintenance)
+      if [ -f "$DBC_CONTROL_DIR/isolated" ]; then
+        dbc_maintenance_check || return 1
+      else
+        dbc_full_image_capable || return 1
+      fi ;;
+    *) return 1 ;;
+  esac
+  dbc_no_foreign_update
 }
 
 dbc_control_record() {
@@ -288,41 +465,59 @@ dbc_control_record() {
 }
 
 dbc_control_acquire() {
-  dbc_bootstrap_capable || { log "ERROR: direct DBC install requires the supported bootstrap; owner-correlated full-image control is unavailable"; return 1; }
+  case "$RUN_ID" in ''|*[!a-zA-Z0-9._-]*) return 1 ;; esac
   if [ "$1" = outer ]; then
+    if dbc_bootstrap_capable; then
+      DBC_CONTROL_MODE=bootstrap
+    elif dbc_full_image_capable; then
+      DBC_CONTROL_MODE=maintenance
+    else
+      log "ERROR: direct DBC install requires a supported bootstrap or an idle, locked Librescoot MDB"
+      return 1
+    fi
+    dbc_no_foreign_update || { log "ERROR: another DBC update owns dashboard control"; return 1; }
     mkdir -p "${DBC_CONTROL_DIR%/*}" || return 1
     mkdir "$DBC_CONTROL_DIR" 2>/dev/null || { log "ERROR: DBC control/recovery record exists; manual recovery required"; return 1; }
     printf '%s\n' "$RUN_ID" > "$DBC_CONTROL_DIR/owner" || return 1
+    printf '%s\n' "$DBC_CONTROL_MODE" > "$DBC_CONTROL_DIR/mode" || return 1
     dbc_control_record acquired || return 1
   else
     [ "$(cat "$DBC_CONTROL_DIR/owner" 2>/dev/null)" = "$RUN_ID" ] || return 1
     [ "$(cat "$DBC_CONTROL_DIR/state" 2>/dev/null)" = handoff ] || return 1
+    DBC_CONTROL_MODE=$(cat "$DBC_CONTROL_DIR/mode") || return 1
+    if [ "$DBC_CONTROL_MODE" = maintenance ]; then dbc_maintenance_check || return 1; fi
     mkdir "$DBC_CONTROL_DIR/phase" 2>/dev/null || return 1
     dbc_control_record artifact-install || return 1
   fi
   dbc_control_check || return 1
   DBC_CONTROL_ACQUIRED=yes
-  log "  Exclusive bootstrap DBC control verified"
+  log "  DBC control reserved ($DBC_CONTROL_MODE)"
 }
 
 dbc_control_release() {
   [ "$DBC_CONTROL_ACQUIRED" = yes ] || return 1
   [ "$(cat "$DBC_CONTROL_DIR/owner" 2>/dev/null)" = "$RUN_ID" ] || return 1
   case "$(cat "$DBC_CONTROL_DIR/state" 2>/dev/null)" in
-    artifact-install-unknown|artifact-installed|mask-unknown|mask-prepared|activation-unknown|commit-unknown|ums-preparing) return 1 ;;
+    maintenance-preparing|maintenance-ready|raw-write-unknown|raw-written|artifact-install-unknown|artifact-installed|mask-unknown|mask-prepared|activation-unknown|commit-unknown|ums-preparing) return 1 ;;
     committed) return 0 ;;
   esac
-  rm -f "$DBC_CONTROL_DIR/owner" "$DBC_CONTROL_DIR/state"
+  if [ "$(cat "$DBC_CONTROL_DIR/mode" 2>/dev/null)" = maintenance ]; then
+    if [ -f "$DBC_CONTROL_DIR/isolated" ]; then dbc_maintenance_check || return 1; fi
+    dbc_maintenance_restore || return 1
+  fi
+  rm -f "$DBC_CONTROL_DIR/owner" "$DBC_CONTROL_DIR/state" "$DBC_CONTROL_DIR/mode"
   rmdir "$DBC_CONTROL_DIR/phase" 2>/dev/null || true
   rmdir "$DBC_CONTROL_DIR"
 }
 
 dbc_gpio_ready() {
   if [ -d "/sys/class/gpio/gpio$DBC_POWER_GPIO" ]; then
+    if [ "$DBC_CONTROL_MODE" = maintenance ]; then [ -f "$DBC_CONTROL_DIR/gpio" ] || return 1; fi
     [ "$(cat "/sys/class/gpio/gpio$DBC_POWER_GPIO/direction" 2>/dev/null)" = out ]
     return $?
   fi
   echo "$DBC_POWER_GPIO" > /sys/class/gpio/export 2>/dev/null || return 1
+  if [ "$DBC_CONTROL_MODE" = maintenance ]; then touch "$DBC_CONTROL_DIR/gpio" || return 1; fi
   sleep 1
   [ -d "/sys/class/gpio/gpio$DBC_POWER_GPIO" ] || return 1
   echo out > "/sys/class/gpio/gpio$DBC_POWER_GPIO/direction" 2>/dev/null || return 1
@@ -331,7 +526,15 @@ dbc_gpio_ready() {
 
 # $1: 1 to power the dashboard, 0 to cut it.
 dbc_power_set() {
-  if command -v lsc >/dev/null 2>&1; then
+  local direct=no
+  if [ "$DBC_CONTROL_MODE" = maintenance ]; then
+    dbc_control_check || return 1
+    if [ "$(cat "$DBC_CONTROL_DIR/state" 2>/dev/null)" != acquired ]; then
+      dbc_maintenance_check || return 1
+      direct=yes
+    fi
+  fi
+  if command -v lsc >/dev/null 2>&1 && [ "$direct" = no ]; then
     local out
     if [ "$1" = "1" ]; then
       out=$(lsc --redis-addr localhost:6379 dbc on 2>&1) && { log "$out"; return 0; }
@@ -341,7 +544,7 @@ dbc_power_set() {
     log "  lsc dbc power failed; refusing GPIO fallback"
     return 1
   fi
-  dbc_control_check || { log "  WARNING: refusing GPIO power control without bootstrap ownership"; return 1; }
+  dbc_control_check || { log "  WARNING: refusing GPIO power control without exclusive ownership"; return 1; }
   dbc_gpio_ready || { log "  WARNING: could not claim the dashboard power GPIO"; return 1; }
   echo "$1" > "/sys/class/gpio/gpio$DBC_POWER_GPIO/value" 2>/dev/null || return 1
   [ "$(cat "/sys/class/gpio/gpio$DBC_POWER_GPIO/value" 2>/dev/null)" = "$1" ]

@@ -124,6 +124,10 @@ esac
   );
 
   for (final state in [
+    'maintenance-preparing',
+    'maintenance-ready',
+    'raw-write-unknown',
+    'raw-written',
     'artifact-install-unknown',
     'artifact-installed',
     'mask-unknown',
@@ -165,7 +169,7 @@ if wait_flash_with_dbc_control "\$pid"; then exit 1; fi
       final template = File('assets/trampoline.sh.template').readAsStringSync();
       final failStart = template.indexOf('artifact_fail()');
       final failEnd = template.indexOf('\n# Install the DBC artifact', failStart);
-      final start = template.indexOf('    dbc_control_check || artifact_fail "error: bootstrap control lost before artifact install"');
+      final start = template.indexOf('    dbc_control_check || artifact_fail "error: exclusive control lost before artifact install"');
       final end = template.indexOf('    if ! prepare_dbc_updater_mask;', start);
       final result = run('''
 ${template.substring(failStart, failEnd)}
@@ -199,7 +203,7 @@ ${template.substring(start, end)}
       final failEnd = template.indexOf('\n# Install the DBC artifact', failStart);
       final helperStart = template.indexOf('prepare_dbc_updater_mask()');
       final helperEnd = template.indexOf('restore_dbc_updater_mask()', helperStart);
-      final start = template.indexOf('    dbc_control_check || artifact_fail "error: bootstrap control lost before artifact install"');
+      final start = template.indexOf('    dbc_control_check || artifact_fail "error: exclusive control lost before artifact install"');
       final end = template.indexOf('    log "  inactive target', start);
       final result = run('''
 ${template.substring(failStart, failEnd)}
@@ -241,13 +245,13 @@ ${template.substring(start, end)}
     final template = File('assets/trampoline.sh.template').readAsStringSync();
     final helperStart = template.indexOf('dbc_ssh_once_bounded()');
     final helperEnd = template.indexOf('\n# The dashboard', helperStart);
-    final start = template.indexOf('    dbc_control_check || artifact_fail "error: bootstrap control lost before activation"');
+    final start = template.indexOf('    dbc_control_check || artifact_fail "error: exclusive control lost before activation"');
     final end = template.indexOf('\n  CURRENT_STAGE="verifying-dbc-artifact"', start);
     stub('ssh', 'echo accepted >> "\$TEST_ROOT/reboots"; exit 1');
     final result = run('''
 ${template.substring(helperStart, helperEnd)}
 dbc_control_acquire outer
-DBC_VEHICLE_UPDATE=bootstrap
+DBC_VEHICLE_UPDATE=direct
 DBC_IP=example
 LOG='${root.path}/activation.log'
 artifact_fail() { exit 99; }

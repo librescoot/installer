@@ -344,14 +344,14 @@ probe_for_laptop_then_restore_host() {
   sleep 2
 }
 
-# Direct installs are supported only on the verified bootstrap runtime.
+# Direct installs own either the bootstrap GPIO or an isolated full-image runtime.
 DBC_VEHICLE_UPDATE=none
 dbc_update_start() {
   dbc_control_acquire outer || return 1
-  DBC_VEHICLE_UPDATE=bootstrap
+  DBC_VEHICLE_UPDATE=direct
 }
 dbc_update_complete() {
-  [ "$DBC_VEHICLE_UPDATE" = bootstrap ] || return 0
+  [ "$DBC_VEHICLE_UPDATE" = direct ] || return 0
   dbc_control_release
 }
 wait_flash_with_dbc_control() {
@@ -785,11 +785,10 @@ reboot -f
 WATCHDOG_RECOVER
 chmod +x "$INSTALLER_DIR/watchdog-recover.sh"
 
-# A full image has lsc and leaves DBC power policy with vehicle-service. The
-# minimal MDB has no service stack, so any DBC handoff needs the same guarded
-# GPIO lifecycle as a direct dashboard flash.
+# Artifact-only upgrades on full images use update-service. Raw flashes and
+# bootstrap installs retain exclusive direct control through both phases.
 if [ "$MODE" = flash ] || ! command -v lsc >/dev/null 2>&1; then
-  dbc_update_start || { echo "Unsupported or occupied bootstrap DBC control; no DBC work performed" >&2; exit 1; }
+  dbc_update_start || { echo "Unsupported or occupied DBC control; no DBC work performed" >&2; exit 1; }
 fi
 echo "" > "$LOG_FILE"
 
@@ -867,6 +866,9 @@ fi
 [ "$HANDOFF_RESULT" -ne 3 ] || fail "Dashboard is in USB recovery; a clean installation is required"
 [ "$HANDOFF_RESULT" -ne 4 ] || fail "Dashboard is in BootROM recovery; manual recovery is required"
 [ "$HANDOFF_RESULT" -eq 0 ] || fail "Dashboard handoff failed"
+if [ "$DBC_VEHICLE_UPDATE" = direct ]; then
+  dbc_control_prepare || fail "Could not establish exclusive DBC maintenance control"
+fi
 front_pulse_stop
 signal_install_start
 
@@ -1025,7 +1027,7 @@ if [ "$DBC_ALREADY_UMS" != "yes" ]; then
       FWCFG="-c /tmp/fw_env.config"
     fi
 
-    dbc_control_check || fail "Lost bootstrap control before DBC boot configuration"
+    dbc_control_check || fail "Lost exclusive control before DBC boot configuration"
     if [ "$HAS_NATIVE" != yes ]; then
       dbc_put "$INSTALLER_DIR/fwtools/stock-dbc/fw_setenv" /tmp/fw_printenv || fail "Could not prepare DBC environment reader"
       dbc_ssh 'chmod +x /tmp/fw_printenv' || fail "Could not prepare DBC environment reader"
@@ -1172,7 +1174,8 @@ echo "$DBC_DEV" | grep -q "mmcblk" && fail "SAFETY: $DBC_DEV is mmcblk - refusin
 
 # Reject a foreign updater before the first destructive DBC write and keep the
 # acknowledged hold through the generated post-reboot phase.
-dbc_control_check || fail "Lost exclusive bootstrap control before flashing the DBC"
+dbc_control_check || fail "Lost exclusive DBC control before flashing the DBC"
+dbc_control_record raw-write-unknown || fail "Could not record the DBC raw-write boundary"
 
 # Step 7: Flash DBC
 step_begin "Step 7: flash DBC"
@@ -1250,6 +1253,9 @@ done
 
 [ "$FLASH_OK" != "yes" ] && fail "DBC flash failed after 3 attempts"
 log "DBC flash complete"
+dbc_control_record raw-written || fail "Could not record the DBC raw-write completion"
+# The original runtime, including its updater mask, was replaced by the image.
+rm -f "$DBC_CONTROL_DIR/remote"
 step_end
 
 # The preparation is done, and only in this mode was there any: an upgrade
@@ -1277,9 +1283,9 @@ step_begin "Step 8: post-flash cleanup"
 log "  syncing..."
 sync
 log "  turning off DBC..."
-if [ "$DBC_VEHICLE_UPDATE" = bootstrap ]; then
-  dbc_control_check || fail "Lost bootstrap control before DBC handoff power-off"
-  dbc_power_off_wait || fail "Could not verify the bootstrap-controlled DBC handoff power-off"
+if [ "$DBC_VEHICLE_UPDATE" = direct ]; then
+  dbc_control_check || fail "Lost exclusive control before DBC handoff power-off"
+  dbc_power_off_wait || fail "Could not verify the installer-controlled DBC handoff power-off"
 fi
 
 # Write the post-reboot phase on MDB - /data/onboot.sh runs it on the next
@@ -1613,7 +1619,7 @@ dbc_ssh_once_bounded() {
   ssh -y -y root@$DBC_IP "$@" &
   pid=$!
   while kill -0 "$pid" 2>/dev/null && [ "$waited" -lt "$secs" ]; do
-    if [ "${DBC_VEHICLE_UPDATE:-none}" = bootstrap ] && ! dbc_control_check; then
+    if [ "${DBC_VEHICLE_UPDATE:-none}" = direct ] && ! dbc_control_check; then
       kill "$pid" 2>/dev/null || true
       wait "$pid" 2>/dev/null || true
       return 125
@@ -1718,18 +1724,19 @@ dbc_update_start() {
   else
     dbc_control_acquire handoff || return 1
     DBC_CONTROL_ACQUIRED=yes
-    DBC_VEHICLE_UPDATE=bootstrap
+    DBC_VEHICLE_UPDATE=direct
   fi
 }
 dbc_update_complete() {
-  [ "$DBC_VEHICLE_UPDATE" = bootstrap ] || return 0
+  [ "$DBC_VEHICLE_UPDATE" = direct ] || return 0
   dbc_control_release
 }
 dbc_owned_power_off() {
-  if [ "$DBC_VEHICLE_UPDATE" != bootstrap ] || ! dbc_control_check; then
-    log "ERROR: refusing power-off without verified bootstrap ownership"
+  if [ "$DBC_VEHICLE_UPDATE" != direct ] || ! dbc_control_check; then
+    log "ERROR: refusing power-off without verified exclusive ownership"
     return 1
   fi
+  dbc_ssh_once_bounded 30 sync || return 1
   dbc_power_off
 }
 
@@ -1922,9 +1929,9 @@ else
   log "  WARNING: redis never answered in ${WAITED}s, continuing anyway"
 fi
 
-# Revalidate bootstrap capabilities and consume the one-use handoff before DBC work.
-if [ "$DBC_VEHICLE_UPDATE" = bootstrap ] && ! dbc_update_start; then
-  write_status "error: exclusive bootstrap DBC control could not be resumed"
+# Revalidate exclusive control and consume the one-use handoff before DBC work.
+if [ "$DBC_VEHICLE_UPDATE" = direct ] && ! dbc_update_start; then
+  write_status "error: exclusive DBC control could not be resumed"
   dbc_update_complete || log "WARNING: installer DBC lifecycle release is unverified"
   signal_error
   exit 1
@@ -2430,9 +2437,9 @@ artifact_fail() {
   write_status "$1"
   if [ "${DBC_ACTIVATION_DISPATCHED:-no}" = yes ] || [ "${DBC_ARTIFACT_DISPATCHED:-no}" = yes ]; then
     log "  Remote write/activation/commit outcome requires manual recovery; power request and updater masks retained"
-  elif [ "$DBC_VEHICLE_UPDATE" = bootstrap ]; then
-    dbc_owned_power_off || log "WARNING: bootstrap power-off refused"
-    dbc_update_complete || log "WARNING: bootstrap control release is unverified"
+  elif [ "$DBC_VEHICLE_UPDATE" = direct ]; then
+    dbc_owned_power_off || log "WARNING: installer power-off refused"
+    dbc_update_complete || log "WARNING: exclusive control release is unverified"
   fi
   signal_error
   exit 1
@@ -2458,9 +2465,9 @@ dbc_update_service_fail() {
 # it, and an upgrade skipped straight here. /data survives a mender install,
 # so tiles copied afterwards are unaffected by the reboot below.
 if [ -n "$DBC_MENDER" ]; then
-  # A bootstrap-controlled install arrives with its lifecycle hold acknowledged
-  # before the handoff. A full MDB delegates an upgrade to update-service.
-  if [ "$DBC_VEHICLE_UPDATE" = bootstrap ] && ! dbc_update_start; then
+  # A direct install retains exclusive control across the handoff. Ordinary
+  # full-image upgrades remain delegated to update-service.
+  if [ "$DBC_VEHICLE_UPDATE" = direct ] && ! dbc_update_start; then
     artifact_fail "error: the installer-owned DBC lifecycle was not preserved"
   fi
   # The trampoline body checked this before it rebooted the MDB, but the
@@ -2498,7 +2505,7 @@ if [ -n "$DBC_MENDER" ]; then
   DBC_ROOT_BEFORE=$(ssh -y -y root@$DBC_IP "awk '\$5 == \"/\" { print \$3 }' /proc/self/mountinfo" 2>/dev/null | tr -d '\r')
   [ -n "$DBC_BOOT_BEFORE" ] || artifact_fail "error: could not read the DBC boot identity before installation"
   [ -n "$DBC_ROOT_BEFORE" ] || artifact_fail "error: could not read the DBC mounted-root identity before installation"
-  if [ "$DBC_VEHICLE_UPDATE" = bootstrap ]; then
+  if [ "$DBC_VEHICLE_UPDATE" = direct ]; then
     [ -n "$DBC_ART_BEFORE" ] || artifact_fail "error: could not capture the bootstrap's committed DBC artifact identity"
     [ "$DBC_ART_BEFORE" != "$DBC_EXPECTED_ARTIFACT" ] ||
       artifact_fail "error: target artifact $DBC_EXPECTED_ARTIFACT matches the bootstrap's committed artifact, so post-commit success would be indistinguishable"
@@ -2541,7 +2548,7 @@ if [ -n "$DBC_MENDER" ]; then
   TILES_JOB=$!
 
   DBC_SERVICE_MANAGED="no"
-  if [ "$DBC_VEHICLE_UPDATE" != bootstrap ]; then
+  if [ "$DBC_VEHICLE_UPDATE" != direct ]; then
     # update-service may reboot as soon as its install is staged, so finish the
     # independent tile transfer before handing it control of the DBC.
     if [ -n "${TILES_JOB:-}" ]; then
@@ -2581,7 +2588,7 @@ if [ -n "$DBC_MENDER" ]; then
     [ $WAITED -lt 900 ] || artifact_fail "error: DBC update-service did not verify $DBC_EXPECTED_ARTIFACT within 900s (status: ${ST:-none})"
   else
     log "  running mender-update install on the DBC"
-    dbc_control_check || artifact_fail "error: bootstrap control lost before artifact install"
+    dbc_control_check || artifact_fail "error: exclusive control lost before artifact install"
     CURRENT_STAGE="installing-dbc-artifact"
     dbc_control_record artifact-install-unknown || artifact_fail "error: could not persist artifact write boundary"
     DBC_ARTIFACT_DISPATCHED=yes
@@ -2590,7 +2597,7 @@ if [ -n "$DBC_MENDER" ]; then
     fi
     dbc_control_record artifact-installed || artifact_fail "error: could not record artifact write completion"
     # The installed slot is still pending; failure must retain power and ownership.
-    dbc_control_check || artifact_fail "error: bootstrap control lost before target masking"
+    dbc_control_check || artifact_fail "error: exclusive control lost before target masking"
     if ! prepare_dbc_updater_mask; then
       artifact_fail "error: could not identify and mask librescoot-update.service in the inactive Mender rootfs; activation was refused"
     fi
@@ -2609,7 +2616,7 @@ if [ -n "$DBC_MENDER" ]; then
   fi
 
   if [ "$DBC_SERVICE_MANAGED" != yes ]; then
-    dbc_control_check || artifact_fail "error: bootstrap control lost before activation"
+    dbc_control_check || artifact_fail "error: exclusive control lost before activation"
     dbc_control_record activation-unknown || artifact_fail "error: could not persist activation boundary"
     DBC_ACTIVATION_DISPATCHED=yes
     CURRENT_STAGE="activating-dbc"
@@ -2699,7 +2706,7 @@ EOF
     dbc_health_sample precommit || artifact_fail "error: DBC health changed immediately before commit; commit was not attempted"
     [ "$DBC_HEALTH_BOOT|$DBC_HEALTH_ROOT|$DBC_VER" = "$HEALTH_LAST_IDENTITY" ] ||
       artifact_fail "error: DBC identity changed immediately before commit; commit was not attempted"
-    dbc_control_check || artifact_fail "error: bootstrap control lost before commit"
+    dbc_control_check || artifact_fail "error: exclusive control lost before commit"
     dbc_control_record commit-unknown || artifact_fail "error: could not persist commit boundary"
     CURRENT_STAGE="committing-dbc"
     COMMIT_OUT="$INSTALLER_DIR/dbc-commit.stdout"
@@ -2745,7 +2752,7 @@ EOF
     restore_dbc_updater_mask ||
       artifact_fail "error: DBC commit is verified and lifecycle released, but updater restoration failed; recovery evidence retained"
     dbc_control_record complete ||
-      artifact_fail "error: installation verified, but bootstrap control record could not be updated"
+      artifact_fail "error: installation verified, but exclusive control record could not be updated"
     log "  installer lifecycle released before updater service restoration"
   else
     dbc_health_sample managed || artifact_fail "error: update-service reported completion, but exact committed artifact and DBC health were not verified"
@@ -2785,9 +2792,9 @@ ONBOOT
 
 cat >> "$SCRIPTS_DIR/20-dbc.sh" << 'ONBOOT_END'
 # Service-managed upgrades retain their own power policy.
-if [ "$DBC_VEHICLE_UPDATE" = bootstrap ]; then
-  dbc_owned_power_off || { write_status "error: final bootstrap power-off failed"; signal_error; exit 1; }
-  dbc_update_complete || { write_status "error: bootstrap control record remains"; signal_error; exit 1; }
+if [ "$DBC_VEHICLE_UPDATE" = direct ]; then
+  dbc_owned_power_off || { write_status "error: final installer power-off failed"; signal_error; exit 1; }
+  dbc_update_complete || { write_status "error: exclusive control record remains"; signal_error; exit 1; }
 fi
 
 if [ "${TILE_ERRORS:-0}" -gt 0 ]; then
@@ -2844,8 +2851,8 @@ log "Total trampoline wall-clock: $(($(date +%s) - SCRIPT_T0))s"
 #
 # It goes into its own unit rather than inheriting this scope: this script
 # is about to exit, and onboot.sh outlives it by many minutes.
-if [ "$DBC_VEHICLE_UPDATE" = bootstrap ]; then
-  dbc_control_record handoff || fail "Could not record bootstrap handoff"
+if [ "$DBC_VEHICLE_UPDATE" = direct ]; then
+  dbc_control_record handoff || fail "Could not record exclusive control handoff"
 fi
 if restore_gadget; then
   log "  gadget restored without a reboot, handing over to onboot.sh"
