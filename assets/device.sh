@@ -104,7 +104,7 @@ device_timeout() (
 
 dbc_usb_identified() {
   ip route get "$DBC_IP" 2>/dev/null | grep -Eq '(^| )dev usb0( |$)' || return 1
-  ping -I usb0 -c 1 -W 1 "$DBC_IP" >/dev/null 2>&1 || return 1
+  ping -c 1 -W 1 "$DBC_IP" >/dev/null 2>&1 || return 1
   device_timeout 5 ssh -y -y root@$DBC_IP \
     "tr '\\000' '\\n' < /proc/device-tree/compatible | grep -qx 'fsl,imx6dl'" >/dev/null 2>&1
 }
@@ -114,7 +114,7 @@ dbc_usb_identified() {
 dbc_ppp_upgrade_identified() {
   [ "${MODE:-}" = upgrade ] && [ -n "${DBC_MENDER:-}" ] || return 1
   ip route get "$DBC_IP" 2>/dev/null | grep -Eq '(^|[[:space:]])dev ppp0([[:space:]]|$)' || return 1
-  ping -I ppp0 -c 1 -W 1 "$DBC_IP" >/dev/null 2>&1 || return 1
+  ping -c 1 -W 1 "$DBC_IP" >/dev/null 2>&1 || return 1
   device_timeout 5 ssh -y -y root@$DBC_IP \
     "tr '\\000' '\\n' < /proc/device-tree/compatible | grep -qx 'fsl,imx6dl'" >/dev/null 2>&1
 }

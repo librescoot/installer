@@ -507,7 +507,8 @@ dbc_ping_or_ums_wait() {
   while [ "$PING_ELAPSED" -lt "$budget" ]; do
     stretch=0
     while [ "$stretch" -lt 24 ] && [ "$PING_ELAPSED" -lt "$budget" ]; do
-      if ping -I usb0 -c 1 -W 2 "$DBC_IP" >/dev/null 2>&1; then
+      if ip route get "$DBC_IP" 2>/dev/null | grep -Eq '(^| )dev usb0( |$)' &&
+         ping -c 1 -W 2 "$DBC_IP" >/dev/null 2>&1; then
         DBC_PINGED="yes"
         return 0
       fi
