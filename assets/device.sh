@@ -154,6 +154,7 @@ wait_for_dashboard_connection() {
     if [ "$now" -ge "$next_probe" ]; then
       next_probe=$((now + 30))
       state=$(cat "$USB_HANDOFF_UDC_STATE" 2>/dev/null)
+      log "  Dashboard not identified; UDC=${state:-unavailable}, retrying USB detection"
       # Host-mode probing is only appropriate with no enumerated host. Never
       # treat a missing sysfs file or a suspended laptop as an unplug event.
       case "$state" in
@@ -165,6 +166,11 @@ wait_for_dashboard_connection() {
             sleep 3
             local devices
             devices=$(lsusb 2>/dev/null)
+            if ! echo "$devices" | grep -Eqi '0525:a4a5|15a2:'; then
+              usb_host_rescan
+              devices=$(lsusb 2>/dev/null)
+            fi
+            log "  Dashboard host probe: $devices"
             if echo "$devices" | grep -q '0525:a4a5'; then
               if [ "$MODE" != flash ]; then
                 restore_gadget || return 1
@@ -185,9 +191,8 @@ wait_for_dashboard_connection() {
             fi
           fi
           ;;
-        configured)
-          # A rapid swap can keep configured continuously. The fresh installer
-          # lease above prevents rebinding a healthy laptop connection.
+        configured|suspended)
+          # A data-only cable swap can leave the gadget suspended; rebinding is not a host-mode claim.
           rmmod g_ether 2>/dev/null || true
           sleep 1
           modprobe g_ether 2>/dev/null || true

@@ -37,6 +37,7 @@ modprobe() { :; }
 usb0_up() { :; }
 role_write() { echo "role=\$1"; }
 restore_gadget() { echo gadget-restored; }
+usb_host_rescan() { echo host-rescan; }
 lsusb() { :; }
 $body
 ''');
@@ -76,7 +77,87 @@ $body
     expect(File('${root.path}/session/decision/state').existsSync(), isFalse);
   });
 
-  for (final state in ['suspended', 'addressed', 'default', 'unknown']) {
+  test(
+    'host rescan can identify a dashboard missed by the first scan',
+    () async {
+      final result = await run(r'''
+    echo powered > "$USB_HANDOFF_UDC_STATE"
+    rescanned=no
+    usb_host_rescan() { rescanned=yes; echo host-rescan; }
+    lsusb() {
+      [ "$rescanned" = yes ] || return 0
+      echo 'Bus 001 Device 002: ID 0525:a4a5 Mass Storage'
+    }
+    wait_for_dashboard_connection
+    ''');
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      expect(result.stdout, contains('host-rescan'));
+      expect(
+        result.stdout,
+        contains('Dashboard USB recovery device identified'),
+      );
+      expect(
+        File('${root.path}/session/decision/state').readAsStringSync().trim(),
+        'active',
+      );
+    },
+  );
+
+  test('identified UMS dashboard needs no host rescan', () async {
+    final result = await run(r'''
+    echo powered > "$USB_HANDOFF_UDC_STATE"
+    lsusb() { echo 'Bus 001 Device 002: ID 0525:a4a5 Mass Storage'; }
+    wait_for_dashboard_connection
+    ''');
+    expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+    expect(result.stdout, isNot(contains('host-rescan')));
+  });
+
+  test('suspended gadget retries without granting a host-mode claim', () async {
+    final result = await run(r'''
+    echo suspended > "$USB_HANDOFF_UDC_STATE"
+    wait_for_dashboard_connection
+    ''');
+    expect(result.exitCode, 2);
+    expect(result.stdout, contains('rebind'));
+    expect(result.stdout, isNot(contains('role=host')));
+    expect(File('${root.path}/session/decision/state').existsSync(), isFalse);
+  });
+
+  test(
+    'suspended cable swap identifies dashboard after gadget rebind',
+    () async {
+      final result = await run(r'''
+    echo suspended > "$USB_HANDOFF_UDC_STATE"
+    recognized=no
+    modprobe() { recognized=yes; }
+    ping() { [ "$recognized" = yes ]; }
+    ssh() { [ "$recognized" = yes ]; }
+    wait_for_dashboard_connection
+    ''');
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      expect(result.stdout, contains('Dashboard identified over USB'));
+      expect(result.stdout, isNot(contains('role=host')));
+    },
+  );
+
+  test('fresh lease protects a suspended laptop from rebinding', () async {
+    final result = await run(r'''
+    echo suspended > "$USB_HANDOFF_UDC_STATE"
+    echo "$ticks" > "$HANDOFF_DIR/heartbeat"
+    sleep() {
+      ticks=$((ticks + 60))
+      echo "$ticks" > "$HANDOFF_DIR/heartbeat"
+      [ "$ticks" -lt 3700 ] || mkdir -p "$HANDOFF_DIR/decision"
+    }
+    wait_for_dashboard_connection
+    ''');
+    expect(result.exitCode, 2);
+    expect(result.stdout, isNot(contains('rebind')));
+    expect(result.stdout, isNot(contains('role=host')));
+  });
+
+  for (final state in ['addressed', 'default', 'unknown']) {
     test('$state does not authorize installation or host probing', () async {
       final result = await run(
         'echo $state > "\$USB_HANDOFF_UDC_STATE"\nwait_for_dashboard_connection',
