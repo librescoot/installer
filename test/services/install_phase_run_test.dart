@@ -235,10 +235,10 @@ rm -f "\$0"
     );
     final order = await File('${root.path}/order').readAsLines();
     expect(order.first, '20');
-    // Reboot stubs return, so the coordinator's forced fallback also runs.
+    // The first reboot is asynchronous, so stub log order depends on scheduling.
     expect(
       order.where((line) => line.startsWith('reboot')),
-      orderedEquals(['reboot ', 'reboot -f']),
+      unorderedEquals(['reboot ', 'reboot -f']),
     );
     expect(
       order,
