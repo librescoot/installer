@@ -9,6 +9,7 @@ import '../l10n/app_localizations.dart';
 import 'disk_arbitration_service.dart';
 import 'elevation_service.dart';
 import 'usb_detector.dart' show SystemDiskVerdict;
+import 'ums_board_probe.dart';
 
 /// Progress callback for flashing operations
 
@@ -52,6 +53,113 @@ class FlashService {
 
   static int _sectors(int bytes) => bytes ~/ 512;
 
+  /// Reads only the boot area; callers must validate and recheck USB identity.
+  Future<UmsBoard> probeUmsBoard(String devicePath) async {
+    final String executable;
+    final List<String> arguments;
+    Map<String, String>? environment;
+    if (Platform.isWindows) {
+      if (!RegExp(
+        r'^\\\\\.\\PHYSICALDRIVE\d+$',
+        caseSensitive: false,
+      ).hasMatch(devicePath)) {
+        throw ArgumentError.value(devicePath, 'devicePath');
+      }
+      executable = 'powershell';
+      arguments = [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        '''
+\$ErrorActionPreference = 'Stop'
+\$stream = [System.IO.File]::Open('$devicePath', [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+try {
+  \$buffer = New-Object byte[] ${UmsBoardProbe.bootAreaBytes}
+  \$offset = 0
+  while (\$offset -lt \$buffer.Length) {
+    \$read = \$stream.Read(\$buffer, \$offset, \$buffer.Length - \$offset)
+    if (\$read -eq 0) { throw 'Short UMS boot-area read' }
+    \$offset += \$read
+  }
+  [Console]::Write([Convert]::ToBase64String(\$buffer))
+} finally { \$stream.Dispose() }
+''',
+      ];
+    } else {
+      final rawPath = Platform.isMacOS
+          ? devicePath.replaceFirst('/dev/disk', '/dev/rdisk')
+          : devicePath;
+      final isRoot =
+          (await Process.run('id', ['-u'])).stdout.toString().trim() == '0';
+      final root = isRoot ? null : await _elevationInvocation();
+      if (!isRoot && root == null) {
+        throw StateError(
+          'Administrator access is required to identify the UMS board.',
+        );
+      }
+      final command = [
+        ...?root?.argv,
+        '/bin/dd',
+        'if=$rawPath',
+        'bs=65536',
+        'count=${UmsBoardProbe.bootAreaBytes ~/ 65536}',
+      ];
+      executable = command.first;
+      arguments = command.sublist(1);
+      environment = root?.environment;
+    }
+
+    final process = await Process.start(
+      executable,
+      arguments,
+      environment: environment,
+    );
+    final outputFuture = process.stdout.fold<List<int>>([], (output, chunk) {
+      // PowerShell returns base64, which is larger than the binary prefix.
+      if (output.length + chunk.length > UmsBoardProbe.bootAreaBytes * 2) {
+        process.kill(ProcessSignal.sigkill);
+        throw StateError('UMS boot-area probe exceeded its output limit.');
+      }
+      return output..addAll(chunk);
+    });
+    final errorsFuture = process.stderr
+        .transform(utf8.decoder)
+        .fold<String>(
+          '',
+          (errors, chunk) => (errors + chunk).substring(
+            0,
+            (errors.length + chunk.length).clamp(0, 4096),
+          ),
+        );
+    try {
+      final results = await Future.wait<dynamic>([
+        process.exitCode,
+        outputFuture,
+        errorsFuture,
+      ]).timeout(const Duration(minutes: 3));
+      if (results[0] != 0) {
+        throw StateError('Could not read the UMS boot area: ${results[2]}');
+      }
+      final output = results[1] as List<int>;
+      final bytes = Platform.isWindows
+          ? base64Decode(utf8.decode(output).trim())
+          : output;
+      if (bytes.length != UmsBoardProbe.bootAreaBytes) {
+        throw StateError(
+          'Incomplete UMS boot-area read (${bytes.length} bytes).',
+        );
+      }
+      final board = UmsBoardProbe.identify(bytes);
+      debugPrint('Flash: UMS bootloader board on $devicePath: ${board.name}');
+      return board;
+    } on TimeoutException {
+      process.kill(ProcessSignal.sigkill);
+      throw StateError(
+        'Timed out reading the UMS boot area. Nothing was written.',
+      );
+    }
+  }
+
   /// Validate that a device is safe to flash
   ///
   /// Returns a SafetyCheck with any errors.
@@ -65,8 +173,20 @@ class FlashService {
     required int productId,
     SystemDiskVerdict systemDiskVerdict = SystemDiskVerdict.unknown,
     String? detectedPath,
+    UmsBoard bootloaderBoard = UmsBoard.unknown,
   }) {
     final errors = <String>[];
+
+    if (bootloaderBoard == UmsBoard.dbc) {
+      errors.add(
+        'The connected storage contains a DBC bootloader. '
+        'Writing an MDB image to the dashboard is blocked.',
+      );
+    } else if (bootloaderBoard == UmsBoard.conflicting) {
+      errors.add(
+        'Conflicting MDB and DBC bootloader signatures. Flashing is blocked.',
+      );
+    }
 
     // devicePath is the only argument describing the disk to be written; the
     // others come from the detected device object, which the caller reads

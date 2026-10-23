@@ -25,6 +25,7 @@ import '../l10n/app_localizations.dart';
 import '../l10n/connect_failure_l10n.dart';
 import '../l10n/configuration_summary.dart';
 import '../models/board_state.dart';
+import '../services/ums_board_probe.dart';
 import '../models/connect_failure.dart';
 import '../models/configuration_preservation.dart';
 import '../models/download_state.dart';
@@ -6151,8 +6152,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         return;
       }
       final verifiedTarget = freshTarget;
+      final verifiedPath = freshPath;
       target = verifiedTarget;
-      devicePath = freshPath;
+      devicePath = verifiedPath;
 
       // Linux has no verdict from the enumeration itself, so ask now, with the
       // resolved path in hand. Anything mounted on the disk answers this
@@ -6166,8 +6168,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           '${linuxVerdict.name}',
         );
       }
-      final safetyCheck = flashService.validateDevice(
-        devicePath: devicePath,
+      SafetyCheck validateTarget({
+        UmsBoard board = UmsBoard.unknown,
+      }) => flashService.validateDevice(
+        devicePath: verifiedPath,
         sizeBytes: verifiedTarget.sizeBytes,
         isRemovable: verifiedTarget.isRemovable,
         isSystemDisk: verifiedTarget.isSystemDisk,
@@ -6177,7 +6181,33 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         // there later reads the real verdict rather than a constant unknown.
         systemDiskVerdict: linuxVerdict ?? verifiedTarget.systemDiskVerdict,
         detectedPath: verifiedTarget.path,
+        bootloaderBoard: board,
       );
+      var safetyCheck = validateTarget();
+      if (safetyCheck.passed) {
+        _setStatus(l10n.verifyingBootloaderConfig);
+        final probeGeneration = _usbDetector.deviceEventGeneration;
+        final board = await flashService.probeUmsBoard(verifiedPath);
+        if (!mounted) return;
+        safetyCheck = validateTarget(board: board);
+
+        // A slow UMS read can outlive a disconnect and disk-number reuse.
+        final afterProbe = await _usbDetector.detectDevice();
+        final afterProbePath = await _usbDetector.resolveDevicePath();
+        if (!mounted) return;
+        if (probeGeneration != _usbDetector.deviceEventGeneration ||
+            !UsbDetector.isSameMassStorageTarget(
+              expected: verifiedTarget,
+              observed: afterProbe,
+              expectedPath: verifiedPath,
+              observedPath: afterProbePath,
+            )) {
+          criticalOperation.release();
+          _setStatus(l10n.noDevicePathFound, cue: InstallerCue.error);
+          _blockMdbFlash(ownershipUncertain: true);
+          return;
+        }
+      }
       if (!safetyCheck.passed) {
         debugPrint(
           'Flash: safety check failed: ${safetyCheck.errors.join('; ')}',

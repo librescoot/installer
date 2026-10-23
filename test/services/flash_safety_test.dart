@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/services/flash_service.dart';
 import 'package:librescoot_installer/services/usb_detector.dart';
+import 'package:librescoot_installer/services/ums_board_probe.dart';
 
 /// Regression tests for the pre-write device guard.
 ///
@@ -41,6 +42,31 @@ void main() {
       systemDiskVerdict: SystemDiskVerdict.notSystem,
     );
     expect(result.passed, isTrue, reason: result.errors.join('; '));
+  });
+
+  test('DBC and conflicting bootloaders cannot receive an MDB image', () {
+    for (final board in UmsBoard.values) {
+      final result = flash.validateDevice(
+        devicePath: _goodPath,
+        sizeBytes: FlashService.mdbEmmcBytes,
+        isRemovable: true,
+        isSystemDisk: false,
+        vendorId: 0x0525,
+        productId: 0xA4A5,
+        bootloaderBoard: board,
+      );
+      expect(
+        result.passed,
+        board == UmsBoard.mdb || board == UmsBoard.unknown,
+        reason: board.name,
+      );
+      if (board == UmsBoard.dbc) {
+        expect(result.errors.join(' '), contains('DBC bootloader'));
+      }
+      if (board == UmsBoard.conflicting) {
+        expect(result.errors.join(' '), contains('Conflicting'));
+      }
+    }
   });
 
   test('a system disk is refused', () {
