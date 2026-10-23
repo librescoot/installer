@@ -63,6 +63,7 @@ $body
     stub('mender-update', 'echo release-v1.4.0');
     stub('lsc', 'echo "lsc \$*" >> "\$TEST_ROOT/calls"');
     stub('sleep', 'exit 0');
+    stub('timeout', 'shift; exec "\$@"');
     stub('sync', 'echo "sync \${REMOTE:-local}" >> "\$TEST_ROOT/calls"');
     stub('ssh', '''
 echo "ssh \$*" >> "\$TEST_ROOT/calls"
@@ -234,6 +235,121 @@ dbc_control_check
       );
     },
   );
+
+  test('same-run pre-write retry resumes the consumed handoff', () {
+    expect(
+      run('''
+dbc_control_acquire outer
+dbc_control_prepare
+dbc_control_record handoff
+dbc_control_acquire handoff
+''').exitCode,
+      0,
+    );
+    final template = File('assets/trampoline.sh.template').readAsStringSync();
+    final start = template.indexOf(
+      'DBC_VEHICLE_UPDATE="\${DBC_VEHICLE_UPDATE:-none}"',
+    );
+    final end = template.indexOf('\n# The install is still running', start);
+    final result = run('''
+${template.substring(start, end)}
+ONBOOT_TRIES=2
+dbc_update_start
+dbc_control_check
+[ "\$DBC_CONTROL_MODE" = maintenance ]
+''');
+    expect(result.exitCode, 0, reason: '${result.stdout}${result.stderr}');
+    expect(
+      run('RUN_ID=foreign; dbc_control_acquire resume').exitCode,
+      isNot(0),
+    );
+  });
+
+  test('unreachable dashboard is not power-cut without syncing', () {
+    final template = File('assets/trampoline.sh.template').readAsStringSync();
+    final start = template.indexOf('dbc_owned_power_off() {');
+    final end = template.indexOf('\n}\n', start) + 3;
+    final result = run('''
+${template.substring(start, end)}
+DBC_VEHICLE_UPDATE=direct
+dbc_control_check() { return 0; }
+dbc_ssh_once_bounded() { return 1; }
+dbc_power_off() { echo unsafe-power-off >> "\$TEST_ROOT/calls"; }
+! dbc_owned_power_off
+''');
+    expect(result.exitCode, 0, reason: '${result.stdout}${result.stderr}');
+    expect(result.stdout, contains('retaining power and ownership'));
+    expect(calls(), isNot(contains('unsafe-power-off')));
+  });
+
+  test('retry can consume a handoff not reached by the first attempt', () {
+    final result = run('''
+dbc_control_acquire outer
+dbc_control_prepare
+dbc_control_record handoff
+dbc_control_acquire resume
+dbc_control_check
+''');
+    expect(result.exitCode, 0, reason: '${result.stdout}${result.stderr}');
+  });
+
+  test('retry validates isolation before consuming the handoff', () {
+    expect(
+      run('''
+dbc_control_acquire outer
+dbc_control_prepare
+dbc_control_record handoff
+''').exitCode,
+      0,
+    );
+    state('librescoot-vehicle.service').writeAsStringSync('active\n');
+    expect(run('dbc_control_acquire resume').exitCode, isNot(0));
+    expect(Directory('${root.path}/control/phase').existsSync(), isFalse);
+    expect(
+      File('${root.path}/control/state').readAsStringSync().trim(),
+      'handoff',
+    );
+  });
+
+  for (final boundary in [
+    'artifact-install-unknown',
+    'artifact-installed',
+    'mask-unknown',
+    'mask-prepared',
+    'activation-unknown',
+    'commit-unknown',
+    'committed',
+    'raw-write-unknown',
+    'raw-written',
+    'ums-preparing',
+  ]) {
+    test('retry refuses uncertain or completed write boundary $boundary', () {
+      expect(
+        run('''
+dbc_control_acquire outer
+dbc_control_prepare
+dbc_control_record handoff
+dbc_control_acquire handoff
+dbc_control_record $boundary
+''').exitCode,
+        0,
+      );
+      expect(run('dbc_control_acquire resume').exitCode, isNot(0));
+    });
+  }
+
+  test('restoration tolerates a GPIO export lost across reboot', () {
+    final result = run('''
+dbc_control_acquire outer
+dbc_control_prepare
+rm "\$DBC_CONTROL_DIR/remote"
+touch "\$DBC_CONTROL_DIR/gpio"
+dbc_control_record complete
+dbc_control_release
+''');
+    expect(result.exitCode, 0, reason: '${result.stdout}${result.stderr}');
+    expect(Directory('${root.path}/control').existsSync(), isFalse);
+  });
 
   test('full-image direct control uses GPIO, never lsc, after isolation', () {
     final result = run('''

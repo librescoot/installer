@@ -88,6 +88,7 @@ date() { cat "$CLOCK_FILE"; }
 sleep() { echo $(( $(cat "$CLOCK_FILE") + $1 )) > "$CLOCK_FILE"; }
 log() { echo "log: $1" >> "$CALLS"; }
 dbc_may_already_be_ums() { [ "$PEEK_ALLOWED" != "no" ]; }
+ip() { echo "$DBC_IP dev usb0 src 192.168.7.1"; }
 rmmod() { :; }
 role_write() { echo "role_write $1" >> "$CALLS"; }
 restore_gadget() { echo "restore_gadget" >> "$CALLS"; [ "$RESTORE_OK" != "no" ]; }

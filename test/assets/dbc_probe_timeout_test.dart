@@ -9,7 +9,10 @@ void main() {
   setUp(() async {
     root = await Directory.systemTemp.createTemp('dbc-probe-timeout-');
     for (final name in ['sleep', 'grep']) {
-      await Link('${root.path}/$name').create('/bin/$name');
+      final executable = File('/bin/$name').existsSync()
+          ? '/bin/$name'
+          : '/usr/bin/$name';
+      await Link('${root.path}/$name').create(executable);
     }
   });
   tearDown(() => root.delete(recursive: true));

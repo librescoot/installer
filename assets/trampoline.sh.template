@@ -1723,7 +1723,11 @@ dbc_update_start() {
   if [ "${DBC_CONTROL_ACQUIRED:-no}" = yes ]; then
     dbc_control_check
   else
-    dbc_control_acquire handoff || return 1
+    if [ "${ONBOOT_TRIES:-1}" -gt 1 ]; then
+      dbc_control_acquire resume || return 1
+    else
+      dbc_control_acquire handoff || return 1
+    fi
     DBC_CONTROL_ACQUIRED=yes
     DBC_VEHICLE_UPDATE=direct
   fi
@@ -1737,7 +1741,10 @@ dbc_owned_power_off() {
     log "ERROR: refusing power-off without verified exclusive ownership"
     return 1
   fi
-  dbc_ssh_once_bounded 30 sync || return 1
+  if ! dbc_ssh_once_bounded 30 sync; then
+    log "ERROR: dashboard sync failed; retaining power and ownership for a safe retry"
+    return 1
+  fi
   dbc_power_off
 }
 

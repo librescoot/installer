@@ -397,7 +397,9 @@ dbc_maintenance_restore() {
   fi
   # Return the GPIO to vehicle-service before restarting it.
   if [ -f "$DBC_CONTROL_DIR/gpio" ]; then
-    echo "$DBC_POWER_GPIO" > /sys/class/gpio/unexport || return 1
+    if [ -d "/sys/class/gpio/gpio$DBC_POWER_GPIO" ]; then
+      echo "$DBC_POWER_GPIO" > /sys/class/gpio/unexport || return 1
+    fi
     rm "$DBC_CONTROL_DIR/gpio" || return 1
   fi
   for unit in $DBC_MAINTENANCE_UNITS; do
@@ -483,10 +485,17 @@ dbc_control_acquire() {
     dbc_control_record acquired || return 1
   else
     [ "$(cat "$DBC_CONTROL_DIR/owner" 2>/dev/null)" = "$RUN_ID" ] || return 1
-    [ "$(cat "$DBC_CONTROL_DIR/state" 2>/dev/null)" = handoff ] || return 1
+    case "$1:$(cat "$DBC_CONTROL_DIR/state" 2>/dev/null)" in
+      handoff:handoff|resume:handoff) ;;
+      resume:artifact-install) [ -d "$DBC_CONTROL_DIR/phase" ] || return 1 ;;
+      *) return 1 ;;
+    esac
     DBC_CONTROL_MODE=$(cat "$DBC_CONTROL_DIR/mode") || return 1
     if [ "$DBC_CONTROL_MODE" = maintenance ]; then dbc_maintenance_check || return 1; fi
-    mkdir "$DBC_CONTROL_DIR/phase" 2>/dev/null || return 1
+    dbc_control_check || return 1
+    if [ "$(cat "$DBC_CONTROL_DIR/state")" = handoff ]; then
+      mkdir "$DBC_CONTROL_DIR/phase" 2>/dev/null || return 1
+    fi
     dbc_control_record artifact-install || return 1
   fi
   dbc_control_check || return 1

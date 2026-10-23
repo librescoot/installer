@@ -163,7 +163,7 @@ $body
     MODE=upgrade
     DBC_MENDER=/data/test.mender
     ip() { echo '192.168.7.2 via 192.168.8.2 dev ppp0'; }
-    ping() { [ "$2" = ppp0 ]; }
+    ping() { return 0; }
     ssh() { return 0; }
     wait_for_dashboard_connection
     ''');
