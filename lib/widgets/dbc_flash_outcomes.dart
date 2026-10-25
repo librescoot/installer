@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
+import 'dbc_led_image.dart';
 
 class DbcFlashOutcomes extends StatelessWidget {
   const DbcFlashOutcomes({
@@ -26,7 +27,10 @@ class DbcFlashOutcomes extends StatelessWidget {
           description: errorDescription ?? l10n.dbcFlashErrorPrompt,
           color: Colors.redAccent,
           onPressed: onError,
-          image: const _PulsingDbcLedImage(),
+          image: const DbcLedImage(
+            color: Color(0xFFFF0000),
+            indicatorKey: Key('dbc-error-led-glow'),
+          ),
         );
         final success = _card(
           label: l10n.dbcFlashSuccessLabel,
@@ -98,94 +102,6 @@ class DbcFlashOutcomes extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _PulsingDbcLedImage extends StatefulWidget {
-  const _PulsingDbcLedImage();
-
-  @override
-  State<_PulsingDbcLedImage> createState() => _PulsingDbcLedImageState();
-}
-
-class _PulsingDbcLedImageState extends State<_PulsingDbcLedImage>
-    with SingleTickerProviderStateMixin {
-  static const imageWidth = 2467.0;
-  static const imageHeight = 2136.0;
-  static const ledCenter = Offset(2260, 1007);
-  static const ledDiameter = 6.0;
-
-  late final AnimationController _pulse = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 1),
-  )..repeat();
-
-  late final Animation<double> _brightness = TweenSequence<double>([
-    TweenSequenceItem(tween: ConstantTween<double>(0), weight: 20),
-    TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 15),
-    TweenSequenceItem(tween: ConstantTween<double>(1), weight: 30),
-    TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 15),
-    TweenSequenceItem(tween: ConstantTween<double>(0), weight: 20),
-  ]).animate(_pulse);
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: imageWidth / imageHeight,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final scale = constraints.maxHeight / imageHeight;
-          return Stack(
-            children: [
-              Positioned.fill(
-                child: Image.asset(
-                  'assets/images/dbc-flash-error-off.png',
-                  fit: BoxFit.fill,
-                  excludeFromSemantics: true,
-                ),
-              ),
-              // Source artwork is 2467×2136; the LED centre is (2260, 1007).
-              Positioned(
-                left: ledCenter.dx * scale - ledDiameter / 2,
-                top: ledCenter.dy * scale - ledDiameter / 2,
-                child: AnimatedBuilder(
-                  animation: _brightness,
-                  builder: (context, child) {
-                    final glow = const Color(
-                      0xFFFF0000,
-                    ).withValues(alpha: _brightness.value);
-                    return Container(
-                      key: const Key('dbc-error-led-glow'),
-                      width: ledDiameter,
-                      height: ledDiameter,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: glow,
-                        boxShadow: [
-                          BoxShadow(
-                            color: glow.withValues(
-                              alpha: _brightness.value * 0.8,
-                            ),
-                            blurRadius: 12,
-                            spreadRadius: 4,
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          );
-        },
       ),
     );
   }

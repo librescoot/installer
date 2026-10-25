@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
+import 'dbc_led_image.dart';
 
 class DashboardHandoffSignalGuide extends StatelessWidget {
   const DashboardHandoffSignalGuide({super.key});
@@ -91,10 +92,16 @@ class _SignalStateCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Expanded(
-                  child: Center(child: _DashboardLed(waiting: waiting)),
+                SizedBox(
+                  height: 104,
+                  child: DbcLedImage(
+                    color: const Color(0xFFFFB300),
+                    pulsing: waiting,
+                    indicatorKey: const Key('handoff-dashboard-amber-led'),
+                    assetKey: const Key('handoff-dashboard-full-dbc-asset'),
+                  ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 SizedBox(
                   height: 108,
                   width: 57,
@@ -110,92 +117,6 @@ class _SignalStateCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _DashboardLed extends StatefulWidget {
-  const _DashboardLed({required this.waiting});
-
-  final bool waiting;
-
-  @override
-  State<_DashboardLed> createState() => _DashboardLedState();
-}
-
-class _DashboardLedState extends State<_DashboardLed>
-    with SingleTickerProviderStateMixin {
-  static const _sourceWidth = 2467.0;
-  static const _sourceHeight = 2136.0;
-  static const _ledCenter = Offset(2260, 1007);
-  static const _imageHeight = 150.0;
-  static const _imageWidth = _imageHeight * _sourceWidth / _sourceHeight;
-  static const _ledDiameter = 14.0;
-
-  late final AnimationController _pulse = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 1),
-  )..repeat();
-
-  late final Animation<double> _brightness = TweenSequence<double>([
-    TweenSequenceItem(tween: ConstantTween<double>(0), weight: 20),
-    TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 15),
-    TweenSequenceItem(tween: ConstantTween<double>(1), weight: 30),
-    TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 15),
-    TweenSequenceItem(tween: ConstantTween<double>(0), weight: 20),
-  ]).animate(_pulse);
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final scale = _imageHeight / _sourceHeight;
-    return SizedBox(
-      width: _imageWidth,
-      height: _imageHeight,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: Image.asset(
-              key: const Key('handoff-dashboard-full-dbc-asset'),
-              'assets/images/dbc-flash-error-off.png',
-              fit: BoxFit.fill,
-              excludeFromSemantics: true,
-            ),
-          ),
-          Positioned(
-            left: _ledCenter.dx * scale - _ledDiameter / 2,
-            top: _ledCenter.dy * scale - _ledDiameter / 2,
-            child: AnimatedBuilder(
-              animation: _brightness,
-              builder: (context, child) {
-                final level = widget.waiting ? _brightness.value : 1.0;
-                final amber = const Color(0xFFFFB300).withValues(alpha: level);
-                return Container(
-                  key: const Key('handoff-dashboard-amber-led'),
-                  width: _ledDiameter,
-                  height: _ledDiameter,
-                  decoration: BoxDecoration(
-                    color: amber,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: amber.withValues(alpha: level * 0.85),
-                        blurRadius: 12,
-                        spreadRadius: 3,
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -46,6 +46,33 @@ void main() {
       find.byKey(const Key('handoff-dashboard-full-dbc-asset')),
       findsNWidgets(2),
     );
+    final dbcGraphic = tester.getRect(
+      find.byKey(const Key('handoff-dashboard-full-dbc-asset')).first,
+    );
+    final scooterGraphic = tester.getRect(
+      find.byKey(const Key('handoff-scooter-ring-pulse')).first,
+    );
+    final indicator = tester.getRect(
+      find.byKey(const Key('handoff-dashboard-amber-led')).first,
+    );
+    final card = tester.getRect(
+      find
+          .ancestor(
+            of: find.text('Warten auf DBC'),
+            matching: find.byType(DecoratedBox),
+          )
+          .first,
+    );
+    expect(indicator.width, 6);
+    expect(indicator.height, 6);
+    expect(dbcGraphic.height, 104);
+    expect(scooterGraphic.width, 57);
+    expect(scooterGraphic.height, 108);
+    expect(dbcGraphic.right + 10, closeTo(scooterGraphic.left, 0.1));
+    expect(
+      (dbcGraphic.left + scooterGraphic.right) / 2,
+      closeTo(card.center.dx, 0.1),
+    );
 
     await tester.pump(const Duration(seconds: 2));
     expect(tester.takeException(), isNull);
