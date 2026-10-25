@@ -283,13 +283,27 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.describe }}"
           DMG_DIR=$(mktemp -d)
+          trap 'rm -rf "$DMG_DIR"' EXIT
           cp -R "build/macos/Build/Products/Release/Librescoot Installer.app" "$DMG_DIR/"
           ln -s /Applications "$DMG_DIR/Applications"
-          hdiutil create -volname "Librescoot Installer" \
-            -srcfolder "$DMG_DIR" \
-            -ov -format UDZO \
-            "build/macos/Build/Products/Release/librescoot-installer-macos-universal-${VERSION}.dmg"
-          rm -rf "$DMG_DIR"
+
+          DMG="build/macos/Build/Products/Release/librescoot-installer-macos-universal-${VERSION}.dmg"
+          for attempt in 1 2 3; do
+            if hdiutil create -volname "Librescoot Installer" \
+              -srcfolder "$DMG_DIR" \
+              -ov -format UDZO \
+              "$DMG"; then
+              break
+            else
+              status=$?
+              if [ "$attempt" -eq 3 ]; then
+                exit "$status"
+              fi
+              echo "hdiutil create failed (attempt $attempt/3); retrying in $((attempt * 5)) seconds" >&2
+              rm -f "$DMG"
+              sleep $((attempt * 5))
+            fi
+          done
 
       - name: Notarize and staple DMG
         if: matrix.target == 'macos' && env.HAS_SIGNING == 'true' && env.HAS_NOTARY_KEY == 'true'
