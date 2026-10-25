@@ -129,7 +129,9 @@ class _DashboardLedState extends State<_DashboardLed>
   static const _sourceWidth = 2467.0;
   static const _sourceHeight = 2136.0;
   static const _ledCenter = Offset(2260, 1007);
-  static const _scale = 0.25;
+  static const _imageHeight = 150.0;
+  static const _imageWidth = _imageHeight * _sourceWidth / _sourceHeight;
+  static const _ledDiameter = 14.0;
 
   late final AnimationController _pulse = AnimationController(
     vsync: this,
@@ -152,55 +154,48 @@ class _DashboardLedState extends State<_DashboardLed>
 
   @override
   Widget build(BuildContext context) {
+    final scale = _imageHeight / _sourceHeight;
     return SizedBox(
-      width: 124,
-      height: 74,
-      child: ClipRect(
-        child: Stack(
-          clipBehavior: Clip.hardEdge,
-          children: [
-            Positioned(
-              left: 62 - _ledCenter.dx * _scale,
-              top: 37 - _ledCenter.dy * _scale,
-              width: _sourceWidth * _scale,
-              height: _sourceHeight * _scale,
-              child: Image.asset(
-                'assets/images/dbc-flash-error-off.png',
-                fit: BoxFit.fill,
-                excludeFromSemantics: true,
-              ),
+      width: _imageWidth,
+      height: _imageHeight,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Image.asset(
+              key: const Key('handoff-dashboard-full-dbc-asset'),
+              'assets/images/dbc-flash-error-off.png',
+              fit: BoxFit.fill,
+              excludeFromSemantics: true,
             ),
-            Positioned(
-              left: 62 - 7,
-              top: 37 - 7,
-              child: AnimatedBuilder(
-                animation: _brightness,
-                builder: (context, child) {
-                  final level = widget.waiting ? _brightness.value : 1.0;
-                  final amber = const Color(
-                    0xFFFFB300,
-                  ).withValues(alpha: level);
-                  return Container(
-                    key: const Key('handoff-dashboard-amber-led'),
-                    width: 14,
-                    height: 14,
-                    decoration: BoxDecoration(
-                      color: amber,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: amber.withValues(alpha: level * 0.85),
-                          blurRadius: 12,
-                          spreadRadius: 3,
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
+          ),
+          Positioned(
+            left: _ledCenter.dx * scale - _ledDiameter / 2,
+            top: _ledCenter.dy * scale - _ledDiameter / 2,
+            child: AnimatedBuilder(
+              animation: _brightness,
+              builder: (context, child) {
+                final level = widget.waiting ? _brightness.value : 1.0;
+                final amber = const Color(0xFFFFB300).withValues(alpha: level);
+                return Container(
+                  key: const Key('handoff-dashboard-amber-led'),
+                  width: _ledDiameter,
+                  height: _ledDiameter,
+                  decoration: BoxDecoration(
+                    color: amber,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: amber.withValues(alpha: level * 0.85),
+                        blurRadius: 12,
+                        spreadRadius: 3,
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

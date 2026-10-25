@@ -42,6 +42,10 @@ void main() {
       find.byKey(const Key('handoff-dashboard-amber-led')),
       findsNWidgets(2),
     );
+    expect(
+      find.byKey(const Key('handoff-dashboard-full-dbc-asset')),
+      findsNWidgets(2),
+    );
 
     await tester.pump(const Duration(seconds: 2));
     expect(tester.takeException(), isNull);
