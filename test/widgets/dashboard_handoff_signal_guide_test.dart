@@ -66,8 +66,16 @@ void main() {
     expect(indicator.width, 6);
     expect(indicator.height, 6);
     expect(dbcGraphic.height, 104);
-    expect(scooterGraphic.width, 57);
-    expect(scooterGraphic.height, 108);
+    expect(scooterGraphic.width, 176);
+    expect(scooterGraphic.height, 128);
+    final scooterArt = tester.widget<Image>(
+      find.descendant(
+        of: find.byKey(const Key('handoff-scooter-ring-pulse')),
+        matching: find.byType(Image),
+      ),
+    );
+    expect(scooterArt.fit, BoxFit.cover);
+    expect(scooterArt.alignment, const Alignment(0, -0.33));
     expect(dbcGraphic.right + 10, closeTo(scooterGraphic.left, 0.1));
     expect(
       (dbcGraphic.left + scooterGraphic.right) / 2,

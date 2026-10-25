@@ -103,8 +103,8 @@ class _SignalStateCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 SizedBox(
-                  height: 108,
-                  width: 57,
+                  height: 128,
+                  width: 176,
                   child: _ScooterRing(waiting: waiting),
                 ),
               ],
@@ -159,17 +159,24 @@ class _ScooterRingState extends State<_ScooterRing>
   Widget build(BuildContext context) {
     const off = 'assets/images/dbc-flash-success-front-off.png';
     const lit = 'assets/images/dbc-flash-success-front.png';
+    const ringFocus = Alignment(0, -0.33);
     return Stack(
       fit: StackFit.expand,
       children: [
-        Image.asset(off, fit: BoxFit.contain, excludeFromSemantics: true),
+        Image.asset(
+          off,
+          fit: BoxFit.cover,
+          alignment: ringFocus,
+          excludeFromSemantics: true,
+        ),
         if (widget.waiting)
           FadeTransition(
             key: const Key('handoff-scooter-ring-pulse'),
             opacity: _lit ?? const AlwaysStoppedAnimation<double>(0),
             child: Image.asset(
               lit,
-              fit: BoxFit.contain,
+              fit: BoxFit.cover,
+              alignment: ringFocus,
               excludeFromSemantics: true,
             ),
           ),
