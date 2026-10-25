@@ -140,7 +140,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get continueToBraces => 'Weiter zu den Querstreben';
 
   @override
-  String get handoffShowStatus => 'Weiter';
+  String get handoffShowStatus => 'Weiter: Status & Signale';
 
   @override
   String get handoffCableInstructions => 'USB-Anleitung anzeigen';

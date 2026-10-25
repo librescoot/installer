@@ -37,7 +37,7 @@
   "flashAuthorisationHeading": "Freigabe zum Schreiben erforderlich",
   "originalKeycardsNotice": "Schlüsselkarten aus der Original-Firmware müssen neu angelernt werden; ihre Berechtigungen können nicht übernommen werden.",
   "continueToBraces": "Weiter zu den Querstreben",
-  "handoffShowStatus": "Weiter",
+  "handoffShowStatus": "Weiter: Status & Signale",
   "handoffCableInstructions": "USB-Anleitung anzeigen",
   "handoffElapsed": "Seit Kabeltrennung: {elapsed}",
   "@handoffElapsed": {"placeholders": {"elapsed": {"type": "String"}}},

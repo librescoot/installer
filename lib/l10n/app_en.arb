@@ -37,7 +37,7 @@
   "flashAuthorisationHeading": "Permission to write required",
   "originalKeycardsNotice": "Keycards from the original firmware must be enrolled again; their permissions cannot be transferred.",
   "continueToBraces": "Continue to the crossbars",
-  "handoffShowStatus": "Continue",
+  "handoffShowStatus": "Continue: Status & Signals",
   "handoffCableInstructions": "Show USB instructions",
   "handoffElapsed": "Since disconnection: {elapsed}",
   "@handoffElapsed": {"placeholders": {"elapsed": {"type": "String"}}},

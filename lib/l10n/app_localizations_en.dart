@@ -140,7 +140,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get continueToBraces => 'Continue to the crossbars';
 
   @override
-  String get handoffShowStatus => 'Continue';
+  String get handoffShowStatus => 'Continue: Status & Signals';
 
   @override
   String get handoffCableInstructions => 'Show USB instructions';

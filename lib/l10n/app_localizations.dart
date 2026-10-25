@@ -323,7 +323,7 @@ abstract class AppLocalizations {
   /// No description provided for @handoffShowStatus.
   ///
   /// In en, this message translates to:
-  /// **'Continue'**
+  /// **'Continue: Status & Signals'**
   String get handoffShowStatus;
 
   /// No description provided for @handoffCableInstructions.
