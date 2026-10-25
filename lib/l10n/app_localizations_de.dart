@@ -26,7 +26,24 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get handoffLedSignals =>
-      'Die LED am Dashboard blinkt orange, solange auf die Verbindung gewartet wird. Sobald sie dauerhaft orange leuchtet, wurde das Dashboard erkannt und die Installation läuft. Der vordere Leuchtring pulsiert ebenfalls während der Wartezeit. Lass das interne USB-Kabel nach dem Umstecken angeschlossen.';
+      'Lass das interne USB-Kabel nach dem Umstecken angeschlossen.';
+
+  @override
+  String get handoffWaitingForDbc => 'Warten auf DBC';
+
+  @override
+  String get handoffWaitingSignals => 'LED blinkt orange · Leuchtring pulsiert';
+
+  @override
+  String get handoffDbcRecognized => 'DBC erkannt';
+
+  @override
+  String get handoffInstallingSignals =>
+      'LED leuchtet dauerhaft orange · Leuchtring aus';
+
+  @override
+  String get handoffContinueWhenReady =>
+      'Klicke auf Weiter, sobald die Dashboard-LED dauerhaft orange leuchtet.';
 
   @override
   String get handoffDisconnected =>
@@ -123,7 +140,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get continueToBraces => 'Weiter zu den Querstreben';
 
   @override
-  String get handoffShowStatus => 'Weiter zu Status und Signalen';
+  String get handoffShowStatus => 'Weiter';
 
   @override
   String get handoffCableInstructions => 'USB-Anleitung anzeigen';

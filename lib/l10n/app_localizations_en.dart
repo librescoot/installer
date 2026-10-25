@@ -26,7 +26,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get handoffLedSignals =>
-      'The dashboard LED blinks amber while waiting for the connection. When it glows steadily amber, the dashboard has been recognized and installation is running. The front light ring also pulses while waiting. Keep the internal USB cable connected after swapping.';
+      'Keep the internal USB cable connected after swapping.';
+
+  @override
+  String get handoffWaitingForDbc => 'Waiting for DBC';
+
+  @override
+  String get handoffWaitingSignals => 'LED blinks amber · light ring pulses';
+
+  @override
+  String get handoffDbcRecognized => 'DBC recognized';
+
+  @override
+  String get handoffInstallingSignals =>
+      'LED glows solid amber · light ring off';
+
+  @override
+  String get handoffContinueWhenReady =>
+      'Click Continue once the dashboard LED glows solid amber.';
 
   @override
   String get handoffDisconnected =>
@@ -123,7 +140,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get continueToBraces => 'Continue to the crossbars';
 
   @override
-  String get handoffShowStatus => 'Continue to status and signals';
+  String get handoffShowStatus => 'Continue';
 
   @override
   String get handoffCableInstructions => 'Show USB instructions';

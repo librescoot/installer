@@ -131,8 +131,38 @@ abstract class AppLocalizations {
   /// No description provided for @handoffLedSignals.
   ///
   /// In en, this message translates to:
-  /// **'The dashboard LED blinks amber while waiting for the connection. When it glows steadily amber, the dashboard has been recognized and installation is running. The front light ring also pulses while waiting. Keep the internal USB cable connected after swapping.'**
+  /// **'Keep the internal USB cable connected after swapping.'**
   String get handoffLedSignals;
+
+  /// No description provided for @handoffWaitingForDbc.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for DBC'**
+  String get handoffWaitingForDbc;
+
+  /// No description provided for @handoffWaitingSignals.
+  ///
+  /// In en, this message translates to:
+  /// **'LED blinks amber · light ring pulses'**
+  String get handoffWaitingSignals;
+
+  /// No description provided for @handoffDbcRecognized.
+  ///
+  /// In en, this message translates to:
+  /// **'DBC recognized'**
+  String get handoffDbcRecognized;
+
+  /// No description provided for @handoffInstallingSignals.
+  ///
+  /// In en, this message translates to:
+  /// **'LED glows solid amber · light ring off'**
+  String get handoffInstallingSignals;
+
+  /// No description provided for @handoffContinueWhenReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Click Continue once the dashboard LED glows solid amber.'**
+  String get handoffContinueWhenReady;
 
   /// No description provided for @handoffDisconnected.
   ///
@@ -293,7 +323,7 @@ abstract class AppLocalizations {
   /// No description provided for @handoffShowStatus.
   ///
   /// In en, this message translates to:
-  /// **'Continue to status and signals'**
+  /// **'Continue'**
   String get handoffShowStatus;
 
   /// No description provided for @handoffCableInstructions.

@@ -84,6 +84,7 @@ import '../widgets/phase_layout.dart';
 import '../widgets/notice_card.dart';
 import '../widgets/driver_blocked_panel.dart';
 import '../widgets/dashboard_handoff_status.dart';
+import '../widgets/dashboard_handoff_signal_guide.dart';
 import '../widgets/dashboard_preparation_notice.dart';
 import '../widgets/firmware_channel_selector.dart';
 import '../widgets/dbc_flash_outcomes.dart';
@@ -8817,6 +8818,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             title: l10n.dbcFlashInProgress,
             body: l10n.handoffLedSignals,
           ),
+          const SizedBox(height: 12),
+          const DashboardHandoffSignalGuide(),
         ],
       ),
     );
