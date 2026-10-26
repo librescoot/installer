@@ -4,7 +4,9 @@ import '../l10n/app_localizations.dart';
 import 'dbc_led_image.dart';
 
 class DashboardHandoffSignalGuide extends StatelessWidget {
-  const DashboardHandoffSignalGuide({super.key});
+  const DashboardHandoffSignalGuide({super.key, this.compact = false});
+
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -18,30 +20,39 @@ class DashboardHandoffSignalGuide extends StatelessWidget {
               title: l10n.handoffWaitingForDbc,
               description: l10n.handoffWaitingSignals,
               waiting: true,
+              compact: compact,
             );
             final installing = _SignalStateCard(
               title: l10n.handoffDbcRecognized,
               description: l10n.handoffInstallingSignals,
               waiting: false,
+              compact: compact,
             );
             if (constraints.maxWidth < 620) {
               return Column(
-                children: [waiting, const SizedBox(height: 12), installing],
+                children: [
+                  waiting,
+                  SizedBox(height: compact ? 8 : 12),
+                  installing,
+                ],
               );
             }
             return Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(child: waiting),
-                const SizedBox(width: 12),
+                SizedBox(width: compact ? 8 : 12),
                 Expanded(child: installing),
               ],
             );
           },
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: compact ? 8 : 12),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: compact ? 8 : 10,
+          ),
           decoration: BoxDecoration(
             color: Colors.amber.withValues(alpha: 0.12),
             border: Border.all(color: Colors.amber.withValues(alpha: 0.55)),
@@ -50,7 +61,10 @@ class DashboardHandoffSignalGuide extends StatelessWidget {
           child: Text(
             l10n.handoffContinueWhenReady,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            style: TextStyle(
+              fontSize: compact ? 14 : 15,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
       ],
@@ -63,11 +77,13 @@ class _SignalStateCard extends StatelessWidget {
     required this.title,
     required this.description,
     required this.waiting,
+    required this.compact,
   });
 
   final String title;
   final String description;
   final bool waiting;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -80,20 +96,23 @@ class _SignalStateCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(10),
+        padding: EdgeInsets.all(compact ? 8 : 10),
         child: Column(
           children: [
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                fontSize: compact ? 15 : 16,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: compact ? 6 : 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 SizedBox(
-                  height: 104,
+                  height: compact ? 72 : 104,
                   child: DbcLedImage(
                     color: const Color(0xFFFFB300),
                     pulsing: waiting,
@@ -101,19 +120,19 @@ class _SignalStateCard extends StatelessWidget {
                     assetKey: const Key('handoff-dashboard-full-dbc-asset'),
                   ),
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: compact ? 8 : 10),
                 SizedBox(
-                  height: 128,
-                  width: 176,
+                  height: compact ? 90 : 128,
+                  width: compact ? 124 : 176,
                   child: _ScooterRing(waiting: waiting),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: compact ? 6 : 8),
             Text(
               description,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 12),
+              style: TextStyle(fontSize: compact ? 11 : 12),
             ),
           ],
         ),

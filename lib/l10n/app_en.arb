@@ -10,7 +10,7 @@
   "handoffWaitingSignals": "LED blinks amber · light ring pulses",
   "handoffDbcRecognized": "DBC recognized",
   "handoffInstallingSignals": "LED glows solid amber · light ring off",
-  "handoffContinueWhenReady": "Click Continue once the dashboard LED glows solid amber.",
+  "handoffContinueWhenReady": "Click Continue once the waiting pulse stops.",
   "handoffDisconnected": "Laptop disconnected. Check the signals on the scooter for further status.",
   "handoffHandsOffBody": "Even if the dashboard already shows something, installation may still be running. Keep the internal USB cable and power connected until the scooter signals completion.",
   "handoffCancel": "Cancel transfer",

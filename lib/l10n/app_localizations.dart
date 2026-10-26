@@ -161,7 +161,7 @@ abstract class AppLocalizations {
   /// No description provided for @handoffContinueWhenReady.
   ///
   /// In en, this message translates to:
-  /// **'Click Continue once the dashboard LED glows solid amber.'**
+  /// **'Click Continue once the waiting pulse stops.'**
   String get handoffContinueWhenReady;
 
   /// No description provided for @handoffDisconnected.

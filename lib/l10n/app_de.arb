@@ -10,7 +10,7 @@
   "handoffWaitingSignals": "LED blinkt orange · Leuchtring pulsiert",
   "handoffDbcRecognized": "DBC erkannt",
   "handoffInstallingSignals": "LED leuchtet dauerhaft orange · Leuchtring aus",
-  "handoffContinueWhenReady": "Klicke auf Weiter, sobald die Dashboard-LED dauerhaft orange leuchtet.",
+  "handoffContinueWhenReady": "Klicke auf Weiter, sobald das Wartepulsieren endet.",
   "handoffDisconnected": "Laptop-Verbindung getrennt. Den weiteren Status erkennst du an den Signalen am Roller.",
   "handoffHandsOffBody": "Auch wenn das Dashboard bereits etwas anzeigt, kann die Installation noch laufen. Lass das interne USB-Kabel und die Stromversorgung angeschlossen, bis der Roller den Abschluss signalisiert.",
   "handoffCancel": "Übertragung abbrechen",

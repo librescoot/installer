@@ -8807,6 +8807,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               'assets/images/lsi-mdb_usb_dbc.jpg',
             ],
             imageLabels: [l10n.laptopCableLabel, l10n.dashboardCableLabel],
+            imageHeight: 115,
           ),
           PreparationStep(
             number: 2,
@@ -8819,7 +8820,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             body: l10n.handoffLedSignals,
           ),
           const SizedBox(height: 12),
-          const DashboardHandoffSignalGuide(),
+          const DashboardHandoffSignalGuide(compact: true),
         ],
       ),
     );

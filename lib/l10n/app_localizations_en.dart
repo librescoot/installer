@@ -43,7 +43,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get handoffContinueWhenReady =>
-      'Click Continue once the dashboard LED glows solid amber.';
+      'Click Continue once the waiting pulse stops.';
 
   @override
   String get handoffDisconnected =>

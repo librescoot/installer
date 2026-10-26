@@ -43,7 +43,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get handoffContinueWhenReady =>
-      'Klicke auf Weiter, sobald die Dashboard-LED dauerhaft orange leuchtet.';
+      'Klicke auf Weiter, sobald das Wartepulsieren endet.';
 
   @override
   String get handoffDisconnected =>

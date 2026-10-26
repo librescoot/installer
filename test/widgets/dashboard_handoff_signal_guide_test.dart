@@ -1,9 +1,110 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/l10n/app_localizations.dart';
+import 'package:librescoot_installer/theme.dart';
 import 'package:librescoot_installer/widgets/dashboard_handoff_signal_guide.dart';
+import 'package:librescoot_installer/widgets/notice_card.dart';
+import 'package:librescoot_installer/widgets/phase_layout.dart';
+import 'package:librescoot_installer/widgets/preparation_step.dart';
 
 void main() {
+  testWidgets('fits the handoff instructions in an 800px desktop window', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await (FontLoader(
+      'Inter',
+    )..addFont(rootBundle.load('assets/fonts/InterVariable.ttf'))).load();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('de'),
+        theme: librescootTheme(),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: RepaintBoundary(
+          key: const Key('handoff-desktop-window'),
+          child: Scaffold(
+            body: PhaseLayout(
+              title: 'USB-Kabel umstecken',
+              subtitle:
+                  'Laptop-Verbindung getrennt. Den weiteren Status erkennst du an den Signalen am Roller.',
+              actions: [
+                PhaseAction(
+                  label: 'Weiter',
+                  icon: Icons.arrow_forward,
+                  primary: true,
+                  onPressed: () {},
+                ),
+              ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const PreparationStep(
+                    number: 1,
+                    title: 'Laptop-USB-Kabel abziehen',
+                    description:
+                        'Ziehe das Laptop-USB-Kabel am Hauptcomputer (MDB) ab.',
+                    images: [
+                      'assets/images/lsi-mdb_usb_laptop.jpg',
+                      'assets/images/lsi-mdb_usb_dbc.jpg',
+                    ],
+                    imageLabels: ['Laptop-Kabel', 'Dashboard-Kabel'],
+                    imageHeight: 115,
+                  ),
+                  const PreparationStep(
+                    number: 2,
+                    title: 'Internes Dashboard-Kabel anschließen',
+                    description:
+                        'Stecke das interne Dashboard-Kabel in denselben Anschluss. Ziehe die beiden Schrauben am Stecker wieder fest.',
+                  ),
+                  const NoticeCard(
+                    severity: NoticeSeverity.info,
+                    title: 'Installation auf dem Dashboard (DBC)',
+                    body:
+                        'Lass das interne USB-Kabel nach dem Umstecken angeschlossen.',
+                  ),
+                  const SizedBox(height: 12),
+                  const DashboardHandoffSignalGuide(compact: true),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    final context = tester.element(
+      find.byKey(const Key('handoff-desktop-window')),
+    );
+    await tester.runAsync(() async {
+      for (final asset in [
+        'assets/images/lsi-mdb_usb_laptop.jpg',
+        'assets/images/lsi-mdb_usb_dbc.jpg',
+        'assets/images/dbc-flash-error-off.png',
+        'assets/images/dbc-flash-success-front-off.png',
+        'assets/images/dbc-flash-success-front.png',
+      ]) {
+        await precacheImage(AssetImage(asset), context);
+      }
+    });
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    final continueHint = find.text(
+      'Klicke auf Weiter, sobald das Wartepulsieren endet.',
+    );
+    expect(continueHint, findsOneWidget);
+    expect(find.text('Weiter'), findsOneWidget);
+    expect(tester.getRect(continueHint).bottom, lessThanOrEqualTo(800));
+    expect(tester.getRect(find.text('Weiter')).bottom, lessThanOrEqualTo(800));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('shows the waiting and recognized LED states with ring motion', (
     tester,
   ) async {
@@ -32,9 +133,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.text(
-        'Klicke auf Weiter, sobald die Dashboard-LED dauerhaft orange leuchtet.',
-      ),
+      find.text('Klicke auf Weiter, sobald das Wartepulsieren endet.'),
       findsOneWidget,
     );
     expect(find.byKey(const Key('handoff-scooter-ring-pulse')), findsOneWidget);

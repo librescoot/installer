@@ -10,6 +10,7 @@ class PreparationStep extends StatelessWidget {
     required this.description,
     this.images = const [],
     this.imageLabels = const [],
+    this.imageHeight = 260,
   });
 
   final int number;
@@ -17,6 +18,7 @@ class PreparationStep extends StatelessWidget {
   final String description;
   final List<String> images;
   final List<String> imageLabels;
+  final double imageHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +56,7 @@ class PreparationStep extends StatelessWidget {
                           borderRadius: BorderRadius.circular(6),
                           child: Image.asset(
                             images[i],
-                            height: 260,
+                            height: imageHeight,
                             fit: BoxFit.contain,
                           ),
                         ),
