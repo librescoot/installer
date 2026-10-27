@@ -1,6 +1,6 @@
 # Librescoot Installer
 
-> **Beta development.** The automatic dashboard handoff and its LED/front-ring signals require physical hardware validation. Automated tests and simulated recordings do not establish hardware safety. Flashing firmware carries inherent risk; use at your own risk, with no warranty expressed or implied.
+> Stable release. Hardware installation and desktop smoke tests on Linux, macOS and Windows have passed. Flashing firmware carries inherent risk; use at your own risk, with no warranty expressed or implied.
 
 Part of the [Librescoot](https://librescoot.org/) open-source platform.
 
