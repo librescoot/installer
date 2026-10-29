@@ -3230,6 +3230,55 @@ echo timeout
     }
   }
 
+  @visibleForTesting
+  static const retainedInstallerDiagnosticsCommand = r'''
+for name in trampoline.log trampoline-status trampoline-journal.log mdb-usb-link.log trampoline-stdout.log run-state; do
+  path="/data/installer/$name"
+  if [ -f "$path" ]; then
+    printf '\n--- retained %s (last 1000 lines) ---\n' "$name"
+    tail -n 1000 "$path" 2>&1
+  fi
+done
+printf '\n--- current DBC control record ---\n'
+for name in owner state mode isolated gpio remote librescoot-pm.service librescoot-update.service librescoot-vehicle.service; do
+  path="/data/librescoot-installer/dbc-control/$name"
+  if [ -f "$path" ]; then
+    printf '%s: ' "$name"
+    head -c 1024 "$path" 2>&1
+    printf '\n'
+  fi
+done
+printf '\n--- current MDB USB/network state (laptop connected) ---\n'
+for path in /sys/kernel/debug/ci_hdrc.0/role /sys/kernel/debug/usb/ci_hdrc.0/role /sys/bus/platform/devices/ci_hdrc.0/role /sys/class/udc/ci_hdrc.0/state /sys/class/net/usb0/carrier /sys/class/net/usb0/operstate; do
+  if [ -f "$path" ]; then printf '%s: ' "$path"; head -c 1024 "$path" 2>&1; printf '\n'; fi
+done
+ip -4 addr show dev usb0 2>&1
+ip route get 192.168.7.2 2>&1
+ip neigh show to 192.168.7.2 2>&1
+for unit in librescoot-pm.service librescoot-update.service librescoot-vehicle.service; do
+  systemctl show -p Id -p ActiveState -p SubState -p ConditionResult "$unit" 2>&1
+  for path in /etc/systemd/system/"$unit.d"/90-installer-dbc-*.conf; do
+    if [ -f "$path" ]; then printf '%s:\n' "$path"; head -c 4096 "$path"; fi
+  done
+done
+since=$(cat /data/installer/trampoline-started-at 2>/dev/null || true)
+if [ -n "$since" ]; then
+  printf '\n--- relevant service journal since trampoline start (last 400) ---\n'
+  journalctl --no-pager --since "$since" -n 400 \
+    -u librescoot-onboot.service -u librescoot-onboot-inline.service \
+    -u librescoot-vehicle.service -u librescoot-update.service \
+    -u systemd-networkd.service -u ppp-link.service 2>&1
+  printf '\n--- kernel journal since trampoline start (last 250) ---\n'
+  journalctl --no-pager --since "$since" -k -n 250 2>&1
+fi
+true
+''';
+
+  Future<String> readRetainedInstallerDiagnostics() => runCommand(
+    retainedInstallerDiagnosticsCommand,
+    timeout: const Duration(seconds: 30),
+  );
+
   /// The tail of the trampoline's own log, which is the only account of what
   /// happened while the laptop was unplugged.
   Future<String> readTrampolineLogTail({int lines = 40}) async {

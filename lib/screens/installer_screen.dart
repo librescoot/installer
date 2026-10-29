@@ -435,6 +435,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   String? _resumeStage; // stage the previous run reached, from the run state
   String? _resumeActor; // who wrote that state last: installer or trampoline
   String _resumeLogTail = ''; // last lines of the previous run's own log
+  String? _resumeEvidenceKey;
   String? _reportedPreviousFailureKey;
   bool _resumeStillRunning = false; // the board is mid-run, leave it alone
   // MDB answered SSH but has no Librescoot stack -> recover by re-flashing.
@@ -3884,6 +3885,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       appendLogRaw('--- previous run, last lines of its log ---');
       appendLogRaw(tail);
       appendLogRaw('--- end previous run log ---');
+    }
+    final evidenceKey = '${state?.runId}:${state?.stage}';
+    if (_resumeEvidenceKey != evidenceKey) {
+      if (await _captureTrampolineEvidence(null)) {
+        _resumeEvidenceKey = evidenceKey;
+      }
     }
     if (!mounted) return;
     setState(() {
@@ -9533,35 +9540,24 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// and fetch the journal alongside it. The status file carries the step
   /// markers and the lsusb dump; the journal carries what systemd saw, which
   /// is the half that explains a script that died rather than failed.
-  Future<void> _captureTrampolineEvidence(String? errorLog) async {
+  Future<bool> _captureTrampolineEvidence(String? errorLog) async {
     if (errorLog != null && errorLog.trim().isNotEmpty) {
       appendLogRaw('--- trampoline status file ---');
       appendLogRaw(errorLog.trimRight());
       appendLogRaw('--- end trampoline status file ---');
     }
-    if (_isDryRun || !_sshService.isConnected) return;
+    if (_isDryRun || !_sshService.isConnected) return false;
     try {
-      final journal = await _sshService.runCommand(
-        r'since=$(cat /data/installer/trampoline-started-at 2>/dev/null || true); '
-        r'if [ -z "$since" ]; then echo "trampoline start marker missing"; '
-        r'else '
-        r'echo "--- relevant service journal (info+, last 400) ---"; '
-        r'journalctl --no-pager --since "$since" -n 400 '
-        r'-u librescoot-onboot.service -u librescoot-vehicle.service '
-        r'-u librescoot-update.service -u systemd-networkd.service '
-        r'-u ppp-link.service 2>&1; '
-        r'echo "--- kernel journal (last 250) ---"; '
-        r'journalctl --no-pager --since "$since" -k -n 250 2>&1; '
-        r'fi; true',
-        timeout: const Duration(seconds: 20),
-      );
-      if (journal.trim().isNotEmpty) {
-        appendLogRaw('--- relevant journal since trampoline start ---');
-        appendLogRaw(journal.trimRight());
-        appendLogRaw('--- end relevant journal ---');
+      final evidence = await _sshService.readRetainedInstallerDiagnostics();
+      if (evidence.trim().isNotEmpty) {
+        appendLogRaw('--- retained installation diagnostics ---');
+        appendLogRaw(evidence.trimRight());
+        appendLogRaw('--- end retained installation diagnostics ---');
       }
+      return true;
     } catch (e) {
-      debugPrint('UI: could not fetch the trampoline journal (ok): $e');
+      debugPrint('UI: could not fetch retained installation diagnostics: $e');
+      return false;
     }
   }
 
