@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
 import '../services/installer_sounds.dart';
+import 'brake_lever_animation.dart';
 
 /// The brake-lever restart gesture: hold both levers for forty seconds, let
 /// go of the right one for about a second at each ten second mark, and release
@@ -389,6 +390,15 @@ class _BrakeGesturePacerState extends State<BrakeGesturePacer> {
               label: Text(l10n.brakePacerStart),
             ),
           ),
+        const SizedBox(height: 18),
+        BrakeLeverAnimation(
+          pose: switch (_phase) {
+            _PacerPhase.hold => BrakeLeverPose.held,
+            _PacerPhase.blip => BrakeLeverPose.rightReleased,
+            _ => BrakeLeverPose.released,
+          },
+          animate: onPattern || _phase == _PacerPhase.release,
+        ),
       ],
     );
   }

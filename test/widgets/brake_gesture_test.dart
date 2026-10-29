@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/l10n/app_localizations.dart';
 import 'package:librescoot_installer/widgets/brake_gesture.dart';
+import 'package:librescoot_installer/widgets/brake_lever_animation.dart';
 import 'package:librescoot_installer/services/installer_sounds.dart';
 
 Widget _host(Widget child) => MaterialApp(
@@ -168,6 +169,47 @@ void main() {
     expect(cues.length, countAtStop);
   });
 
+  testWidgets('lever artwork follows the countdown, all blips, and release', (
+    tester,
+  ) async {
+    BrakeLeverAnimation animation() =>
+        tester.widget<BrakeLeverAnimation>(find.byType(BrakeLeverAnimation));
+    await tester.pumpWidget(_host(const BrakeGesturePacer()));
+    expect(animation().pose, BrakeLeverPose.released);
+    await tester.tap(find.text('Start the timer'));
+    await tester.pump();
+    await _advance(tester, brakeLeadInSeconds - 1);
+    expect(animation().pose, BrakeLeverPose.released);
+    await _advance(tester, 1);
+    expect(animation().pose, BrakeLeverPose.held);
+    for (var segment = 1; segment < brakeSegments; segment++) {
+      await _advance(tester, brakeHoldSecondsFor(segment));
+      expect(animation().pose, BrakeLeverPose.rightReleased);
+      await _advance(tester, brakeBlipSeconds);
+      expect(animation().pose, BrakeLeverPose.held);
+    }
+    await _advance(tester, brakeHoldSecondsFor(brakeSegments));
+    expect(animation().pose, BrakeLeverPose.released);
+    await _advance(tester, brakeReleaseSeconds);
+    expect(animation().pose, BrakeLeverPose.released);
+  });
+
+  testWidgets('stopping the gesture resets the artwork without a release cue', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_host(const BrakeGesturePacer()));
+    await tester.tap(find.text('Start the timer'));
+    await tester.pump();
+    await _advance(tester, brakeLeadInSeconds);
+    await tester.tap(find.text('Stop'));
+    await tester.pump();
+    final animation = tester.widget<BrakeLeverAnimation>(
+      find.byType(BrakeLeverAnimation),
+    );
+    expect(animation.pose, BrakeLeverPose.released);
+    expect(animation.animate, isFalse);
+  });
+
   test('the whole gesture is forty seconds, blips included', () {
     // The blips land on the ten second marks and count toward the forty,
     // rather than pausing the clock and pushing the end out to forty-three.
@@ -177,5 +219,4 @@ void main() {
     final blips = (brakeSegments - 1) * brakeBlipSeconds;
     expect(held + blips, brakeTotalSeconds);
   });
-
 }
