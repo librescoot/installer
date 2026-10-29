@@ -1945,102 +1945,25 @@ if [ "$DBC_VEHICLE_UPDATE" = direct ] && ! dbc_update_start; then
   exit 1
 fi
 
-# Keep trying dbc on-wait until it succeeds - DBC may restart several times
-log "  powering on DBC (may take multiple attempts)..."
+log "  powering on DBC..."
 CURRENT_STAGE="powering-dbc"
 write_run_state "$CURRENT_STAGE"
-ATTEMPTS=0
-while [ $ATTEMPTS -lt 5 ]; do
-  ATTEMPTS=$((ATTEMPTS + 1))
-  log "  dbc on-wait attempt $ATTEMPTS..."
-  dbc_power_on_wait && break
-  # A request that was already high is not a new request. Drop it, let the
-  # rail settle, and ask again: a board that ignored the first ask answers
-  # a cycle.
-  log "  attempt $ATTEMPTS failed, power-cycling the dashboard and retrying..."
-  dbc_owned_power_off || { write_status "error: no owned DBC power-cycle is available"; signal_error; exit 1; }
-  sleep 5
-done
-
-# Wait for DBC to be stable. Requires 10s of consecutive ping success.
-# Was 20s - the resize-induced reboot is the only thing that breaks the
-# ping stream, and the in-loop handler below already covers that. 10s of
-# stable pings is plenty to confirm we're past the resize.
-log "  waiting for DBC to be stable (10s consecutive ping)..."
-STABLE=0
-ELAPSED=0
-while [ $STABLE -lt 10 ] && [ $ELAPSED -lt 300 ]; do
-  if ping -c 1 -W 2 $DBC_IP >/dev/null 2>&1; then
-    STABLE=$((STABLE + 1))
-  else
-    if [ $STABLE -gt 0 ]; then
-      log "  ping dropped after ${STABLE}s stable - DBC rebooting, waiting 5s then turning on..."
-      sleep 5
-      dbc_power_on || true
-    fi
-    STABLE=0
-  fi
-  ELAPSED=$((ELAPSED + 2))
-  sleep 1
-done
-log "  DBC stable after ${ELAPSED}s (stable_count=$STABLE)"
-# The dashboard is answering, so the cable is on it. An upgrade never reached
-# the trampoline's own stop, because it never talks to the dashboard at all,
-# and this is the first moment on that path where the wait is provably over.
-front_pulse_stop
-
-# Stay on phase 2 (BR breathing = "MDB & DBC restart") through the SSH wait.
-# Re-establishing the DBC connection is part of the restart, not the copy, so
-# advancing to phase 3 (BL = "maps") happens only once the actual upload
-# starts. That keeps the two distinguishable: a BR blinker stuck breathing
-# means the DBC never came back (USB/boot issue), a stuck BL means the data
-# copy itself is slow.
-# Wait for SSH, re-asserting DBC power as we go. A freshly flashed DBC
-# reboots once on first boot to apply its boot-partition (u-boot) update,
-# and that update's `complete-dbc` makes vehicle-service power the DBC off
-# if the vehicle is in standby. Either way the DBC drops off the bus. So
-# whenever it's unpingable, cycle its power: off, a settle, on. A request
-# line that is already high is not a new request, and a board that ignored
-# it once answers the cycle. The boot update only fires once, so it comes up
-# and stays up. Poll, not a blind
-# wait: breaks the instant the DBC answers. Skipping tiles = no offline maps.
-log "  waiting for DBC SSH..."
-CURRENT_STAGE="waiting-dbc-ssh"
-write_run_state "$CURRENT_STAGE"
-ELAPSED=0
-while [ $ELAPSED -lt 300 ]; do
-  ssh -y -y root@$DBC_IP 'echo ok' >/dev/null && break
-  if ! ping -c 1 -W 2 $DBC_IP >/dev/null 2>&1 && [ $((ELAPSED % 20)) -eq 0 ]; then
-    log "  DBC unreachable - power-cycling it"
-    dbc_owned_power_off || { write_status "error: no owned DBC power-cycle is available"; signal_error; exit 1; }
-    dbc_power_on || true
-  fi
-  ELAPSED=$((ELAPSED + 5))
-  sleep 5
-done
-
-if [ $ELAPSED -ge 300 ]; then
-  if [ -n "$DBC_MENDER" ]; then
-    log "ERROR: DBC not reachable after 300s, artifact not installed"
-    CURRENT_STAGE="waiting-dbc-ssh"
-    write_status "error: DBC not reachable, artifact not installed"
-    # Power the DBC down like the success branch below does, so a failed
-    # install does not leave it drawing on the aux battery indefinitely.
-    dbc_fail_say "{{MSG_FAIL_DBC}}"
-    dbc_owned_power_off || log "  DBC power-off was not acknowledged"
-    signal_error
-    exit 1
-  fi
-  # The artifact is on; the dashboard just did not come back in time for the
-  # maps. That is a finished install missing its maps, so it takes the same
-  # finish as every other success: the settings restore, the completion record
-  # the returning laptop reads, and the reboot are all still owed.
-  log "WARNING: DBC not reachable after 300s, skipping tiles"
-  TILES_SKIPPED="yes"
-  dbc_owned_power_off || log "  DBC power-off was not acknowledged"
-  device_finish || exit 1
-  exit 0
+if ! dbc_power_set 1; then
+  write_status "error: could not request DBC power; installation state retained"
+  signal_error
+  exit 1
 fi
+
+# A failed SSH connection cannot authorize a sync-dependent power cycle.
+# Recover the USB transport before writing, keeping the running DBC powered.
+CURRENT_STAGE="waiting-dbc-link"
+write_run_state "$CURRENT_STAGE"
+if ! dbc_wait_install_link 300; then
+  write_status "error: dashboard connection unavailable; power and installation state retained"
+  signal_error
+  exit 1
+fi
+front_pulse_stop
 log "  DBC reachable"
 # Keep one boundary across this run's DBC reboot and retries, but never reuse a
 # marker from an older installer run.

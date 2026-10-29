@@ -204,6 +204,91 @@ wait_for_dashboard_connection() {
   done
 }
 
+dbc_link_diagnostics() {
+  local value path
+  value=$(cat "$USB_HANDOFF_UDC_STATE" 2>/dev/null) || value=unavailable
+  log "  DBC link: UDC=$value"
+  for path in /sys/class/net/usb0/carrier /sys/class/net/usb0/operstate; do
+    value=$(cat "$path" 2>/dev/null) || value=unavailable
+    log "  DBC link: $path=$value"
+  done
+  log "  DBC link address: $(ip -4 addr show dev usb0 2>&1)"
+  log "  DBC link route: $(ip route get "$DBC_IP" 2>&1)"
+  log "  DBC link neighbour: $(ip neigh show to "$DBC_IP" 2>&1)"
+}
+
+# Only the pre-write phase may reset the transport. Never interrupt an artifact
+# command whose outcome is unknown, or a laptop that has reconnected to the MDB.
+dbc_link_recovery_allowed() {
+  [ "${DBC_VEHICLE_UPDATE:-none}" = direct ] || return 1
+  dbc_control_check || return 1
+  [ "$(cat "$DBC_CONTROL_DIR/state" 2>/dev/null)" = artifact-install ] || return 1
+  ! handoff_laptop_present
+}
+
+dbc_rebind_install_link() {
+  local role
+  dbc_link_recovery_allowed || return 1
+  for role in /sys/kernel/debug/ci_hdrc.0/role \
+              /sys/kernel/debug/usb/ci_hdrc.0/role \
+              /sys/bus/platform/devices/ci_hdrc.0/role; do
+    [ -f "$role" ] && break
+  done
+  [ "$(cat "$role" 2>/dev/null)" = gadget ] || return 1
+  log "  Rebinding MDB USB Ethernet without cutting dashboard power"
+  device_timeout 10 rmmod g_ether || return 1
+  sleep 1
+  # Always restore the gadget after unloading it, including on ownership loss.
+  device_timeout 10 modprobe g_ether || return 1
+  ip link set usb0 up || return 1
+  ip addr replace 192.168.7.1/24 dev usb0 || return 1
+  ip neigh flush to "$DBC_IP" dev usb0 2>/dev/null || true
+}
+
+# Local gadget configuration alone says nothing about the DBC's host or IP
+# stack. Wait for an identified peer, stable across the bootstrap's first boot.
+dbc_wait_install_link() {
+  local limit="${1:-300}" now deadline next_repair repairs=0 stable_since=""
+  local HANDOFF_DIR="${INSTALLER_DIR}/handoff-$RUN_ID"
+  now=$(handoff_now)
+  deadline=$((now + limit))
+  next_repair=$((now + 30))
+  dbc_link_diagnostics
+  while [ "$(handoff_now)" -lt "$deadline" ]; do
+    if [ "${DBC_VEHICLE_UPDATE:-none}" = direct ] && ! dbc_control_check; then
+      log "ERROR: exclusive DBC control lost while waiting for its network link"
+      return 1
+    fi
+    if handoff_laptop_present; then
+      log "ERROR: laptop reconnected while waiting for the dashboard; retaining power and state"
+      return 1
+    fi
+    if dbc_usb_identified || dbc_ppp_upgrade_identified; then
+      now=$(handoff_now)
+      [ -n "$stable_since" ] || stable_since=$now
+      if [ $((now - stable_since)) -ge 10 ]; then
+        log "  Identified dashboard link stable for 10 seconds"
+        return 0
+      fi
+    else
+      stable_since=""
+      now=$(handoff_now)
+      if [ "$now" -ge "$next_repair" ] && [ "$repairs" -lt 3 ]; then
+        dbc_link_diagnostics
+        if dbc_link_recovery_allowed; then
+          dbc_rebind_install_link || log "  USB link reset was not completed; continuing bounded wait"
+        fi
+        repairs=$((repairs + 1))
+        next_repair=$(($(handoff_now) + 30))
+      fi
+    fi
+    sleep 2
+  done
+  dbc_link_diagnostics
+  log "ERROR: dashboard network link did not recover; retaining power and installation state"
+  return 1
+}
+
 # SSH/SCP to DBC with retries. -y -y makes dropbear skip host-key checking
 # entirely. A flash gives the DBC a brand-new host key; the MDB still has the
 # previous one in known_hosts, so a single -y (accept unknown, but ABORT on
@@ -301,12 +386,18 @@ dbc_full_image_capable() {
 
 dbc_maintenance_check() {
   local unit state path
-  [ -f "$DBC_CONTROL_DIR/isolated" ] || return 1
+  [ -f "$DBC_CONTROL_DIR/isolated" ] || { log "ERROR: DBC maintenance isolation marker missing"; return 1; }
   for unit in $DBC_MAINTENANCE_UNITS; do
     path=$(dbc_maintenance_path "$unit")
-    [ "$(cat "$path" 2>/dev/null)" = "$(dbc_maintenance_unit_config)" ] || return 1
-    state=$(systemctl show -p ActiveState --value "$unit" 2>/dev/null) || return 1
-    case "$state" in inactive|failed) ;; *) return 1 ;; esac
+    [ "$(cat "$path" 2>/dev/null)" = "$(dbc_maintenance_unit_config)" ] || {
+      log "ERROR: DBC maintenance condition missing or changed for $unit"
+      return 1
+    }
+    state=$(systemctl show -p ActiveState --value "$unit" 2>/dev/null) || {
+      log "ERROR: cannot read DBC maintenance service state for $unit"
+      return 1
+    }
+    case "$state" in inactive|failed) ;; *) log "ERROR: DBC maintenance service $unit is $state"; return 1 ;; esac
   done
 }
 
@@ -492,8 +583,9 @@ dbc_control_acquire() {
     [ "$(cat "$DBC_CONTROL_DIR/owner" 2>/dev/null)" = "$RUN_ID" ] || return 1
     case "$1:$(cat "$DBC_CONTROL_DIR/state" 2>/dev/null)" in
       handoff:handoff|resume:handoff) ;;
-      resume:artifact-install) [ -d "$DBC_CONTROL_DIR/phase" ] || return 1 ;;
-      *) return 1 ;;
+      resume:artifact-install)
+        [ -d "$DBC_CONTROL_DIR/phase" ] || { log "ERROR: DBC resume phase claim missing"; return 1; } ;;
+      *) log "ERROR: DBC control cannot $1 from state $(cat "$DBC_CONTROL_DIR/state" 2>/dev/null)"; return 1 ;;
     esac
     DBC_CONTROL_MODE=$(cat "$DBC_CONTROL_DIR/mode") || return 1
     if [ "$DBC_CONTROL_MODE" = maintenance ]; then dbc_maintenance_check || return 1; fi
