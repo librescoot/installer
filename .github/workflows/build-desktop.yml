@@ -21,6 +21,8 @@ jobs:
   test:
     name: Test
     if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       (startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')) ||
       (inputs.release_tag != '' && !contains(inputs.release_tag, '-')) ||
       inputs.run_tests == true
@@ -42,15 +44,21 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # Stable releases require the complete flash-safety suite on one runner.
-      # Other builds can opt in through workflow_dispatch.
+      - name: Analyze
+        run: flutter analyze
+
+      # Branches and PRs run checks without packaging desktop applications.
+      # Stable tags require the complete flash-safety suite before packaging.
       - name: Run tests
         run: flutter test
 
   build:
     name: Build (${{ matrix.target }})
     needs: test
-    if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
+    if: >-
+      !cancelled() &&
+      (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') &&
+      (needs.test.result == 'success' || needs.test.result == 'skipped')
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
