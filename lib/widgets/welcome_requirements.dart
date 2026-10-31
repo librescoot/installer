@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
+import 'requirements_preview_row.dart';
 
 class WelcomeRequirements extends StatelessWidget {
   const WelcomeRequirements({super.key, required this.onOpenUrl});
@@ -68,10 +69,8 @@ class WelcomeRequirements extends StatelessWidget {
       ],
     );
 
-    Widget videoCard(double width) => SizedBox(
-      width: width,
-      height: width * 9 / 16,
-      child: Semantics(
+    final videoCard = LayoutBuilder(
+      builder: (context, constraints) => Semantics(
         button: true,
         label: l10n.requirementsVideoLink,
         onTap: () => onOpenUrl(videoUrl),
@@ -100,47 +99,52 @@ class WelcomeRequirements extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const Center(
+                    Align(
+                      alignment: const Alignment(0, -0.15),
                       child: Icon(
                         Icons.play_circle_fill_rounded,
                         color: Colors.white,
-                        size: 56,
-                        shadows: [
+                        size: constraints.maxHeight < 100 ? 32 : 40,
+                        shadows: const [
                           Shadow(blurRadius: 12, color: Colors.black87),
                         ],
                       ),
                     ),
                     Positioned(
-                      top: 8,
-                      right: 8,
+                      top: 6,
+                      right: 6,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           color: Colors.black54,
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: const Padding(
-                          padding: EdgeInsets.all(5),
+                          padding: EdgeInsets.all(3),
                           child: Icon(
                             Icons.open_in_new,
                             color: Colors.white,
-                            size: 18,
+                            size: 16,
                           ),
                         ),
                       ),
                     ),
                     Positioned(
-                      left: 12,
-                      right: 12,
-                      bottom: 10,
-                      child: Text(
-                        l10n.requirementsVideoLink,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          height: 1.2,
+                      left: 10,
+                      right: 10,
+                      bottom: 6,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          l10n.requirementsVideoLink,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            height: 1.2,
+                          ),
+                          maxLines: 1,
                         ),
-                        maxLines: 2,
                       ),
                     ),
                   ],
@@ -160,22 +164,15 @@ class WelcomeRequirements extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               paragraph,
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerRight,
-                child: videoCard(constraints.maxWidth.clamp(0.0, 320.0)),
+                child: SizedBox(width: 132, height: 66, child: videoCard),
               ),
             ],
           );
         }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(child: paragraph),
-            const SizedBox(width: 16),
-            videoCard(280),
-          ],
-        );
+        return RequirementsPreviewRow(list: paragraph, preview: videoCard);
       },
     );
   }

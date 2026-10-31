@@ -50,8 +50,13 @@ void main() {
           final listRect = tester.getRect(list);
           final video = find.byKey(const ValueKey('installation-video'));
           final videoRect = tester.getRect(video);
-          expect(videoRect.width, greaterThanOrEqualTo(280));
-          expect(videoRect.width / videoRect.height, closeTo(16 / 9, 0.01));
+          expect(videoRect.width, lessThanOrEqualTo(280));
+          if (width >= 620) {
+            expect(videoRect.width / videoRect.height, closeTo(16 / 9, 0.01));
+            expect(videoRect.height, lessThanOrEqualTo(listRect.height + 0.01));
+          } else {
+            expect(videoRect.size, const Size(132, 66));
+          }
           expect(
             find.byKey(const ValueKey('installation-video-thumbnail')),
             findsOneWidget,
@@ -97,6 +102,48 @@ void main() {
                 ? 'https://downloads.librescoot.org/en/installation-video/'
                 : 'https://downloads.librescoot.org/installation-video/',
           ]);
+
+          final newHeight = tester
+              .getSize(find.byType(WelcomeRequirements))
+              .height;
+          final paragraph = tester.widget<Column>(list);
+          const originalButton = SizedBox(width: 132, height: 66);
+          const originalKey = ValueKey('original-requirements');
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: SizedBox(
+                  key: originalKey,
+                  width: width,
+                  child: width < 620
+                      ? Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            paragraph,
+                            const SizedBox(height: 8),
+                            const Align(
+                              alignment: Alignment.centerRight,
+                              child: originalButton,
+                            ),
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            Expanded(child: paragraph),
+                            const SizedBox(width: 16),
+                            originalButton,
+                          ],
+                        ),
+                ),
+              ),
+            ),
+          );
+          expect(
+            newHeight,
+            closeTo(tester.getSize(find.byKey(originalKey)).height, 0.01),
+            reason: 'The preview must not move the following controls',
+          );
         },
       );
     }
