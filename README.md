@@ -105,7 +105,9 @@ scripts/update-flasher.sh          # populate assets/tools/ with flasher binarie
 flutter run -d linux               # or macos, windows
 ```
 
-Run `flutter test` and `flutter analyze` locally before publishing changes. CI runs the full test suite for stable release tags (without a prerelease suffix); regular pushes and beta tags build without it. Manual workflow runs can enable `run_tests`. Failed stable-release tests block all platform builds.
+Run `flutter test` and `flutter analyze` locally before publishing changes. On Linux, the native GTK titlebar regression test also needs a C compiler, `pkg-config`, `libgtk-3-dev` and `xvfb`.
+
+CI runs analysis and the full test suite on main pushes, pull requests and stable release tags. Desktop packages are built only for tags or explicit manual runs. Beta tags skip the test job; manual workflow runs can enable `run_tests`. Failed stable-release tests block all platform builds.
 
 Published prereleases refresh the downloads site's separate beta listing without replacing its stable downloads. Stable releases also refresh the main site.
 

@@ -44,6 +44,11 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Install native GTK test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev xvfb
+
       - name: Analyze
         run: flutter analyze
 

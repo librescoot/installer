@@ -48,11 +48,11 @@ static void my_application_activate(GApplication* application) {
     GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
     gtk_widget_show(GTK_WIDGET(header_bar));
     gtk_header_bar_set_show_close_button(header_bar, TRUE);
-    g_object_bind_property(window, "title", header_bar, "title", G_BINDING_SYNC_CREATE);
+    // GTK synchronizes both titles itself. An extra property binding loops
+    // through GtkHeaderBar::notify::title before the first Flutter frame.
     gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
-  } else {
-    gtk_window_set_title(window, "Librescoot Installer");
   }
+  gtk_window_set_title(window, "Librescoot Installer");
 
   // Same on every platform. 800 high is what the decision screens need to
   // fit without scrolling; the picture-heavy ones scroll at any size.
