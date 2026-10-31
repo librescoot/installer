@@ -683,7 +683,7 @@ abstract class AppLocalizations {
   /// No description provided for @requirementsVideoLink.
   ///
   /// In en, this message translates to:
-  /// **'Watch the installation video ↗'**
+  /// **'Watch the installation video'**
   String get requirementsVideoLink;
 
   /// No description provided for @reliabilityWarningTitle.

@@ -334,7 +334,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Charge the laptop or connect its power supply; disable automatic sleep.';
 
   @override
-  String get requirementsVideoLink => 'Watch the installation video ↗';
+  String get requirementsVideoLink => 'Watch the installation video';
 
   @override
   String get reliabilityWarningTitle => 'Before you start';

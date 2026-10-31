@@ -68,48 +68,83 @@ class WelcomeRequirements extends StatelessWidget {
       ],
     );
 
-    final videoCard = SizedBox(
-      width: 132,
-      height: 66,
+    Widget videoCard(double width) => SizedBox(
+      width: width,
+      height: width * 9 / 16,
       child: Semantics(
         button: true,
         label: l10n.requirementsVideoLink,
         onTap: () => onOpenUrl(videoUrl),
         child: Material(
           color: const Color(0xFF242424),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: BorderSide(color: kAccent.withValues(alpha: 0.35)),
-          ),
+          borderRadius: BorderRadius.circular(8),
           clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            key: const ValueKey('installation-video'),
-            excludeFromSemantics: true,
-            onTap: () => onOpenUrl(videoUrl),
-            child: ExcludeSemantics(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.play_circle_fill_rounded,
-                    color: kAccent,
-                    size: 25,
-                  ),
-                  const SizedBox(height: 2),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Text(
-                      l10n.requirementsVideoLink,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: kAccent,
-                        fontSize: 12,
-                        height: 1.2,
+          child: Ink.image(
+            key: const ValueKey('installation-video-thumbnail'),
+            image: const AssetImage('assets/images/installation-video.webp'),
+            fit: BoxFit.cover,
+            child: InkWell(
+              key: const ValueKey('installation-video'),
+              excludeFromSemantics: true,
+              onTap: () => onOpenUrl(videoUrl),
+              child: ExcludeSemantics(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    const DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.center,
+                          end: Alignment.bottomCenter,
+                          colors: [Colors.transparent, Color(0xDD000000)],
+                        ),
                       ),
-                      maxLines: 2,
                     ),
-                  ),
-                ],
+                    const Center(
+                      child: Icon(
+                        Icons.play_circle_fill_rounded,
+                        color: Colors.white,
+                        size: 56,
+                        shadows: [
+                          Shadow(blurRadius: 12, color: Colors.black87),
+                        ],
+                      ),
+                    ),
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Padding(
+                          padding: EdgeInsets.all(5),
+                          child: Icon(
+                            Icons.open_in_new,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 12,
+                      right: 12,
+                      bottom: 10,
+                      child: Text(
+                        l10n.requirementsVideoLink,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          height: 1.2,
+                        ),
+                        maxLines: 2,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -125,8 +160,11 @@ class WelcomeRequirements extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               paragraph,
-              const SizedBox(height: 8),
-              Align(alignment: Alignment.centerRight, child: videoCard),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: videoCard(constraints.maxWidth.clamp(0.0, 320.0)),
+              ),
             ],
           );
         }
@@ -135,7 +173,7 @@ class WelcomeRequirements extends StatelessWidget {
           children: [
             Expanded(child: paragraph),
             const SizedBox(width: 16),
-            videoCard,
+            videoCard(280),
           ],
         );
       },

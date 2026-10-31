@@ -10,10 +10,12 @@ import '../goldens/font_harness.dart';
 void main() {
   setUpAll(loadRealFonts);
   for (final language in ['de', 'en']) {
-    for (final width in [400.0, 800.0]) {
+    for (final width in [400.0, 620.0, 800.0, 1100.0]) {
       testWidgets(
         '$language requirements list fits at $width and preserves links',
         (tester) async {
+          await tester.binding.setSurfaceSize(Size(width, 600));
+          addTearDown(() => tester.binding.setSurfaceSize(null));
           final opened = <String>[];
           await tester.pumpWidget(
             MaterialApp(
@@ -48,6 +50,26 @@ void main() {
           final listRect = tester.getRect(list);
           final video = find.byKey(const ValueKey('installation-video'));
           final videoRect = tester.getRect(video);
+          expect(videoRect.width, greaterThanOrEqualTo(280));
+          expect(videoRect.width / videoRect.height, closeTo(16 / 9, 0.01));
+          expect(
+            find.byKey(const ValueKey('installation-video-thumbnail')),
+            findsOneWidget,
+          );
+          expect(
+            find.descendant(
+              of: video,
+              matching: find.byIcon(Icons.open_in_new),
+            ),
+            findsOneWidget,
+          );
+          expect(
+            find.descendant(
+              of: video,
+              matching: find.byIcon(Icons.play_circle_fill_rounded),
+            ),
+            findsOneWidget,
+          );
           if (width >= 620) {
             expect(videoRect.left, greaterThan(listRect.right));
             expect(

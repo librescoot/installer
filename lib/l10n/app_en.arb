@@ -109,7 +109,7 @@
   "requirementsAnd": ", and ",
   "requirementsShopLink": "Shop",
   "requirementsOutro": "Charge the laptop or connect its power supply; disable automatic sleep.",
-  "requirementsVideoLink": "Watch the installation video ↗",
+  "requirementsVideoLink": "Watch the installation video",
   "reliabilityWarningTitle": "Before you start",
   "reliabilityWarningBody": "Flashing takes several minutes. A USB disconnect or laptop sleep during the write can leave the MDB in an incomplete state. Check:\n• Use a known-good USB cable, firmly connected at both ends\n• Keep the laptop on power or fully charged; disable battery saver and sleep\n• Use a direct USB port rather than a hub where possible\n• Keep cables and power connected once flashing starts",
   "noPowerCycleWarningTitle": "Keep power connected during flashing",

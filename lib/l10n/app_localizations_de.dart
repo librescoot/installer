@@ -337,7 +337,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Laptop ausreichend laden oder Netzteil anschließen; automatischen Ruhezustand deaktivieren.';
 
   @override
-  String get requirementsVideoLink => 'Videoanleitung ansehen ↗';
+  String get requirementsVideoLink => 'Videoanleitung ansehen';
 
   @override
   String get reliabilityWarningTitle => 'Verbindung und Laptop vorbereiten';

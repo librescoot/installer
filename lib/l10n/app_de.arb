@@ -109,7 +109,7 @@
   "requirementsAnd": " und ",
   "requirementsShopLink": "Shop",
   "requirementsOutro": "Laptop ausreichend laden oder Netzteil anschließen; automatischen Ruhezustand deaktivieren.",
-  "requirementsVideoLink": "Videoanleitung ansehen ↗",
+  "requirementsVideoLink": "Videoanleitung ansehen",
   "reliabilityWarningTitle": "Verbindung und Laptop vorbereiten",
   "reliabilityWarningBody": "Prüfe vor dem Start:\n• Verwende ein zuverlässiges Datenkabel und stecke es an beiden Enden fest ein.\n• Verbinde den Laptop möglichst direkt, ohne Hub oder Dockingstation.\n• Sorge dafür, dass der Laptop ausreichend geladen ist, oder schließe das Netzteil an. Deaktiviere den automatischen Ruhezustand.\n• Bewege während des Schreibens möglichst weder Kabel noch Laptop.",
   "noPowerCycleWarningTitle": "Strom und USB nur nach Anweisung trennen",
