@@ -12,6 +12,43 @@ class Region {
   final String country;
 
   static const _unknownCountry = 'Weitere';
+
+  static const _englishCountryNames = {
+    'Deutschland': 'Germany',
+    'Österreich': 'Austria',
+    'Frankreich': 'France',
+    'Spanien': 'Spain',
+    'Italien': 'Italy',
+    'Belgien': 'Belgium',
+    'Niederlande': 'Netherlands',
+    'Luxemburg': 'Luxembourg',
+    'Schweiz': 'Switzerland',
+    'Weitere': 'Other',
+  };
+
+  static const _englishRegionNames = {
+    'bayern': 'Bavaria',
+    'hessen': 'Hesse',
+    'mecklenburg-vorpommern': 'Mecklenburg-Western Pomerania',
+    'niedersachsen': 'Lower Saxony (incl. Bremen)',
+    'nordrhein-westfalen': 'North Rhine-Westphalia',
+    'rheinland-pfalz': 'Rhineland-Palatinate',
+    'sachsen': 'Saxony',
+    'sachsen-anhalt': 'Saxony-Anhalt',
+    'thueringen': 'Thuringia',
+    'belgium': 'Belgium',
+    'netherlands': 'Netherlands',
+    'luxembourg': 'Luxembourg',
+    'islas-baleares': 'Balearic Islands (Mallorca)',
+    'italy-nord-ovest': 'Northwest Italy (incl. Lombardy)',
+    'zurich': 'Canton of Zurich',
+  };
+
+  String displayName(String languageCode) =>
+      languageCode == 'en' ? _englishRegionNames[slug] ?? name : name;
+
+  static String displayCountry(String country, String languageCode) =>
+      languageCode == 'en' ? _englishCountryNames[country] ?? country : country;
   static const _countryNames = {
     'DE': 'Deutschland',
     'AT': 'Österreich',

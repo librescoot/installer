@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:librescoot_installer/models/region.dart';
 import 'package:librescoot_installer/widgets/balanced_wrap.dart';
@@ -22,6 +23,9 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('de'),
+        supportedLocales: const [Locale('de'), Locale('en')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
         home: Scaffold(
           body: RegionPicker(
             regions: regions,
@@ -151,6 +155,74 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('region-alpha')), findsOneWidget);
     expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 0);
+  });
+
+  testWidgets('switching language updates labels without changing selection', (
+    tester,
+  ) async {
+    var locale = const Locale('de');
+    var selected = Region.fromManifest('bayern', {
+      'name': 'Bayern',
+      'country': 'DE',
+    });
+    late StateSetter refresh;
+    final available = [
+      ...Region.all.where((region) => region.slug != 'bayern'),
+      selected,
+      const Region(name: 'Custom region', slug: 'custom', country: 'Weitere'),
+    ];
+    await tester.pumpWidget(
+      StatefulBuilder(
+        builder: (context, setState) {
+          refresh = setState;
+          return MaterialApp(
+            locale: locale,
+            supportedLocales: const [Locale('de'), Locale('en')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            home: Scaffold(
+              body: RegionPicker(
+                regions: available,
+                selectedRegion: selected,
+                onSelected: (region) => setState(() => selected = region),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    expect(find.text('Deutschland'), findsOneWidget);
+    expect(find.text('Bayern'), findsOneWidget);
+
+    refresh(() => locale = const Locale('en'));
+    await tester.pumpAndSettle();
+    expect(find.text('Germany'), findsOneWidget);
+    expect(find.text('Bavaria'), findsOneWidget);
+    expect(find.text('Lower Saxony (incl. Bremen)'), findsOneWidget);
+    expect(find.text('Bayern'), findsNothing);
+    expect(selected.slug, 'bayern');
+    expect(
+      tester
+          .widget<ChoiceChip>(find.byKey(const ValueKey('region-bayern')))
+          .selected,
+      isTrue,
+    );
+    final labels = tester
+        .widget<BalancedWrap>(find.byKey(const ValueKey('region-pills')))
+        .children
+        .map((pill) => ((pill as ChoiceChip).label as Text).data!)
+        .toList();
+    final sorted = [...labels]
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    expect(labels, sorted);
+
+    await tester.tap(find.byKey(const ValueKey('country-Belgien')));
+    await tester.pumpAndSettle();
+    expect(find.text('Belgium'), findsWidgets);
+    expect(selected.slug, 'belgium');
+    refresh(() => locale = const Locale('de'));
+    await tester.pumpAndSettle();
+    expect(find.text('Belgien'), findsWidgets);
+    expect(selected.slug, 'belgium');
   });
 
   testWidgets('the phase and compact dialog keep every region reachable', (

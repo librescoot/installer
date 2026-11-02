@@ -126,15 +126,23 @@ class _RegionPickerState extends State<RegionPicker>
   Widget build(BuildContext context) {
     if (_groups.isEmpty) return const SizedBox.shrink();
     final activeCountry = _groups.keys.elementAt(_tabs.index);
+    final languageCode = Localizations.localeOf(context).languageCode;
+    final regions = [..._groups[activeCountry]!]
+      ..sort(
+        (a, b) => a
+            .displayName(languageCode)
+            .toLowerCase()
+            .compareTo(b.displayName(languageCode).toLowerCase()),
+      );
     final pills = BalancedWrap(
       key: const ValueKey('region-pills'),
       spacing: 8,
       runSpacing: 8,
       children: [
-        for (final region in _groups[activeCountry]!)
+        for (final region in regions)
           ChoiceChip(
             key: ValueKey('region-${region.slug}'),
-            label: Text(region.name),
+            label: Text(region.displayName(languageCode)),
             selected: widget.selectedRegion == region,
             showCheckmark: false,
             shape: const StadiumBorder(),
@@ -169,7 +177,10 @@ class _RegionPickerState extends State<RegionPicker>
           unselectedLabelColor: Colors.white70,
           tabs: [
             for (final country in _groups.keys)
-              Tab(key: ValueKey('country-$country'), text: country),
+              Tab(
+                key: ValueKey('country-$country'),
+                text: Region.displayCountry(country, languageCode),
+              ),
           ],
         ),
         const SizedBox(height: 12),
