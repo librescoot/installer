@@ -218,13 +218,19 @@ void main() {
     Future<ProcessResult> launch({
       bool active = false,
       String ota = 'idle',
+      String bootOta = 'idle',
       String vehicleState = 'stand-by',
+      bool interruptAfterCoordinator = false,
     }) => Process.run('sh', [
       '-c',
       [
         '''
 pgrep() { return ${active ? 0 : 1}; }
-redis_cli() { case "\$*" in *'hget vehicle state') echo '$vehicleState' ;; *) echo '$ota' ;; esac; }
+redis_cli() { case "\$*" in *'hget vehicle state') echo '$vehicleState' ;; *'status:mdb-boot') echo '$bootOta' ;; *) echo '$ota' ;; esac; }
+mv() {
+  /bin/mv "\$@" || return
+  if [ "\$2" = '${root.path}/data/onboot.sh' ] && ${interruptAfterCoordinator ? 'true' : 'false'}; then exit 88; fi
+}
 systemd_run() { echo "\$*" > '${root.path}/started'; }
 ''',
         FinalizeRecoveryService.launchCommand(
@@ -292,6 +298,40 @@ systemd_run() { echo "\$*" > '${root.path}/started'; }
         );
       },
     );
+
+    test(
+      'installs the retaining coordinator before replacing the finalizer',
+      () async {
+        final result = await launch(interruptAfterCoordinator: true);
+        expect(result.exitCode, 88);
+        expectUntouched();
+        expect(
+          File('${root.path}/data/onboot.sh').readAsStringSync(),
+          '# corrected coordinator\n',
+        );
+      },
+    );
+
+    test('refuses replacement while the MDB boot updater is writing', () async {
+      expect((await launch(bootOta: 'installing')).exitCode, 1);
+      expectUntouched();
+    });
+
+    test(
+      'allows a settled MDB boot update waiting for its managed reboot',
+      () async {
+        expect((await launch(bootOta: 'pending-reboot')).exitCode, 0);
+      },
+    );
+
+    test('rejects a run whose result changed since inspection', () async {
+      put(
+        '/data/installer/run-state',
+        'run-id: $runId\nactor: finalize\nstage: restoring-services\nresult: success\nfinish: pending\n',
+      );
+      expect((await launch()).exitCode, 1);
+      expectUntouched();
+    });
 
     for (final phase in ['10-mdb-artifact.sh', '20-dbc.sh', '80-reboot.sh']) {
       test('refuses a queue still containing $phase', () async {

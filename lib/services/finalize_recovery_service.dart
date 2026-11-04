@@ -106,12 +106,15 @@ for component in mdb dbc dbc-boot; do
   state=$(redis-cli -h localhost --raw hget ota "status:$component") || exit 1
   case "$state" in ''|idle|staged-noop) ;; *) exit 1 ;; esac
 done
+state=$(redis-cli -h localhost --raw hget ota status:mdb-boot) || exit 1
+case "$state" in ''|idle|staged-noop|pending-reboot) ;; *) exit 1 ;; esac
 grep -Fq '# Installed by the Librescoot installer.' /data/onboot.sh || exit 1
 for phase in /data/installer/scripts/[0-9][0-9]-*.sh; do
   [ "$phase" = /data/installer/scripts/90-finalize.sh ] || exit 1
 done
 grep -Fxq 'actor: finalize' /data/installer/run-state || exit 1
 grep -Fxq 'finish: pending' /data/installer/run-state || exit 1
+grep -Eq '^result: (running|error)$' /data/installer/run-state || exit 1
 grep -Eq '^stage: (restoring-services|waiting-mdb-reboot)$' /data/installer/run-state || exit 1
 ''';
 
@@ -153,8 +156,10 @@ ${SshService.installerExecutionProbeCommand}
 [ "\$(sha256sum /data/installer/recovery-$run-finalize.tmp | cut -d ' ' -f 1)" = '$finalizerDigest' ] || exit 1
 [ "\$(sha256sum /data/installer/recovery-$run-onboot.tmp | cut -d ' ' -f 1)" = '$coordinatorDigest' ] || exit 1
 cp ${FinalizeScript.remotePath} /data/installer/history/$run/finalize-before-recovery-$digest.sh
-mv /data/installer/recovery-$run-finalize.tmp ${FinalizeScript.remotePath}
+# Persist the retaining coordinator before replacing its queued work.
 mv /data/installer/recovery-$run-onboot.tmp /data/onboot.sh
+sync
+mv /data/installer/recovery-$run-finalize.tmp ${FinalizeScript.remotePath}
 rm -f ${FinalizeScript.remotePath}.tries
 sync
 systemd-run --unit=librescoot-onboot-inline --collect --quiet /bin/sh /data/onboot.sh
