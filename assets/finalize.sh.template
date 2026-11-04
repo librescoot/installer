@@ -163,6 +163,17 @@ require_service() {
   [ "$(systemctl show -p LoadState --value "$unit" 2>/dev/null)" = loaded ] ||
     handover_failed "$unit is missing or masked"
   device_timeout 45 systemctl "$action" "$unit" 2>/dev/null || handover_failed "could not $action $unit"
+  # Uplink is enabled in the image but its unit requires an owner-supplied
+  # configuration. Only this expected skip is exempt from readiness checks.
+  if [ "$unit" = librescoot-uplink ] &&
+     [ ! -e /data/uplink-service/uplink.yaml ] &&
+     [ "$(systemctl show -p ConditionResult --value "$unit" 2>/dev/null)" = no ] &&
+     [ "$(systemctl show -p ActiveState --value "$unit" 2>/dev/null)" = inactive ] &&
+     [ "$(systemctl show -p SubState --value "$unit" 2>/dev/null)" = dead ] &&
+     [ "$(systemctl show -p Result --value "$unit" 2>/dev/null)" = success ]; then
+    log "  uplink is not configured; systemd skipped it"
+    return 0
+  fi
   waited=0; stable=0; previous_pid=""
   while [ "$waited" -lt "$SERVICE_WAIT_SECONDS" ]; do
     if [ "$(systemctl show -p ActiveState --value "$unit" 2>/dev/null)" = active ] &&

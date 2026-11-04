@@ -117,8 +117,11 @@ case "\$*" in
     if [ "\$5" = "\$MISSING_SERVICE" ]; then echo not-found;
     elif [ "\$5" = "\$MASKED_SERVICE" ]; then echo masked; else echo loaded; fi ;;
   'show -p ActiveState --value '*)
-    if [ "\$5" = "\$INACTIVE_SERVICE" ] && [ ! -f "\$CALLS.started.\$5" ]; then echo inactive; else echo active; fi ;;
-  'show -p SubState --value '*) echo running ;;
+    if [ "\$5" = "\$BLOCKED_SERVICE" ]; then echo inactive;
+    elif [ "\$5" = "\$INACTIVE_SERVICE" ] && [ ! -f "\$CALLS.started.\$5" ]; then echo inactive; else echo active; fi ;;
+  'show -p SubState --value '*)
+    if [ "\$5" = "\$BLOCKED_SERVICE" ]; then echo dead; else echo running; fi ;;
+  'show -p Result --value '*) echo "\$SERVICE_RESULT" ;;
   'show -p ConditionResult --value '*)
     if [ "\$5" = "\$BLOCKED_SERVICE" ]; then echo no; else echo yes; fi ;;
   'show -p MainPID --value '*)
@@ -172,7 +175,14 @@ exit 0
       String bootUpdate = '',
       String disabledService = '',
       String missingService = '',
+      bool uplinkConfigured = true,
+      String serviceResult = 'success',
     }) async {
+      if (uplinkConfigured) {
+        final config = File('${root.path}/uplink-service/uplink.yaml');
+        await config.parent.create(recursive: true);
+        await config.writeAsString('configured\n');
+      }
       await stubs(serviceModeActive: serviceModeActive, nrfStatus: nrfStatus);
       await Directory('${root.path}/installer').create(recursive: true);
       if (status != null) {
@@ -227,6 +237,7 @@ exit 0
           'BOOT_UPDATE': bootUpdate,
           'DISABLED_SERVICE': disabledService,
           'MISSING_SERVICE': missingService,
+          'SERVICE_RESULT': serviceResult,
           'PATH': '${root.path}/bin:${Platform.environment['PATH']}',
           'CALLS': calls,
           'OS_RELEASE': osRelease.path,
@@ -515,6 +526,72 @@ write_status "error: DBC verification failed"
         expect(result.exitCode, 1);
         expectBlocked();
       });
+
+      test('unconfigured uplink does not block maps-only recovery', () async {
+        final result = await run(
+          mdbAction: 'leave',
+          status:
+              'error: librescoot-uplink did not become ready\n'
+              'run-id: run-test-1\nfinish: pending\nstage: restoring-services',
+          blockedService: 'librescoot-uplink',
+          uplinkConfigured: false,
+        );
+        expect(result.exitCode, 0, reason: result.stderr.toString());
+        final log = await callLog();
+        expect(log, contains('systemctl start librescoot-uplink'));
+        expect(log, contains('systemctl start librescoot-update'));
+        expect(log, contains('systemctl start librescoot-pm'));
+        expect(log, contains(contains('scooter:state unlock')));
+        expect(log, contains(contains('clear:service')));
+        expect(
+          File(
+            '${root.path}/installer/history/run-test-1/finalize.log',
+          ).readAsStringSync(),
+          contains('uplink is not configured; systemd skipped it'),
+        );
+        expect(
+          File('${root.path}/installer/last-install').readAsStringSync(),
+          contains('services: verified'),
+        );
+        expect(
+          File('${root.path}/installer/scripts/90-finalize.sh').existsSync(),
+          isFalse,
+        );
+      });
+
+      test('configured uplink still requires readiness', () async {
+        final result = await run(blockedService: 'librescoot-uplink');
+        expect(result.exitCode, 1);
+        expectBlocked();
+      });
+
+      test('unconfigured uplink start errors still block completion', () async {
+        final result = await run(
+          uplinkConfigured: false,
+          failService: 'librescoot-uplink',
+        );
+        expect(result.exitCode, 1);
+        expectBlocked();
+      });
+
+      test('unconfigured uplink failure is not an expected skip', () async {
+        final result = await run(
+          uplinkConfigured: false,
+          blockedService: 'librescoot-uplink',
+          serviceResult: 'exit-code',
+        );
+        expect(result.exitCode, 1);
+        expectBlocked();
+      });
+
+      test(
+        'other additional service conditions still block completion',
+        () async {
+          final result = await run(blockedService: 'librescoot-update');
+          expect(result.exitCode, 1);
+          expectBlocked();
+        },
+      );
 
       test('a restarting process is not considered stable', () async {
         final result = await run(crashingService: 'librescoot-battery');
