@@ -58,7 +58,6 @@ void main() {
         throwsA(isA<StateError>()),
       );
     });
-
   });
 
   group('running it', () {
@@ -86,6 +85,7 @@ void main() {
 echo "redis-cli \$*" >> "\$CALLS"
 case "\$*" in
   *"hget settings dashboard.service-mode-active"*) echo $serviceModeActive ;;
+  *"hget ota status:mdb-boot"*) echo "\$BOOT_UPDATE" ;;
   *"hget ble firmware-update-status"*)
     n=\$(cat "\$CALLS.nrf" 2>/dev/null || echo 0)
     n=\$((n + 1))
@@ -99,8 +99,41 @@ esac
         'lsc': '#!/bin/sh\necho "lsc \$*" >> "\$CALLS"\n',
         'systemctl': '''#!/bin/sh
 echo "systemctl \$*" >> "\$CALLS"
-case "\$1" in is-active) echo active ;; esac
+case "\$*" in
+  "start \$FAIL_SERVICE"|"restart \$FAIL_SERVICE")
+    [ -z "\$FAIL_SERVICE" ] || exit 1 ;;
+esac
+case "\$1" in
+  start|restart)
+    touch "\$CALLS.started.\$2"
+    if [ "\$2" = librescoot-pm ] && [ "\$REBOOT_ON_PM" = yes ]; then
+      kill -KILL "\$(cat "\$CALLS.pid")"
+      exit 1
+    fi
+    ;;
+esac
+case "\$*" in
+  'show -p LoadState --value '*)
+    if [ "\$5" = "\$MISSING_SERVICE" ]; then echo not-found;
+    elif [ "\$5" = "\$MASKED_SERVICE" ]; then echo masked; else echo loaded; fi ;;
+  'show -p ActiveState --value '*)
+    if [ "\$5" = "\$INACTIVE_SERVICE" ] && [ ! -f "\$CALLS.started.\$5" ]; then echo inactive; else echo active; fi ;;
+  'show -p SubState --value '*) echo running ;;
+  'show -p ConditionResult --value '*)
+    if [ "\$5" = "\$BLOCKED_SERVICE" ]; then echo no; else echo yes; fi ;;
+  'show -p MainPID --value '*)
+    if [ "\$5" = "\$CRASHING_SERVICE" ]; then
+      n=\$(cat "\$CALLS.pid-counter" 2>/dev/null || echo 100)
+      n=\$((n + 1)); echo "\$n" > "\$CALLS.pid-counter"; echo "\$n"
+    else echo 100; fi ;;
+  is-active*) echo active ;;
+  is-enabled*)
+    if [ "\$2" = "\$DISABLED_SERVICE" ]; then echo disabled; exit 1; fi
+    echo enabled ;;
+esac
+exit 0
 ''',
+        'journalctl': '#!/bin/sh\necho "journal: \$*"\n',
         'sleep': '#!/bin/sh\nexit 0\n',
         'sync': '#!/bin/sh\necho "sync" >> "\$CALLS"\n',
         // The signalling reaches the vehicle through these three and nothing
@@ -130,6 +163,15 @@ case "\$1" in is-active) echo active ;; esac
       String? previousRoot,
       String dashboardResult = 'not-requested',
       bool preserveSettings = false,
+      String failService = '',
+      String inactiveService = '',
+      String maskedService = '',
+      String blockedService = '',
+      String crashingService = '',
+      bool rebootOnPm = false,
+      String bootUpdate = '',
+      String disabledService = '',
+      String missingService = '',
     }) async {
       await stubs(serviceModeActive: serviceModeActive, nrfStatus: nrfStatus);
       await Directory('${root.path}/installer').create(recursive: true);
@@ -147,6 +189,9 @@ case "\$1" in is-active) echo active ;; esac
           'assets/signal.sh',
         ).readAsStringSync().replaceAll('/data/', '${root.path}/'),
       );
+      await File(
+        '${script.parent.path}/device.sh',
+      ).writeAsString(File('assets/device.sh').readAsStringSync());
       await script.writeAsString(
         render(
               mdbAction: mdbAction,
@@ -171,8 +216,17 @@ case "\$1" in is-active) echo active ;; esac
       );
       return Process.run(
         'sh',
-        [script.path],
+        ['-c', r'echo $$ > "$CALLS.pid"; exec sh "$1"', '--', script.path],
         environment: {
+          'FAIL_SERVICE': failService,
+          'INACTIVE_SERVICE': inactiveService,
+          'MASKED_SERVICE': maskedService,
+          'BLOCKED_SERVICE': blockedService,
+          'CRASHING_SERVICE': crashingService,
+          'REBOOT_ON_PM': rebootOnPm ? 'yes' : 'no',
+          'BOOT_UPDATE': bootUpdate,
+          'DISABLED_SERVICE': disabledService,
+          'MISSING_SERVICE': missingService,
           'PATH': '${root.path}/bin:${Platform.environment['PATH']}',
           'CALLS': calls,
           'OS_RELEASE': osRelease.path,
@@ -349,6 +403,225 @@ write_status "error: DBC verification failed"
       },
     );
 
+    group('service restoration', () {
+      void expectBlocked() {
+        expect(
+          File('${root.path}/installer/history/run-test-1/record').existsSync(),
+          isFalse,
+        );
+        expect(
+          File('${root.path}/installer/scripts/90-finalize.sh').existsSync(),
+          isTrue,
+        );
+        expect(
+          File('${root.path}/installer/run-state').readAsStringSync(),
+          contains('result: error'),
+        );
+        expect(
+          File(
+            '${root.path}/installer/history/run-test-1/handover-diagnostics.log',
+          ).existsSync(),
+          isTrue,
+        );
+      }
+
+      for (final unit in [
+        'librescoot-settings',
+        'librescoot-vehicle',
+        'librescoot-battery',
+        'librescoot-ecu',
+        'librescoot-bluetooth',
+        'librescoot-keycard',
+        'librescoot-ums',
+        'librescoot-pm',
+        'librescoot-motion',
+        'librescoot-alarm',
+        'librescoot-events',
+        'librescoot-modem',
+        'librescoot-uplink',
+        'librescoot-trip',
+        'librescoot-data-server',
+        'librescoot-lsd',
+        'librescoot-update',
+      ]) {
+        test('$unit start failure cannot produce success', () async {
+          final result = await run(mdbAction: 'leave', failService: unit);
+          expect(result.exitCode, 1, reason: result.stderr.toString());
+          expectBlocked();
+          expect(
+            await callLog(),
+            isNot(contains(contains('scooter:state unlock'))),
+          );
+          expect(await callLog(), isNot(contains(contains('clear:service'))));
+        });
+      }
+
+      test('starts stopped core services on a maps-only handover', () async {
+        final result = await run(
+          mdbAction: 'leave',
+          inactiveService: 'librescoot-battery',
+        );
+        expect(result.exitCode, 0, reason: result.stderr.toString());
+        final log = await callLog();
+        for (final unit in [
+          'librescoot-battery',
+          'librescoot-ecu',
+          'librescoot-keycard',
+          'librescoot-ums',
+          'librescoot-pm',
+        ]) {
+          expect(log, contains('systemctl start $unit'));
+          expect(
+            log.indexOf('systemctl start $unit'),
+            lessThan(log.indexWhere((l) => l.contains('scooter:state unlock'))),
+          );
+        }
+        expect(log, isNot(contains('systemctl restart librescoot-battery')));
+        expect(
+          File(
+            '${root.path}/installer/history/run-test-1/record',
+          ).readAsStringSync(),
+          contains('services: verified'),
+        );
+      });
+
+      test('a masked core service is not silently unmasked', () async {
+        final result = await run(maskedService: 'librescoot-battery');
+        expect(result.exitCode, 1);
+        expectBlocked();
+        expect(
+          await callLog(),
+          isNot(contains('systemctl unmask librescoot-battery')),
+        );
+      });
+
+      test('skips additional services absent from older images', () async {
+        final result = await run(missingService: 'librescoot-trip');
+        expect(result.exitCode, 0, reason: result.stderr.toString());
+        expect(
+          await callLog(),
+          isNot(contains('systemctl start librescoot-trip')),
+        );
+      });
+
+      test('a missing core service blocks completion', () async {
+        final result = await run(missingService: 'librescoot-ecu');
+        expect(result.exitCode, 1);
+        expectBlocked();
+      });
+
+      test('a condition-skipped service blocks completion', () async {
+        final result = await run(blockedService: 'librescoot-vehicle');
+        expect(result.exitCode, 1);
+        expectBlocked();
+      });
+
+      test('a restarting process is not considered stable', () async {
+        final result = await run(crashingService: 'librescoot-battery');
+        expect(result.exitCode, 1);
+        expectBlocked();
+      });
+
+      test('preserves an intentionally disabled additional service', () async {
+        final result = await run(disabledService: 'librescoot-modem');
+        expect(result.exitCode, 0, reason: result.stderr.toString());
+        expect(
+          await callLog(),
+          isNot(contains('systemctl start librescoot-modem')),
+        );
+      });
+
+      test('retries restoration without replacing restored settings', () async {
+        await File(
+          '${root.path}/settings.toml.preinstall',
+        ).writeAsString('owner settings\n');
+        expect((await run(failService: 'librescoot-battery')).exitCode, 1);
+        final result = await run();
+        expect(result.exitCode, 0, reason: result.stderr.toString());
+        expect(
+          File('${root.path}/settings.toml').readAsStringSync(),
+          'owner settings\n',
+        );
+        expect(
+          await callLog(),
+          isNot(contains(contains('auto-standby-seconds 900'))),
+        );
+      });
+
+      test(
+        'service recovery cannot erase an earlier artifact failure',
+        () async {
+          expect(
+            (await run(
+              status: 'error: artifact failed',
+              failService: 'librescoot-battery',
+            )).exitCode,
+            1,
+          );
+          await run();
+          expect(
+            File(
+              '${root.path}/installer/history/run-test-1/record',
+            ).existsSync(),
+            isFalse,
+          );
+          expect(
+            await callLog(),
+            isNot(contains(contains('scooter:state unlock'))),
+          );
+        },
+      );
+
+      test(
+        'a PM-triggered interruption resumes without losing settings',
+        () async {
+          await File(
+            '${root.path}/settings.toml.preinstall',
+          ).writeAsString('owner settings\n');
+          final interrupted = await run(rebootOnPm: true);
+          expect(interrupted.exitCode, isNot(0));
+          expect(
+            File(
+              '${root.path}/installer/history/run-test-1/record',
+            ).existsSync(),
+            isFalse,
+          );
+          expect(
+            File('${root.path}/installer/scripts/90-finalize.sh').existsSync(),
+            isTrue,
+          );
+          expect(
+            File('${root.path}/installer/run-state').readAsStringSync(),
+            contains('finish: pending'),
+          );
+          final result = await run();
+          expect(result.exitCode, 0, reason: result.stderr.toString());
+          expect(
+            File('${root.path}/settings.toml').readAsStringSync(),
+            'owner settings\n',
+          );
+        },
+      );
+
+      test('a pending boot update cannot be reported complete', () async {
+        final result = await run(bootUpdate: 'pending-reboot');
+        expect(result.exitCode, 1);
+        expect(
+          File('${root.path}/installer/history/run-test-1/record').existsSync(),
+          isFalse,
+        );
+        expect(
+          File('${root.path}/installer/scripts/90-finalize.sh').existsSync(),
+          isTrue,
+        );
+        expect(
+          await callLog(),
+          isNot(contains(contains('scooter:state unlock'))),
+        );
+        expect((await run()).exitCode, 0);
+      });
+    });
+
     group('the nRF firmware update', () {
       int statusReads(List<String> log) => log
           .where((l) => l.contains('hget ble firmware-update-status'))
@@ -405,16 +678,32 @@ write_status "error: DBC verification failed"
         expect(log.any((l) => l.contains('scooter:state unlock')), isTrue);
       });
 
-      test('does not leave the vehicle locked behind a hung flash', () async {
-        final result = await run(
-          status: 'success',
-          nrfStatus: const ['updating'],
-          nrfStatusCap: 5,
+      test(
+        'retains recovery instead of unlocking during a hung flash',
+        () async {
+          final result = await run(
+            status: 'success',
+            nrfStatus: const ['updating'],
+            nrfStatusCap: 5,
+          );
+          expect(result.exitCode, 1, reason: result.stderr.toString());
+          final log = await callLog();
+          expect(statusReads(log), 5);
+          expect(log.any((l) => l.contains('scooter:state unlock')), isFalse);
+        },
+      );
+
+      test('does not unlock after a reported firmware update error', () async {
+        final result = await run(nrfStatus: const ['error']);
+        expect(result.exitCode, 1);
+        expect(
+          await callLog(),
+          isNot(contains(contains('scooter:state unlock'))),
         );
-        expect(result.exitCode, 0, reason: result.stderr.toString());
-        final log = await callLog();
-        expect(statusReads(log), 5);
-        expect(log.any((l) => l.contains('scooter:state unlock')), isTrue);
+        expect(
+          File('${root.path}/installer/scripts/90-finalize.sh').existsSync(),
+          isTrue,
+        );
       });
 
       test('a failed run does not wait for it', () async {

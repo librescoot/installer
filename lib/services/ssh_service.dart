@@ -3239,6 +3239,21 @@ for name in trampoline.log trampoline-status trampoline-journal.log mdb-usb-link
     tail -n 1000 "$path" 2>&1
   fi
 done
+seen_run=''
+for record in /data/installer/run-state /data/installer/last-install; do
+  [ -f "$record" ] || continue
+  run=$(sed -n 's/^run-id: //p' "$record" | head -n 1)
+  case "$run" in ''|*[!a-zA-Z0-9._-]*|.|..) continue ;; esac
+  [ "$run" != "$seen_run" ] || continue
+  seen_run="$run"
+  for name in record finalize.log handover-before.log handover-diagnostics.log reboot.log; do
+    path="/data/installer/history/$run/$name"
+    if [ -f "$path" ]; then
+      printf '\n--- run %s %s (last 300 lines) ---\n' "$run" "$name"
+      tail -n 300 "$path" 2>&1
+    fi
+  done
+done
 printf '\n--- current DBC control record ---\n'
 for name in owner state mode isolated gpio remote librescoot-pm.service librescoot-update.service librescoot-vehicle.service; do
   path="/data/librescoot-installer/dbc-control/$name"
@@ -3255,12 +3270,22 @@ done
 ip -4 addr show dev usb0 2>&1
 ip route get 192.168.7.2 2>&1
 ip neigh show to 192.168.7.2 2>&1
-for unit in librescoot-pm.service librescoot-update.service librescoot-vehicle.service; do
-  systemctl show -p Id -p ActiveState -p SubState -p ConditionResult "$unit" 2>&1
+for unit in librescoot-pm.service librescoot-update.service librescoot-vehicle.service librescoot-battery.service librescoot-ecu.service librescoot-settings.service librescoot-bluetooth.service librescoot-keycard.service librescoot-ums.service librescoot-motion.service librescoot-alarm.service librescoot-events.service librescoot-modem.service librescoot-uplink.service librescoot-trip.service librescoot-data-server.service librescoot-lsd.service; do
+  systemctl show -p Id -p LoadState -p ActiveState -p SubState -p Result -p MainPID -p NRestarts -p ConditionResult "$unit" 2>&1
   for path in /etc/systemd/system/"$unit.d"/90-installer-dbc-*.conf; do
     if [ -f "$path" ]; then printf '%s:\n' "$path"; head -c 4096 "$path"; fi
   done
 done
+printf '\n--- current battery telemetry ---\n'
+for key in battery:0 battery:1; do
+  printf '%s (presence, state, charge, sample time, sample validity):\n' "$key"
+  redis-cli -h localhost --raw hmget "$key" present state charge sample:timestamp sample:valid 2>&1
+done
+printf '\n--- current boot battery and handover journal (last 300) ---\n'
+journalctl -b --no-pager -n 300 -u librescoot-battery.service \
+  -u librescoot-ecu.service -u librescoot-settings.service \
+  -u librescoot-bluetooth.service -u librescoot-keycard.service -u librescoot-pm.service \
+  -u librescoot-vehicle.service -u librescoot-update.service -u librescoot-motion.service -u librescoot-alarm.service 2>&1
 since=$(cat /data/installer/trampoline-started-at 2>/dev/null || true)
 if [ -n "$since" ]; then
   printf '\n--- relevant service journal since trampoline start (last 400) ---\n'

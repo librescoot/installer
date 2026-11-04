@@ -49,8 +49,15 @@ systemctl() {
   echo ActiveState=inactive
 }
 journalctl() { echo "journal:$*"; }
+redis_cli() {
+  case "$*" in
+    '-h localhost --raw hmget battery:'*) echo 'battery sample' ;;
+    *) echo 'unexpected Redis change' >&2; exit 92 ;;
+  esac
+}
 ''' +
         SshService.retainedInstallerDiagnosticsCommand
+            .replaceAll('redis-cli', 'redis_cli')
             .replaceAll('/data/', '${root.path}/data/')
             .replaceAll('/etc/', '${root.path}/etc/')
             .replaceAll('/sys/', '${root.path}/sys/'),
@@ -97,7 +104,8 @@ journalctl() { echo "journal:$*"; }
     expect(result.exitCode, 0);
     expect(result.stdout, contains('network:route get 192.168.7.2'));
     expect(result.stdout, contains('ActiveState=inactive'));
-    expect(result.stdout, isNot(contains('journal:')));
+    expect(result.stdout, contains('journal:-b --no-pager'));
+    expect(result.stdout, contains('-u librescoot-battery.service'));
     expect(root.listSync(), isEmpty);
   });
 
@@ -111,6 +119,33 @@ journalctl() { echo "journal:$*"; }
     expect(result.stdout, isNot(contains('line-499\n')));
     expect(result.stdout, contains('line-500\n'));
     expect(result.stdout, contains('line-1499\n'));
+  });
+
+  test('collects successful handover history after staging cleanup', () {
+    put('/data/installer/run-state', 'run-id: run-current\n');
+    put('/data/installer/last-install', 'run-id: run-current\n');
+    put(
+      '/data/installer/history/run-current/finalize.log',
+      'services restored\n',
+    );
+    put(
+      '/data/installer/history/run-current/handover-diagnostics.log',
+      'battery running\n',
+    );
+    final result = collect();
+    expect(result.exitCode, 0, reason: result.stderr.toString());
+    expect(result.stdout, contains('services restored'));
+    expect(result.stdout, contains('battery running'));
+    expect('services restored'.allMatches(result.stdout.toString()).length, 1);
+    expect(result.stdout, contains('journal:-b --no-pager'));
+  });
+
+  test('rejects history paths outside a run directory', () {
+    put('/data/installer/run-state', 'run-id: ../../private\n');
+    put('/data/private/finalize.log', 'must not read\n');
+    final result = collect();
+    expect(result.exitCode, 0);
+    expect(result.stdout, isNot(contains('must not read')));
   });
 
   test('uses bounded SSH and exposes collection failures for retry', () async {

@@ -85,6 +85,8 @@ Direct dashboard re-flashing also works from an existing full Librescoot MDB ima
 
 Successful completion removes only this run's service conditions and restores the previous service state; power management resumes during finalization. Cancellation before the cable handoff leaves those services unchanged. An interrupted takeover or an uncertain firmware write retains `/data/librescoot-installer/dbc-control` and the service conditions for recovery. Do not delete this record or restart the held services while a write may still be running. Reconnecting preserves the diagnostic evidence rather than silently retrying the write.
 
+Finalization starts and checks the core runtime services, including battery, ECU, vehicle, settings, Bluetooth, keycard, USB mass storage and power management. It also restores enabled application services such as motion, alarm, modem and the updater without enabling intentionally disabled services. A failed start, skipped systemd condition or unstable process keeps the handover incomplete and its recovery phase queued. Maps-only runs use the same checks without requiring an MDB firmware rewrite. A pending boot update resumes finalization after reboot rather than reporting success before power management starts.
+
 A running dashboard handoff, MDB update or finalization owns the installation. Reconnecting observes that work without changing services, replacing its run state or cleaning up its files. The installer waits across the MDB activation reboot.
 
 Finishing without the dashboard can still install the selected MDB update and reboot the MDB. The confirmation states this when the MDB update is pending. A finalized incomplete dashboard outcome is reported as incomplete, not treated as an interrupted run.
@@ -92,6 +94,8 @@ Finishing without the dashboard can still install the selected MDB update and re
 ## Diagnostic logs
 
 The in-app log, copied log text, saved run log and exported dashboard diagnostics mask keycard UIDs and Bluetooth MAC addresses. Pairing and enrollment still use the actual identifiers. Review logs for personal information before sharing.
+
+Reconnection diagnostics include current service states and boot journals, battery telemetry, and retained handover logs even after staging cleanup. Finalization saves service snapshots before and after restoration under the run's history directory.
 
 ## Development
 
