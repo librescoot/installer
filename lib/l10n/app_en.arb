@@ -233,6 +233,9 @@
   "resumeWhatHappensKeep": "Restarting does not erase anything beyond changes already made by the interrupted run.",
   "resumeTakesAsLong": "It takes as long as a normal installation, about 20 minutes.",
   "resumeClearingLeftovers": "Clearing what the previous run left behind...",
+  "resumeFinalizationButton": "Finish installation",
+  "resumeFinalizationBody": "Only finalization remains. Resume it with the corrected recovery code, keeping the original settings and installation record. Firmware and maps will not be installed again. Keep the scooter locked with the kickstand down. Recovery may reboot the main computer and will request vehicle unlock when complete.",
+  "resumeFinalizationProgress": "Resuming service restoration and completion checks...",
   "resumeCleanupFailed": "The previous install could not be made safe: {error}\n\nNothing else will run until cleanup succeeds.",
   "@resumeCleanupFailed": {
     "placeholders": {

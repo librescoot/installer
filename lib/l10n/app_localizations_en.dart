@@ -732,6 +732,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Clearing what the previous run left behind...';
 
   @override
+  String get resumeFinalizationButton => 'Finish installation';
+
+  @override
+  String get resumeFinalizationBody =>
+      'Only finalization remains. Resume it with the corrected recovery code, keeping the original settings and installation record. Firmware and maps will not be installed again. Keep the scooter locked with the kickstand down. Recovery may reboot the main computer and will request vehicle unlock when complete.';
+
+  @override
+  String get resumeFinalizationProgress =>
+      'Resuming service restoration and completion checks...';
+
+  @override
   String resumeCleanupFailed(String error) {
     return 'The previous install could not be made safe: $error\n\nNothing else will run until cleanup succeeds.';
   }

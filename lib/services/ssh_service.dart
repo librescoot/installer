@@ -75,7 +75,6 @@ class SshService {
   static const Duration connectionTimeout = Duration(seconds: 5);
   static const int maxManualPasswordAttempts = 3;
 
-  @visibleForTesting
   static const installerExecutionProbeCommand = r'''
 command -v pgrep >/dev/null || { echo 'installer process probe unavailable' >&2; exit 1; }
 if pgrep -f '^([^ ]*/)?(sh|ash|bash|dash)( -[^ ]+)* /data/([o]nboot\.sh|((installer/(scripts/)?)?[t]rampoline\.sh)|installer/scripts/[0-9][0-9]-[^ ]*\.sh)( |$)' >/dev/null 2>&1; then
@@ -1637,7 +1636,6 @@ done
   /// laptop, over the link, and carries a DBC flash: it is deliberately not
   /// numbered, so a board that died in the middle of it comes back without
   /// re-flashing a dashboard unattended.
-  @visibleForTesting
   static const String onbootShim = r"""#!/bin/sh
 # Installed by the Librescoot installer. Runs the numbered install phases left
 # in /data/installer/scripts and removes itself once none are left.
@@ -3174,12 +3172,19 @@ echo timeout
   /// verdict left behind by a run that worked.
   Future<bool> lastInstallSucceeded() async {
     try {
+      final state = await readInstallRunState();
       final out = await runCommand(
-        'head -n1 $installerLastInstall 2>/dev/null || '
-        'head -n1 $legacyLastInstall 2>/dev/null; true',
+        'cat $installerLastInstall 2>/dev/null || '
+        'cat $legacyLastInstall 2>/dev/null; true',
         timeout: const Duration(seconds: 10),
       );
-      return out.trim().toLowerCase() == 'result: success';
+      final record = TrampolineStatus.parseCompletionRecord(out);
+      if (state?.runId != null) {
+        return record.completionFor(state!.runId!) !=
+            InstallCompletionOutcome.notComplete;
+      }
+      return record.result == TrampolineResult.success &&
+          record.finishState == 'complete';
     } catch (_) {
       return false;
     }

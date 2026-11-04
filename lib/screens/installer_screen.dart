@@ -61,6 +61,7 @@ import '../services/dashboard_upload_preflight.dart';
 import '../services/debug_shell.dart';
 import '../services/dry_run_operation.dart';
 import '../services/finalize_script.dart';
+import '../services/finalize_recovery_service.dart';
 import '../services/install_phase_scripts.dart';
 import '../services/previous_install_failure.dart';
 import '../services/installer_sounds.dart';
@@ -296,6 +297,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   bool _deviceFinishArmed = false;
 
   final String _installRunId = createInstallRunId();
+  String? _recoveredRunId;
+  bool _resumeFinalizerPending = false;
   Future<void> _installStateWriteQueue = Future.value();
   int _installStateSequence = 0;
   DeviceInfo? _mdbInfo;
@@ -1400,7 +1403,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       );
       return TrampolineStatus.parseCompletionRecord(
         out,
-      ).completionFor(_installRunId);
+      ).completionFor(_recoveredRunId ?? _installRunId);
     } catch (e) {
       debugPrint('UI: could not read the completion record ($e)');
       return null;
@@ -3834,9 +3837,27 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // The screen promises the leftovers are dealt with, so deal with them:
       // an abandoned trampoline is still armed for the next MDB reboot, and
       // the services it masked are still masked.
-      _setStatus(l10n.resumeClearingLeftovers);
+      _setStatus(
+        _resumeFinalizerPending
+            ? l10n.resumeFinalizationProgress
+            : l10n.resumeClearingLeftovers,
+      );
       await _sshService.ensureConnected('previous installation ownership');
       if (await _sshService.installerExecutionActive()) {
+        await _observeExistingInstall();
+        return;
+      }
+      if (_resumeFinalizerPending) {
+        final recovery = FinalizeRecoveryService(_sshService);
+        final plan = await recovery.inspect();
+        if (plan == null) {
+          throw StateError(
+            'Finalization cannot be safely resumed; retained installation state was left unchanged',
+          );
+        }
+        _recoveredRunId = plan.runId;
+        _deviceFinishArmed = true;
+        await recovery.start(plan);
         await _observeExistingInstall();
         return;
       }
@@ -3897,6 +3918,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       _resumeWaitingRunId = waitingRunId;
       _resumeStage = state?.stage;
       _resumeActor = state?.actor;
+      _resumeFinalizerPending = FinalizeRecoveryService.eligibleState(state);
       _resumeLogTail = tail;
     });
   }
@@ -3958,6 +3980,26 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         continue;
       }
       if (!mounted) return;
+      if (_recoveredRunId != null) {
+        final status = await _sshService.readTrampolineStatus(
+          expectedRunId: _recoveredRunId,
+        );
+        final completion = status.completionFor(_recoveredRunId!);
+        if (!mounted) return;
+        if (completion != InstallCompletionOutcome.notComplete) {
+          setState(() => _resumeStillRunning = false);
+          _recordDeviceCompletion(completion, verifyDashboard: true);
+          _setPhase(InstallerPhase.finish);
+        } else {
+          await _loadResumeEvidence();
+          if (!mounted) return;
+          setState(() {
+            _resumeStillRunning = false;
+            _resumePreviousError = status.message;
+          });
+        }
+        return;
+      }
       setState(() {
         _resumeStillRunning = false;
         _mdbConnectStarted = false;
@@ -4051,7 +4093,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     };
     return PhaseLayout(
       title: running ? l10n.resumeRunningHeading : l10n.resumeFoundHeading,
-      subtitle: running ? l10n.resumeRunningBody : l10n.resumeFoundBody,
+      subtitle: running
+          ? l10n.resumeRunningBody
+          : _resumeFinalizerPending
+          ? l10n.resumeFinalizationBody
+          : l10n.resumeFoundBody,
       actions: [
         // Handing the run's account to someone who can read it is neither
         // going on nor going back, so it sits away from Continue.
@@ -4069,7 +4115,9 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           ),
         if (!running)
           PhaseAction(
-            label: _resumeCleanupError == null
+            label: _resumeFinalizerPending
+                ? l10n.resumeFinalizationButton
+                : _resumeCleanupError == null
                 ? l10n.continueButton
                 : l10n.retryButton,
             icon: Icons.arrow_forward,
@@ -4089,7 +4137,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
                 const SizedBox(width: 12),
-                Expanded(child: Text(l10n.resumeClearingLeftovers)),
+                Expanded(
+                  child: Text(
+                    _resumeFinalizerPending
+                        ? l10n.resumeFinalizationProgress
+                        : l10n.resumeClearingLeftovers,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 16),

@@ -233,6 +233,9 @@
   "resumeWhatHappensKeep": "Es gehen keine weiteren Daten verloren. Änderungen des vorherigen Durchlaufs bleiben bestehen.",
   "resumeTakesAsLong": "Es dauert so lange wie eine normale Installation, ungefähr 20 Minuten.",
   "resumeClearingLeftovers": "Reste der vorherigen Installation werden bereinigt…",
+  "resumeFinalizationButton": "Installation abschließen",
+  "resumeFinalizationBody": "Nur der Abschluss steht noch aus. Er wird mit dem korrigierten Wiederherstellungscode fortgesetzt; die ursprünglichen Einstellungen und das Installationsprotokoll bleiben erhalten. Firmware und Karten werden nicht erneut installiert. Lass den Roller gesperrt und den Seitenständer unten. Die Wiederherstellung kann den Hauptcomputer neu starten und fordert nach dem Abschluss das Entsperren des Rollers an.",
+  "resumeFinalizationProgress": "Dienstwiederherstellung und Abschlussprüfung werden fortgesetzt…",
   "resumeCleanupFailed": "Die vorige Installation konnte nicht sicher bereinigt werden: {error}\n\nEs wird nichts weiter ausgeführt, bis die Bereinigung erfolgreich war.",
   "@resumeCleanupFailed": {
     "placeholders": {

@@ -743,6 +743,17 @@ class AppLocalizationsDe extends AppLocalizations {
       'Reste der vorherigen Installation werden bereinigt…';
 
   @override
+  String get resumeFinalizationButton => 'Installation abschließen';
+
+  @override
+  String get resumeFinalizationBody =>
+      'Nur der Abschluss steht noch aus. Er wird mit dem korrigierten Wiederherstellungscode fortgesetzt; die ursprünglichen Einstellungen und das Installationsprotokoll bleiben erhalten. Firmware und Karten werden nicht erneut installiert. Lass den Roller gesperrt und den Seitenständer unten. Die Wiederherstellung kann den Hauptcomputer neu starten und fordert nach dem Abschluss das Entsperren des Rollers an.';
+
+  @override
+  String get resumeFinalizationProgress =>
+      'Dienstwiederherstellung und Abschlussprüfung werden fortgesetzt…';
+
+  @override
   String resumeCleanupFailed(String error) {
     return 'Die vorige Installation konnte nicht sicher bereinigt werden: $error\n\nEs wird nichts weiter ausgeführt, bis die Bereinigung erfolgreich war.';
   }

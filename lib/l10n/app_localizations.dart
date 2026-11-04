@@ -1382,6 +1382,24 @@ abstract class AppLocalizations {
   /// **'Clearing what the previous run left behind...'**
   String get resumeClearingLeftovers;
 
+  /// No description provided for @resumeFinalizationButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Finish installation'**
+  String get resumeFinalizationButton;
+
+  /// No description provided for @resumeFinalizationBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Only finalization remains. Resume it with the corrected recovery code, keeping the original settings and installation record. Firmware and maps will not be installed again. Keep the scooter locked with the kickstand down. Recovery may reboot the main computer and will request vehicle unlock when complete.'**
+  String get resumeFinalizationBody;
+
+  /// No description provided for @resumeFinalizationProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Resuming service restoration and completion checks...'**
+  String get resumeFinalizationProgress;
+
   /// No description provided for @resumeCleanupFailed.
   ///
   /// In en, this message translates to:
