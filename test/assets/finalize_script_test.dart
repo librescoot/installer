@@ -84,8 +84,15 @@ void main() {
             '''#!/bin/sh
 echo "redis-cli \$*" >> "\$CALLS"
 case "\$*" in
-  *"hget settings dashboard.service-mode-active"*) echo $serviceModeActive ;;
+  *"hget settings dashboard.service-mode-active"*)
+    if [ -f "\$CALLS.service-cleared" ]; then echo false; else echo $serviceModeActive; fi ;;
+  *"lpush settings:overlay clear:service"*)
+    if [ "\$STUCK_SERVICE_MODE" != yes ]; then touch "\$CALLS.service-cleared"; fi ;;
   *"hget ota status:mdb-boot"*) echo "\$BOOT_UPDATE" ;;
+  *"hget ota status:"*) echo "\$OTHER_UPDATE" ;;
+  *"hget vehicle state"*) echo "\$VEHICLE_STATE" ;;
+  *"lpush scooter:power reboot"*)
+    if [ "\$REBOOT_ON_REQUEST" = yes ]; then kill -KILL "\$(cat "\$CALLS.pid")"; fi ;;
   *"hget ble firmware-update-status"*)
     n=\$(cat "\$CALLS.nrf" 2>/dev/null || echo 0)
     n=\$((n + 1))
@@ -177,6 +184,11 @@ exit 0
       String missingService = '',
       bool uplinkConfigured = true,
       String serviceResult = 'success',
+      String vehicleState = 'stand-by',
+      String otherUpdate = 'idle',
+      bool rebootOnRequest = false,
+      String bootIdentity = 'boot-one',
+      bool stuckServiceMode = false,
     }) async {
       if (uplinkConfigured) {
         final config = File('${root.path}/uplink-service/uplink.yaml');
@@ -224,6 +236,8 @@ exit 0
         'ID=librescoot-mdb\nVERSION_ID=2.0.0\n'
         '${imageId.isEmpty ? '' : 'IMAGE_ID=$imageId\n'}',
       );
+      final bootIdFile = File('${root.path}/boot-id');
+      await bootIdFile.writeAsString('$bootIdentity\n');
       return Process.run(
         'sh',
         ['-c', r'echo $$ > "$CALLS.pid"; exec sh "$1"', '--', script.path],
@@ -238,6 +252,11 @@ exit 0
           'DISABLED_SERVICE': disabledService,
           'MISSING_SERVICE': missingService,
           'SERVICE_RESULT': serviceResult,
+          'VEHICLE_STATE': vehicleState,
+          'OTHER_UPDATE': otherUpdate,
+          'REBOOT_ON_REQUEST': rebootOnRequest ? 'yes' : 'no',
+          'BOOT_ID_FILE': bootIdFile.path,
+          'STUCK_SERVICE_MODE': stuckServiceMode ? 'yes' : 'no',
           'PATH': '${root.path}/bin:${Platform.environment['PATH']}',
           'CALLS': calls,
           'OS_RELEASE': osRelease.path,
@@ -496,6 +515,22 @@ write_status "error: DBC verification failed"
         );
       });
 
+      test(
+        'service-mode cleanup failure cannot produce a completion record',
+        () async {
+          final result = await run(
+            serviceModeActive: 'true',
+            stuckServiceMode: true,
+          );
+          expect(result.exitCode, 1);
+          expectBlocked();
+          expect(
+            File('${root.path}/installer/trampoline-status').readAsStringSync(),
+            contains('service mode did not clear'),
+          );
+        },
+      );
+
       test('a masked core service is not silently unmasked', () async {
         final result = await run(maskedService: 'librescoot-battery');
         expect(result.exitCode, 1);
@@ -680,6 +715,139 @@ write_status "error: DBC verification failed"
         },
       );
 
+      test(
+        'requests a pending boot reboot once and resumes on the new boot',
+        () async {
+          final result = await run(
+            bootUpdate: 'pending-reboot',
+            rebootOnRequest: true,
+          );
+          expect(result.exitCode, isNot(0));
+          expect(
+            File('${root.path}/installer/run-state').readAsStringSync(),
+            contains('stage: waiting-mdb-reboot'),
+          );
+          expect(
+            File('${root.path}/service-mode.json').readAsStringSync(),
+            contains('"active":true'),
+          );
+          expect(
+            File(
+              '${root.path}/installer/history/run-test-1/record',
+            ).existsSync(),
+            isFalse,
+          );
+          final resumed = await run(
+            bootIdentity: 'boot-two',
+            bootUpdate: 'idle',
+          );
+          expect(resumed.exitCode, 0, reason: resumed.stderr.toString());
+          expect(
+            (await callLog()).where(
+              (line) => line.contains('lpush scooter:power reboot'),
+            ),
+            hasLength(1),
+          );
+          expect(
+            File('${root.path}/installer/scripts/90-finalize.sh').existsSync(),
+            isFalse,
+          );
+        },
+      );
+
+      test(
+        'a reboot timeout stays recoverable without duplicate requests',
+        () async {
+          expect((await run(bootUpdate: 'pending-reboot')).exitCode, 1);
+          expect((await run(bootUpdate: 'pending-reboot')).exitCode, 1);
+          expectBlocked();
+          expect(
+            (await callLog()).where(
+              (line) => line.contains('lpush scooter:power reboot'),
+            ),
+            hasLength(1),
+          );
+          expect(
+            File('${root.path}/installer/trampoline-status').readAsStringSync(),
+            contains('power-management blockers'),
+          );
+        },
+      );
+
+      test(
+        'cleared boot status cannot replace proof of the requested reboot',
+        () async {
+          expect((await run(bootUpdate: 'pending-reboot')).exitCode, 1);
+          expect((await run(bootUpdate: 'idle')).exitCode, 1);
+          expectBlocked();
+        },
+      );
+
+      test('missing boot status after reboot is not completion', () async {
+        expect((await run(bootUpdate: 'pending-reboot')).exitCode, 1);
+        expect((await run(bootIdentity: 'boot-two')).exitCode, 1);
+        expectBlocked();
+      });
+
+      test('a still-pending boot update cannot create a reboot loop', () async {
+        expect((await run(bootUpdate: 'pending-reboot')).exitCode, 1);
+        expect(
+          (await run(
+            bootUpdate: 'pending-reboot',
+            bootIdentity: 'boot-two',
+          )).exitCode,
+          1,
+        );
+        expectBlocked();
+        expect(
+          (await callLog()).where(
+            (line) => line.contains('lpush scooter:power reboot'),
+          ),
+          hasLength(1),
+        );
+      });
+
+      for (final state in ['parked', 'ready-to-drive', '']) {
+        test(
+          'does not request handover reboot in vehicle state "$state"',
+          () async {
+            final result = await run(
+              bootUpdate: 'pending-reboot',
+              vehicleState: state,
+            );
+            expect(result.exitCode, 1);
+            expectBlocked();
+            expect(
+              await callLog(),
+              isNot(contains(contains('lpush scooter:power reboot'))),
+            );
+          },
+        );
+      }
+
+      for (final state in [
+        'installing',
+        'pending-reboot',
+        'error',
+        'unknown',
+      ]) {
+        test(
+          'does not request reboot around another update in state $state',
+          () async {
+            final result = await run(
+              bootUpdate: 'pending-reboot',
+              otherUpdate: state,
+            );
+            expect(result.exitCode, 1);
+            expectBlocked();
+            expect(
+              await callLog(),
+              isNot(contains(contains('lpush scooter:power reboot'))),
+            );
+          },
+        );
+      }
+
       test('a pending boot update cannot be reported complete', () async {
         final result = await run(bootUpdate: 'pending-reboot');
         expect(result.exitCode, 1);
@@ -695,7 +863,10 @@ write_status "error: DBC verification failed"
           await callLog(),
           isNot(contains(contains('scooter:state unlock'))),
         );
-        expect((await run()).exitCode, 0);
+        expect(
+          (await run(bootIdentity: 'boot-two', bootUpdate: 'idle')).exitCode,
+          0,
+        );
       });
     });
 

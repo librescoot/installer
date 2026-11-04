@@ -172,21 +172,41 @@ void main() {
     expect(await File(order).readAsLines(), ['rescue']);
   });
 
-  test('a phase that keeps failing is dropped after four attempts', () async {
-    final tally = '${root.path}/tally';
-    await phase('20-dbc.sh', 'echo run >> $tally; exit 1');
-    for (var i = 0; i < 5; i++) {
-      await boot();
-    }
-    expect(
-      (await File(tally).readAsLines()).length,
-      4,
-      reason:
-          'three attempts plus the pass that lets the phase run its '
-          'own give-up branch, then it is dropped',
-    );
-    expect(File('${scripts.path}/20-dbc.sh').existsSync(), isFalse);
-  });
+  test(
+    'exhausted phases remain queued without further automatic execution',
+    () async {
+      final tally = '${root.path}/tally';
+      await phase('20-dbc.sh', 'echo run >> $tally; exit 1');
+      for (var i = 0; i < 5; i++) {
+        await boot();
+      }
+      expect(
+        (await File(tally).readAsLines()).length,
+        4,
+        reason:
+            'three attempts plus the pass that lets the phase run its '
+            'own give-up branch, then automatic execution stops',
+      );
+      expect(File('${scripts.path}/20-dbc.sh').existsSync(), isTrue);
+      expect(File('${root.path}/onboot.sh').existsSync(), isTrue);
+      expect(File('${scripts.path}/.completed').existsSync(), isFalse);
+    },
+  );
+
+  test(
+    'exhausted dashboard retries never advance to activation or handover',
+    () async {
+      await phase('20-dbc.sh', 'exit 1');
+      final marker = '${root.path}/advanced';
+      await phase('80-reboot.sh', 'touch $marker; rm -f "\$0"');
+      await phase('90-finalize.sh', 'touch $marker; rm -f "\$0"');
+      for (var i = 0; i < 6; i++) {
+        expect((await boot()).exitCode, 1);
+      }
+      expect(File(marker).existsSync(), isFalse);
+      expect(File('${scripts.path}/90-finalize.sh').existsSync(), isTrue);
+    },
+  );
 
   test('the attempt is counted before it is made', () async {
     // A phase that wedges the boot never reaches its own end. Counting
@@ -319,7 +339,7 @@ void main() {
     });
 
     test(
-      'a phase that wedged is reported as abandoned, not as never run',
+      'a phase that wedged is retained with an exhausted-retries error',
       () async {
         // It ran four times; "never ran" would be a lie. But retiring quietly
         // would leave the status saying nothing went wrong.
@@ -329,7 +349,7 @@ void main() {
           await boot();
         }
         expect(status(), contains('10-mdb-artifact.sh'));
-        expect(status(), contains('abandoned'));
+        expect(status(), contains('exhausted automatic retries'));
         expect(status(), isNot(contains('never ran')));
       },
     );

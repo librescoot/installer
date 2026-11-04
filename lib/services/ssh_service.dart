@@ -1669,17 +1669,18 @@ run_one() {
   # made that branch unreachable, and 20-dbc.sh's left keycard, bluetooth and
   # ums masked on a board nobody was watching.
   if [ "$n" -gt 4 ]; then
-    rm -f "$1" "$tries"
-    # It ran, four times; "never ran" would be a lie and would bury whatever
-    # the phase said about why it kept failing. An error already in the status
-    # file is that phase's own verdict and stays; anything else becomes the
-    # abandonment.
-    echo "${1##*/}" >> "$COMPLETED"
+    # Exhausting automatic attempts is not completion. Preserve the phase and
+    # its evidence, and never advance to activation after an unresolved write.
     case "$(head -n1 "$STATUS" 2>/dev/null)" in
       error*) ;;
-      *) echo "error: ${1##*/} was abandoned after repeated failures" > "$STATUS" ;;
+      *)
+        {
+          echo "error: ${1##*/} exhausted automatic retries; recovery is required"
+          echo "run-id: $(cat /data/installer/run-id 2>/dev/null)"
+          echo "finish: pending"
+        } > "$STATUS" ;;
     esac
-    return 0
+    return 1
   fi
   sh "$1"
   rc=$?
@@ -3249,8 +3250,8 @@ for record in /data/installer/run-state /data/installer/last-install; do
   for name in record finalize.log handover-before.log handover-diagnostics.log reboot.log; do
     path="/data/installer/history/$run/$name"
     if [ -f "$path" ]; then
-      printf '\n--- run %s %s (last 300 lines) ---\n' "$run" "$name"
-      tail -n 300 "$path" 2>&1
+      printf '\n--- run %s %s (last 600 lines) ---\n' "$run" "$name"
+      tail -n 600 "$path" 2>&1
     fi
   done
 done

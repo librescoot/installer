@@ -22,6 +22,8 @@ RUN_STATE_FILE="$INSTALLER_DIR/run-state"
 HANDOVER_DIR="$INSTALLER_DIR/history/{{RUN_ID}}"
 LOG="$HANDOVER_DIR/finalize.log"
 SERVICE_WAIT_SECONDS=30
+REBOOT_WAIT_SECONDS=60
+HANDOVER_STAGE=restoring-services
 CORE_SERVICES="librescoot-settings librescoot-vehicle librescoot-battery librescoot-ecu librescoot-bluetooth librescoot-keycard librescoot-ums librescoot-pm"
 ADDITIONAL_SERVICES="librescoot-motion librescoot-alarm librescoot-events librescoot-modem librescoot-uplink librescoot-trip librescoot-data-server librescoot-lsd librescoot-update"
 
@@ -54,7 +56,7 @@ if [ -f "$STATUS_FILE" ]; then
       INSTALL_OK=no
       # Retry only this finalizer's restoration failures, never artifact errors.
       if grep -Fxq "run-id: $RUN_ID" "$STATUS_FILE" &&
-         grep -Fxq 'stage: restoring-services' "$STATUS_FILE"; then
+         grep -Eq '^stage: (restoring-services|waiting-mdb-reboot)$' "$STATUS_FILE"; then
         INSTALL_OK=yes
       fi
       ;;
@@ -129,14 +131,18 @@ capture_handover_diagnostics() {
       printf '\n%s (presence, state, charge, sample time, sample validity):\n' "$key"
       redis-cli -h localhost --raw hmget "$key" present state charge sample:timestamp sample:valid 2>&1
     done
+    printf '\nOTA states (MDB, DBC, MDB boot, DBC boot):\n'
+    redis-cli -h localhost --raw hmget ota status:mdb status:dbc status:mdb-boot status:dbc-boot 2>&1
     journalctl -b --no-pager -n 200 -u librescoot-battery -u librescoot-vehicle -u librescoot-pm -u librescoot-settings -u librescoot-bluetooth 2>&1
+    printf '\nPower-management and update journal:\n'
+    journalctl -b --no-pager -n 100 -u librescoot-pm -u librescoot-update 2>&1
   } > "${1:-$HANDOVER_DIR/handover-diagnostics.log}" 2>&1
 }
 
 handover_failed() {
   log "ERROR: $*"
   mkdir -p "$HANDOVER_DIR"
-  failure_stage=restoring-services
+  failure_stage="$HANDOVER_STAGE"
   [ "$INSTALL_OK" = yes ] || failure_stage=finalization-failed
   {
     printf 'error: %s\nrun-id: %s\nfinish: pending\nstage: %s\n' "$*" "$RUN_ID" "$failure_stage"
@@ -260,23 +266,9 @@ if [ "$INSTALL_OK" = yes ]; then
 fi
 
 # ---- service mode ---------------------------------------------------------
-# Ends only on a run that worked, and only after the completion record is on
-# disk, because ending it is what severs the way back in.
-#
-# Ending service mode puts scooter.usb0-policy back to auto, and with keycards
-# paired and the dashboard dark that closes the usb0 gate and takes the link
-# down. Until the record is written the run is not over: anything that kills
-# this script first, a power cut, a parked reboot request, leaves the phase
-# queued for another boot, and that retry needs the overlay still armed so the
-# board it runs on is reachable. So everything that can end a run comes before
-# this point, and everything below it severs or hands off.
-#
-# A failed run keeps service mode, and keeps it across reboots: the overlay is
-# re-applied from /data/service-mode.json before vehicle-service starts, so
-# the board a retry meets is reachable however many times it has been
-# power-cycled in between. The cost is a scooter that sits with no hibernation
-# timer and no alarm until somebody retries, which is the same hole an
-# abandoned run leaves and wants the same backstop.
+# Clearing the overlay may close the laptop's USB link. The detached finalizer
+# must verify cleanup itself before recording success. Earlier failures keep
+# the overlay and the phase queued so the board remains reachable for recovery.
 end_service_mode() {
   # Ended before the policy is restored, not after. clear:service is consumed
   # off a list, and until it lands settings-service re-asserts the overlay over
@@ -284,21 +276,26 @@ end_service_mode() {
   # would pin always-on for the rest of the boot. An image without the overlay
   # has no status field, so the loop ends on its first pass and this costs it
   # nothing.
-  #
-  # The file goes either way a clear can go: one that never landed must not
-  # come back on the next boot.
-  redis-cli -h localhost lpush settings:overlay clear:service >/dev/null 2>&1
+  # Keep the saved overlay until the clear is observed.
+  redis-cli -h localhost lpush settings:overlay clear:service >/dev/null 2>&1 ||
+    handover_failed "could not request service-mode cleanup"
   i=0
   while [ $i -lt 15 ]; do
-    [ "$(redis-cli -h localhost --raw hget settings dashboard.service-mode-active 2>/dev/null)" = true ] || break
+    service_mode=$(redis-cli -h localhost --raw hget settings dashboard.service-mode-active 2>/dev/null) ||
+      handover_failed "could not verify service-mode cleanup"
+    case "$service_mode" in
+      false|'') break ;;
+      true) ;;
+      *) handover_failed "unknown service-mode state: $service_mode" ;;
+    esac
     i=$((i + 1))
     sleep 1
   done
-  rm -f /data/service-mode.json
-  log "  service mode ended"
-
+  [ "$service_mode" != true ] || handover_failed "service mode did not clear"
+  rm -f /data/service-mode.json || handover_failed "could not remove saved service mode"
   lsc set scooter.usb0-policy auto >/dev/null 2>&1 ||
-    log "  WARNING: could not restore usb0-policy"
+    handover_failed "could not restore usb0-policy"
+  log "  service mode ended"
 }
 
 # ---- nRF firmware ---------------------------------------------------------
@@ -403,12 +400,71 @@ if [ "$INSTALL_OK" = yes ]; then
   sync
 fi
 require_service librescoot-pm start
-if [ "$INSTALL_OK" = yes ] &&
-   [ "$(redis-cli -h localhost --raw hget ota status:mdb-boot 2>/dev/null)" = pending-reboot ]; then
-  log "boot update pending; keeping handover queued for the next boot"
-  sync
-  exit 1
-fi
+finish_boot_update() {
+  boot_status=$(redis-cli -h localhost --raw hget ota status:mdb-boot 2>/dev/null) ||
+    handover_failed "could not inspect the MDB boot update"
+  reboot_record="$HANDOVER_DIR/boot-reboot-requested"
+  case "$boot_status" in
+    ''|idle|staged-noop)
+      if [ -f "$reboot_record" ]; then
+        [ -n "$boot_status" ] || handover_failed "MDB boot-update status is unavailable after the reboot request"
+        boot_id=$(cat "${BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}" 2>/dev/null)
+        [ -n "$boot_id" ] || handover_failed "could not read MDB boot identity"
+        [ "$(cat "$reboot_record")" != "$boot_id" ] ||
+          handover_failed "MDB reboot was requested but boot identity has not changed"
+      fi
+      return 0 ;;
+    pending-reboot) ;;
+    *) handover_failed "MDB boot update is not settled: $boot_status" ;;
+  esac
+  HANDOVER_STAGE=waiting-mdb-reboot
+  boot_id=$(cat "${BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}" 2>/dev/null)
+  [ -n "$boot_id" ] || handover_failed "could not read MDB boot identity"
+  if [ -f "$reboot_record" ] && [ "$(cat "$reboot_record")" != "$boot_id" ]; then
+    handover_failed "MDB rebooted but its boot update is still pending; refusing a reboot loop"
+  fi
+  [ ! -e /data/librescoot-installer/dbc-control/owner ] ||
+    handover_failed "DBC installer ownership must be resolved before reboot"
+  for component in mdb dbc dbc-boot; do
+    update_status=$(redis-cli -h localhost --raw hget ota "status:$component" 2>/dev/null) ||
+      handover_failed "could not inspect $component before reboot"
+    case "$update_status" in
+      ''|idle|staged-noop) ;;
+      *) handover_failed "$component update prevents the handover reboot: $update_status" ;;
+    esac
+  done
+  [ "$(redis-cli -h localhost --raw hget vehicle state 2>/dev/null)" = stand-by ] ||
+    handover_failed "lock the scooter before retrying the pending MDB reboot"
+  if [ ! -f "$reboot_record" ]; then
+    # Persist before dispatch: a lost reply must not queue another reboot.
+    printf '%s\n' '{"active":true,"name":"service"}' > /data/service-mode.json.tmp &&
+      mv -f /data/service-mode.json.tmp /data/service-mode.json ||
+      handover_failed "could not retain service mode across the handover reboot"
+    printf '%s\n' "$boot_id" > "$reboot_record.tmp" &&
+      mv -f "$reboot_record.tmp" "$reboot_record" ||
+      handover_failed "could not record the handover reboot request"
+    {
+      printf 'running\nrun-id: %s\nfinish: pending\nstage: waiting-mdb-reboot\n' "$RUN_ID"
+    } > "$STATUS_FILE.tmp" && mv -f "$STATUS_FILE.tmp" "$STATUS_FILE" ||
+      handover_failed "could not record reboot status"
+    {
+      printf 'run-id: %s\nactor: finalize\nstage: waiting-mdb-reboot\nresult: running\nfinish: pending\n' "$RUN_ID"
+    } > "$RUN_STATE_FILE.tmp" && mv -f "$RUN_STATE_FILE.tmp" "$RUN_STATE_FILE" ||
+      handover_failed "could not record pending reboot"
+    sync
+    redis-cli -h localhost lpush scooter:power reboot >/dev/null 2>&1 ||
+      handover_failed "MDB reboot request outcome is unknown; inspect power management before retrying"
+    log "requested MDB boot-update reboot through power management; finalization remains queued"
+  fi
+  # PM retains control of its safety gates and inhibitors. Never force a reboot.
+  waited=0
+  while [ "$waited" -lt "$REBOOT_WAIT_SECONDS" ]; do
+    sleep 1
+    waited=$((waited + 1))
+  done
+  handover_failed "MDB has not rebooted; inspect power-management blockers before retrying"
+}
+[ "$INSTALL_OK" != yes ] || finish_boot_update
 capture_handover_diagnostics
 sync
 
@@ -421,8 +477,9 @@ if [ "$INSTALL_OK" = yes ]; then
     handover_failed "could not request vehicle unlock"
   fi
 
-  # Service mode holds the transport until the verified restoration record is
-  # durable. PM has already started; a pending boot update keeps this phase queued.
+  # This phase runs independently of SSH. Cleanup can close that link; retain
+  # the queued phase until cleanup and the completion record both succeed.
+  end_service_mode
   mkdir -p "$RUN_HISTORY_DIR/$RUN_ID"
   {
     echo "result: success"
@@ -457,8 +514,6 @@ if [ "$INSTALL_OK" = yes ]; then
     handover_failed "could not persist completion status"
   sync
   log "  wrote the completion record for run $RUN_ID"
-
-  end_service_mode
 else
   # Red and the hazards, and the bar goes: it was describing a run that is not
   # going to finish. Both stop when the installer reconnects.

@@ -140,6 +140,22 @@ redis_cli() {
     expect(result.stdout, contains('journal:-b --no-pager'));
   });
 
+  test('retains core snapshots preceding a full handover journal', () {
+    put('/data/installer/run-state', 'run-id: run-current\n');
+    put(
+      '/data/installer/history/run-current/handover-before.log',
+      'Id=librescoot-battery.service\nActiveState=inactive\n'
+          '${List.generate(450, (i) => 'journal-$i').join('\n')}\n',
+    );
+    final result = collect();
+    expect(result.exitCode, 0);
+    expect(
+      result.stdout,
+      contains('Id=librescoot-battery.service\nActiveState=inactive'),
+    );
+    expect(result.stdout, contains('journal-449'));
+  });
+
   test('rejects history paths outside a run directory', () {
     put('/data/installer/run-state', 'run-id: ../../private\n');
     put('/data/private/finalize.log', 'must not read\n');
