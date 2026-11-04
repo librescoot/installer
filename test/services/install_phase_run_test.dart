@@ -37,7 +37,10 @@ void main() {
     await f.writeAsString(rehome(SshService.onbootShim));
     return runShellFixture(
       f.path,
-      environment: {'PATH': '${bin.path}:${Platform.environment['PATH']}'},
+      environment: {
+        'PATH': '${bin.path}:${Platform.environment['PATH']}',
+        'OS_RELEASE': '${root.path}/os-release',
+      },
     );
   }
 
@@ -51,6 +54,7 @@ void main() {
 
   setUp(() async {
     root = await Directory.systemTemp.createTemp('phase-run-');
+    await File('${root.path}/os-release').writeAsString('ID=librescoot-mdb\n');
     scripts = Directory('${root.path}/installer/scripts');
     await scripts.create(recursive: true);
     // The coordinator and the phases source these and now refuse to run
@@ -180,6 +184,46 @@ rm -f "\$0"
       expect(order, isNot(contains('90')));
     },
   );
+
+  test(
+    'an existing MDB transaction is not committed or rolled back to allow installation',
+    () async {
+      final artifact = File('${root.path}/a.mender')..writeAsStringSync('x');
+      await stub('mender-update', '''
+echo "\$1" >> '${root.path}/mender-calls'
+case "\$1" in
+  install) exit 3 ;;
+  *) echo UNSAFE >> '${root.path}/mender-calls'; exit 0 ;;
+esac
+''');
+      await stub('systemd-run', 'exit 1');
+      await stub('systemctl', 'exit 0');
+      await queueAll(artifactPath: artifact.path);
+      expect((await boot()).exitCode, 1);
+      expect(File('${root.path}/mender-calls').readAsLinesSync(), ['install']);
+      expect(File('${root.path}/reboots').existsSync(), isFalse);
+    },
+  );
+
+  test('bootstrap retains its initial commit-or-rollback behavior', () async {
+    await File(
+      '${root.path}/os-release',
+    ).writeAsString('IMAGE_ID="librescoot-mdb-bootstrap"\n');
+    final artifact = File('${root.path}/a.mender')..writeAsStringSync('x');
+    await stub('mender-update', '''
+echo "\$1" >> '${root.path}/mender-calls'
+[ "\$1" != commit ]
+''');
+    await stub('systemd-run', 'exit 1');
+    await stub('systemctl', 'exit 0');
+    await queueAll(artifactPath: artifact.path);
+    expect((await boot()).exitCode, 0);
+    expect(File('${root.path}/mender-calls').readAsLinesSync(), [
+      'commit',
+      'rollback',
+      'install',
+    ]);
+  });
 
   test('a systemd-run that refuses does not end the install', () async {
     // The CI runner has systemd-run on PATH and no privilege to use it. The
@@ -375,10 +419,10 @@ rm -f "\$0"
       // A second boot, as happens right after the reboot it triggered.
       await boot();
       final runs = await File('${root.path}/mender-runs').readAsLines();
-      // One install, plus the commit-or-rollback preamble that precedes it.
+      // Existing installations never commit/rollback an unidentified transaction.
       expect(
         runs.length,
-        lessThanOrEqualTo(2),
+        1,
         reason: 'the artifact was installed more than once',
       );
     },

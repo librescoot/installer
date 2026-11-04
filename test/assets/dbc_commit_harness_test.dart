@@ -7,7 +7,7 @@ String _commitDispatch(String source) {
     '    COMMIT_OUT="\$INSTALLER_DIR/dbc-commit.stdout"',
   );
   final end = source.indexOf(
-    '\n\n    # Keep the installed updater suppressed',
+    '\n\n    # Keep exclusive power control',
     start,
   );
   if (start < 0 || end < 0) throw StateError('commit dispatch not found');

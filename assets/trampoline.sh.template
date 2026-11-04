@@ -786,9 +786,9 @@ reboot -f
 WATCHDOG_RECOVER
 chmod +x "$INSTALLER_DIR/watchdog-recover.sh"
 
-# Artifact-only upgrades on full images use update-service. Raw flashes and
-# bootstrap installs retain exclusive direct control through both phases.
-if [ "$MODE" = flash ] || ! command -v lsc >/dev/null 2>&1; then
+# Artifact upgrades retain the same exclusive control as raw/bootstrap installs.
+# Installed updater versions do not share a reliable activation contract.
+if [ "$MODE" = flash ] || [ -n "$DBC_MENDER" ] || ! command -v lsc >/dev/null 2>&1; then
   dbc_update_start || { echo "Unsupported or occupied DBC control; no DBC work performed" >&2; exit 1; }
 fi
 echo "" > "$LOG_FILE"
@@ -2136,6 +2136,7 @@ set -eu
 ACTION="${1:-}"
 RUN_ID="${2:-}"
 EXPECTED_ARTIFACT="${3:-}"
+START_MODE="${4:-start}"
 RECOVERY_DIR=/data/librescoot-installer
 RECOVERY="$RECOVERY_DIR/dbc-update-mask-recovery"
 MOUNTPOINT=/run/librescoot-installer-target
@@ -2181,6 +2182,7 @@ write_record() {
 case "$RUN_ID" in ''|*[!A-Za-z0-9._-]*) fail "invalid installer run id" ;; esac
 case "$EXPECTED_ARTIFACT" in ''|*[!A-Za-z0-9._+-]*) fail "invalid expected artifact" ;; esac
 
+case "$START_MODE" in start|next-boot) ;; *) fail "invalid updater start mode" ;; esac
 case "$ACTION" in
   prepare)
     CONFIGS="/var/lib/mender/mender.conf /etc/mender/mender.conf"
@@ -2302,7 +2304,9 @@ case "$ACTION" in
           fail "installed updater mask changed"
         fi
         systemctl daemon-reload
-        systemctl start "$UNIT" || fail "could not restart $UNIT"
+        if [ "$START_MODE" = start ]; then
+          systemctl start "$UNIT" || fail "could not restart $UNIT"
+        fi
         ;;
       preexisting-mask)
         [ -L "/etc/systemd/system/$UNIT" ] &&
@@ -2345,8 +2349,13 @@ prepare_dbc_updater_mask() {
   dbc_control_record mask-prepared
 }
 restore_dbc_updater_mask() {
-  local result="$INSTALLER_DIR/dbc-updater-restore.result"
-  if ! dbc_ssh_once_bounded 90 "sh /data/installer/dbc-updater-mask.sh restore '$RUN_ID' '$DBC_EXPECTED_ARTIFACT'" > "$result"; then
+  local result="$INSTALLER_DIR/dbc-updater-restore.result" start_mode=start
+  if [ "$MODE" = upgrade ] && [ "$DBC_CONTROL_MODE" = maintenance ]; then
+    # The next normal DBC power-on starts the restored updater after MDB
+    # services are back. Do not let boot maintenance race our final power-off.
+    start_mode=next-boot
+  fi
+  if ! dbc_ssh_once_bounded 90 "sh /data/installer/dbc-updater-mask.sh restore '$RUN_ID' '$DBC_EXPECTED_ARTIFACT' '$start_mode'" > "$result"; then
     return 1
   fi
   cat "$result" | while IFS= read -r line; do log "  updater restore: $line"; done
@@ -2396,9 +2405,10 @@ dbc_update_service_fail() {
 # it, and an upgrade skipped straight here. /data survives a mender install,
 # so tiles copied afterwards are unaffected by the reboot below.
 if [ -n "$DBC_MENDER" ]; then
-  # A direct install retains exclusive control across the handoff. Ordinary
-  # full-image upgrades remain delegated to update-service.
-  if [ "$DBC_VEHICLE_UPDATE" = direct ] && ! dbc_update_start; then
+  # Exclusive ownership survives the cable handoff and target activation.
+  [ "$DBC_VEHICLE_UPDATE" = direct ] ||
+    artifact_fail "error: DBC artifact upgrades require installer ownership; refusing installed-updater fallback"
+  if ! dbc_update_start; then
     artifact_fail "error: the installer-owned DBC lifecycle was not preserved"
   fi
   # The trampoline body checked this before it rebooted the MDB, but the
@@ -2437,9 +2447,9 @@ if [ -n "$DBC_MENDER" ]; then
   [ -n "$DBC_BOOT_BEFORE" ] || artifact_fail "error: could not read the DBC boot identity before installation"
   [ -n "$DBC_ROOT_BEFORE" ] || artifact_fail "error: could not read the DBC mounted-root identity before installation"
   if [ "$DBC_VEHICLE_UPDATE" = direct ]; then
-    [ -n "$DBC_ART_BEFORE" ] || artifact_fail "error: could not capture the bootstrap's committed DBC artifact identity"
+    [ -n "$DBC_ART_BEFORE" ] || artifact_fail "error: could not capture the running DBC's committed artifact identity"
     [ "$DBC_ART_BEFORE" != "$DBC_EXPECTED_ARTIFACT" ] ||
-      artifact_fail "error: target artifact $DBC_EXPECTED_ARTIFACT matches the bootstrap's committed artifact, so post-commit success would be indistinguishable"
+      artifact_fail "error: target artifact $DBC_EXPECTED_ARTIFACT matches the running DBC's committed artifact, so post-commit success would be indistinguishable"
   fi
   log "  DBC currently runs ${DBC_VER_BEFORE:-unknown} (artifact ${DBC_ART_BEFORE:-unknown}, root $DBC_ROOT_BEFORE, boot $DBC_BOOT_BEFORE)"
 
@@ -2672,19 +2682,23 @@ EOF
     dbc_control_record committed || artifact_fail "error: could not record verified commit"
     log "  commit verified: boot=$DBC_HEALTH_BOOT root=$DBC_HEALTH_ROOT version=$DBC_VER artifact=$DBC_ART_AFTER redis=PONG remote-exit=0"
 
-    # Keep the installed updater suppressed until commitment is proven. Release
-    # this run's lifecycle first; only then restore/start the service state this
-    # run changed, so boot maintenance cannot race the installer commit.
-    dbc_update_complete ||
-      artifact_fail "error: DBC commit is verified, but installer lifecycle release is unverified; updater mask retained"
+    # Keep exclusive power control through final shutdown. Retire the old
+    # runtime updater hold while SSH is still available, not after power-off.
+    dbc_control_check ||
+      artifact_fail "error: DBC commit is verified, but exclusive control is unverified; updater mask retained"
     dbc_power_on || true
     wait_dbc_ssh 60 ||
-      artifact_fail "error: DBC commit is verified and lifecycle released, but the DBC is unreachable; updater mask retained"
+      artifact_fail "error: DBC commit is verified, but the DBC is unreachable; updater mask retained"
+    if [ -f "$DBC_CONTROL_DIR/remote" ]; then
+      dbc_remote_maintenance restore ||
+        artifact_fail "error: DBC runtime updater hold could not be restored before shutdown"
+      rm "$DBC_CONTROL_DIR/remote" || artifact_fail "error: could not retire the DBC runtime updater hold"
+    fi
     restore_dbc_updater_mask ||
-      artifact_fail "error: DBC commit is verified and lifecycle released, but updater restoration failed; recovery evidence retained"
+      artifact_fail "error: DBC commit is verified, but updater restoration failed; recovery evidence retained"
     dbc_control_record complete ||
       artifact_fail "error: installation verified, but exclusive control record could not be updated"
-    log "  installer lifecycle released before updater service restoration"
+    log "  updater mask restored after verified commit; power control retained through shutdown"
   else
     dbc_health_sample managed || artifact_fail "error: update-service reported completion, but exact committed artifact and DBC health were not verified"
     [ "$DBC_HEALTH_BOOT|$DBC_HEALTH_ROOT|$DBC_VER" = "$HEALTH_LAST_IDENTITY" ] ||

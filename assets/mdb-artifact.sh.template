@@ -75,11 +75,14 @@ WORKER="$INSTALLER_DIR/mdb-artifact-worker.sh"
   cat << 'WORKER'
 log() { echo "$(date '+%H:%M:%S') $*" >> "$LOG" 2>/dev/null; }
 . "$SCRIPTS_DIR/signal.sh" || exit 1
-# mender refuses to install while a transaction is open. Closing it either
-# way is fine here: nothing worth keeping is installed yet, and commit falls
-# back to rollback when a state script fails, which is what the bootstrap
-# image does.
-mender-update commit >/dev/null 2>&1 || mender-update rollback >/dev/null 2>&1 || true
+# Only the bootstrap has an installer-owned initial transaction to close.
+# On an existing system, Mender must reject an unresolved transaction rather
+# than having this worker commit or roll it back without ownership.
+image_id=$(sed -n 's/^IMAGE_ID=//p' "${OS_RELEASE:-/etc/os-release}" 2>/dev/null | tr -d '"')
+case "$image_id" in
+  *-bootstrap)
+    mender-update commit >/dev/null 2>&1 || mender-update rollback >/dev/null 2>&1 || true ;;
+esac
 log "installing $ARTIFACT"
 if mender-update install "$ARTIFACT" >> "$LOG" 2>&1; then
   log "install finished, the slot is pending a reboot"

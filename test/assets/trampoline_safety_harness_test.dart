@@ -14,7 +14,7 @@ void main() {
     Process.runSync('chmod', ['755', f.path]);
   }
 
-  ProcessResult run(String body, {Map<String, String> extra = const {}}) {
+  ProcessResult run(String body, {Map<String, String> extra = const {}, bool trace = false}) {
     final script = File('${root.path}/scenario.sh')
       ..writeAsStringSync('''
 set -eu
@@ -25,7 +25,7 @@ $body
 ''');
     return Process.runSync(
       'sh',
-      [script.path],
+      [if (trace) '-x', script.path],
       environment: {...env, ...extra},
     );
   }
@@ -70,6 +70,7 @@ esac
     expect(Directory('${root.path}/control').existsSync(), isTrue);
     result = run(
       'DBC_CONTROL_ACQUIRED=yes; dbc_control_record complete; dbc_control_release',
+      trace: true,
     );
     expect(result.exitCode, 0, reason: '${result.stdout}${result.stderr}');
     expect(Directory('${root.path}/control').existsSync(), isFalse);

@@ -364,9 +364,15 @@ dbc_maintenance_unit_config() {
 
 dbc_ota_idle() {
   local component status
-  for component in mdb dbc; do
-    status=$(redis-cli -h localhost --raw hget ota "status:$component" 2>/dev/null) || return 1
-    case "$status" in ''|idle|error|staged-noop) ;; *) return 1 ;; esac
+  for component in mdb dbc mdb-boot dbc-boot; do
+    status=$(redis-cli -h localhost --raw hget ota "status:$component" 2>/dev/null) || {
+      log "ERROR: cannot inspect $component OTA state before maintenance takeover"
+      return 1
+    }
+    case "$status" in
+      ''|idle|staged-noop) ;;
+      *) log "ERROR: $component OTA state is $status; maintenance takeover refused"; return 1 ;;
+    esac
   done
 }
 
@@ -421,6 +427,18 @@ if [ "$action" = restore ]; then
   rmdir "$dir"
   exit 0
 fi
+# Mender itself refuses an open standalone transaction. Do not stop a live
+# writer or try commit/rollback merely to make room for another install.
+mender_idle() {
+  command -v pgrep >/dev/null || return 1
+  if pgrep -x mender-update >/dev/null; then
+    echo 'Mender writer active; refusing dashboard maintenance takeover' >&2
+    return 1
+  else
+    [ "$?" -eq 1 ]
+  fi
+}
+mender_idle || exit 1
 mkdir "$dir"
 printf '%s\n' "$run" > "$dir/owner"
 for unit in librescoot-update.service update-service.service; do
@@ -434,6 +452,7 @@ for unit in librescoot-update.service update-service.service; do
   state=$(systemctl show -p ActiveState --value "$unit")
   case "$state" in inactive|failed) ;; *) exit 1 ;; esac
 done
+mender_idle || exit 1
 sync
 DBC_MAINTENANCE
 }

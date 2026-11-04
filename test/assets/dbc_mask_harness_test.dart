@@ -47,13 +47,13 @@ void main() {
 ''');
   }
 
-  void writeRecovery(String previous) {
+  void writeRecovery(String previous, {String state = 'prepared'}) {
     final recovery = File(
       '${root.path}/data/librescoot-installer/dbc-update-mask-recovery',
     );
     recovery.parent.createSync(recursive: true);
     recovery.writeAsStringSync('''run-id: run-1
-state: prepared
+state: $state
 previous-state: $previous
 target-device: ${root.path}/dev/mmcB
 target-id: 179:3
@@ -62,12 +62,14 @@ updated: 2026-01-01T00:00:00Z
 ''');
   }
 
-  ProcessResult run(String action) => Process.runSync('sh', [
-    helper.path,
-    action,
-    'run-1',
-    'release-v1.4.0',
-  ], environment: environment);
+  ProcessResult run(String action, {String startMode = 'start'}) =>
+      Process.runSync('sh', [
+        helper.path,
+        action,
+        'run-1',
+        'release-v1.4.0',
+        startMode,
+      ], environment: environment);
 
   setUp(() {
     root = Directory.systemTemp.createTempSync('dbc_mask_harness_');
@@ -199,6 +201,21 @@ printf 'systemctl:%s\n' "$*" >> "$EVENTS"
       isTrue,
     );
   });
+
+  test(
+    'restores the target mask without starting boot maintenance before shutdown',
+    () {
+      writeRecovery('absent', state: 'applied');
+      mountinfo.writeAsStringSync('36 25 179:3 / / rw - ext4 /dev/root rw\n');
+      final mask = Link(
+        '${root.path}/running/etc/systemd/system/librescoot-update.service',
+      )..createSync('/dev/null');
+      final restored = run('restore', startMode: 'next-boot');
+      expect(restored.exitCode, 0, reason: restored.stderr.toString());
+      expect(mask.existsSync(), isFalse);
+      expect(events.readAsLinesSync(), ['systemctl:daemon-reload']);
+    },
+  );
 
   test('rejects ambiguous configured roots and an already mounted target', () {
     writeConfig(ambiguousA: true);

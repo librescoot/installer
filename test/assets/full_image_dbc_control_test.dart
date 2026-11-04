@@ -61,6 +61,7 @@ $body
       state(unit, remote: true).writeAsStringSync('active\n');
     }
     stub('mender-update', 'echo release-v1.4.0');
+    stub('pgrep', 'exit 1');
     stub('lsc', 'echo "lsc \$*" >> "\$TEST_ROOT/calls"');
     stub('sleep', 'exit 0');
     stub('timeout', 'shift; exec "\$@"');
@@ -78,6 +79,7 @@ case "\$*" in
     else echo "\${VEHICLE_STATE:-stand-by}"; fi ;;
   *'hget vehicle dbc-updating') echo "\${UPDATING:-false}" ;;
   *'hget ota heartbeat-owner:dbc') echo "\${OWNER:-}" ;;
+  *'hget ota status:mdb-boot'|*'hget ota status:dbc-boot') echo "\${BOOT_OTA_STATUS:-idle}" ;;
   *'hget ota status:'*) echo "\${OTA_STATUS:-idle}" ;;
   *) exit 90 ;;
 esac
@@ -134,6 +136,10 @@ esac
     {'VEHICLE_STATE': 'parked'},
     {'OTA_STATUS': 'installing'},
     {'OTA_STATUS': 'pending-reboot'},
+    {'OTA_STATUS': 'error'},
+    {'BOOT_OTA_STATUS': 'installing'},
+    {'BOOT_OTA_STATUS': 'pending-reboot'},
+    {'BOOT_OTA_STATUS': 'error'},
     {'UPDATING': 'true'},
     {'OWNER': 'foreign'},
   ]) {
@@ -143,6 +149,168 @@ esac
       expect(Directory('${root.path}/control').existsSync(), isFalse);
     });
   }
+
+  for (final artifact in ['', '/data/installer/dbc.mender']) {
+    test(
+      'existing-system upgrade reserves direct ownership only with artifact "$artifact"',
+      () {
+        final template = File(
+          'assets/trampoline.sh.template',
+        ).readAsStringSync();
+        final start = template.indexOf('# Artifact upgrades retain');
+        final end = template.indexOf('\necho "" > "\$LOG_FILE"', start);
+        final result = run('''
+MODE=upgrade
+DBC_MENDER='$artifact'
+DBC_VEHICLE_UPDATE=none
+dbc_update_start() { dbc_control_acquire outer; DBC_VEHICLE_UPDATE=direct; }
+${template.substring(start, end)}
+echo "owner=\$DBC_VEHICLE_UPDATE"
+''');
+        expect(result.exitCode, 0, reason: result.stderr.toString());
+        expect(
+          result.stdout,
+          contains('owner=${artifact.isEmpty ? 'none' : 'direct'}'),
+        );
+        expect(calls(), isNot(contains('systemctl stop')));
+      },
+    );
+  }
+
+  test(
+    'an existing-system artifact uses Mender directly instead of the legacy updater',
+    () {
+      final template = File('assets/trampoline.sh.template').readAsStringSync();
+      final start = template.indexOf('  DBC_SERVICE_MANAGED="no"');
+      final end = template.indexOf('\n  dbc_say "{{MSG_INSTALLED}}"', start);
+      final result = run(
+        '''
+dbc_control_acquire outer
+DBC_VEHICLE_UPDATE=direct
+DBC_ART_PATH=/data/ota/dbc/firmware.mender
+TILES_JOB=''
+artifact_fail() { echo "FAILED: \$*"; exit 90; }
+prepare_dbc_updater_mask() { DBC_TARGET_ROOT_ID=179:3; }
+dbc_ssh_once_bounded() { echo "direct:\$*"; }
+redis-cli() { echo "UNEXPECTED installed-updater command: \$*"; return 1; }
+dbc_control_check() { :; }
+${template.substring(start, end)}
+'''
+            .replaceAll('redis-cli()', 'redis_cli()')
+            .replaceAll('redis-cli ', 'redis_cli '),
+      );
+      expect(result.exitCode, 0, reason: '${result.stdout}${result.stderr}');
+      expect(
+        result.stdout,
+        contains(
+          'direct:900 mender-update install /data/ota/dbc/firmware.mender',
+        ),
+      );
+      expect(result.stdout, isNot(contains('UNEXPECTED')));
+      expect(
+        File('${root.path}/control/state').readAsStringSync().trim(),
+        'artifact-installed',
+      );
+    },
+  );
+
+  test(
+    'retires the remote hold before power-off and restores MDB services offline',
+    () {
+      final template = File('assets/trampoline.sh.template').readAsStringSync();
+      final start = template.indexOf('    # Keep exclusive power control');
+      final end = template.indexOf(
+        '  else\n    dbc_health_sample managed',
+        start,
+      );
+      final finishStart = template.indexOf('# Service-managed upgrades retain');
+      final finishEnd = template.indexOf('\nif [ "\${TILE_ERRORS', finishStart);
+      final result = run('''
+dbc_control_acquire outer
+dbc_control_prepare
+# The activation reboot cleared the original runtime hold.
+rm -r '${root.path}/remote-control'
+dbc_control_record committed
+DBC_VEHICLE_UPDATE=direct
+artifact_fail() { echo "FAILED: \$*"; exit 90; }
+dbc_power_on() { :; }
+wait_dbc_ssh() { :; }
+restore_dbc_updater_mask() { :; }
+${template.substring(start, end)}
+dbc_owned_power_off() { SSH_FAIL=yes; export SSH_FAIL; }
+dbc_update_complete() { dbc_control_release; }
+write_status() { echo "\$*"; }
+signal_error() { :; }
+${template.substring(finishStart, finishEnd)}
+''');
+      expect(result.exitCode, 0, reason: '${result.stdout}${result.stderr}');
+      expect(Directory('${root.path}/control').existsSync(), isFalse);
+      expect(
+        state('librescoot-vehicle.service').readAsStringSync().trim(),
+        'active',
+      );
+      expect(
+        state('librescoot-update.service').readAsStringSync().trim(),
+        'active',
+      );
+      expect(
+        state('librescoot-pm.service').readAsStringSync().trim(),
+        'inactive',
+      );
+    },
+  );
+
+  for (final scenario in [
+    ['upgrade', 'maintenance', 'next-boot'],
+    ['flash', 'maintenance', 'start'],
+    ['upgrade', 'bootstrap', 'start'],
+  ]) {
+    test('updater restart policy preserves bootstrap behavior: $scenario', () {
+      final template = File('assets/trampoline.sh.template').readAsStringSync();
+      final start = template.indexOf('restore_dbc_updater_mask()');
+      final end = template.indexOf('\nartifact_fail()', start);
+      final result = run('''
+${template.substring(start, end)}
+MODE=${scenario[0]}
+DBC_CONTROL_MODE=${scenario[1]}
+INSTALLER_DIR='${root.path}'
+DBC_EXPECTED_ARTIFACT=release-target
+dbc_ssh_once_bounded() { echo "dispatch:\$*"; echo restored-state:absent; }
+restore_dbc_updater_mask
+''');
+      expect(result.exitCode, 0, reason: result.stderr.toString());
+      expect(
+        File('${root.path}/dbc-updater-restore.result').readAsStringSync(),
+        contains("'${scenario[2]}'"),
+      );
+    });
+  }
+
+  for (final probeExit in [0, 2]) {
+    test(
+      'refuses a live or uninspectable dashboard writer (probe $probeExit)',
+      () {
+        stub('pgrep', 'exit $probeExit');
+        final result = run('dbc_control_acquire outer; dbc_control_prepare');
+        expect(result.exitCode, isNot(0));
+        expect(calls(), isNot(contains('systemctl stop')));
+      },
+    );
+  }
+
+  test('retains ownership if a writer remains after updater isolation', () {
+    stub(
+      'pgrep',
+      'test "\$(cat "\$TEST_ROOT/remote-librescoot-update.service")" = inactive',
+    );
+    final result = run('dbc_control_acquire outer; dbc_control_prepare');
+    expect(result.exitCode, isNot(0));
+    expect(calls(), isNot(contains('local systemctl stop')));
+    expect(
+      File('${root.path}/control/state').readAsStringSync().trim(),
+      'maintenance-preparing',
+    );
+  });
 
   test('an unlock racing takeover restores the vehicle state machine', () {
     final result = run(
