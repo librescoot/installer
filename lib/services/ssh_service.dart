@@ -1066,14 +1066,18 @@ done
     final stderr = StringBuffer();
 
     final stdoutDone = () async {
-      await for (final data in session.stdout) {
-        stdout.write(utf8.decode(data));
+      await for (final data in session.stdout.cast<List<int>>().transform(
+        utf8.decoder,
+      )) {
+        stdout.write(data);
       }
     }();
 
     final stderrDone = () async {
-      await for (final data in session.stderr) {
-        stderr.write(utf8.decode(data));
+      await for (final data in session.stderr.cast<List<int>>().transform(
+        utf8.decoder,
+      )) {
+        stderr.write(data);
       }
     }();
 
@@ -1135,15 +1139,17 @@ done
     final stderr = StringBuffer();
 
     final stdoutDone = () async {
-      await for (final data in session.stdout) {
-        final chunk = utf8.decode(data, allowMalformed: true);
+      await for (final chunk in session.stdout.cast<List<int>>().transform(
+        const Utf8Decoder(allowMalformed: true),
+      )) {
         stdout.write(chunk);
         onStdout?.call(chunk);
       }
     }();
     final stderrDone = () async {
-      await for (final data in session.stderr) {
-        final chunk = utf8.decode(data, allowMalformed: true);
+      await for (final chunk in session.stderr.cast<List<int>>().transform(
+        const Utf8Decoder(allowMalformed: true),
+      )) {
         stderr.write(chunk);
         onStderr?.call(chunk);
       }

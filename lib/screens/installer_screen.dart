@@ -3293,10 +3293,15 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   /// Connect, redoing the network setup if the host refuses to route there.
   /// The interface can be published after the configure pass already ran,
   /// which is why restarting the installer fixes it.
-  Future<DeviceInfo> _connectToMdbRetryingRoute(AppLocalizations l10n) async {
+  Future<DeviceInfo> _connectToMdbRetryingRoute(
+    AppLocalizations l10n, {
+    bool preservePowerManager = false,
+  }) async {
     for (var attempt = 1; ; attempt++) {
       try {
-        return await _sshService.connectToMdb();
+        return preservePowerManager
+            ? await _sshService.connectToMdbForStatus()
+            : await _sshService.connectToMdb();
       } catch (e) {
         if (!NetworkService.isLinkNotReady(e) ||
             attempt >= _routeRecoveryAttempts) {
@@ -8327,7 +8332,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         if (!reconnect) return;
         final expectedSerial = _mdbInfo?.serialNumber;
         _sshService.disconnect();
-        final info = await _connectToMdbRetryingRoute(l10n);
+        final info = await _connectToMdbRetryingRoute(
+          l10n,
+          preservePowerManager: retry,
+        );
         if (expectedSerial != null && info.serialNumber != expectedSerial) {
           throw StateError(l10n.dashboardRetryIdentityFailed);
         }

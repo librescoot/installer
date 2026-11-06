@@ -407,11 +407,11 @@ finish_boot_update() {
   case "$boot_status" in
     ''|idle|staged-noop)
       if [ -f "$reboot_record" ]; then
-        [ -n "$boot_status" ] || handover_failed "MDB boot-update status is unavailable after the reboot request"
         boot_id=$(cat "${BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}" 2>/dev/null)
         [ -n "$boot_id" ] || handover_failed "could not read MDB boot identity"
         [ "$(cat "$reboot_record")" != "$boot_id" ] ||
           handover_failed "MDB reboot was requested but boot identity has not changed"
+        [ -n "$boot_status" ] || log "  boot-update status cleared after verified reboot"
       fi
       return 0 ;;
     pending-reboot) ;;

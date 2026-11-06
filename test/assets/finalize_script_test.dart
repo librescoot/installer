@@ -783,10 +783,12 @@ write_status "error: DBC verification failed"
         },
       );
 
-      test('missing boot status after reboot is not completion', () async {
+      test('missing boot status requires proof of reboot', () async {
         expect((await run(bootUpdate: 'pending-reboot')).exitCode, 1);
-        expect((await run(bootIdentity: 'boot-two')).exitCode, 1);
+        expect((await run()).exitCode, 1);
         expectBlocked();
+        final resumed = await run(bootIdentity: 'boot-two');
+        expect(resumed.exitCode, 0, reason: resumed.stderr.toString());
       });
 
       test('a still-pending boot update cannot create a reboot loop', () async {
