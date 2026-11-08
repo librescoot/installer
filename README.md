@@ -95,6 +95,19 @@ A running dashboard handoff, MDB update or finalization owns the installation. R
 
 Finishing without the dashboard can still install the selected MDB update and reboot the MDB. The confirmation states this when the MDB update is pending. A finalized incomplete dashboard outcome is reported as incomplete, not treated as an interrupted run.
 
+## Completion signal
+
+The scooter stays locked at the end of installation. Its front ring and rear
+light repeat Librescoot in Morse code, accompanied by a green dashboard LED,
+until the owner unlocks or 15 minutes have passed. Dots last 200 ms; dashes and
+letter gaps are three units, and the word gap is seven units. The lights run in
+a separate bounded unit with a suspend-only power hold, so finalization can
+restore normal settings and power management immediately. Unlocking, a vehicle
+service restart, or the time limit ends the cue and releases its power hold.
+The welcome screen offers two short horn chirps, off by default. Sound requires
+firmware advertising a bounded chirp command; older firmware uses visual cues
+only. Failed or explicitly incomplete installations do not play these cues.
+
 ## Diagnostic logs
 
 The in-app log, copied log text, saved run log and exported dashboard diagnostics mask keycard UIDs and Bluetooth MAC addresses. Pairing and enrollment still use the actual identifiers. Review logs for personal information before sharing.
@@ -109,6 +122,7 @@ Linux builds need `libgstreamer1.0-dev` and `libgstreamer-plugins-base1.0-dev`; 
 
 ```bash
 flutter pub get
+bash scripts/build-completion-signal.sh  # requires Go 1.25.14
 scripts/update-flasher.sh          # populate assets/tools/ with flasher binaries
 flutter run -d linux               # or macos, windows
 ```

@@ -94,14 +94,17 @@ void main() {
         .widget<FadeTransition>(find.byKey(const Key('dbc-success-side-lit')))
         .opacity
         .value;
-    // 500 ms fade in, 1.5 s on, 250 ms fade out, 500 ms off.
-    expect(lit(), 1);
-    await tester.pump(const Duration(milliseconds: 1125));
-    expect(lit(), closeTo(0.5, 0.01));
-    await tester.pump(const Duration(milliseconds: 400));
+    // At 1.1 s the L's dash is over; its final two dots follow at 1.2/1.6 s.
+    await tester.pump(const Duration(milliseconds: 100));
     expect(lit(), 0);
-    await tester.pump(const Duration(milliseconds: 475));
-    expect(lit(), closeTo(0.5, 0.01));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(lit(), 1);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(lit(), 0);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(lit(), 1);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(lit(), 0);
     expect(
       tester.getTopLeft(find.text('ERROR')).dy,
       tester.getTopLeft(find.text('SUCCESS')).dy,
@@ -110,7 +113,7 @@ void main() {
       find.textContaining('dashboard LED blinks red'),
     );
     final successCaption = tester.getRect(
-      find.textContaining('The scooter has unlocked'),
+      find.textContaining('The front ring and rear light flash Morse code'),
     );
     expect(errorCard.bottom - errorCaption.bottom, lessThan(36));
     expect(successCard.bottom - successCaption.bottom, lessThan(36));
@@ -153,7 +156,7 @@ void main() {
     expect(find.text('ERFOLG'), findsOneWidget);
     expect(
       find.text(
-        'Der Roller hat sich entsperrt: Das Standlicht und das Rücklicht leuchten',
+        'Lichtring und Rücklicht blinken Morsecode; die Dashboard-LED leuchtet grün',
       ),
       findsOneWidget,
     );

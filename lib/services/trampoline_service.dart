@@ -1140,7 +1140,7 @@ http.server.HTTPServer(
     // The MDB's own artifact and the reboot that activates it. Queued ahead
     // of the dashboard phase so its install is already running while the
     // dashboard is flashed, and ahead of the handover so the vehicle is on
-    // its real image by the time anything unlocks it.
+    // its activated image before signalling completion.
     await _ssh.uploadFile(
       Uint8List.fromList(
         utf8.encode(
@@ -1225,6 +1225,7 @@ http.server.HTTPServer(
     region: region,
     dashboardResult: 'complete',
     preserveSettings: finish.preserveSettings,
+    completionSound: finish.completionSound,
   );
 
   /// Brackets prevent pgrep from matching its own command line.

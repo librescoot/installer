@@ -21,6 +21,7 @@ void main() {
     String region = '',
     String dashboardResult = 'not-requested',
     bool preserveSettings = false,
+    bool completionSound = false,
   }) => FinalizeScript.render(
     template: template,
     mdbAction: mdbAction,
@@ -32,6 +33,7 @@ void main() {
     region: region,
     dashboardResult: dashboardResult,
     preserveSettings: preserveSettings,
+    completionSound: completionSound,
   );
 
   group('rendering', () {
@@ -90,6 +92,7 @@ case "\$*" in
     if [ "\$STUCK_SERVICE_MODE" != yes ]; then touch "\$CALLS.service-cleared"; fi ;;
   *"hget ota status:mdb-boot"*) echo "\$BOOT_UPDATE" ;;
   *"hget ota status:"*) echo "\$OTHER_UPDATE" ;;
+  *"hget vehicle horn:chirp-capability"*) echo "\$CHIRP_CAPABILITY" ;;
   *"hget vehicle state"*) echo "\$VEHICLE_STATE" ;;
   *"lpush scooter:power reboot"*)
     if [ "\$REBOOT_ON_REQUEST" = yes ]; then kill -KILL "\$(cat "\$CALLS.pid")"; fi ;;
@@ -128,6 +131,7 @@ case "\$*" in
     elif [ "\$5" = "\$INACTIVE_SERVICE" ] && [ ! -f "\$CALLS.started.\$5" ]; then echo inactive; else echo active; fi ;;
   'show -p SubState --value '*)
     if [ "\$5" = "\$BLOCKED_SERVICE" ]; then echo dead; else echo running; fi ;;
+  'show -p InvocationID --value '*) echo aabbccddeeff00112233445566778899 ;;
   'show -p Result --value '*) echo "\$SERVICE_RESULT" ;;
   'show -p ConditionResult --value '*)
     if [ "\$5" = "\$BLOCKED_SERVICE" ]; then echo no; else echo yes; fi ;;
@@ -143,16 +147,26 @@ case "\$*" in
 esac
 exit 0
 ''',
-        'journalctl': '#!/bin/sh\necho "journal: \$*"\n',
+        'journalctl':
+            '#!/bin/sh\necho "journalctl \$*" >> "\$CALLS"\n'
+            '[ "\$JOURNAL_READY" = no ] || echo "System started successfully"\n',
         'sleep': '#!/bin/sh\nexit 0\n',
         'sync': '#!/bin/sh\necho "sync" >> "\$CALLS"\n',
         // The signalling reaches the vehicle through these three and nothing
         // else, so they are what says what the finish lit.
         'ioctl': '#!/bin/sh\necho "ioctl \$*" >> "\$CALLS"\n',
         'i2cset': '#!/bin/sh\necho "i2cset \$*" >> "\$CALLS"\n',
-        'systemd-run':
-            '#!/bin/sh\nfor a in "\$@"; do case "\$a" in '
-            '--unit=*) echo "unit \${a#--unit=}" >> "\$CALLS" ;; esac; done\n',
+        'systemd-run': '''#!/bin/sh
+for a in "\$@"; do case "\$a" in
+  --unit=*) echo "unit \${a#--unit=}" >> "\$CALLS" ;;
+esac; done
+case "\$*" in
+  *--unit=librescoot-installer-completion*)
+    echo "completion-command \$*" >> "\$CALLS"
+    for a in "\$@"; do case "\$a" in */completion-signal) script="\$a" ;; esac; done
+    : > "\$script.ready" ;;
+esac
+''',
       };
       for (final e in entries.entries) {
         final f = File('${bin.path}/${e.key}');
@@ -189,6 +203,9 @@ exit 0
       bool rebootOnRequest = false,
       String bootIdentity = 'boot-one',
       bool stuckServiceMode = false,
+      bool completionSound = false,
+      String chirpCapability = '',
+      bool journalReady = true,
     }) async {
       if (uplinkConfigured) {
         final config = File('${root.path}/uplink-service/uplink.yaml');
@@ -211,6 +228,7 @@ exit 0
           'assets/signal.sh',
         ).readAsStringSync().replaceAll('/data/', '${root.path}/'),
       );
+      await File('${script.parent.path}/completion-signal').writeAsString('worker');
       await File(
         '${script.parent.path}/device.sh',
       ).writeAsString(File('assets/device.sh').readAsStringSync());
@@ -220,6 +238,7 @@ exit 0
               runId: runId,
               dashboardResult: dashboardResult,
               preserveSettings: preserveSettings,
+              completionSound: completionSound,
             )
             .replaceFirst('NRF_STATUS_CAP=600', 'NRF_STATUS_CAP=$nrfStatusCap')
             .replaceAll('/data/', '${root.path}/'),
@@ -257,6 +276,8 @@ exit 0
           'REBOOT_ON_REQUEST': rebootOnRequest ? 'yes' : 'no',
           'BOOT_ID_FILE': bootIdFile.path,
           'STUCK_SERVICE_MODE': stuckServiceMode ? 'yes' : 'no',
+          'CHIRP_CAPABILITY': chirpCapability,
+          'JOURNAL_READY': journalReady ? 'yes' : 'no',
           'PATH': '${root.path}/bin:${Platform.environment['PATH']}',
           'CALLS': calls,
           'OS_RELEASE': osRelease.path,
@@ -371,13 +392,14 @@ write_status "error: DBC verification failed"
       expect(File('${root.path}/service-mode.json').existsSync(), isFalse);
     });
 
-    test('a good run unlocks and records what it installed', () async {
+    test('a good run stays locked, signals completion and records what it installed', () async {
       final result = await run(status: 'success', runId: 'run-good');
       expect(result.exitCode, 0, reason: result.stderr.toString());
       expect(
         (await callLog()).any((l) => l.contains('scooter:state unlock')),
-        isTrue,
+        isFalse,
       );
+      expect(await callLog(), contains('unit librescoot-installer-completion'));
       final record = await File(
         '${root.path}/installer/history/run-good/record',
       ).readAsString();
@@ -389,6 +411,94 @@ write_status "error: DBC verification failed"
         await File('${root.path}/installer/last-install').readAsString(),
         contains('run-id: run-good'),
       );
+    });
+
+    test('completion sound defaults off and renders explicitly', () {
+      expect(render(), contains('COMPLETION_SOUND="no"'));
+      expect(render(completionSound: true), contains('COMPLETION_SOUND="yes"'));
+    });
+
+    test('capable firmware stays silent unless sound was selected', () async {
+      await run(status: 'success', chirpCapability: 'v1:abcd-1234');
+      expect(await callLog(), isNot(contains(contains('lpush scooter:horn'))));
+    });
+
+    test('selected sound sends only a bounded boot-scoped chirp', () async {
+      await run(
+        status: 'success',
+        completionSound: true,
+        chirpCapability: 'v1:abcd-1234',
+      );
+      final log = await callLog();
+      expect(
+        log.where((l) => l.contains('lpush scooter:horn chirp:abcd-1234:')),
+        hasLength(1),
+      );
+      expect(log, isNot(contains(contains('lpush scooter:horn on'))));
+      expect(log, isNot(contains(contains('lpush scooter:horn off'))));
+    });
+
+    test('old firmware stays visual-only when sound was selected', () async {
+      await run(status: 'success', completionSound: true);
+      expect(await callLog(), contains('unit librescoot-installer-completion'));
+      expect(await callLog(), isNot(contains(contains('lpush scooter:horn'))));
+    });
+
+    test('a finalizer retry cannot replay the cue or chirp', () async {
+      await run(
+        status: 'success',
+        completionSound: true,
+        chirpCapability: 'v1:abcd-1234',
+      );
+      await run(
+        status: 'success',
+        completionSound: true,
+        chirpCapability: 'v1:abcd-1234',
+      );
+      final log = await callLog();
+      expect(log.where((l) => l.contains('lpush scooter:horn chirp:')), hasLength(1));
+      expect(log.where((l) => l == 'unit librescoot-installer-completion'), hasLength(1));
+    });
+
+    test('an explicitly incomplete handover never plays the cue', () async {
+      await run(
+        status: 'success',
+        dashboardResult: 'incomplete',
+        completionSound: true,
+        chirpCapability: 'v1:abcd-1234',
+      );
+      final log = await callLog();
+      expect(log, isNot(contains('unit librescoot-installer-completion')));
+      expect(log, isNot(contains(contains('lpush scooter:horn'))));
+    });
+
+    test('unconfirmed vehicle-service startup retains the phase without a cue', () async {
+      final result = await run(status: 'success', journalReady: false);
+      expect(result.exitCode, isNot(0));
+      final log = await callLog();
+      expect(
+        log,
+        contains(
+          'journalctl --no-pager -o cat _SYSTEMD_INVOCATION_ID=aabbccddeeff00112233445566778899',
+        ),
+      );
+      expect(log, isNot(contains('unit librescoot-installer-completion')));
+      expect(File('${root.path}/installer/scripts/90-finalize.sh').existsSync(), isTrue);
+    });
+
+    test('detached lights follow startup and use the bounded worker contract', () async {
+      await run(status: 'success');
+      final log = await callLog();
+      final command = log.where((l) => l.startsWith('completion-command')).single;
+      expect(command, contains('--property=RuntimeMaxSec=900'));
+      expect(command, contains('--property=BindsTo=librescoot-vehicle.service'));
+      expect(command, contains('--invocation aabbccddeeff00112233445566778899'));
+      expect(command, contains('--cleanup'));
+      expect(
+        log.indexOf('systemctl restart librescoot-vehicle'),
+        lessThan(log.indexOf('unit librescoot-installer-completion')),
+      );
+      expect(log.indexOf('unit librescoot-installer-completion'), greaterThan(log.indexOf('systemctl start librescoot-pm')));
     });
 
     test(
@@ -421,8 +531,8 @@ write_status "error: DBC verification failed"
         ]);
         expect(
           log.indexOf('systemctl stop librescoot-bootled-guard.service'),
-          lessThan(log.indexWhere((l) => l.contains('scooter:state unlock'))),
-          reason: 'the guard would put amber back over the dark LED',
+          lessThan(log.indexOf('unit librescoot-installer-completion')),
+          reason: 'the guard would put amber back over the completion lights',
         );
         expect(log, isNot(contains('unit librescoot-bootled-hazards')));
         // The bar is gone, so nothing reads it as a run still going.
@@ -480,7 +590,7 @@ write_status "error: DBC verification failed"
           expectBlocked();
           expect(
             await callLog(),
-            isNot(contains(contains('scooter:state unlock'))),
+            isNot(contains('unit librescoot-installer-completion')),
           );
           expect(await callLog(), isNot(contains(contains('clear:service'))));
         });
@@ -503,7 +613,7 @@ write_status "error: DBC verification failed"
           expect(log, contains('systemctl start $unit'));
           expect(
             log.indexOf('systemctl start $unit'),
-            lessThan(log.indexWhere((l) => l.contains('scooter:state unlock'))),
+            lessThan(log.indexOf('unit librescoot-installer-completion')),
           );
         }
         expect(log, isNot(contains('systemctl restart librescoot-battery')));
@@ -576,7 +686,8 @@ write_status "error: DBC verification failed"
         expect(log, contains('systemctl start librescoot-uplink'));
         expect(log, contains('systemctl start librescoot-update'));
         expect(log, contains('systemctl start librescoot-pm'));
-        expect(log, contains(contains('scooter:state unlock')));
+        expect(log, contains('unit librescoot-installer-completion'));
+        expect(log.any((l) => l.contains('scooter:state unlock')), isFalse);
         expect(log, contains(contains('clear:service')));
         expect(
           File(
@@ -679,7 +790,7 @@ write_status "error: DBC verification failed"
           );
           expect(
             await callLog(),
-            isNot(contains(contains('scooter:state unlock'))),
+            isNot(contains('unit librescoot-installer-completion')),
           );
         },
       );
@@ -863,7 +974,7 @@ write_status "error: DBC verification failed"
         );
         expect(
           await callLog(),
-          isNot(contains(contains('scooter:state unlock'))),
+          isNot(contains('unit librescoot-installer-completion')),
         );
         expect(
           (await run(bootIdentity: 'boot-two', bootUpdate: 'idle')).exitCode,
@@ -894,7 +1005,7 @@ write_status "error: DBC verification failed"
         );
         expect(
           lastRead,
-          lessThan(log.indexWhere((l) => l.contains('scooter:state unlock'))),
+          lessThan(log.indexOf('unit librescoot-installer-completion')),
         );
         // Segment 4 keeps breathing and the LED stays amber while the flash
         // runs: a vehicle gone dark and still locked reads as a failed handover.
@@ -925,7 +1036,8 @@ write_status "error: DBC verification failed"
         // One read a second from 0 to 60: the field has the whole grace
         // period to appear, and the read at its end is the one that gives up.
         expect(statusReads(log), 61);
-        expect(log.any((l) => l.contains('scooter:state unlock')), isTrue);
+        expect(log, contains('unit librescoot-installer-completion'));
+        expect(log.any((l) => l.contains('scooter:state unlock')), isFalse);
       });
 
       test(
@@ -939,7 +1051,7 @@ write_status "error: DBC verification failed"
           expect(result.exitCode, 1, reason: result.stderr.toString());
           final log = await callLog();
           expect(statusReads(log), 5);
-          expect(log.any((l) => l.contains('scooter:state unlock')), isFalse);
+          expect(log.contains('unit librescoot-installer-completion'), isFalse);
         },
       );
 
@@ -948,7 +1060,7 @@ write_status "error: DBC verification failed"
         expect(result.exitCode, 1);
         expect(
           await callLog(),
-          isNot(contains(contains('scooter:state unlock'))),
+          isNot(contains('unit librescoot-installer-completion')),
         );
         expect(
           File('${root.path}/installer/scripts/90-finalize.sh').existsSync(),
@@ -975,7 +1087,7 @@ write_status "error: DBC verification failed"
       final log = await callLog();
       expect(log, contains('unit librescoot-bootled-blink'));
       expect(log, contains('unit librescoot-bootled-hazards'));
-      expect(log.any((l) => l.contains('scooter:state unlock')), isFalse);
+      expect(log.contains('unit librescoot-installer-completion'), isFalse);
     });
 
     test('an explicitly incomplete DBC run writes a durable record', () async {
@@ -995,10 +1107,9 @@ write_status "error: DBC verification failed"
         ).existsSync(),
         isTrue,
       );
-      expect(
-        (await callLog()).any((l) => l.contains('scooter:state unlock')),
-        isTrue,
-      );
+      final log = await callLog();
+      expect(log, isNot(contains('unit librescoot-installer-completion')));
+      expect(log.any((l) => l.contains('scooter:state unlock')), isFalse);
     });
 
     test('a failed run stays reachable so it can be retried', () async {
@@ -1073,7 +1184,7 @@ write_status "error: DBC verification failed"
         await run(status: null, imageId: 'librescoot-mdb-bootstrap');
         expect(
           await callLog(),
-          isNot(contains(contains('scooter:state unlock'))),
+          isNot(contains('unit librescoot-installer-completion')),
         );
       });
 
@@ -1105,14 +1216,14 @@ write_status "error: DBC verification failed"
       test('a board on the image it installed is unlocked', () async {
         // The full images set no IMAGE_ID at all, so absence is the good case.
         await run(status: 'success');
-        expect(await callLog(), contains(contains('scooter:state unlock')));
+        expect(await callLog(), contains('unit librescoot-installer-completion'));
       });
 
       test('the dashboard bootstrap marker counts too', () async {
         await run(status: 'success', imageId: 'librescoot-dbc-bootstrap');
         expect(
           await callLog(),
-          isNot(contains(contains('scooter:state unlock'))),
+          isNot(contains('unit librescoot-installer-completion')),
         );
       });
 
@@ -1152,7 +1263,7 @@ write_status "error: DBC verification failed"
         );
         expect(
           await callLog(),
-          isNot(contains(contains('scooter:state unlock'))),
+          isNot(contains('unit librescoot-installer-completion')),
         );
         expect(
           File('${root.path}/installer/history/run-test-1/record').existsSync(),
@@ -1178,7 +1289,7 @@ write_status "error: DBC verification failed"
             bootedRoot: '/dev/mmcblk1p3',
             previousRoot: '/dev/mmcblk1p2',
           );
-          expect(await callLog(), contains(contains('scooter:state unlock')));
+          expect(await callLog(), contains('unit librescoot-installer-completion'));
           expect(
             File('${root.path}/installer/previous-root').existsSync(),
             isFalse,
@@ -1193,7 +1304,7 @@ write_status "error: DBC verification failed"
           // A run with no MDB artifact never reboots and never writes the
           // marker. The guard has nothing to say about it.
           await run(status: 'success', previousRoot: null);
-          expect(await callLog(), contains(contains('scooter:state unlock')));
+          expect(await callLog(), contains('unit librescoot-installer-completion'));
         },
       );
     });

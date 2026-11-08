@@ -1532,7 +1532,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mdbFinishSuccessPrompt =>
-      'The scooter has unlocked: its front position light and rear light are on';
+      'The front ring and rear light flash Morse code; the dashboard LED is green';
 
   @override
   String get mdbFinishFailureTitle => 'Installation error';
@@ -1560,7 +1560,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get finishReconnectDbcNoDashboardWork =>
-      'The scooter is completing the installation on its own; the laptop is no longer needed. Unplug it, reconnect the DBC cable, and wait for the scooter to unlock.';
+      'The scooter is completing the installation on its own; the laptop is no longer needed. Unplug it, reconnect the DBC cable, and wait for the Morse light signal.';
 
   @override
   String get finishConfirmed =>
@@ -1585,7 +1585,8 @@ class AppLocalizationsEn extends AppLocalizations {
       'Keycards, Bluetooth and your settings become active again.';
 
   @override
-  String get finishPendingStep4 => 'At the end the scooter unlocks itself.';
+  String get finishPendingStep4 =>
+      'At the end the front ring and rear light spell Librescoot in Morse code. The scooter stays locked.';
 
   @override
   String get finishPendingDoNowTitle => 'What to do now';
@@ -1595,7 +1596,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get finishPendingDoneBody =>
-      'The handlebar lock opens and the scooter can be switched on and ridden. The progress bar on the indicators goes dark.';
+      'The front ring and rear light repeat Librescoot in Morse code, with a green dashboard LED, until you unlock the scooter or 15 minutes have passed. Two short horn chirps are added only if you selected sound and the firmware supports it.';
 
   @override
   String get finishPendingDoneTrail =>
@@ -2522,7 +2523,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get finishHandoverBody =>
-      'Wait for the scooter to complete the final steps before disconnecting USB.';
+      'The scooter will finish on its own and signal completion with Morse light flashes. It will stay locked.';
+
+  @override
+  String get completionCueHeading => 'Completion signal';
+
+  @override
+  String get completionCueVisualDescription =>
+      'When installation finishes, the front ring and rear light repeat Librescoot in Morse code and the dashboard LED turns green. The signal stops when you unlock or after 15 minutes.';
+
+  @override
+  String get completionCueSoundLabel => 'Also play two short horn chirps';
+
+  @override
+  String get completionCueSoundDescription =>
+      'Off by default. The horn is loud, even briefly. Requires firmware with a bounded chirp command; older firmware uses visual cues only.';
 
   @override
   String get waitingForMdb => 'Waiting for the MDB...';
@@ -2553,7 +2568,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dbcFlashSuccessPrompt =>
-      'The scooter has unlocked: its front position light and rear light are on';
+      'The front ring and rear light flash Morse code; the dashboard LED is green';
 
   @override
   String get dbcFlashChooseOutcomeHint =>
@@ -2565,7 +2580,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dbcFlashDoneSignal =>
-      'Complete: the scooter unlocks automatically, with its lights and dashboard on. You do not need to keep waiting.';
+      'Complete: the front ring and rear light repeat Librescoot in Morse code and the dashboard LED is green. This stops when you unlock or after 15 minutes. Use your keycard or phone when you are ready.';
 
   @override
   String get dbcFlashFailSignal =>
@@ -3030,8 +3045,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dbcSaySwap2 => 'continue in the installer on the laptop.';
 
   @override
-  String get dbcSayDone =>
-      'Installation complete. Verify that the scooter unlocks.';
+  String get dbcSayDone => 'Finishing. Wait for the Morse light signal.';
 
   @override
   String get dbcSayBanner => 'Installing Librescoot';

@@ -58,7 +58,7 @@ class DashboardMessages {
   final String swap1;
   final String swap2;
 
-  /// Finished, the scooter is unlocking.
+  /// Dashboard work finished; the remaining handover still has to run.
   final String done;
 
   /// Why it failed. [failed] is the frame these appear under, so leaving them
@@ -110,7 +110,7 @@ class DashboardMessages {
     failed: 'Installation failed',
     swap1: 'Plug the USB cable back into the MDB and',
     swap2: 'continue in the installer on the laptop.',
-    done: 'Done. The scooter is unlocking now.',
+    done: 'Finishing. Wait for the Morse light signal.',
     failOnboot: 'The part after the restart failed repeatedly.',
     failDbc: 'The display did not come back after flashing.',
     failTiles: '$tileErrorsToken map transfer(s) failed.',

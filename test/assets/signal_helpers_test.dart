@@ -80,6 +80,11 @@ for a in "$@"; do
   esac
 done
 echo "systemd-run $unit$args" >> "$CALLS"''');
+    await stub('systemctl', r'''
+echo "systemctl $*" >> "$CALLS"
+case "$*" in 'show -p InvocationID --value librescoot-vehicle') echo abc123 ;; esac
+''');
+    await stub('redis-cli', 'echo stand-by');
     await stub('sleep', 'exit 0');
   });
   tearDown(() => root.delete(recursive: true));
@@ -348,10 +353,7 @@ echo "systemd-run $unit$args" >> "$CALLS"''');
       expect(callLines(), contains('systemd-run librescoot-bootled-guard'));
     });
 
-    test('a run that worked ends dark, not green', () async {
-      // The vehicle unlocks itself at the end, and that is the success signal.
-      // A green LED left blinking on a parked scooter is a second, quieter
-      // claim that somebody has to find and interpret.
+    test('releasing installer lights before restart ends dark', () async {
       final r = await run('signal_install_done');
       expect(r.exitCode, 0, reason: r.stderr.toString());
       expect(
@@ -377,6 +379,62 @@ echo "systemd-run $unit$args" >> "$CALLS"''');
         contains('systemctl stop librescoot-bootled-guard.service'),
         reason: 'the guard would re-assert amber over the red every 2s',
       );
+    });
+  });
+
+  group('completion', () {
+    Future<void> stageWorker() async {
+      await File('${root.path}/installer/scripts/completion-signal')
+          .writeAsString('compiled worker');
+      await stub('systemd-run', r'''
+echo "systemd-run $*" >> "$CALLS"
+for arg in "$@"; do case "$arg" in */completion-signal) script="$arg" ;; esac; done
+: > "$script.ready"
+''');
+    }
+
+    test('starts a detached compiled worker bound to this vehicle invocation', () async {
+      await stageWorker();
+      final result = await run(
+        'RUN_ID=run-test\nVEHICLE_INVOCATION=abc123\nsignal_completion',
+      );
+      expect(result.exitCode, 0, reason: result.stderr.toString());
+      final copy = File('${root.path}/installer/history/run-test/completion-signal');
+      expect(await copy.readAsString(), 'compiled worker');
+      expect(calls(), contains('--property=RuntimeMaxSec=900'));
+      expect(calls(), contains('--property=BindsTo=librescoot-vehicle.service'));
+      expect(calls(), contains('--property=After=librescoot-vehicle.service'));
+      expect(
+        calls(),
+        contains('--property=ExecStopPost=${copy.path} --run-id run-test --invocation abc123 --cleanup'),
+      );
+      expect(calls(), contains('${copy.path} --run-id run-test --invocation abc123'));
+      expect(calls(), isNot(contains('ioctl ')));
+      expect(calls(), isNot(contains('scooter:state')));
+    });
+
+    test('refuses malformed run or vehicle identities', () async {
+      await stageWorker();
+      for (final identity in [
+        'RUN_ID=../x\nVEHICLE_INVOCATION=abc123',
+        'RUN_ID=run-test\nVEHICLE_INVOCATION=not-hex',
+        'RUN_ID=run-test\nVEHICLE_INVOCATION=',
+      ]) {
+        final result = await run('$identity\nsignal_completion');
+        expect(result.exitCode, isNot(0));
+      }
+      expect(calls(), isNot(contains('systemd-run')));
+    });
+
+    test('a worker that never reports ready is stopped', () async {
+      await File('${root.path}/installer/scripts/completion-signal')
+          .writeAsString('compiled worker');
+      await stub('systemd-run', 'echo "systemd-run \$*" >> "\$CALLS"');
+      final result = await run(
+        'RUN_ID=run-test\nVEHICLE_INVOCATION=abc123\nsignal_completion',
+      );
+      expect(result.exitCode, isNot(0));
+      expect(calls(), contains('systemctl stop librescoot-installer-completion.service'));
     });
   });
 

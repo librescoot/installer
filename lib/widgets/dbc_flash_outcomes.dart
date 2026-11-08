@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
+import '../models/completion_cue.dart';
 import 'dbc_led_image.dart';
 
 class DbcFlashOutcomes extends StatelessWidget {
@@ -107,8 +108,7 @@ class DbcFlashOutcomes extends StatelessWidget {
   }
 }
 
-/// The success pictures with their lights coming on: the lit artwork fades in
-/// over the unlit one, holds, and fades out again.
+/// The same LIBRESCOOT Morse sequence as the scooter's completion lights.
 class _LightingSuccessImage extends StatefulWidget {
   const _LightingSuccessImage();
 
@@ -118,17 +118,17 @@ class _LightingSuccessImage extends StatefulWidget {
 
 class _LightingSuccessImageState extends State<_LightingSuccessImage>
     with SingleTickerProviderStateMixin {
-  // 500 ms fade in, 1.5 s on, 250 ms fade out, 500 ms off.
   late final AnimationController _cycle = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 2750),
+    duration: completionLightCycle,
   )..repeat();
 
   late final Animation<double> _lit = TweenSequence<double>([
-    TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 500),
-    TweenSequenceItem(tween: ConstantTween<double>(1), weight: 1500),
-    TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 250),
-    TweenSequenceItem(tween: ConstantTween<double>(0), weight: 500),
+    for (final step in completionLightSteps)
+      TweenSequenceItem(
+        tween: ConstantTween<double>(step.lit ? 1 : 0),
+        weight: step.units.toDouble(),
+      ),
   ]).animate(_cycle);
 
   @override

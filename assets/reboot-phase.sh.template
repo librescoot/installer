@@ -7,8 +7,8 @@
 # exits 75 to ask the coordinator to, because the reboot belongs between
 # phases and a phase that reboots never returns to be recorded as having run.
 #
-# It sits between the dashboard phase and the handover because 90-finalize.sh
-# unlocks, and the vehicle should be on its real image by the time it does.
+# It sits between the dashboard phase and the handover so finalization signals
+# completion only on the activated image.
 #
 # Joins on 10-mdb-artifact.sh, which installs in the background so its write
 # overlaps the dashboard work rather than following it.
@@ -73,8 +73,8 @@ case "$RESULT" in
   skipped)
     # Nothing was installed here, so there is nothing to activate and a reboot
     # would only take the vehicle dark for a minute. The dashboard was powered
-    # off when its own work finished, and the unlock in 90-finalize.sh brings
-    # it back up on the image it just installed.
+    # off when its own work finished; the owner's next unlock brings it up on
+    # the image it just installed.
     log "no MDB artifact in this run, so no reboot is needed"
     retire
     exit 0

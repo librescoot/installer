@@ -31,6 +31,10 @@ class SignalHelpers {
   static const String remotePath = '/data/installer/scripts/$fileName';
 
   static const String assetPath = 'assets/$fileName';
+  static const String completionWorkerAsset =
+      'assets/tools/completion-signal-linux-arm';
+  static const String completionWorkerRemote =
+      '/data/installer/scripts/completion-signal';
 
   static Future<String> load() async =>
       normalizeShellScript(await rootBundle.loadString(assetPath));
@@ -98,8 +102,7 @@ class MdbArtifactScript {
 /// it rather than doing it: a phase that reboots never returns to be recorded
 /// as having run, and the reboot belongs between phases anyway.
 class RebootPhaseScript {
-  /// After the dashboard work, before the handover: 90-finalize.sh unlocks,
-  /// and the vehicle should be on its real image when that happens.
+  /// Activate the installed image before finalization signals completion.
   static const String phaseName = '80-reboot.sh';
 
   static const String remotePath = '/data/installer/scripts/$phaseName';

@@ -32,6 +32,7 @@ class FinalizeScript {
     String region = '',
     String dashboardResult = 'not-requested',
     bool preserveSettings = false,
+    bool completionSound = false,
   }) {
     final rendered = template
         .replaceAll('{{MDB_ACTION}}', mdbAction)
@@ -44,7 +45,8 @@ class FinalizeScript {
         .replaceAll('{{RELEASE_TAG}}', releaseTag)
         .replaceAll('{{TILES_REGION}}', region)
         .replaceAll('{{DASHBOARD_RESULT}}', dashboardResult)
-        .replaceAll('{{PRESERVE_SETTINGS}}', preserveSettings ? 'yes' : 'no');
+        .replaceAll('{{PRESERVE_SETTINGS}}', preserveSettings ? 'yes' : 'no')
+        .replaceAll('{{COMPLETION_SOUND}}', completionSound ? 'yes' : 'no');
 
     // An unfilled placeholder is valid shell in most of the places one
     // appears, so the script runs and takes the wrong branch rather than

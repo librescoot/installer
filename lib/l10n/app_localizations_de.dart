@@ -1382,11 +1382,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get finishTransferSkippedPending =>
-      'Die Übertragung wurde übersprungen. Die normalen Dienste werden wiederhergestellt. Der Roller wird automatisch entsperrt, sobald er bereit ist.';
+      'Die Übertragung wurde übersprungen. Die normalen Dienste werden wiederhergestellt. Warte auf das Morse-Lichtsignal, bevor du die Stromversorgung trennst. Der Roller bleibt gesperrt.';
 
   @override
   String get finishTransferSkippedConfirmed =>
-      'Der Roller wurde wiederhergestellt und entsperrt. Die gewünschte Dashboard-Software oder die ausgewählten Karten wurden nicht installiert.';
+      'Die normalen Dienste wurden wiederhergestellt. Die gewünschte Dashboard-Software oder die ausgewählten Karten wurden nicht installiert. Prüfe vor dem Fahren die Funktionen des Rollers.';
 
   @override
   String get dbcReadyButton => 'DBC-Installation starten';
@@ -1554,7 +1554,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get mdbFinishSuccessPrompt =>
-      'Der Roller hat sich entsperrt: Das Standlicht und das Rücklicht leuchten';
+      'Lichtring und Rücklicht blinken Morsecode; die Dashboard-LED leuchtet grün';
 
   @override
   String get mdbFinishFailureTitle => 'Installationsfehler';
@@ -1582,7 +1582,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get finishReconnectDbcNoDashboardWork =>
-      'Der Roller schließt die Installation selbstständig ab; der Laptop wird nicht mehr gebraucht. Zieh das Laptop-Kabel ab, schließe das DBC-Kabel wieder an und warte, bis der Roller entsperrt.';
+      'Der Roller schließt die Installation selbstständig ab; der Laptop wird nicht mehr gebraucht. Zieh das Laptop-Kabel ab, schließe das DBC-Kabel wieder an und warte auf das Morse-Lichtsignal.';
 
   @override
   String get finishConfirmed =>
@@ -1608,7 +1608,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get finishPendingStep4 =>
-      'Zum Schluss entsperrt sich der Roller selbst.';
+      'Zum Schluss senden Lichtring und Rücklicht Librescoot als Morsecode. Der Roller bleibt gesperrt.';
 
   @override
   String get finishPendingDoNowTitle => 'Was du jetzt tun musst';
@@ -1619,7 +1619,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get finishPendingDoneBody =>
-      'Das Lenkerschloss öffnet sich und der Roller lässt sich einschalten und fahren. Die Fortschrittsanzeige an den Blinkern erlischt.';
+      'Lichtring und Rücklicht wiederholen Librescoot als Morsecode, die Dashboard-LED leuchtet grün. Das Signal endet beim Entsperren oder nach 15 Minuten. Zwei kurze Huptöne kommen nur hinzu, wenn du Ton ausgewählt hast und die Firmware ihn unterstützt.';
 
   @override
   String get finishPendingDoneTrail =>
@@ -2561,11 +2561,26 @@ class AppLocalizationsDe extends AppLocalizations {
   String get finishBlockedRetry => 'Nochmal versuchen';
 
   @override
-  String get finishHandoverTitle => 'Warte, bis der Roller entsperrt ist';
+  String get finishHandoverTitle => 'Installation wird abgeschlossen';
 
   @override
   String get finishHandoverBody =>
-      'Bleibe beim Roller, bis er entsperrt ist. Ziehe danach das USB-Kabel ab.';
+      'Der Roller schließt die Installation selbstständig ab und meldet sich mit einem Morse-Lichtsignal. Er bleibt gesperrt.';
+
+  @override
+  String get completionCueHeading => 'Fertig-Signal';
+
+  @override
+  String get completionCueVisualDescription =>
+      'Nach der Installation wiederholen Lichtring und Rücklicht Librescoot als Morsecode und die Dashboard-LED leuchtet grün. Das Signal endet beim Entsperren oder nach 15 Minuten.';
+
+  @override
+  String get completionCueSoundLabel =>
+      'Zusätzlich zwei kurze Huptöne abspielen';
+
+  @override
+  String get completionCueSoundDescription =>
+      'Standardmäßig aus. Die Hupe ist auch bei einem kurzen Ton laut. Erfordert eine Firmware mit zeitlich begrenztem Hupton-Befehl; ältere Firmware verwendet nur Lichtsignale.';
 
   @override
   String get waitingForMdb => 'Warte auf das MDB…';
@@ -2581,7 +2596,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get dbcFlashHandsOffHeading => 'Dashboard an heißt noch nicht fertig';
 
   @override
-  String get dbcFlashObservedSuccess => 'Der Roller hat sich entsperrt';
+  String get dbcFlashObservedSuccess => 'Ich sehe das Fertig-Signal';
 
   @override
   String get dbcFlashErrorLabel => 'FEHLER';
@@ -2595,7 +2610,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcFlashSuccessPrompt =>
-      'Der Roller hat sich entsperrt: Das Standlicht und das Rücklicht leuchten';
+      'Lichtring und Rücklicht blinken Morsecode; die Dashboard-LED leuchtet grün';
 
   @override
   String get dbcFlashChooseOutcomeHint =>
@@ -2607,7 +2622,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcFlashDoneSignal =>
-      'Fertig: Der Roller hat sich automatisch entsperrt, Beleuchtung und Dashboard sind an. Du musst nicht weiter warten.';
+      'Fertig: Lichtring und Rücklicht wiederholen Librescoot als Morsecode, die Dashboard-LED leuchtet grün. Das Signal endet beim Entsperren oder nach 15 Minuten. Entsperre mit deiner Schlüsselkarte oder deinem Handy, wenn du bereit bist.';
 
   @override
   String get dbcFlashFailSignal =>
@@ -2827,7 +2842,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get finalRideDesc =>
-      'Der Roller wurde am Ende der Installation automatisch entsperrt. Falls nicht, verwende eine angelernte Schlüsselkarte oder entsperre ihn über Bluetooth.';
+      'Entsperre den Roller mit einer angelernten Schlüsselkarte oder über Bluetooth und prüfe seine Funktionen vor dem Fahren.';
 
   @override
   String notEnoughDiskSpace(String needed) {
@@ -3080,7 +3095,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get dbcSaySwap2 => 'Installer auf dem Laptop fortfahren.';
 
   @override
-  String get dbcSayDone => 'Fertig. Der Roller wird jetzt entsperrt.';
+  String get dbcSayDone => 'Abschluss läuft. Warte auf das Morse-Lichtsignal.';
 
   @override
   String get dbcSayBanner => 'Librescoot wird installiert';

@@ -3,6 +3,8 @@
 #
 # Restores settings and required services before recording completion. PM may
 # reboot during handover, so this phase stays queued until restoration succeeds.
+# Completion is signalled with lights and an optional chirp; the scooter stays
+# locked.
 #
 # One copy, two callers. The laptop runs it detached at the end of an attended
 # install, because restoring usb0-policy severs the transport the command
@@ -38,6 +40,7 @@ RELEASE_TAG="{{RELEASE_TAG}}"
 TILES_REGION="{{TILES_REGION}}"
 DASHBOARD_RESULT="{{DASHBOARD_RESULT}}"
 PRESERVE_SETTINGS="{{PRESERVE_SETTINGS}}"
+COMPLETION_SOUND="{{COMPLETION_SOUND}}"
 
 log() {
   mkdir -p "$(dirname "$LOG")" 2>/dev/null
@@ -80,7 +83,7 @@ if [ "$DASHBOARD_RESULT" = incomplete ] && [ "$INSTALL_OK" = no ]; then
 fi
 
 # u-boot rolls back a rootfs that does not commit, and the sweep has already
-# taken the status file, so absence would read as success and unlock a board
+# taken the status file, so absence would read as success for a board
 # whose install never survived its first boot. os-release cannot lag, and only
 # the bootstrap images set IMAGE_ID.
 RUNNING_IMAGE_ID="$(sed -n 's/^IMAGE_ID=//p' "${OS_RELEASE:-/etc/os-release}" 2>/dev/null | tr -d '"')"
@@ -112,7 +115,7 @@ if [ -f "$PREVIOUS_ROOT_FILE" ]; then
 fi
 log "finalize starting (install_ok=$INSTALL_OK dashboard_result=$DASHBOARD_RESULT action=$MDB_ACTION)"
 
-# Segment 4, the handover: settings back, service mode ended, the unlock. The
+# Segment 4, the handover: settings back, service mode ended, completion. The
 # coordinator lights it before the reboot it performs, so on a run that
 # rebooted this is a no-op and the bar was already saying this from the moment
 # the vehicle came back up. On one that did not reboot, this is what lights it.
@@ -300,7 +303,7 @@ end_service_mode() {
 
 # ---- nRF firmware ---------------------------------------------------------
 # bluetooth-service flashes the nRF52 on the first boot with newer zips in
-# /usr/share/nrf-fw, i.e. this one. Wait for it before unlocking so nobody
+# /usr/share/nrf-fw, i.e. this one. Wait for it before signalling completion so nobody
 # rides off mid-flash. pm-service is still stopped and the flash holds a power
 # inhibitor, so the board stays up.
 #
@@ -348,10 +351,8 @@ if [ "$INSTALL_OK" = yes ]; then
   # like a run in progress.
   wait_for_nrf_firmware
 
-  # The bar is complete and the vehicle goes dark. Not green: the unlock below
-  # is the success signal, and it is a clearer message than an LED the owner
-  # has to find and interpret. The fade also releases the blinker channels at
-  # duty 0, which is the state vehicle-service expects them in.
+  # The bar is complete and the installer releases its light loops. The fade
+  # leaves the blinker channels at duty 0, the state vehicle-service expects.
   progress_set "$SEGMENT_HANDOVER" done
   sleep 1
   signal_install_done
@@ -368,6 +369,7 @@ fi
 # service-mode end below flips the policy to auto afterwards, and
 # vehicle-service picks the change up live.
 require_service librescoot-vehicle restart
+VEHICLE_INVOCATION=$(systemctl show -p InvocationID --value librescoot-vehicle 2>/dev/null)
 for unit in librescoot-battery librescoot-ecu librescoot-keycard librescoot-ums; do
   require_service "$unit" start
 done
@@ -470,12 +472,21 @@ sync
 
 if [ "$INSTALL_OK" = yes ]; then
 
-  sleep 5
-  if redis-cli -h localhost lpush scooter:state unlock >/dev/null 2>&1; then
-    log "  unlock requested after service restoration"
-  else
-    handover_failed "could not request vehicle unlock"
-  fi
+  # vehicle-service reloads the PWM driver while starting. Do not open its
+  # devices until this invocation reports startup complete.
+  case "$VEHICLE_INVOCATION" in ''|*[!a-f0-9]*) handover_failed "could not identify the vehicle-service invocation" ;; esac
+  VEHICLE_READY=no
+  i=0
+  while [ "$i" -lt 60 ]; do
+    if journalctl --no-pager -o cat "_SYSTEMD_INVOCATION_ID=$VEHICLE_INVOCATION" 2>/dev/null |
+       grep -Fq 'System started successfully'; then
+      VEHICLE_READY=yes
+      break
+    fi
+    i=$((i + 1))
+    sleep 1
+  done
+  [ "$VEHICLE_READY" = yes ] || handover_failed "vehicle-service startup was not confirmed"
 
   # This phase runs independently of SSH. Cleanup can close that link; retain
   # the queued phase until cleanup and the completion record both succeed.
@@ -501,6 +512,7 @@ if [ "$INSTALL_OK" = yes ]; then
     echo "region: $TILES_REGION"
     echo "dashboard-result: $DASHBOARD_RESULT"
     echo "services: verified"
+    echo "completion-sound: $COMPLETION_SOUND"
   } > "$RUN_HISTORY_DIR/$RUN_ID/.record.tmp" || handover_failed "could not write the completion record"
   mv -f "$RUN_HISTORY_DIR/$RUN_ID/.record.tmp" "$RUN_HISTORY_DIR/$RUN_ID/record" &&
     cp "$RUN_HISTORY_DIR/$RUN_ID/record" "$INSTALLER_DIR/.last-install.tmp" &&
@@ -514,6 +526,21 @@ if [ "$INSTALL_OK" = yes ]; then
     handover_failed "could not persist completion status"
   sync
   log "  wrote the completion record for run $RUN_ID"
+
+  # Claim before signalling: a power cut during the cue must not replay a
+  # chirp when the finalizer retries. Incomplete handovers are never celebrated.
+  if [ "$DASHBOARD_RESULT" != incomplete ] &&
+     mkdir "$RUN_HISTORY_DIR/$RUN_ID/completion-cue-started" 2>/dev/null; then
+    sync
+    if [ "$COMPLETION_SOUND" = yes ]; then
+      signal_completion_sound
+    fi
+    if signal_completion; then
+      log "  completion lights running until unlock or the 15-minute limit"
+    else
+      log "  WARNING: could not start completion lights"
+    fi
+  fi
 else
   # Red and the hazards, and the bar goes: it was describing a run that is not
   # going to finish. Both stop when the installer reconnects.

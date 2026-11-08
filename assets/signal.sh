@@ -171,7 +171,7 @@ front_pulse_stop() {
 #                    being written
 #   2  main board    its own .mender installing
 #   3  dashboard     its .mender, plus the map and routing tiles
-#   4  handover      settings restored, service mode ended, unlocking
+#   4  handover      settings and services restored
 #
 # 2 and 3 genuinely overlap: the main board writes its own eMMC while the
 # dashboard is being flashed and uploaded to, and 80-reboot.sh joins the two.
@@ -376,7 +376,7 @@ progress_fade_off() {
 
 # --- the dashboard LED (LP5562, i2c-2 @ 0x30) ------------------------------
 # Blinking amber while awaiting USB, steady amber during installation, blinking
-# red on failure, dark on completion. The vehicle unlock signals success.
+# red on failure, green during the completion light sequence.
 bootled_init() {
   [ -n "$SIGNAL_I2CSET" ] || return 0
   i2cset -f -y 2 0x30 0x0D 0xFF
@@ -393,6 +393,7 @@ bootled() {
   [ -n "$SIGNAL_I2CSET" ] || return 0
   case "$1" in
     amber) i2cset -f -y 2 0x30 0x02 0xFF; i2cset -f -y 2 0x30 0x03 0x00; i2cset -f -y 2 0x30 0x04 0x00 ;;
+    green) i2cset -f -y 2 0x30 0x02 0x00; i2cset -f -y 2 0x30 0x03 0xFF; i2cset -f -y 2 0x30 0x04 0x00 ;;
     red)   i2cset -f -y 2 0x30 0x02 0x00; i2cset -f -y 2 0x30 0x03 0x00; i2cset -f -y 2 0x30 0x04 0xFF ;;
     off)   i2cset -f -y 2 0x30 0x02 0x00; i2cset -f -y 2 0x30 0x03 0x00; i2cset -f -y 2 0x30 0x04 0x00 ;;
   esac
@@ -520,6 +521,7 @@ signal_all_off() {
   bootled_blink_stop
   bootled_guard_stop
   progress_off
+  signal_completion_reset
   [ -n "$SIGNAL_I2CSET" ] && bootled off
   return 0
 }
@@ -541,21 +543,70 @@ signal_install_start() {
   bootled_guard_start
 }
 
-# It worked. The bar fades out and the LED goes dark, because the unlock that
-# follows is the success signal and an LED the owner has to find and interpret
-# is not.
+# Release all installer light loops before vehicle-service reloads the driver.
 signal_install_done() {
   front_pulse_stop
   bootled_guard_stop
   bootled_blink_stop
   progress_fade_off
+  signal_completion_reset
   bootled off
+}
+
+# A killed completion script can leave the rear channel lit until the next
+# attempt. Only clear it while locked; an unlocked vehicle owns its brake light.
+signal_completion_reset() {
+  systemctl stop librescoot-installer-completion.service 2>/dev/null
+  [ "$(redis-cli -h localhost --raw hget vehicle state 2>/dev/null)" = stand-by ] || return 0
+  led_release 2
+}
+
+signal_completion() {
+  case "$RUN_ID" in ''|.|..|*[!a-zA-Z0-9._-]*) return 1 ;; esac
+  case "$VEHICLE_INVOCATION" in ''|*[!a-f0-9]*) return 1 ;; esac
+  completion_script="$SIGNAL_INSTALLER_DIR/history/$RUN_ID/completion-signal"
+  mkdir -p "${completion_script%/*}" || return 1
+  # Keep the compiled worker after the coordinator retires its scripts.
+  cp "$SIGNAL_INSTALLER_DIR/scripts/completion-signal" "$completion_script" || return 1
+  chmod 700 "$completion_script" || return 1
+  rm -f "$completion_script.ready" "$completion_script.state" "$completion_script.state.tmp"
+  systemd-run --unit=librescoot-installer-completion --collect --quiet \
+    --slice=system.slice --property=RuntimeMaxSec=900 --property=TimeoutStopSec=3 \
+    --property=BindsTo=librescoot-vehicle.service --property=After=librescoot-vehicle.service \
+    --property="ExecStopPost=$completion_script --run-id $RUN_ID --invocation $VEHICLE_INVOCATION --cleanup" \
+    "$completion_script" --run-id "$RUN_ID" --invocation "$VEHICLE_INVOCATION" || return 1
+  completion_waited=0
+  while [ ! -f "$completion_script.ready" ] && [ "$completion_waited" -lt 100 ]; do
+    sleep 0.1
+    completion_waited=$((completion_waited + 1))
+  done
+  if [ ! -f "$completion_script.ready" ]; then
+    systemctl stop librescoot-installer-completion.service 2>/dev/null
+    signal_log "completion worker did not acquire its power hold"
+    return 1
+  fi
+}
+
+# The horn owner bounds the pulse locally. Never emulate it with queued on/off
+# commands: a disconnect or stopped consumer could otherwise leave it on.
+signal_completion_sound() {
+  completion_cap=$(redis-cli -h localhost --raw hget vehicle horn:chirp-capability 2>/dev/null)
+  case "$completion_cap" in
+    v1:*) ;;
+    *) signal_log "bounded horn chirp unavailable; visual completion only"; return 0 ;;
+  esac
+  completion_boot=${completion_cap#v1:}
+  case "$completion_boot" in ''|*[!a-f0-9-]*) return 0 ;; esac
+  completion_expires=$(( $(date +%s) + 5 ))
+  redis-cli -h localhost lpush scooter:horn "chirp:$completion_boot:$completion_expires" >/dev/null 2>&1 ||
+    signal_log "could not request completion chirp"
 }
 
 # It did not. The bar means nothing any more, so it goes; the LED and the
 # hazards are what is left, and both are stopped by
 # /data/installer/stop-error-signals.sh when the installer reconnects.
 signal_error() {
+  signal_completion_reset
   front_pulse_stop
   progress_off
   bootled_guard_stop

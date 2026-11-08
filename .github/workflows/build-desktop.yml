@@ -34,6 +34,11 @@ jobs:
         with:
           ref: ${{ inputs.release_tag || github.ref }}
 
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.14'
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -54,6 +59,9 @@ jobs:
 
       # Branches and PRs run checks without packaging desktop applications.
       # Stable tags require the complete flash-safety suite before packaging.
+      - name: Test completion worker
+        run: cd tool/completion-signal && go test -race ./... && go vet ./...
+
       - name: Run tests
         run: flutter test
 
@@ -124,6 +132,15 @@ jobs:
           channel: stable
           flutter-version: 3.47.2
           cache: true
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.14'
+
+      - name: Build completion worker
+        shell: bash
+        run: bash scripts/build-completion-signal.sh
 
       - name: Flutter version
         run: flutter --version

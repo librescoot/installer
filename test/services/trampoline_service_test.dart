@@ -350,7 +350,6 @@ void main() {
       expect(state, contains('finish: pending\n'));
       expect(state, contains('sequence: 7\n'));
     });
-
   });
 
   group('TrampolineStatus', () {
@@ -454,7 +453,6 @@ void main() {
         expect(status.dbcVersion, isNull);
       },
     );
-
   });
 
   group('Region', () {
@@ -463,7 +461,6 @@ void main() {
       expect(region.name, 'Italy Nord Est');
       expect(region.country, 'Weitere');
     });
-
   });
 
   group('renderTemplate', () {
@@ -559,7 +556,7 @@ VALHALLA="{{VALHALLA_TILES_FILE}}"
     });
 
     test(
-      'autonomous clean installs carry settings preservation to finalize',
+      'autonomous clean installs carry settings and sound choices to finalize',
       () {
         for (final action in [
           BoardAction.cleanInstall,
@@ -571,6 +568,7 @@ VALHALLA="{{VALHALLA_TILES_FILE}}"
               onDevice: true,
               mdbAction: action,
               preserveSettings: true,
+              completionSound: true,
             ),
             runId: 'run-1',
             mode: 'flash',
@@ -582,6 +580,7 @@ VALHALLA="{{VALHALLA_TILES_FILE}}"
 
           expect(out, contains('MDB_ACTION="${action.name}"'));
           expect(out, contains('PRESERVE_SETTINGS="yes"'));
+          expect(out, contains('COMPLETION_SOUND="yes"'));
         }
       },
     );

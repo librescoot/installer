@@ -283,6 +283,7 @@ class DeviceFinish {
     this.language = '',
     this.otaChannel = '',
     this.preserveSettings = false,
+    this.completionSound = false,
   });
 
   /// Off means the old behaviour: the trampoline stops at the green LED and
@@ -299,6 +300,7 @@ class DeviceFinish {
   final String language;
   final String otaChannel;
   final bool preserveSettings;
+  final bool completionSound;
 
   /// The old behaviour, for callers that still hand back to the laptop.
   static const laptop = DeviceFinish(

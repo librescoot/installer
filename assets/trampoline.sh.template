@@ -208,7 +208,7 @@ restore_gadget() {
 # Before rebooting it drops every phase this run queued and stages
 # rescue-onboot.sh as the 00-rescue phase, so nothing carries on from a state
 # the rescue exists to abandon. Every phase, not just the dashboard one: the
-# rest would reboot onto a new image and unlock a scooter whose dashboard was
+# rest would reboot onto a new image and report success while the dashboard was
 # never flashed.
 # systemd-run for the same cgroup-survival reason as the LED units;
 # stop-error-signals.sh stops it if it's still around on reconnect.
@@ -1796,7 +1796,7 @@ device_finish() {
     # Order matters: restore the settings first, then write the user's choices
     # on top. Reversed, the restore clobbers the choices.
     # The settings restore, the owner's choices, ending service mode, the
-    # unlock and the completion record are all 90-finalize.sh now, queued by
+    # completion signal and record are all in 90-finalize.sh, queued by
     # the installer and run by the coordinator after this phase. They were
     # written twice, here and across the installer's finish, and the two had
     # drifted.

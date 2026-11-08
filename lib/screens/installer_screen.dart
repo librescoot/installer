@@ -75,6 +75,7 @@ import '../services/update_service.dart';
 import '../services/window_close_coordinator.dart';
 import '../widgets/artifact_progress_panel.dart';
 import '../widgets/connect_failure_panel.dart';
+import '../widgets/completion_cue_settings.dart';
 import '../widgets/dbc_incomplete_notice.dart';
 import '../widgets/dialog_prose.dart';
 import '../widgets/health_check_panel.dart';
@@ -264,7 +265,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   final bool _showElevatedHandoff = false;
   bool _dbcFlashSimulateError = false;
   _DbcOutcome _dbcOutcome = _DbcOutcome.pending;
-  bool _unlockObserved = false;
+  bool _completionCueObserved = false;
+  bool _completionSound = false;
   bool _mdbFinishErrorObserved = false;
   String? _dbcOutcomeReason;
   String? _dbcFailureDetails;
@@ -1286,6 +1288,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
                   : ((_plan?.needsHandoff ?? false)
                         ? 'complete'
                         : 'not-requested'),
+              completionSound: _completionSound,
               preserveSettings:
                   _configurationBackup?.categories.contains(
                     ConfigurationCategory.settings,
@@ -1377,11 +1380,8 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       rethrow;
     }
 
-    // Nothing to watch for: the board installs, reboots to activate, and only
-    // then unlocks, and the reboot takes this link with it. Polling for the
-    // unlock reported success minutes before the verdict existed, and the
-    // verdict can be failure. The screen already tells the owner to stay until
-    // it unlocks itself, and that unlock is theirs to see.
+    // The detached finish can outlive this connection. The completion cue is
+    // visible on the scooter; only a matching device record verifies it here.
     _setStatus(handoverL10n.finishHandoverTitle);
     // A moment for the detached coordinator to be running before the link is
     // dropped underneath it, then let go rather than waiting to be cut off.
@@ -2198,6 +2198,12 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               }),
             ),
 
+          const SizedBox(height: 24),
+
+          CompletionCueSettings(
+            soundEnabled: _completionSound,
+            onChanged: (value) => setState(() => _completionSound = value),
+          ),
           const SizedBox(height: 24),
 
           // x64 build under ARM64 emulation: works, but slow and with no
@@ -7041,6 +7047,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
       // it cannot honour, so leave it unset and let the default stand.
       language: (lang == 'en' || lang == 'de') ? lang : '',
       otaChannel: _downloadState.channel.name,
+      completionSound: _completionSound,
       preserveSettings:
           _configurationBackup?.categories.contains(
             ConfigurationCategory.settings,
@@ -9304,7 +9311,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     }
     if (!mounted) return;
     setState(() {
-      _unlockObserved = true;
+      _completionCueObserved = true;
       if (_finishCompletionConfirmed && !_dbcOutcome.isIncomplete) {
         _dbcOutcome = _DbcOutcome.verified;
         _dbcOutcomeReason = null;
@@ -11873,9 +11880,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   }
 
   Widget _buildFinish(AppLocalizations l10n) {
-    // The install is done by now; this is confirming the unlock landed, which
-    // is a wait like any other and takes the overlay rather than a frame with
-    // a spinner in it.
+    // Staging and handover can still be running when this screen is entered.
     if (_awaitingFinishHandover) {
       return _waitPhase(
         title: l10n.finishHandoverTitle,
@@ -11924,10 +11929,10 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final configurationConfirmed =
         _configurationBackup == null ||
         (_configurationRestoreVerified && _configurationPostFinalizeVerified);
-    final unlockObserved = _unlockObserved && !_dbcOutcome.isIncomplete;
+    final cueObserved = _completionCueObserved && !_dbcOutcome.isIncomplete;
     final mdbOnly =
         _plan != null && !_plan!.needsHandoff && !_dashboardTransferSkipped;
-    if ((deviceConfirmed || unlockObserved) && !configurationConfirmed) {
+    if ((deviceConfirmed || cueObserved) && !configurationConfirmed) {
       if (_configurationBackupError != null &&
           !_configurationPostFinalizeVerificationInFlight) {
         return _buildConfigurationVerificationFailure(l10n);
@@ -11937,7 +11942,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final confirmed =
         deviceConfirmed && !_dbcOutcome.isIncomplete && configurationConfirmed;
 
-    if (unlockObserved || confirmed) {
+    if (cueObserved || confirmed) {
       if (!_reassemblyDone) return _buildReassembly(l10n, state);
       return PhaseLayout(
         title: l10n.welcomeToLibrescoot,
@@ -11973,7 +11978,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     // Nothing is confirmed yet, so this is a full screen of its own rather
     // than a notice above a screen that already says "done". The seatbox and
     // the first ride belong to the confirmed screen and nowhere else, or the
-    // owner reads them as permission to start before the unlock has landed.
+    // owner reads them as permission to start before completion.
     if (!confirmed) {
       if (mdbOnly && !_dbcOutcome.isIncomplete) {
         return _buildMdbOnlyFinishPending(l10n, state);
@@ -12068,7 +12073,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           DbcFlashOutcomes(
             successDescription: l10n.mdbFinishSuccessPrompt,
             onError: () => setState(() => _mdbFinishErrorObserved = true),
-            onSuccess: () => setState(() => _unlockObserved = true),
+            onSuccess: () => setState(() => _completionCueObserved = true),
           ),
         ],
       ),
@@ -12292,7 +12297,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         : switch (state) {
             FinalScreenState.finishingOnDevice => l10n.finishOnDevice,
             // With dashboard work queued the cable is what lets it run. With
-            // none, the board installs, reboots and unlocks on its own and
+            // none, the board installs, reboots and signals completion and
             // the laptop is only in the way of reassembly. No plan is the
             // legacy full-image route, which does hand the dashboard over.
             FinalScreenState.reconnectDbc =>
