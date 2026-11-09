@@ -48,6 +48,17 @@ void main() {
     },
   );
 
+  test('the completion choice is read after the long uploads, at staging', () {
+    final source = File('lib/services/trampoline_service.dart').readAsStringSync();
+    final staging = source.indexOf("setStep('script', SubstepState.active);");
+    final resolved = source.indexOf('resolveFinish?.call() ?? finish');
+    final lastUpload = source.lastIndexOf('stageDbcBootloaderTools(');
+    expect(staging, greaterThan(lastUpload));
+    expect(resolved, greaterThan(staging));
+    expect(source.indexOf('finish: stagedFinish'), greaterThan(resolved));
+    expect('finish: stagedFinish'.allMatches(source), hasLength(2));
+  });
+
   test('rendered script readback must match exactly before launch', () async {
     final bytes = Uint8List.fromList(utf8.encode('new script'));
     await verifyTrampolineScript(bytes, (_) async => bytes);

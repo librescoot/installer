@@ -1382,7 +1382,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get finishTransferSkippedPending =>
-      'Die Übertragung wurde übersprungen. Die normalen Dienste werden wiederhergestellt. Warte auf das Morse-Lichtsignal, bevor du die Stromversorgung trennst. Der Roller bleibt gesperrt.';
+      'Die Übertragung wurde übersprungen. Die normalen Dienste werden wiederhergestellt. Warte auf das Lichtsignal, bevor du die Stromversorgung trennst. Der Roller bleibt gesperrt.';
 
   @override
   String get finishTransferSkippedConfirmed =>
@@ -1553,8 +1553,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Lass den Roller eingeschaltet. Klicke erst bei einem Signal auf das passende Bild.';
 
   @override
-  String get mdbFinishSuccessPrompt =>
-      'Lichtring und Rücklicht blinken Morsecode; die Dashboard-LED leuchtet grün';
+  String get mdbFinishSuccessPrompt => 'Lichtring und Rücklicht blinken';
 
   @override
   String get mdbFinishFailureTitle => 'Installationsfehler';
@@ -1582,7 +1581,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get finishReconnectDbcNoDashboardWork =>
-      'Der Roller schließt die Installation selbstständig ab; der Laptop wird nicht mehr gebraucht. Zieh das Laptop-Kabel ab, schließe das DBC-Kabel wieder an und warte auf das Morse-Lichtsignal.';
+      'Der Roller schließt die Installation selbstständig ab; der Laptop wird nicht mehr gebraucht. Zieh das Laptop-Kabel ab, schließe das DBC-Kabel wieder an und warte auf das Lichtsignal.';
 
   @override
   String get finishConfirmed =>
@@ -1608,7 +1607,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get finishPendingStep4 =>
-      'Zum Schluss senden Lichtring und Rücklicht Librescoot als Morsecode. Der Roller bleibt gesperrt.';
+      'Zum Schluss zeigt der Roller ein Lichtsignal (Lichtring und Rücklicht blinken). Er bleibt gesperrt.';
 
   @override
   String get finishPendingDoNowTitle => 'Was du jetzt tun musst';
@@ -1619,7 +1618,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get finishPendingDoneBody =>
-      'Lichtring und Rücklicht wiederholen Librescoot als Morsecode, die Dashboard-LED leuchtet grün. Das Signal endet beim Entsperren oder nach 15 Minuten. Zwei kurze Huptöne kommen nur hinzu, wenn du Ton ausgewählt hast und die Firmware ihn unterstützt.';
+      'Lichtring und Rücklicht blinken, bis du den Roller entsperrst, höchstens 15 Minuten lang. Zwei kurze Huptöne kommen nur hinzu, wenn du sie ausgewählt hast und die Firmware sie unterstützt.';
 
   @override
   String get finishPendingDoneTrail =>
@@ -2565,14 +2564,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get finishHandoverBody =>
-      'Der Roller schließt die Installation selbstständig ab und meldet sich mit einem Morse-Lichtsignal. Er bleibt gesperrt.';
+      'Der Roller schließt die Installation selbstständig ab und zeigt dann ein Lichtsignal. Er bleibt gesperrt.';
 
   @override
   String get completionCueHeading => 'Fertig-Signal';
 
   @override
   String get completionCueVisualDescription =>
-      'Nach der Installation wiederholen Lichtring und Rücklicht Librescoot als Morsecode und die Dashboard-LED leuchtet grün. Das Signal endet beim Entsperren oder nach 15 Minuten.';
+      'Nach der Installation zeigt der Roller ein Lichtsignal (Lichtring und Rücklicht blinken), bis du ihn entsperrst, höchstens 15 Minuten lang.';
 
   @override
   String get completionCueSoundLabel =>
@@ -2609,8 +2608,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get dbcFlashSuccessLabel => 'ERFOLG';
 
   @override
-  String get dbcFlashSuccessPrompt =>
-      'Lichtring und Rücklicht blinken Morsecode; die Dashboard-LED leuchtet grün';
+  String get dbcFlashSuccessPrompt => 'Lichtring und Rücklicht blinken';
 
   @override
   String get dbcFlashChooseOutcomeHint =>
@@ -2622,7 +2620,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dbcFlashDoneSignal =>
-      'Fertig: Lichtring und Rücklicht wiederholen Librescoot als Morsecode, die Dashboard-LED leuchtet grün. Das Signal endet beim Entsperren oder nach 15 Minuten. Entsperre mit deiner Schlüsselkarte oder deinem Handy, wenn du bereit bist.';
+      'Fertig: Lichtring und Rücklicht blinken, bis du den Roller entsperrst, höchstens 15 Minuten lang. Entsperre mit deiner Schlüsselkarte oder deinem Handy, wenn du bereit bist.';
 
   @override
   String get dbcFlashFailSignal =>
@@ -3095,7 +3093,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get dbcSaySwap2 => 'Installer auf dem Laptop fortfahren.';
 
   @override
-  String get dbcSayDone => 'Abschluss läuft. Warte auf das Morse-Lichtsignal.';
+  String get dbcSayDone => 'Abschluss läuft. Warte auf das Lichtsignal.';
 
   @override
   String get dbcSayBanner => 'Librescoot wird installiert';

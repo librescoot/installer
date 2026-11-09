@@ -10,7 +10,9 @@ class CompletionCueSettings extends StatelessWidget {
   });
 
   final bool soundEnabled;
-  final ValueChanged<bool> onChanged;
+
+  /// Null once the choice has been written into the scripts on the scooter.
+  final ValueChanged<bool>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +30,9 @@ class CompletionCueSettings extends StatelessWidget {
           contentPadding: EdgeInsets.zero,
           controlAffinity: ListTileControlAffinity.leading,
           value: soundEnabled,
-          onChanged: (value) => onChanged(value ?? false),
+          onChanged: onChanged == null
+              ? null
+              : (value) => onChanged!(value ?? false),
           title: Text(l10n.completionCueSoundLabel),
           subtitle: Text(l10n.completionCueSoundDescription),
         ),

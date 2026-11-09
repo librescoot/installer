@@ -113,7 +113,7 @@ void main() {
       find.textContaining('dashboard LED blinks red'),
     );
     final successCaption = tester.getRect(
-      find.textContaining('The front ring and rear light flash Morse code'),
+      find.textContaining('The front ring and rear light are blinking'),
     );
     expect(errorCard.bottom - errorCaption.bottom, lessThan(36));
     expect(successCard.bottom - successCaption.bottom, lessThan(36));
@@ -156,7 +156,7 @@ void main() {
     expect(find.text('ERFOLG'), findsOneWidget);
     expect(
       find.text(
-        'Lichtring und Rücklicht blinken Morsecode; die Dashboard-LED leuchtet grün',
+        'Lichtring und Rücklicht blinken',
       ),
       findsOneWidget,
     );

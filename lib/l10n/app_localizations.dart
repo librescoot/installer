@@ -2723,7 +2723,7 @@ abstract class AppLocalizations {
   /// No description provided for @mdbFinishSuccessPrompt.
   ///
   /// In en, this message translates to:
-  /// **'The front ring and rear light flash Morse code; the dashboard LED is green'**
+  /// **'The front ring and rear light are blinking'**
   String get mdbFinishSuccessPrompt;
 
   /// No description provided for @mdbFinishFailureTitle.
@@ -2771,7 +2771,7 @@ abstract class AppLocalizations {
   /// No description provided for @finishReconnectDbcNoDashboardWork.
   ///
   /// In en, this message translates to:
-  /// **'The scooter is completing the installation on its own; the laptop is no longer needed. Unplug it, reconnect the DBC cable, and wait for the Morse light signal.'**
+  /// **'The scooter is completing the installation on its own; the laptop is no longer needed. Unplug it, reconnect the DBC cable, and wait for the visual signal.'**
   String get finishReconnectDbcNoDashboardWork;
 
   /// No description provided for @finishConfirmed.
@@ -2813,7 +2813,7 @@ abstract class AppLocalizations {
   /// No description provided for @finishPendingStep4.
   ///
   /// In en, this message translates to:
-  /// **'At the end the front ring and rear light spell Librescoot in Morse code. The scooter stays locked.'**
+  /// **'At the end the scooter shows a visual signal (front ring and rear light blinking). It stays locked.'**
   String get finishPendingStep4;
 
   /// No description provided for @finishPendingDoNowTitle.
@@ -2831,7 +2831,7 @@ abstract class AppLocalizations {
   /// No description provided for @finishPendingDoneBody.
   ///
   /// In en, this message translates to:
-  /// **'The front ring and rear light repeat Librescoot in Morse code, with a green dashboard LED, until you unlock the scooter or 15 minutes have passed. Two short horn chirps are added only if you selected sound and the firmware supports it.'**
+  /// **'The front ring and rear light blink until you unlock the scooter, for at most 15 minutes. Two short horn chirps are added only if you selected them and the firmware supports it.'**
   String get finishPendingDoneBody;
 
   /// No description provided for @finishPendingDoneTrail.
@@ -4349,7 +4349,7 @@ abstract class AppLocalizations {
   /// No description provided for @finishHandoverBody.
   ///
   /// In en, this message translates to:
-  /// **'The scooter will finish on its own and signal completion with Morse light flashes. It will stay locked.'**
+  /// **'The scooter finishes on its own and then shows a visual signal. It stays locked.'**
   String get finishHandoverBody;
 
   /// No description provided for @completionCueHeading.
@@ -4361,7 +4361,7 @@ abstract class AppLocalizations {
   /// No description provided for @completionCueVisualDescription.
   ///
   /// In en, this message translates to:
-  /// **'When installation finishes, the front ring and rear light repeat Librescoot in Morse code and the dashboard LED turns green. The signal stops when you unlock or after 15 minutes.'**
+  /// **'When the installation finishes, the scooter shows a visual signal (front ring and rear light blinking) until you unlock it, for at most 15 minutes.'**
   String get completionCueVisualDescription;
 
   /// No description provided for @completionCueSoundLabel.
@@ -4427,7 +4427,7 @@ abstract class AppLocalizations {
   /// No description provided for @dbcFlashSuccessPrompt.
   ///
   /// In en, this message translates to:
-  /// **'The front ring and rear light flash Morse code; the dashboard LED is green'**
+  /// **'The front ring and rear light are blinking'**
   String get dbcFlashSuccessPrompt;
 
   /// No description provided for @dbcFlashChooseOutcomeHint.
@@ -4445,7 +4445,7 @@ abstract class AppLocalizations {
   /// No description provided for @dbcFlashDoneSignal.
   ///
   /// In en, this message translates to:
-  /// **'Complete: the front ring and rear light repeat Librescoot in Morse code and the dashboard LED is green. This stops when you unlock or after 15 minutes. Use your keycard or phone when you are ready.'**
+  /// **'Complete: the front ring and rear light blink until you unlock the scooter, for at most 15 minutes. Use your keycard or phone when you are ready.'**
   String get dbcFlashDoneSignal;
 
   /// No description provided for @dbcFlashFailSignal.
@@ -5225,7 +5225,7 @@ abstract class AppLocalizations {
   /// No description provided for @dbcSayDone.
   ///
   /// In en, this message translates to:
-  /// **'Finishing. Wait for the Morse light signal.'**
+  /// **'Finishing. Wait for the visual signal.'**
   String get dbcSayDone;
 
   /// No description provided for @dbcSayBanner.

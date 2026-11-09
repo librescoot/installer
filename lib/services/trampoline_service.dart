@@ -803,6 +803,10 @@ http.server.HTTPServer(
     /// in 80-reboot.sh always has a verdict to read.
     String mdbArtifactPath = '',
     DeviceFinish finish = DeviceFinish.laptop,
+
+    /// Read when the scripts are rendered, after the long uploads, so a choice
+    /// the owner makes while they run still counts. Overrides [finish].
+    DeviceFinish Function()? resolveFinish,
     DashboardMessages messages = DashboardMessages.english,
     String? osmTilesLocalPath,
     String? valhallaTilesLocalPath,
@@ -1087,6 +1091,7 @@ http.server.HTTPServer(
 
     // Always regenerate the trampoline script (small, config may have changed)
     setStep('script', SubstepState.active);
+    final stagedFinish = resolveFinish?.call() ?? finish;
     debugPrint('Trampoline: generating and uploading trampoline script...');
     onProgress?.call(l.uploadScript, 0.98);
     // A stage-0 image means this is a flash job; no image means upgrade,
@@ -1104,7 +1109,7 @@ http.server.HTTPServer(
       dbcImagePath: dbcRemotePath,
       dbcMenderPath: dbcMenderRemotePath,
       dbcTargetVersion: dbcTargetVersion ?? '',
-      finish: finish,
+      finish: stagedFinish,
       messages: messages,
       region: region,
       installTiles: osmTilesLocalPath != null || valhallaTilesLocalPath != null,
@@ -1176,7 +1181,7 @@ http.server.HTTPServer(
     {
       final finalize = renderFinalizeScript(
         template: await FinalizeScript.loadTemplate(),
-        finish: finish,
+        finish: stagedFinish,
         runId: runId,
         mode: upgradeMode ? 'upgrade' : 'flash',
         dbcVersion: dbcTargetVersion ?? '',

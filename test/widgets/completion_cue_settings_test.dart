@@ -46,4 +46,28 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('the choice is read-only once it has been staged', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const Scaffold(
+          body: CompletionCueSettings(soundEnabled: true, onChanged: null),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final tile = tester.widget<CheckboxListTile>(find.byType(CheckboxListTile));
+    expect(tile.onChanged, isNull);
+    expect(tile.value, isTrue);
+  });
 }

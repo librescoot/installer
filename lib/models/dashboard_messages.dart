@@ -110,7 +110,7 @@ class DashboardMessages {
     failed: 'Installation failed',
     swap1: 'Plug the USB cable back into the MDB and',
     swap2: 'continue in the installer on the laptop.',
-    done: 'Finishing. Wait for the Morse light signal.',
+    done: 'Finishing. Wait for the visual signal.',
     failOnboot: 'The part after the restart failed repeatedly.',
     failDbc: 'The display did not come back after flashing.',
     failTiles: '$tileErrorsToken map transfer(s) failed.',

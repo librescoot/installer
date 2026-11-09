@@ -267,6 +267,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
   _DbcOutcome _dbcOutcome = _DbcOutcome.pending;
   bool _completionCueObserved = false;
   bool _completionSound = false;
+
+  /// The scripts that carry the choice are rendered at the end of the dashboard
+  /// upload; from then on it can no longer change.
+  bool get _completionCueLocked =>
+      _dbcUploadReady ||
+      _dbcPrepSubsteps.any(
+        (step) => step.id == 'script' && step.state != SubstepState.pending,
+      );
   bool _mdbFinishErrorObserved = false;
   String? _dbcOutcomeReason;
   String? _dbcFailureDetails;
@@ -2198,12 +2206,6 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               }),
             ),
 
-          const SizedBox(height: 24),
-
-          CompletionCueSettings(
-            soundEnabled: _completionSound,
-            onChanged: (value) => setState(() => _completionSound = value),
-          ),
           const SizedBox(height: 24),
 
           // x64 build under ARM64 emulation: works, but slow and with no
@@ -5171,6 +5173,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
               _configurationBackupError = null;
             }),
           ),
+          // Plans with dashboard work ask on the dashboard preparation screen.
+          if (!_plan!.needsHandoff) ...[
+            const SizedBox(height: 24),
+            CompletionCueSettings(
+              soundEnabled: _completionSound,
+              onChanged: (value) => setState(() => _completionSound = value),
+            ),
+          ],
           if (_mapSelectionChangedAtPlan && _downloadsFailed != null) ...[
             Text(
               _downloadsFailed!,
@@ -8259,6 +8269,13 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             ),
           ],
           const SizedBox(height: 20),
+          CompletionCueSettings(
+            soundEnabled: _completionSound,
+            onChanged: _completionCueLocked
+                ? null
+                : (value) => setState(() => _completionSound = value),
+          ),
+          const SizedBox(height: 20),
           LinearProgressIndicator(value: _progress, minHeight: 6),
           const SizedBox(height: 16),
           if (_dbcPrepSubsteps.isNotEmpty)
@@ -8548,6 +8565,7 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         region: installTiles ? _downloadState.selectedRegion : null,
         mdbArtifactPath: _stagedMdbArtifactPath(),
         finish: _buildDeviceFinish(),
+        resolveFinish: _buildDeviceFinish,
         messages: _buildDashboardMessages(),
         onProgress: (status, progress) {
           if (!_ownsDbcUpload(uploadGeneration)) return;
