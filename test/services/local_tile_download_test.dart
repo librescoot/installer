@@ -30,7 +30,7 @@ void main() {
   http_testing.MockClient client(List<String> requested) =>
       http_testing.MockClient((request) async {
         requested.add(request.url.path);
-        if (request.url.path.endsWith('latest.json')) {
+        if (request.url.path == '/releases/latest.json') {
           return http.Response(
             jsonEncode({
               'stable': {'tag_name': 'v1.4.2', 'assets': <Object>[]},
@@ -77,7 +77,7 @@ void main() {
         wantsOfflineMaps: true,
         localTiles: selection,
       );
-      expect(requested, ['/releases/latest.json']);
+      expect(requested, ['/releases/v2/latest.json', '/releases/latest.json']);
       expect(items.map((item) => item.type), [
         DownloadItemType.osmTiles,
         DownloadItemType.valhallaTiles,

@@ -32,6 +32,9 @@ Map<String, dynamic> _release(
 /// 404s everything else.
 http_testing.MockClient _manifestClient(Map<String, dynamic> channels) =>
     http_testing.MockClient((request) async {
+      if (request.url.path == '/releases/v2/latest.json') {
+        return http.Response('Not found', 404);
+      }
       if (request.url.path.endsWith('latest.json')) {
         return http.Response(jsonEncode(channels), 200);
       }
@@ -275,7 +278,7 @@ void main() {
         });
         final service = DownloadService(
           client: http_testing.MockClient((request) async {
-            if (request.url.path.endsWith('latest.json')) {
+            if (request.url.path == '/releases/latest.json') {
               return http.Response(
                 jsonEncode({'stable': _release('v1.2.0', [])}),
                 200,
@@ -660,7 +663,7 @@ void main() {
         };
         final service = DownloadService(
           client: http_testing.MockClient((request) async {
-            if (request.url.path.endsWith('latest.json')) {
+            if (request.url.path == '/releases/latest.json') {
               return http.Response(jsonEncode(manifest), 200);
             }
             if (request.url.path.endsWith(name)) {
@@ -768,7 +771,7 @@ void main() {
       };
       final service = DownloadService(
         client: http_testing.MockClient((request) async {
-          if (request.url.path.endsWith('latest.json')) {
+          if (request.url.path == '/releases/latest.json') {
             return http.Response(jsonEncode(manifest), 200);
           }
           if (request.url.path.endsWith(name)) {
@@ -893,7 +896,7 @@ void main() {
       };
       final service = DownloadService(
         client: http_testing.MockClient((request) async {
-          if (request.url.path.endsWith('latest.json')) {
+          if (request.url.path == '/releases/latest.json') {
             return http.Response(jsonEncode(manifest), 200);
           }
           if (request.url.path.endsWith(name)) {

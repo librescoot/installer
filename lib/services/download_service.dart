@@ -12,6 +12,8 @@ import '../models/board_state.dart';
 import '../models/download_state.dart';
 import '../models/local_tile_selection.dart';
 import '../models/region.dart';
+import 'ota_capability_policy.dart';
+import 'strict_json.dart';
 
 class DownloadCancelled implements Exception {
   const DownloadCancelled();
@@ -38,12 +40,17 @@ class DownloadService {
   static const _manifestBase = 'https://downloads.librescoot.org/releases';
   static const _mapsRoutingManifest = '$_manifestBase/maps-routing.json';
   static const _latestManifestUrl = '$_manifestBase/latest.json';
+  static const _v2ManifestBase = '$_manifestBase/v2';
 
   final http.Client _client;
   final Duration _requestTimeout;
   final Duration _idleTimeout;
   final List<Duration> _retryDelays;
   Map<String, dynamic>? _cachedLatest;
+  Map<String, dynamic>? _cachedV2Latest;
+  bool _checkedV2 = false;
+  Map<String, dynamic>? _v2BootstrapUsed;
+  final Map<DownloadChannel, Map<String, dynamic>> _v2Releases = {};
 
   /// Pauses before the second and third attempt at a file whose transfer
   /// failed on the network. The first TLS handshake to a host a fresh
@@ -216,14 +223,95 @@ class DownloadService {
     return dir;
   }
 
+  Future<Map<String, dynamic>?> _fetchV2Latest() async {
+    if (_checkedV2) return _cachedV2Latest;
+    http.Response? response;
+    for (var attempt = 0; attempt <= _retryDelays.length; attempt++) {
+      if (attempt > 0) await Future.delayed(_retryDelays[attempt - 1]);
+      try {
+        response = await _client
+            .get(Uri.parse('$_v2ManifestBase/latest.json'))
+            .timeout(_requestTimeout);
+        if (response.statusCode < 500) break;
+      } catch (e) {
+        debugPrint('v2 firmware manifest fetch failed: $e');
+      }
+    }
+    if (response == null || response.statusCode != 200) {
+      _checkedV2 = true;
+      return null;
+    }
+    final decoded = decodeStrictJson(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('Invalid v2 firmware manifest');
+    }
+    final bootstrap = decoded['bootstrap'];
+    if (bootstrap is! Map<String, dynamic> ||
+        !OtaCapabilityPolicy.supportsBootstrap(bootstrap)) {
+      throw const FormatException('Unknown stage-0 capability profile');
+    }
+    _checkedV2 = true;
+    _cachedV2Latest = decoded;
+    return decoded;
+  }
+
+  Future<Map<String, dynamic>> _selectV2Release(
+    DownloadChannel channel,
+    Map<String, dynamic> latest,
+  ) async {
+    final cached = _v2Releases[channel];
+    if (cached != null) return cached;
+    bool matches(Map<String, dynamic> release) {
+      final tag = release['tag_name'];
+      if (tag is! String) return false;
+      final prefix = channel == DownloadChannel.stable
+          ? 'v'
+          : '${channel.name}-';
+      return tag.startsWith(prefix) &&
+          OtaCapabilityPolicy.eligibleRelease(release);
+    }
+
+    final current = latest[channel.name];
+    if (current is Map<String, dynamic> && matches(current)) {
+      _v2BootstrapUsed = latest['bootstrap'] as Map<String, dynamic>;
+      return _v2Releases[channel] = current;
+    }
+    final response = await _client
+        .get(Uri.parse('$_v2ManifestBase/${channel.name}.json'))
+        .timeout(_requestTimeout);
+    if (response.statusCode != 200) {
+      throw Exception('Cannot read v2 ${channel.name} releases');
+    }
+    final releases = decodeStrictJson(response.body);
+    if (releases is! List) throw Exception('Invalid v2 release list');
+    for (final release in releases.whereType<Map<String, dynamic>>()) {
+      if (matches(release)) {
+        _v2BootstrapUsed = latest['bootstrap'] as Map<String, dynamic>;
+        return _v2Releases[channel] = release;
+      }
+    }
+    throw Exception('No compatible v2 ${channel.name} release for both boards');
+  }
+
   /// Determine which channels have releases available. Returns a map of
   /// channel -> (tag, publishedAt date string) for non-null channel entries.
   Future<Map<DownloadChannel, ({String tag, String date})>>
   fetchAvailableChannels() async {
-    final latest = await _fetchLatest();
+    final v2 = await _fetchV2Latest();
+    final latest = v2 ?? await _fetchLatest();
     final result = <DownloadChannel, ({String tag, String date})>{};
     for (final channel in DownloadChannel.values) {
-      final entry = latest[channel.name];
+      Map<String, dynamic>? entry;
+      if (v2 != null) {
+        try {
+          entry = await _selectV2Release(channel, v2);
+        } catch (_) {
+          continue;
+        }
+      } else {
+        final legacy = latest[channel.name];
+        if (legacy is Map<String, dynamic>) entry = legacy;
+      }
       if (entry is! Map<String, dynamic>) continue;
       final tag = entry['tag_name'] as String;
       final published = entry['published_at'] as String? ?? '';
@@ -314,8 +402,8 @@ class DownloadService {
   Future<({String tag, List<Map<String, dynamic>> assets})?>
   resolveBootstrapRelease() async {
     try {
-      final latest = await _fetchLatest();
-      final entry = latest['bootstrap'];
+      final latest = _v2BootstrapUsed == null ? await _fetchLatest() : null;
+      final entry = _v2BootstrapUsed ?? latest?['bootstrap'];
       if (entry is! Map<String, dynamic>) return null;
       final tag = entry['tag_name'] as String?;
       final assets = entry['assets'];
@@ -331,6 +419,21 @@ class DownloadService {
   Future<({String tag, List<Map<String, dynamic>> assets})> resolveRelease(
     DownloadChannel channel,
   ) async {
+    final v2 = await _fetchV2Latest();
+    if (v2 != null) {
+      final release = await _selectV2Release(channel, v2);
+      final tag = release['tag_name'] as String;
+      final assets = (release['assets'] as List).cast<Map<String, dynamic>>();
+      return (
+        tag: tag,
+        assets: assets.where((asset) {
+          final name = asset['name'];
+          if (name is! String || !name.endsWith('.mender')) return true;
+          return OtaCapabilityPolicy.eligibleFull(asset, tag, 'unu-mdb') ||
+              OtaCapabilityPolicy.eligibleFull(asset, tag, 'unu-dbc');
+        }).toList(),
+      );
+    }
     final latest = await _fetchLatest();
     final entry = latest[channel.name];
     if (entry is! Map<String, dynamic>) {
