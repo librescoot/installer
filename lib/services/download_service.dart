@@ -694,6 +694,9 @@ class DownloadService {
       if (data['version'] != 1 || data['regions'] is! Map<String, dynamic>) {
         throw const FormatException('unsupported maps-routing manifest');
       }
+      if (_declaresTileRequirements(data)) {
+        throw const UnsupportedTileCapabilities('map index');
+      }
       return data;
     }
 
@@ -701,6 +704,8 @@ class DownloadService {
         DateTime.now().difference(await file.lastModified()).inHours < 1) {
       try {
         return parse(await file.readAsString());
+      } on UnsupportedTileCapabilities {
+        rethrow;
       } catch (_) {}
     }
     try {
@@ -711,10 +716,14 @@ class DownloadService {
       final data = parse(response.body);
       await _writeCache(file, response.body);
       return data;
+    } on UnsupportedTileCapabilities {
+      rethrow;
     } catch (_) {
       if (await file.exists()) {
         try {
           return parse(await file.readAsString());
+        } on UnsupportedTileCapabilities {
+          rethrow;
         } catch (_) {}
       }
       rethrow;
@@ -730,7 +739,10 @@ class DownloadService {
       final regions = entries.entries
           .where((e) {
             final data = e.value;
-            if (data is! Map<String, dynamic>) return false;
+            if (data is! Map<String, dynamic> ||
+                _declaresTileRequirements(data)) {
+              return false;
+            }
             final map = data['map'];
             final routing = data['routing'];
             return map is Map &&
@@ -753,6 +765,7 @@ class DownloadService {
       if (regions.isEmpty) {
         final hasRequirements = entries.values.whereType<Map>().any(
           (entry) =>
+              _declaresTileRequirements(entry) ||
               (entry['map'] is Map &&
                   _declaresTileRequirements(entry['map'] as Map)) ||
               (entry['routing'] is Map &&
@@ -762,6 +775,8 @@ class DownloadService {
         throw Exception('no complete map regions');
       }
       return regions;
+    } on UnsupportedTileCapabilities {
+      rethrow;
     } on FormatException {
       rethrow;
     } catch (e) {
@@ -1004,6 +1019,9 @@ class DownloadService {
               data['map'] is! Map<String, dynamic> ||
               data['routing'] is! Map<String, dynamic>) {
             throw const FormatException('map/routing region is incomplete');
+          }
+          if (_declaresTileRequirements(data)) {
+            throw const UnsupportedTileCapabilities('map region');
           }
           map = data['map'] as Map<String, dynamic>;
           final routing = data['routing'] as Map<String, dynamic>;
