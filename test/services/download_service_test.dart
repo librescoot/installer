@@ -303,7 +303,8 @@ void main() {
                           'url':
                               'https://example.com/valhalla_tiles_graz.tar.zst',
                           'size': 80,
-                          'sha256': 'abc',
+                          'codec': 'zstd',
+                          'sha256': 'a' * 64,
                         },
                       },
                     },
@@ -326,7 +327,7 @@ void main() {
           'valhalla_tiles_graz.tar.zst',
         ]);
         expect(items.last.expectedSize, 80);
-        expect(items.last.expectedSha256, 'abc');
+        expect(items.last.expectedSha256, 'a' * 64);
       },
     );
 

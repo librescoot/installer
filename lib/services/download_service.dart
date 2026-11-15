@@ -755,6 +755,39 @@ class DownloadService {
 
   static final _osmSlugPattern = RegExp(r'^tiles_(.+)\.mbtiles$');
   static final _valhallaSlugPattern = RegExp(r'^valhalla_tiles_(.+)\.tar$');
+  static final _validSha256 = RegExp(r'^[0-9a-f]{64}$');
+
+  static bool _usableCompressedRouting(
+    Map<String, dynamic> asset,
+    String expectedName, {
+    required bool legacyListing,
+  }) {
+    if (!legacyListing && asset['codec'] != 'zstd') return false;
+    final size = asset['size'];
+    final url = asset['url'];
+    final rawSha = asset['sha256'];
+    final digest = asset['digest'];
+    final sha = rawSha is String
+        ? rawSha
+        : digest is String && digest.startsWith('sha256:')
+        ? digest.substring(7)
+        : null;
+    if (size is! int ||
+        size <= 0 ||
+        url is! String ||
+        sha == null ||
+        !_validSha256.hasMatch(sha)) {
+      return false;
+    }
+    final uri = Uri.tryParse(url);
+    return uri != null &&
+        uri.scheme == 'https' &&
+        uri.host.isNotEmpty &&
+        uri.userInfo.isEmpty &&
+        uri.fragment.isEmpty &&
+        uri.pathSegments.isNotEmpty &&
+        uri.pathSegments.last == expectedName;
+  }
 
   /// Intersect the slugs present in both asset listings and turn them into
   /// regions, ordered by the known catalogue (German states first), with any
@@ -940,7 +973,11 @@ class DownloadService {
           final compressed = routing['compressed'];
           selected =
               compressed is Map<String, dynamic> &&
-                  (compressed['codec'] == null || compressed['codec'] == 'zstd')
+                  _usableCompressedRouting(
+                    compressed,
+                    region.valhallaTilesCompressedFilename,
+                    legacyListing: false,
+                  )
               ? compressed
               : routing;
         } catch (e) {
@@ -956,7 +993,13 @@ class DownloadService {
           selected =
               routes
                   .where(
-                    (a) => a['name'] == region.valhallaTilesCompressedFilename,
+                    (a) =>
+                        a['name'] == region.valhallaTilesCompressedFilename &&
+                        _usableCompressedRouting(
+                          a,
+                          region.valhallaTilesCompressedFilename,
+                          legacyListing: true,
+                        ),
                   )
                   .firstOrNull ??
               routes.firstWhere(
