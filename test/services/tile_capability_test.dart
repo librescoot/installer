@@ -23,6 +23,26 @@ void main() {
         ('valid', Map.of(valid), true),
         ('missing codec', Map.of(valid)..remove('codec'), false),
         ('unknown codec', Map.of(valid)..['codec'] = 'future', false),
+        (
+          'declared requirement',
+          Map.of(valid)..['requires'] = ['routing-compressed.format.zstd'],
+          false,
+        ),
+        (
+          'unknown requirement',
+          Map.of(valid)
+            ..['requires'] = [
+              'routing-compressed.format.zstd',
+              'future.decoder',
+            ],
+          false,
+        ),
+        ('missing requirement', Map.of(valid)..['requires'] = [], false),
+        (
+          'case alias requirement',
+          Map.of(valid)..['Requires'] = ['future.decoder'],
+          false,
+        ),
         ('missing hash', Map.of(valid)..remove('sha256'), false),
         ('malformed hash', Map.of(valid)..['sha256'] = 'abc', false),
         ('zero size', Map.of(valid)..['size'] = 0, false),
@@ -94,4 +114,89 @@ void main() {
       }
     },
   );
+
+  test(
+    'unknown full tile requirements do not fall back to legacy indexes',
+    () async {
+      for (final (kind, key) in [
+        ('map', 'requires'),
+        ('routing', 'requires'),
+        ('map', 'Requires'),
+        ('routing', 'Requires'),
+      ]) {
+        final dir = await Directory.systemTemp.createTemp('tile-capabilities-');
+        DownloadService.cacheDirOverride = Directory(p.join(dir.path, 'cache'));
+        final map = <String, dynamic>{
+          'url': 'https://example.test/tiles_graz.mbtiles',
+          'size': 100,
+        };
+        final routing = <String, dynamic>{
+          'url': 'https://example.test/valhalla_tiles_graz.tar',
+          'size': 200,
+        };
+        (kind == 'map' ? map : routing)[key] = ['future.format'];
+        final manifest = {
+          'version': 1,
+          'regions': {
+            'graz': {'map': map, 'routing': routing},
+          },
+        };
+        final requested = <String>[];
+        final service = DownloadService(
+          client: MockClient((request) async {
+            requested.add(request.url.path);
+            if (request.url.path == '/releases/latest.json') {
+              return http.Response(
+                jsonEncode({
+                  'stable': {'tag_name': 'v1.4.2', 'assets': []},
+                }),
+                200,
+              );
+            }
+            if (request.url.path == '/releases/maps-routing.json') {
+              return http.Response(jsonEncode(manifest), 200);
+            }
+            return http.Response('not found', 404);
+          }),
+        );
+        await expectLater(
+          service.buildDownloadQueue(
+            channel: DownloadChannel.stable,
+            region: Region.fromSlug('graz'),
+            wantsOfflineMaps: true,
+          ),
+          throwsA(isA<UnsupportedTileCapabilities>()),
+        );
+        expect(
+          requested.where(
+            (p) =>
+                p.endsWith('/osm-tiles.json') ||
+                p.endsWith('/valhalla-tiles.json'),
+          ),
+          isEmpty,
+        );
+        expect(await service.fetchAvailableRegions(), isEmpty);
+        service.dispose();
+        DownloadService.cacheDirOverride = null;
+        await dir.delete(recursive: true);
+      }
+    },
+  );
+
+  test('duplicate map requirements are rejected', () async {
+    final dir = await Directory.systemTemp.createTemp('tile-capabilities-');
+    DownloadService.cacheDirOverride = Directory(p.join(dir.path, 'cache'));
+    final service = DownloadService(
+      client: MockClient(
+        (request) async => http.Response(
+          r'{"version":1,"regions":{"graz":{"routing":{"requires":["future"],"requires":[]}}}}',
+          200,
+        ),
+      ),
+    );
+    await expectLater(service.resolveMapsRouting(), throwsFormatException);
+    service.dispose();
+    DownloadService.cacheDirOverride = null;
+    await dir.delete(recursive: true);
+  });
 }

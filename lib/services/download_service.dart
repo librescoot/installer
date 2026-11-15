@@ -15,6 +15,15 @@ import '../models/region.dart';
 import 'ota_capability_policy.dart';
 import 'strict_json.dart';
 
+class UnsupportedTileCapabilities implements Exception {
+  const UnsupportedTileCapabilities(this.kind);
+
+  final String kind;
+
+  @override
+  String toString() => 'Unsupported $kind tile capabilities';
+}
+
 class DownloadCancelled implements Exception {
   const DownloadCancelled();
 }
@@ -677,7 +686,11 @@ class DownloadService {
     final dir = await getCacheDir();
     final file = File(p.join(dir.path, 'maps-routing.json'));
     Map<String, dynamic> parse(String body) {
-      final data = jsonDecode(body) as Map<String, dynamic>;
+      final decoded = decodeStrictJson(body);
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('invalid maps-routing manifest');
+      }
+      final data = decoded;
       if (data['version'] != 1 || data['regions'] is! Map<String, dynamic>) {
         throw const FormatException('unsupported maps-routing manifest');
       }
@@ -717,9 +730,13 @@ class DownloadService {
       final regions = entries.entries
           .where((e) {
             final data = e.value;
-            return data is Map<String, dynamic> &&
-                data['map'] is Map &&
-                data['routing'] is Map;
+            if (data is! Map<String, dynamic>) return false;
+            final map = data['map'];
+            final routing = data['routing'];
+            return map is Map &&
+                routing is Map &&
+                !_declaresTileRequirements(map) &&
+                !_declaresTileRequirements(routing);
           })
           .map(
             (e) => Region.fromManifest(e.key, e.value as Map<String, dynamic>),
@@ -734,9 +751,19 @@ class DownloadService {
         return a.name.compareTo(b.name);
       });
       if (regions.isEmpty) {
-        throw const FormatException('no complete map regions');
+        final hasRequirements = entries.values.whereType<Map>().any(
+          (entry) =>
+              (entry['map'] is Map &&
+                  _declaresTileRequirements(entry['map'] as Map)) ||
+              (entry['routing'] is Map &&
+                  _declaresTileRequirements(entry['routing'] as Map)),
+        );
+        if (hasRequirements) return regions;
+        throw Exception('no complete map regions');
       }
       return regions;
+    } on FormatException {
+      rethrow;
     } catch (e) {
       debugPrint('maps-routing unavailable, using legacy tile listings: $e');
       try {
@@ -757,12 +784,17 @@ class DownloadService {
   static final _valhallaSlugPattern = RegExp(r'^valhalla_tiles_(.+)\.tar$');
   static final _validSha256 = RegExp(r'^[0-9a-f]{64}$');
 
+  static bool _declaresTileRequirements(Map asset) => asset.keys
+      .whereType<String>()
+      .any((key) => key.toLowerCase() == 'requires');
+
   static bool _usableCompressedRouting(
     Map<String, dynamic> asset,
     String expectedName, {
     required bool legacyListing,
   }) {
     if (!legacyListing && asset['codec'] != 'zstd') return false;
+    if (_declaresTileRequirements(asset)) return false;
     final size = asset['size'];
     final url = asset['url'];
     final rawSha = asset['sha256'];
@@ -967,9 +999,21 @@ class DownloadService {
         try {
           final manifest = await resolveMapsRouting();
           final entries = manifest['regions'] as Map<String, dynamic>;
-          final data = entries[region.slug] as Map<String, dynamic>;
+          final data = entries[region.slug];
+          if (data is! Map<String, dynamic> ||
+              data['map'] is! Map<String, dynamic> ||
+              data['routing'] is! Map<String, dynamic>) {
+            throw const FormatException('map/routing region is incomplete');
+          }
           map = data['map'] as Map<String, dynamic>;
           final routing = data['routing'] as Map<String, dynamic>;
+          if (localTiles?.mapPath == null && _declaresTileRequirements(map)) {
+            throw const UnsupportedTileCapabilities('display map');
+          }
+          if (localTiles?.routingPath == null &&
+              _declaresTileRequirements(routing)) {
+            throw const UnsupportedTileCapabilities('routing');
+          }
           final compressed = routing['compressed'];
           selected =
               compressed is Map<String, dynamic> &&
@@ -980,6 +1024,10 @@ class DownloadService {
                   )
               ? compressed
               : routing;
+        } on UnsupportedTileCapabilities {
+          rethrow;
+        } on FormatException {
+          rethrow;
         } catch (e) {
           debugPrint(
             'maps-routing unavailable, using legacy tile listings: $e',
@@ -990,6 +1038,16 @@ class DownloadService {
             'valhalla_tiles_',
           );
           map = maps.firstWhere((a) => a['name'] == region.osmTilesFilename);
+          if (localTiles?.mapPath == null && _declaresTileRequirements(map)) {
+            throw const UnsupportedTileCapabilities('display map');
+          }
+          final plain = routes.firstWhere(
+            (a) => a['name'] == region.valhallaTilesFilename,
+          );
+          if (localTiles?.routingPath == null &&
+              _declaresTileRequirements(plain)) {
+            throw const UnsupportedTileCapabilities('routing');
+          }
           selected =
               routes
                   .where(
@@ -1002,9 +1060,7 @@ class DownloadService {
                         ),
                   )
                   .firstOrNull ??
-              routes.firstWhere(
-                (a) => a['name'] == region.valhallaTilesFilename,
-              );
+              plain;
         }
         if (localTiles?.mapPath == null) {
           await addTile(map, DownloadItemType.osmTiles);
