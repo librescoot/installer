@@ -14,6 +14,7 @@ import '../models/local_tile_selection.dart';
 import '../models/region.dart';
 import 'ota_capability_policy.dart';
 import 'strict_json.dart';
+import 'tile_capability_policy.dart';
 
 class UnsupportedTileCapabilities implements Exception {
   const UnsupportedTileCapabilities(this.kind);
@@ -55,6 +56,7 @@ class DownloadService {
   final Duration _requestTimeout;
   final Duration _idleTimeout;
   final List<Duration> _retryDelays;
+  final Map<String, Set<String>> _tileCapabilitiesByArtifact;
   Map<String, dynamic>? _cachedLatest;
   Map<String, dynamic>? _cachedV2Latest;
   bool _checkedV2 = false;
@@ -76,10 +78,14 @@ class DownloadService {
     Duration requestTimeout = const Duration(seconds: 30),
     Duration idleTimeout = const Duration(seconds: 60),
     List<Duration> retryDelays = defaultRetryDelays,
+    @visibleForTesting Map<String, Set<String>>? tileCapabilitiesByArtifact,
   }) : _client = client ?? http.Client(),
        _requestTimeout = requestTimeout,
        _idleTimeout = idleTimeout,
-       _retryDelays = retryDelays;
+       _retryDelays = retryDelays,
+       _tileCapabilitiesByArtifact =
+           tileCapabilitiesByArtifact ??
+           TileCapabilityPolicy.qualifiedArtifacts;
 
   /// Failures of the connection rather than of the content: worth another
   /// attempt. A bad status, a size or digest mismatch and a cancellation are
@@ -682,16 +688,19 @@ class DownloadService {
     return assets.cast<Map<String, dynamic>>();
   }
 
-  Future<Map<String, dynamic>> resolveMapsRouting() async {
+  Future<Map<String, dynamic>> resolveMapsRouting({bool v2 = false}) async {
     final dir = await getCacheDir();
-    final file = File(p.join(dir.path, 'maps-routing.json'));
+    final file = File(
+      p.join(dir.path, v2 ? 'maps-routing-v2.json' : 'maps-routing.json'),
+    );
     Map<String, dynamic> parse(String body) {
       final decoded = decodeStrictJson(body);
       if (decoded is! Map<String, dynamic>) {
         throw const FormatException('invalid maps-routing manifest');
       }
       final data = decoded;
-      if (data['version'] != 1 || data['regions'] is! Map<String, dynamic>) {
+      if (data['version'] != (v2 ? 2 : 1) ||
+          data['regions'] is! Map<String, dynamic>) {
         throw const FormatException('unsupported maps-routing manifest');
       }
       if (_declaresTileRequirements(data)) {
@@ -709,7 +718,11 @@ class DownloadService {
       } catch (_) {}
     }
     try {
-      final response = await _client.get(Uri.parse(_mapsRoutingManifest));
+      final response = await _client.get(
+        Uri.parse(
+          v2 ? '$_v2ManifestBase/maps-routing.json' : _mapsRoutingManifest,
+        ),
+      );
       if (response.statusCode != 200) {
         throw Exception('maps-routing manifest: HTTP ${response.statusCode}');
       }
@@ -1011,8 +1024,20 @@ class DownloadService {
       if (localTiles?.mapPath == null || localTiles?.routingPath == null) {
         late Map<String, dynamic> map;
         late Map<String, dynamic> selected;
+        final dbcName = 'librescoot-unu-dbc-${release.tag}.mender';
+        final dbc = release.assets
+            .where((asset) => asset['name'] == dbcName)
+            .toList();
+        final artifactSha = dbc.length == 1 && dbc.single['sha256'] is String
+            ? dbc.single['sha256'] as String
+            : null;
+        final supported =
+            !fullImageBoards.contains(Board.dbc) && artifactSha != null
+            ? _tileCapabilitiesByArtifact[artifactSha]
+            : null;
+        final useV2 = supported != null;
         try {
-          final manifest = await resolveMapsRouting();
+          final manifest = await resolveMapsRouting(v2: useV2);
           final entries = manifest['regions'] as Map<String, dynamic>;
           final data = entries[region.slug];
           if (data is! Map<String, dynamic> ||
@@ -1025,28 +1050,51 @@ class DownloadService {
           }
           map = data['map'] as Map<String, dynamic>;
           final routing = data['routing'] as Map<String, dynamic>;
-          if (localTiles?.mapPath == null && _declaresTileRequirements(map)) {
-            throw const UnsupportedTileCapabilities('display map');
+          if (useV2) {
+            if (localTiles?.mapPath == null &&
+                !TileCapabilityPolicy.eligibleFull(
+                  map,
+                  'map',
+                  region.slug,
+                  supported,
+                )) {
+              throw const UnsupportedTileCapabilities('display map');
+            }
+            if (localTiles?.routingPath == null &&
+                !TileCapabilityPolicy.eligibleFull(
+                  routing,
+                  'routing',
+                  region.slug,
+                  supported,
+                )) {
+              throw const UnsupportedTileCapabilities('routing');
+            }
+            selected = routing;
+          } else {
+            if (localTiles?.mapPath == null && _declaresTileRequirements(map)) {
+              throw const UnsupportedTileCapabilities('display map');
+            }
+            if (localTiles?.routingPath == null &&
+                _declaresTileRequirements(routing)) {
+              throw const UnsupportedTileCapabilities('routing');
+            }
+            final compressed = routing['compressed'];
+            selected =
+                compressed is Map<String, dynamic> &&
+                    _usableCompressedRouting(
+                      compressed,
+                      region.valhallaTilesCompressedFilename,
+                      legacyListing: false,
+                    )
+                ? compressed
+                : routing;
           }
-          if (localTiles?.routingPath == null &&
-              _declaresTileRequirements(routing)) {
-            throw const UnsupportedTileCapabilities('routing');
-          }
-          final compressed = routing['compressed'];
-          selected =
-              compressed is Map<String, dynamic> &&
-                  _usableCompressedRouting(
-                    compressed,
-                    region.valhallaTilesCompressedFilename,
-                    legacyListing: false,
-                  )
-              ? compressed
-              : routing;
         } on UnsupportedTileCapabilities {
           rethrow;
         } on FormatException {
           rethrow;
         } catch (e) {
+          if (useV2) rethrow;
           debugPrint(
             'maps-routing unavailable, using legacy tile listings: $e',
           );
