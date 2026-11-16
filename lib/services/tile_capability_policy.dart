@@ -1,5 +1,7 @@
 class TileCapabilityPolicy {
-  // Add a DBC artifact digest only after its reader stack is qualified.
+  static const Map<String, Set<String>> releaseCapabilities = {
+    'v1.4.3': {'map.format.mbtiles-mvt-v1', 'routing.format.valhalla-3.6.3'},
+  };
   static const Map<String, Set<String>> qualifiedArtifacts = {};
 
   static final _sha256 = RegExp(r'^[0-9a-f]{64}$');

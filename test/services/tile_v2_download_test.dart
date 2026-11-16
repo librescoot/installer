@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:librescoot_installer/models/board_state.dart';
 import 'package:librescoot_installer/models/download_state.dart';
 import 'package:librescoot_installer/models/region.dart';
 import 'package:librescoot_installer/services/download_service.dart';
@@ -21,6 +22,8 @@ void main() {
       };
       for (final mode in [
         'valid',
+        'official-release',
+        'official-full-image',
         'unknown',
         'wrong-region',
         'alias',
@@ -31,6 +34,9 @@ void main() {
         'unavailable',
         'unqualified',
       ]) {
+        final tag = mode == 'official-release' || mode == 'official-full-image'
+            ? 'v1.4.3'
+            : 'v1.4.2';
         final dir = await Directory.systemTemp.createTemp('map-v2-');
         DownloadService.cacheDirOverride = Directory(p.join(dir.path, 'cache'));
         final requested = <String>[];
@@ -67,7 +73,10 @@ void main() {
         if (mode == 'wrong-region') routing['region'] = 'vienna';
         final service = DownloadService(
           tileCapabilitiesByArtifact: {
-            if (mode != 'unqualified') artifact: caps,
+            if (mode != 'unqualified' &&
+                mode != 'official-release' &&
+                mode != 'official-full-image')
+              artifact: caps,
           },
           client: MockClient((request) async {
             requested.add(request.url.path);
@@ -75,10 +84,12 @@ void main() {
               return http.Response(
                 jsonEncode({
                   'stable': {
-                    'tag_name': 'v1.4.2',
+                    'tag_name': tag,
                     'assets': [
                       {
-                        'name': 'librescoot-unu-dbc-v1.4.2.mender',
+                        'name': mode == 'official-full-image'
+                            ? 'librescoot-unu-dbc-$tag.sdimg.gz'
+                            : 'librescoot-unu-dbc-$tag.mender',
                         'url': 'https://example.test/dbc.mender',
                         'size': 1000,
                         'sha256': artifact,
@@ -128,8 +139,12 @@ void main() {
           channel: DownloadChannel.stable,
           region: Region.fromSlug('graz'),
           wantsOfflineMaps: true,
+          fullImageBoards: mode == 'official-full-image' ? {Board.dbc} : {},
         );
-        if (mode == 'valid' || mode == 'unqualified') {
+        if (mode == 'valid' ||
+            mode == 'official-full-image' ||
+            mode == 'official-release' ||
+            mode == 'unqualified') {
           final items = await queue;
           expect(
             items

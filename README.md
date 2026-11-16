@@ -18,9 +18,9 @@ Step-by-step wizard for converting stock scooterOS to Librescoot:
 
 Also handles Librescoot-to-Librescoot re-flashing (detects installed firmware, offers skip options).
 
-The installer uses the legacy map feed for older or unrecognized DBC images. A
-DBC artifact explicitly qualified in the installer can instead use the v2 map
-feed; the artifact digest binds the selected reader capabilities to the image.
+The installer uses the legacy map feed for older or unrecognized DBC images.
+For Librescoot v1.4.3, and for explicitly recognized DBC artifact digests, it
+uses the v2 map feed with the reader capabilities defined in the installer.
 V2 installs use full map and routing assets, validate every requirement and
 checksum, and do not fall back to an older feed on error.
 

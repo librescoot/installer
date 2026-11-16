@@ -1024,7 +1024,9 @@ class DownloadService {
       if (localTiles?.mapPath == null || localTiles?.routingPath == null) {
         late Map<String, dynamic> map;
         late Map<String, dynamic> selected;
-        final dbcName = 'librescoot-unu-dbc-${release.tag}.mender';
+        final dbcName = fullImageBoards.contains(Board.dbc)
+            ? 'librescoot-unu-dbc-${release.tag}.sdimg.gz'
+            : 'librescoot-unu-dbc-${release.tag}.mender';
         final dbc = release.assets
             .where((asset) => asset['name'] == dbcName)
             .toList();
@@ -1032,8 +1034,10 @@ class DownloadService {
             ? dbc.single['sha256'] as String
             : null;
         final supported =
-            !fullImageBoards.contains(Board.dbc) && artifactSha != null
-            ? _tileCapabilitiesByArtifact[artifactSha]
+            artifactSha != null &&
+                RegExp(r'^[0-9a-f]{64}$').hasMatch(artifactSha)
+            ? _tileCapabilitiesByArtifact[artifactSha] ??
+                  TileCapabilityPolicy.releaseCapabilities[release.tag]
             : null;
         final useV2 = supported != null;
         try {
