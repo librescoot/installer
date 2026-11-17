@@ -5,6 +5,34 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:librescoot_installer/services/update_service.dart';
 
+/// Answers the two indexes the service reads. [stable] and [beta] are the
+/// bodies to serve, or null to answer 404, which is what a site with no beta
+/// to offer looks like.
+MockClient indexClient({
+  String? stable,
+  String? beta,
+  List<http.Request>? log,
+}) {
+  return MockClient((request) async {
+    log?.add(request);
+    final isBeta = request.url.path.endsWith('installer-beta.json');
+    final body = isBeta ? beta : stable;
+    if (body == null) {
+      return http.Response('not found', 404);
+    }
+    return http.Response(body, 200);
+  });
+}
+
+String releaseBody(String tag, {bool? prerelease, String? notes}) {
+  return jsonEncode({
+    'tag_name': tag,
+    if (prerelease != null) 'prerelease': prerelease,
+    'published_at': '2026-09-08T12:34:56Z',
+    'release_notes': notes ?? '',
+  });
+}
+
 void main() {
   group('version comparison', () {
     test('recognizes a newer semantic version', () {
@@ -40,21 +68,16 @@ void main() {
 
   group('release check', () {
     test('returns the latest stable release when it is newer', () async {
-      late http.Request request;
+      final requests = <http.Request>[];
       final service = UpdateService(
-        client: MockClient((incoming) async {
-          request = incoming;
-          return http.Response(
-            jsonEncode({
-              'tag_name': 'v1.4.0',
-              'published_at': '2026-09-08T12:34:56Z',
-              'release_notes':
-                  '## Highlights\n\n- Added [`updates`](https://example.com).',
-              'assets': <Object>[],
-            }),
-            200,
-          );
-        }),
+        client: indexClient(
+          stable: releaseBody(
+            'v1.4.0',
+            notes: '## Highlights\n\n- Added [`updates`](https://example.com).',
+          ),
+          beta: null,
+          log: requests,
+        ),
       );
       addTearDown(service.dispose);
 
@@ -62,26 +85,71 @@ void main() {
 
       expect(update?.currentVersion, 'v1.3.3');
       expect(update?.latestVersion, 'v1.4.0');
+      expect(update?.isPrerelease, isFalse);
       expect(update?.publishedAt, DateTime.utc(2026, 9, 8, 12, 34, 56));
       expect(
         update?.releaseNotes,
         '## Highlights\n\n- Added [`updates`](https://example.com).',
       );
-      expect(request.url.path, '/releases/installer.json');
-      expect(request.headers['User-Agent'], 'Librescoot-Installer/v1.3.3');
+      expect(
+        requests.map((r) => r.url.path),
+        contains('/releases/installer.json'),
+      );
+      expect(
+        requests.first.headers['User-Agent'],
+        'Librescoot-Installer/v1.3.3',
+      );
+    });
+
+    test('offers the beta when it is newer than stable and than this build',
+        () async {
+      final service = UpdateService(
+        client: indexClient(
+          stable: releaseBody('v1.4.0', prerelease: false),
+          // The real beta index carries no prerelease flag: which index it came
+          // from is what makes it a beta.
+          beta: releaseBody('v1.4.1-beta.1'),
+        ),
+      );
+      addTearDown(service.dispose);
+
+      final update = await service.check('v1.4.0');
+
+      expect(update?.latestVersion, 'v1.4.1-beta.1');
+      expect(update?.isPrerelease, isTrue);
+    });
+
+    test('keeps the stable release when the beta is not newer', () async {
+      final service = UpdateService(
+        client: indexClient(
+          stable: releaseBody('v1.4.0'),
+          beta: releaseBody('v1.4.0-beta.9'),
+        ),
+      );
+      addTearDown(service.dispose);
+
+      final update = await service.check('v1.3.3');
+
+      expect(update?.latestVersion, 'v1.4.0');
+      expect(update?.isPrerelease, isFalse);
+    });
+
+    test('a beta index that cannot be read still reports stable', () async {
+      final service = UpdateService(
+        client: indexClient(stable: releaseBody('v1.4.0'), beta: null),
+      );
+      addTearDown(service.dispose);
+
+      final update = await service.check('v1.3.3');
+
+      expect(update?.latestVersion, 'v1.4.0');
     });
 
     test('returns null when the current release is latest', () async {
       final service = UpdateService(
-        client: MockClient(
-          (_) async => http.Response(
-            jsonEncode({
-              'tag_name': 'v1.3.3',
-              'draft': false,
-              'prerelease': false,
-            }),
-            200,
-          ),
+        client: indexClient(
+          stable: releaseBody('v1.3.3', prerelease: false),
+          beta: null,
         ),
       );
       addTearDown(service.dispose);
@@ -89,13 +157,11 @@ void main() {
       expect(await service.check('v1.3.3'), isNull);
     });
 
-    test('ignores a release explicitly marked as a prerelease', () async {
+    test('ignores a prerelease on the stable index', () async {
       final service = UpdateService(
-        client: MockClient(
-          (_) async => http.Response(
-            jsonEncode({'tag_name': 'v1.4.0-beta.1', 'prerelease': true}),
-            200,
-          ),
+        client: indexClient(
+          stable: releaseBody('v1.4.0-beta.1', prerelease: true),
+          beta: null,
         ),
       );
       addTearDown(service.dispose);

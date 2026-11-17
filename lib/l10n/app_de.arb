@@ -84,6 +84,7 @@
   "welcomeHeading": "Willkommen beim Librescoot Installer",
   "welcomeSubheading": "Dieser Assistent führt dich Schritt für Schritt durch die Installation auf deinem Roller. Plane dafür etwa 20 Minuten ein.",
   "updateAvailableTitle": "Installer-Update verfügbar",
+  "updateBetaLabel": "Beta",
   "updateAvailableBody": "Librescoot Installer {latestVersion} ist verfügbar. Du verwendest {currentVersion}.",
   "@updateAvailableBody": {
     "placeholders": {

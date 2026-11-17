@@ -9,12 +9,18 @@ class InstallerUpdate {
     required this.latestVersion,
     this.publishedAt,
     this.releaseNotes = '',
+    this.isPrerelease = false,
   });
 
   final String currentVersion;
   final String latestVersion;
   final DateTime? publishedAt;
   final String releaseNotes;
+
+  /// Whether the release came from the beta index. Always false for the stable
+  /// one, and true for anything the beta index offers, which is a prerelease by
+  /// construction.
+  final bool isPrerelease;
 }
 
 class UpdateService {
@@ -30,15 +36,58 @@ class UpdateService {
     'https://downloads.librescoot.org/releases/installer.json',
   );
 
+  /// The newest prerelease the site publishes, and only when it is newer than
+  /// stable: the site's generator compares the two and drops the field.
+  static final Uri _installerBetaReleaseUri = Uri.parse(
+    'https://downloads.librescoot.org/releases/installer-beta.json',
+  );
+
   final http.Client _client;
   final Duration requestTimeout;
 
+  /// Asks both indexes and returns the newer of what they offer.
+  ///
+  /// The stable index is authoritative: if it cannot be read, the check fails
+  /// the way it always has. The beta index is read best effort, so a build that
+  /// predates the betas, or a site with none to offer, still checks cleanly.
   Future<InstallerUpdate?> check(String currentVersion) async {
     if (_parseVersion(currentVersion) == null) return null;
 
+    final stable = await _readIndex(
+      _installerReleaseUri,
+      currentVersion,
+      fromBetaIndex: false,
+    );
+    final beta = await _readBetaIndex(currentVersion);
+
+    if (stable == null) return beta;
+    if (beta == null) return stable;
+    return isNewerVersion(stable.latestVersion, beta.latestVersion)
+        ? beta
+        : stable;
+  }
+
+  Future<InstallerUpdate?> _readBetaIndex(String currentVersion) async {
+    try {
+      return await _readIndex(
+        _installerBetaReleaseUri,
+        currentVersion,
+        fromBetaIndex: true,
+      );
+    } catch (error) {
+      debugPrint('Update: beta index not available ($error)');
+      return null;
+    }
+  }
+
+  Future<InstallerUpdate?> _readIndex(
+    Uri uri,
+    String currentVersion, {
+    required bool fromBetaIndex,
+  }) async {
     final response = await _client
         .get(
-          _installerReleaseUri,
+          uri,
           headers: {
             'Accept': 'application/json',
             'User-Agent': 'Librescoot-Installer/$currentVersion',
@@ -48,14 +97,18 @@ class UpdateService {
     if (response.statusCode != 200) {
       throw http.ClientException(
         'Installer release index returned HTTP ${response.statusCode}',
-        _installerReleaseUri,
+        uri,
       );
     }
 
     final release = jsonDecode(response.body);
-    if (release is! Map<String, dynamic> ||
-        release['draft'] == true ||
-        release['prerelease'] == true) {
+    if (release is! Map<String, dynamic> || release['draft'] == true) {
+      return null;
+    }
+    // The stable index is not supposed to carry a prerelease. If one turns up
+    // there, it is not something to put in front of somebody who is not
+    // following betas; the beta index is the way to ask for one.
+    if (!fromBetaIndex && release['prerelease'] == true) {
       return null;
     }
     final latestVersion = release['tag_name'];
@@ -73,6 +126,7 @@ class UpdateService {
           ? DateTime.tryParse(publishedAt)
           : null,
       releaseNotes: releaseNotes is String ? releaseNotes : '',
+      isPrerelease: fromBetaIndex,
     );
   }
 

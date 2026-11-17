@@ -596,6 +596,12 @@ abstract class AppLocalizations {
   /// **'Installer update available'**
   String get updateAvailableTitle;
 
+  /// No description provided for @updateBetaLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Beta'**
+  String get updateBetaLabel;
+
   /// No description provided for @updateAvailableBody.
   ///
   /// In en, this message translates to:

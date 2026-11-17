@@ -671,7 +671,11 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
         context: context,
         builder: (dialogContext) => AlertDialog(
           icon: const Icon(Icons.system_update_alt, size: 36),
-          title: Text(l10n.updateAvailableTitle),
+          title: Text(
+            update.isPrerelease
+                ? '${l10n.updateAvailableTitle} (${l10n.updateBetaLabel})'
+                : l10n.updateAvailableTitle,
+          ),
           content: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520, maxHeight: 420),
             child: SingleChildScrollView(

@@ -84,6 +84,7 @@
   "welcomeHeading": "Welcome to Librescoot Installer",
   "welcomeSubheading": "This wizard guides you through installing Librescoot on your scooter, step by step. Allow about 20 minutes.",
   "updateAvailableTitle": "Installer update available",
+  "updateBetaLabel": "Beta",
   "updateAvailableBody": "Librescoot Installer {latestVersion} is available. You are using {currentVersion}.",
   "@updateAvailableBody": {
     "placeholders": {

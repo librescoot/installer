@@ -285,6 +285,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateAvailableTitle => 'Installer update available';
 
   @override
+  String get updateBetaLabel => 'Beta';
+
+  @override
   String updateAvailableBody(String latestVersion, String currentVersion) {
     return 'Librescoot Installer $latestVersion is available. You are using $currentVersion.';
   }
