@@ -4082,6 +4082,24 @@ abstract class AppLocalizations {
   /// **'A main computer without a dashboard keeps its service port switched off by itself, so nothing reaches it over USB. Connect the dashboard to bring the port back, or restart the scooter with the brake lever.'**
   String get mdbUsbLinkDownHint;
 
+  /// No description provided for @finishSettingsUnverifiedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings were not checked back'**
+  String get finishSettingsUnverifiedTitle;
+
+  /// No description provided for @finishSettingsUnverifiedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The scooter reported success, so the installation is done. The restored settings could not be read back over USB; check them in the dashboard if you rely on them.'**
+  String get finishSettingsUnverifiedBody;
+
+  /// No description provided for @finishSettingsUnverifiedFailedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The scooter reported success, so the installation is done, but restoring the settings failed. Check them in the dashboard and restore them again if they matter.'**
+  String get finishSettingsUnverifiedFailedBody;
+
   /// No description provided for @artifactRetryDetail.
   ///
   /// In en, this message translates to:

@@ -2404,6 +2404,18 @@ class AppLocalizationsDe extends AppLocalizations {
       'Ein Hauptcomputer ohne Dashboard lässt seine Service-Schnittstelle von selbst aus, deshalb erreicht ihn über USB nichts. Stecke das Dashboard an, damit die Schnittstelle zurückkommt, oder starte den Roller mit dem Bremshebel neu.';
 
   @override
+  String get finishSettingsUnverifiedTitle =>
+      'Einstellungen nicht gegengeprüft';
+
+  @override
+  String get finishSettingsUnverifiedBody =>
+      'Der Roller hat Erfolg gemeldet, die Installation ist also durch. Die wiederhergestellten Einstellungen konnten über USB nicht zurückgelesen werden; prüfe sie im Dashboard, wenn du dich auf sie verlässt.';
+
+  @override
+  String get finishSettingsUnverifiedFailedBody =>
+      'Der Roller hat Erfolg gemeldet, die Installation ist also durch, aber das Wiederherstellen der Einstellungen ist fehlgeschlagen. Prüfe sie im Dashboard und stelle sie bei Bedarf erneut her.';
+
+  @override
   String get artifactRetryDetail =>
       'Erneuter Versuch an derselben Stelle. Einstellungen und Schlüsselkarten bleiben erhalten.';
 

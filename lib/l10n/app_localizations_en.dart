@@ -2368,6 +2368,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'A main computer without a dashboard keeps its service port switched off by itself, so nothing reaches it over USB. Connect the dashboard to bring the port back, or restart the scooter with the brake lever.';
 
   @override
+  String get finishSettingsUnverifiedTitle => 'Settings were not checked back';
+
+  @override
+  String get finishSettingsUnverifiedBody =>
+      'The scooter reported success, so the installation is done. The restored settings could not be read back over USB; check them in the dashboard if you rely on them.';
+
+  @override
+  String get finishSettingsUnverifiedFailedBody =>
+      'The scooter reported success, so the installation is done, but restoring the settings failed. Check them in the dashboard and restore them again if they matter.';
+
+  @override
   String get artifactRetryDetail =>
       'Retries from the previous step without reformatting the board.';
 

@@ -11983,7 +11983,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     final cueObserved = _completionCueObserved && !_dbcOutcome.isIncomplete;
     final mdbOnly =
         _plan != null && !_plan!.needsHandoff && !_dashboardTransferSkipped;
-    if ((deviceConfirmed || cueObserved) && !configurationConfirmed) {
+    // A cue the operator confirmed is the scooter's own success signal, and it
+    // answers "did the install land". The settings cross-check is a different
+    // question, and it needs the USB link back, so it must not hold the result
+    // behind a wait the operator has already answered: it becomes a warning on
+    // the result screen. Only a finish the board confirmed over SSH still
+    // waits for it.
+    final settingsUnverified = cueObserved && !configurationConfirmed;
+    if (deviceConfirmed && !configurationConfirmed) {
       if (_configurationBackupError != null &&
           !_configurationPostFinalizeVerificationInFlight) {
         return _buildConfigurationVerificationFailure(l10n);
@@ -12022,7 +12029,22 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             ),
           ),
         ],
-        child: _buildGettingStarted(l10n),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (settingsUnverified) ...[
+              NoticeCard(
+                severity: NoticeSeverity.warning,
+                title: l10n.finishSettingsUnverifiedTitle,
+                body: _configurationBackupError == null
+                    ? l10n.finishSettingsUnverifiedBody
+                    : l10n.finishSettingsUnverifiedFailedBody,
+              ),
+              const SizedBox(height: 16),
+            ],
+            _buildGettingStarted(l10n),
+          ],
+        ),
       );
     }
 
