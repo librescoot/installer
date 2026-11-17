@@ -471,6 +471,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
 
   bool _finishCompletionExhausted = false;
   bool _finishCompletionConfirmed = false;
+
+  /// Consecutive finish-confirmation passes that found the board's USB ethernet
+  /// adapter present but not up. The gadget enumerates well before its service
+  /// port carries anything, so one pass proves nothing; this many passes
+  /// (about fifteen seconds) is a port that is off, not one that is starting.
+  int _mdbUsbLinkDownStreak = 0;
+  bool _mdbUsbLinkDownReported = false;
+  static const int _mdbUsbLinkDownPasses = 5;
   Process? _caffeinateProcess; // macOS sleep prevention
   int _caffeinateGeneration = 0;
   final WindowCloseCoordinator _windowCloseCoordinator =
@@ -1520,6 +1528,23 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
           debugPrint(
             'UI: finish confirmation attempt $attempt/$attempts failed: $e',
           );
+          // The board is up and enumerating, its service port is what is not
+          // carrying traffic. Saying nothing here leaves an operator watching
+          // a retry loop that looks the same as a slow boot, and the fix is on
+          // the vehicle, not on the cable.
+          if (_mdbUsbLinkDownStreak >= _mdbUsbLinkDownPasses &&
+              !_mdbUsbLinkDownReported) {
+            _mdbUsbLinkDownReported = true;
+            _mdbUsbLinkDownStreak = 0;
+            debugPrint(
+              'UI: the board is present but its usb0 link is down; '
+              'not a cable or driver problem',
+            );
+            if (mounted) {
+              setState(() {});
+              _setStatus(AppLocalizations.of(context)!.mdbUsbLinkDown);
+            }
+          }
         }
         if (attempt < attempts) {
           await Future.delayed(const Duration(seconds: 3));
@@ -1541,6 +1566,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
     if (_sshService.isConnected) return _mdbInfo;
     await _ensureDriverBinding();
     final iface = await NetworkService().findLibrescootInterface();
+    if (iface != null && !iface.isUp) {
+      _mdbUsbLinkDownStreak += 1;
+    } else {
+      // No adapter at all is "not there yet": the board is still booting, and
+      // reporting the service port as switched off would be wrong.
+      _mdbUsbLinkDownStreak = 0;
+      _mdbUsbLinkDownReported = false;
+    }
     if (iface != null) await NetworkService().configureInterface(iface);
     return await _sshService.connectToMdbForStatus();
   }
@@ -12248,6 +12281,14 @@ class _InstallerScreenState extends State<InstallerScreen> with WindowListener {
             title: l10n.finishPendingDoNowTitle,
             body: instruction,
           ),
+          if (_mdbUsbLinkDownReported) ...[
+            const SizedBox(height: 12),
+            NoticeCard(
+              severity: NoticeSeverity.warning,
+              title: l10n.mdbUsbLinkDown,
+              body: l10n.mdbUsbLinkDownHint,
+            ),
+          ],
           const SizedBox(height: 12),
           NoticeCard(
             severity: NoticeSeverity.info,

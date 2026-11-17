@@ -856,6 +856,8 @@
   "dbcImageMissing": "Das für diesen Plan benötigte DBC-Systemabbild fehlt.",
   "artifactRebootTimeout": "Der Roller war nach dem Neustart nicht erreichbar.",
   "artifactRebootTimeoutHint": "Prüfe, ob das USB-Kabel an beiden Enden fest sitzt und der Roller Strom hat. Ohne eingesetzten Fahrakku kann er während der Wartezeit in den Ruhezustand wechseln.",
+  "mdbUsbLinkDown": "Der Roller läuft, aber seine USB-Verbindung bleibt aus.",
+  "mdbUsbLinkDownHint": "Ein Hauptcomputer ohne Dashboard lässt seine Service-Schnittstelle von selbst aus, deshalb erreicht ihn über USB nichts. Stecke das Dashboard an, damit die Schnittstelle zurückkommt, oder starte den Roller mit dem Bremshebel neu.",
   "artifactRetryDetail": "Erneuter Versuch an derselben Stelle. Einstellungen und Schlüsselkarten bleiben erhalten.",
   "artifactFullImageDetail": "Überschreibt den Speicher des gesamten Boards und löscht Einstellungen und Schlüsselkarten.",
   "artifactPreflightNoMender": "Dieses Board hat keinen Update-Client und kann daher keine Firmware-Aktualisierung aufnehmen.",

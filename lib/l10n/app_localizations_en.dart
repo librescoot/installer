@@ -2360,6 +2360,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Check that the USB cable is firmly connected at both ends and that the scooter has power. A scooter with no main battery fitted can also go to sleep on its own while it waits.';
 
   @override
+  String get mdbUsbLinkDown =>
+      'The scooter is running, but its USB link stays down.';
+
+  @override
+  String get mdbUsbLinkDownHint =>
+      'A main computer without a dashboard keeps its service port switched off by itself, so nothing reaches it over USB. Connect the dashboard to bring the port back, or restart the scooter with the brake lever.';
+
+  @override
   String get artifactRetryDetail =>
       'Retries from the previous step without reformatting the board.';
 

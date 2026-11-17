@@ -2396,6 +2396,14 @@ class AppLocalizationsDe extends AppLocalizations {
       'Prüfe, ob das USB-Kabel an beiden Enden fest sitzt und der Roller Strom hat. Ohne eingesetzten Fahrakku kann er während der Wartezeit in den Ruhezustand wechseln.';
 
   @override
+  String get mdbUsbLinkDown =>
+      'Der Roller läuft, aber seine USB-Verbindung bleibt aus.';
+
+  @override
+  String get mdbUsbLinkDownHint =>
+      'Ein Hauptcomputer ohne Dashboard lässt seine Service-Schnittstelle von selbst aus, deshalb erreicht ihn über USB nichts. Stecke das Dashboard an, damit die Schnittstelle zurückkommt, oder starte den Roller mit dem Bremshebel neu.';
+
+  @override
   String get artifactRetryDetail =>
       'Erneuter Versuch an derselben Stelle. Einstellungen und Schlüsselkarten bleiben erhalten.';
 

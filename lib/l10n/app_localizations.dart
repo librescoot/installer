@@ -4070,6 +4070,18 @@ abstract class AppLocalizations {
   /// **'Check that the USB cable is firmly connected at both ends and that the scooter has power. A scooter with no main battery fitted can also go to sleep on its own while it waits.'**
   String get artifactRebootTimeoutHint;
 
+  /// No description provided for @mdbUsbLinkDown.
+  ///
+  /// In en, this message translates to:
+  /// **'The scooter is running, but its USB link stays down.'**
+  String get mdbUsbLinkDown;
+
+  /// No description provided for @mdbUsbLinkDownHint.
+  ///
+  /// In en, this message translates to:
+  /// **'A main computer without a dashboard keeps its service port switched off by itself, so nothing reaches it over USB. Connect the dashboard to bring the port back, or restart the scooter with the brake lever.'**
+  String get mdbUsbLinkDownHint;
+
   /// No description provided for @artifactRetryDetail.
   ///
   /// In en, this message translates to:

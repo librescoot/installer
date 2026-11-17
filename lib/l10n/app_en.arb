@@ -994,6 +994,8 @@
   "dbcImageMissing": "The DBC system image this plan needs is missing.",
   "artifactRebootTimeout": "Could not reach the scooter after the reboot.",
   "artifactRebootTimeoutHint": "Check that the USB cable is firmly connected at both ends and that the scooter has power. A scooter with no main battery fitted can also go to sleep on its own while it waits.",
+  "mdbUsbLinkDown": "The scooter is running, but its USB link stays down.",
+  "mdbUsbLinkDownHint": "A main computer without a dashboard keeps its service port switched off by itself, so nothing reaches it over USB. Connect the dashboard to bring the port back, or restart the scooter with the brake lever.",
   "artifactRetryDetail": "Retries from the previous step without reformatting the board.",
   "artifactFullImageDetail": "Rewrites the entire board and erases settings and registered keycards.",
   "artifactPreflightNoMender": "This board has no update client, so it cannot install a firmware update package.",
